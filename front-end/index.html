@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/product-logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DB-Genie</title>
+    <style>
+      /* Global scrollbar hiding - prevents flash on load */
+      * {
+        scrollbar-width: none !important;
+        -ms-overflow-style: none !important;
+      }
+      *::-webkit-scrollbar {
+        display: none !important;
+        width: 0 !important;
+        height: 0 !important;
+      }
+      html, body, #root {
+        overflow: hidden;
+        margin: 0;
+        padding: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
