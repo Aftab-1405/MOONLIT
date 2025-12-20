@@ -1,6 +1,6 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Box, Typography, IconButton, Tooltip, Paper } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip, Paper, CircularProgress } from '@mui/material';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { useState } from 'react';
@@ -11,6 +11,7 @@ import MermaidDiagram from './MermaidDiagram';
 // Custom code block component with copy and run buttons
 function CodeBlock({ children, className, onRunQuery }) {
   const [copied, setCopied] = useState(false);
+  const [isRunning, setIsRunning] = useState(false);
   const language = className?.replace('language-', '') || '';
   const code = String(children).replace(/\n$/, '');
   const isSQL = ['sql', 'mysql', 'postgresql', 'sqlite'].includes(language.toLowerCase());
@@ -27,9 +28,14 @@ function CodeBlock({ children, className, onRunQuery }) {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleRun = () => {
-    if (onRunQuery && isSQL) {
-      onRunQuery(code);
+  const handleRun = async () => {
+    if (onRunQuery && isSQL && !isRunning) {
+      setIsRunning(true);
+      try {
+        await onRunQuery(code);
+      } finally {
+        setIsRunning(false);
+      }
     }
   };
 
@@ -70,14 +76,26 @@ function CodeBlock({ children, className, onRunQuery }) {
         </Typography>
         <Box sx={{ display: 'flex', gap: 0.5 }}>
           {isSQL && (
-            <Tooltip title="Run query">
-              <IconButton
-                size="small"
-                onClick={handleRun}
-                sx={{ color: 'success.main', '&:hover': { backgroundColor: 'rgba(16, 185, 129, 0.1)' } }}
-              >
-                <PlayArrowRoundedIcon fontSize="small" />
-              </IconButton>
+            <Tooltip title={isRunning ? "Running query..." : "Run query"}>
+              <span>
+                <IconButton
+                  size="small"
+                  onClick={handleRun}
+                  disabled={isRunning}
+                  sx={{ 
+                    color: isRunning ? 'text.secondary' : 'success.main', 
+                    '&:hover': { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+                    minWidth: 28,
+                    minHeight: 28,
+                  }}
+                >
+                  {isRunning ? (
+                    <CircularProgress size={14} color="inherit" />
+                  ) : (
+                    <PlayArrowRoundedIcon fontSize="small" />
+                  )}
+                </IconButton>
+              </span>
             </Tooltip>
           )}
           <Tooltip title={copied ? 'Copied!' : 'Copy'}>
