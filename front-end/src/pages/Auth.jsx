@@ -1,29 +1,187 @@
-import { Box, Typography, Button, Container, Paper, Stack, CircularProgress, Alert } from '@mui/material';
+import { useState, useEffect } from 'react';
+import {
+  Box,
+  Typography,
+  Button,
+  Container,
+  Paper,
+  Stack,
+  TextField,
+  CircularProgress,
+  Alert,
+  Divider,
+  IconButton,
+  InputAdornment,
+  Tabs,
+  Tab,
+  Link,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from '@mui/material';
 import { useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
 import GoogleIcon from '@mui/icons-material/Google';
+import GitHubIcon from '@mui/icons-material/GitHub';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import EmailIcon from '@mui/icons-material/Email';
+import LockIcon from '@mui/icons-material/Lock';
+import PersonIcon from '@mui/icons-material/Person';
 import { useAuth } from '../contexts/AuthContext';
+
+// Tab Panel component
+function TabPanel({ children, value, index }) {
+  return (
+    <Box
+      role="tabpanel"
+      hidden={value !== index}
+      sx={{ width: '100%' }}
+    >
+      {value === index && children}
+    </Box>
+  );
+}
 
 function Auth() {
   const navigate = useNavigate();
-  const { signInWithGoogle, isAuthenticated, loading, error } = useAuth();
+  const {
+    signInWithGoogle,
+    signInWithGitHub,
+    signInWithEmail,
+    signUpWithEmail,
+    resetPassword,
+    isAuthenticated,
+    loading,
+    error,
+    clearError,
+  } = useAuth();
 
+  // Form state
+  const [tabValue, setTabValue] = useState(0); // 0 = Sign In, 1 = Sign Up
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  
+  // Forgot password dialog
+  const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+
+  // Redirect if authenticated
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/chat');
     }
   }, [isAuthenticated, navigate]);
 
+  // Clear errors when switching tabs
+  useEffect(() => {
+    setFormError('');
+    setSuccessMessage('');
+    clearError?.();
+  }, [tabValue, clearError]);
+
+  // Handle Email Sign In
+  const handleEmailSignIn = async (e) => {
+    e.preventDefault();
+    setFormError('');
+    
+    if (!email || !password) {
+      setFormError('Please fill in all fields');
+      return;
+    }
+
+    setFormLoading(true);
+    try {
+      await signInWithEmail(email, password);
+      navigate('/chat');
+    } catch (err) {
+      // Error is handled in AuthContext
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Handle Email Sign Up
+  const handleEmailSignUp = async (e) => {
+    e.preventDefault();
+    setFormError('');
+
+    if (!email || !password || !confirmPassword) {
+      setFormError('Please fill in all fields');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setFormError('Passwords do not match');
+      return;
+    }
+
+    if (password.length < 6) {
+      setFormError('Password must be at least 6 characters');
+      return;
+    }
+
+    setFormLoading(true);
+    try {
+      await signUpWithEmail(email, password, displayName);
+      setSuccessMessage('Account created successfully!');
+      navigate('/chat');
+    } catch (err) {
+      // Error is handled in AuthContext
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  // Handle Google Sign In
   const handleGoogleSignIn = async () => {
     try {
       await signInWithGoogle();
       navigate('/chat');
     } catch (err) {
-      console.error('Sign in failed:', err);
+      // Error is handled in AuthContext
     }
   };
 
+  // Handle GitHub Sign In
+  const handleGitHubSignIn = async () => {
+    try {
+      await signInWithGitHub();
+      navigate('/chat');
+    } catch (err) {
+      // Error is handled in AuthContext
+    }
+  };
+
+  // Handle Password Reset
+  const handlePasswordReset = async () => {
+    if (!resetEmail) {
+      setFormError('Please enter your email address');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      await resetPassword(resetEmail);
+      setForgotDialogOpen(false);
+      setResetEmail('');
+      setSuccessMessage('Password reset email sent! Check your inbox.');
+    } catch (err) {
+      // Error is handled in AuthContext
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
+  // Loading state
   if (loading) {
     return (
       <Box
@@ -44,18 +202,17 @@ function Auth() {
     <Box
       sx={{
         minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        width: '100%',
         backgroundColor: 'background.default',
         position: 'relative',
-        overflow: 'hidden',
+        overflowX: 'hidden',
+        overflowY: 'auto', // Enable vertical scrolling
       }}
     >
-      {/* Immersive Background Effects */}
+      {/* Background Effects - Fixed position so they don't scroll */}
       <Box
         sx={{
-          position: 'absolute',
+          position: 'fixed',
           top: '-30%',
           left: '-20%',
           width: '60%',
@@ -63,11 +220,12 @@ function Auth() {
           background: 'radial-gradient(circle, rgba(139, 92, 246, 0.2) 0%, transparent 70%)',
           filter: 'blur(80px)',
           pointerEvents: 'none',
+          zIndex: 0,
         }}
       />
       <Box
         sx={{
-          position: 'absolute',
+          position: 'fixed',
           bottom: '-30%',
           right: '-20%',
           width: '60%',
@@ -75,111 +233,456 @@ function Auth() {
           background: 'radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 70%)',
           filter: 'blur(80px)',
           pointerEvents: 'none',
+          zIndex: 0,
         }}
       />
 
-      <Container maxWidth="xs" sx={{ position: 'relative', zIndex: 1 }}>
-        {/* Glassmorphism Card */}
-        <Paper
-          elevation={0}
-          sx={{
-            p: { xs: 4, sm: 5 },
-            background: 'rgba(255, 255, 255, 0.03)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            borderRadius: 4,
+      {/* Content Container */}
+      <Box
+        sx={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          py: { xs: 3, sm: 4 },
+          px: { xs: 2, sm: 3 },
+          position: 'relative',
+          zIndex: 1,
+        }}
+      >
+        <Container 
+          maxWidth="xs" 
+          sx={{ 
+            width: '100%',
           }}
         >
-          <Stack spacing={4} alignItems="center">
-            {/* Brand Logo */}
-            <Box
-              component="img"
-              src="/brand-logo.png"
-              alt="DB-Genie"
-              sx={{
-                width: 80,
-                height: 'auto',
-                filter: 'drop-shadow(0 12px 24px rgba(139, 92, 246, 0.4))',
-              }}
-            />
+          {/* Main Card */}
+          <Paper
+            elevation={0}
+            sx={{
+              p: { xs: 2.5, sm: 3.5 },
+              background: 'rgba(255, 255, 255, 0.03)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: { xs: 2, sm: 3 },
+            }}
+          >
+            <Stack spacing={2} alignItems="center">
+              {/* Brand Logo */}
+              <Box
+                component="img"
+                src="/brand-logo.png"
+                alt="DB-Genie"
+                sx={{
+                  width: { xs: 50, sm: 60 },
+                  height: 'auto',
+                  filter: 'drop-shadow(0 8px 16px rgba(139, 92, 246, 0.4))',
+                }}
+              />
 
-            {/* Title */}
-            <Box textAlign="center">
-              <Typography variant="h4" fontWeight={700} sx={{ mb: 1 }}>
-                Welcome Back
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Sign in to start querying with AI
-              </Typography>
-            </Box>
+              {/* Title */}
+              <Box textAlign="center">
+                <Typography 
+                  variant="h5" 
+                  fontWeight={700} 
+                  sx={{ 
+                    mb: 0.25,
+                    fontSize: { xs: '1.25rem', sm: '1.5rem' },
+                  }}
+                >
+                  {tabValue === 0 ? 'Welcome Back' : 'Create Account'}
+                </Typography>
+                <Typography 
+                  variant="body2" 
+                  color="text.secondary"
+                  sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem' } }}
+                >
+                  {tabValue === 0 
+                    ? 'Sign in to start querying with AI' 
+                    : 'Join DB-Genie and unlock your data'}
+                </Typography>
+              </Box>
 
-            {/* Error Alert */}
-            {error && (
-              <Alert 
-                severity="error" 
-                sx={{ 
+              {/* Tabs */}
+              <Tabs
+                value={tabValue}
+                onChange={(e, v) => setTabValue(v)}
+                variant="fullWidth"
+                sx={{
                   width: '100%',
-                  backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                  border: '1px solid rgba(244, 63, 94, 0.3)',
+                  minHeight: 36,
+                  '& .MuiTab-root': {
+                    minHeight: 36,
+                    fontSize: { xs: '0.75rem', sm: '0.8rem' },
+                    fontWeight: 600,
+                    py: 0.5,
+                  },
+                  '& .Mui-selected': {
+                    color: 'primary.main',
+                  },
+                  '& .MuiTabs-indicator': {
+                    backgroundColor: 'primary.main',
+                  },
                 }}
               >
-                {error}
-              </Alert>
-            )}
+                <Tab label="Sign In" />
+                <Tab label="Sign Up" />
+              </Tabs>
 
-            {/* Google Sign-In Button */}
-            <Button
-              fullWidth
-              variant="outlined"
-              size="large"
-              startIcon={<GoogleIcon />}
-              onClick={handleGoogleSignIn}
-              sx={{
-                py: 1.75,
-                fontSize: '1rem',
-                fontWeight: 600,
-                borderColor: 'rgba(255, 255, 255, 0.15)',
-                backgroundColor: 'rgba(255, 255, 255, 0.02)',
-                '&:hover': {
-                  borderColor: 'primary.main',
-                  backgroundColor: 'rgba(139, 92, 246, 0.1)',
-                },
-              }}
-            >
-              Continue with Google
-            </Button>
+              {/* Error/Success Messages */}
+              {(error || formError) && (
+                <Alert 
+                  severity="error" 
+                  sx={{ 
+                    width: '100%',
+                    backgroundColor: 'rgba(244, 63, 94, 0.1)',
+                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                    py: 0.5,
+                    '& .MuiAlert-icon': { fontSize: 18 },
+                  }}
+                >
+                  {error || formError}
+                </Alert>
+              )}
+              {successMessage && (
+                <Alert 
+                  severity="success" 
+                  sx={{ 
+                    width: '100%',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    fontSize: { xs: '0.7rem', sm: '0.8rem' },
+                    py: 0.5,
+                    '& .MuiAlert-icon': { fontSize: 18 },
+                  }}
+                >
+                  {successMessage}
+                </Alert>
+              )}
 
-            {/* Divider */}
-            <Box sx={{ width: '100%', display: 'flex', alignItems: 'center', gap: 2 }}>
-              <Box sx={{ flex: 1, height: 1, bgcolor: 'rgba(255,255,255,0.1)' }} />
-              <Typography variant="caption" color="text.secondary">or</Typography>
-              <Box sx={{ flex: 1, height: 1, bgcolor: 'rgba(255,255,255,0.1)' }} />
-            </Box>
+              {/* Sign In Panel */}
+              <TabPanel value={tabValue} index={0}>
+                <Stack spacing={1.5} component="form" onSubmit={handleEmailSignIn}>
+                  <TextField
+                    fullWidth
+                    type="email"
+                    label="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    size="small"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <EmailIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                  <TextField
+                    fullWidth
+                    type={showPassword ? 'text' : 'password'}
+                    label="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    size="small"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={() => setShowPassword(!showPassword)}
+                            edge="end"
+                            size="small"
+                          >
+                            {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
 
-            {/* Back to Home */}
-            <Button
-              startIcon={<ArrowBackIcon />}
-              onClick={() => navigate('/')}
-              sx={{
-                color: 'text.secondary',
-                '&:hover': { color: 'primary.main', backgroundColor: 'transparent' },
-              }}
-            >
-              Back to home
-            </Button>
-          </Stack>
-        </Paper>
+                  {/* Forgot Password Link */}
+                  <Box sx={{ textAlign: 'right', mt: -0.5 }}>
+                    <Link
+                      component="button"
+                      type="button"
+                      variant="body2"
+                      onClick={() => {
+                        setResetEmail(email);
+                        setForgotDialogOpen(true);
+                      }}
+                      sx={{
+                        color: 'primary.light',
+                        textDecoration: 'none',
+                        fontSize: '0.7rem',
+                        '&:hover': { textDecoration: 'underline' },
+                      }}
+                    >
+                      Forgot password?
+                    </Link>
+                  </Box>
 
-        {/* Footer Text */}
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ display: 'block', textAlign: 'center', mt: 4 }}
-        >
-          By signing in, you agree to our Terms and Privacy Policy
-        </Typography>
-      </Container>
+                  {/* Sign In Button */}
+                  <Button
+                    fullWidth
+                    type="submit"
+                    variant="contained"
+                    disabled={formLoading}
+                    sx={{
+                      py: 1,
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)',
+                      },
+                    }}
+                  >
+                    {formLoading ? <CircularProgress size={20} color="inherit" /> : 'Sign In'}
+                  </Button>
+                </Stack>
+              </TabPanel>
+
+              {/* Sign Up Panel */}
+              <TabPanel value={tabValue} index={1}>
+                <Stack spacing={1.5} component="form" onSubmit={handleEmailSignUp}>
+                  <TextField
+                    fullWidth
+                    type="text"
+                    label="Display Name (optional)"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    size="small"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PersonIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                  <TextField
+                    fullWidth
+                    type="email"
+                    label="Email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    size="small"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <EmailIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                  <TextField
+                    fullWidth
+                    type={showPassword ? 'text' : 'password'}
+                    label="Password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    size="small"
+                    helperText="At least 6 characters"
+                    FormHelperTextProps={{ sx: { fontSize: '0.65rem', mt: 0.25 } }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
+                        </InputAdornment>
+                      ),
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          <IconButton
+                            onClick={() => setShowPassword(!showPassword)}
+                            edge="end"
+                            size="small"
+                          >
+                            {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
+                          </IconButton>
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                  <TextField
+                    fullWidth
+                    type={showPassword ? 'text' : 'password'}
+                    label="Confirm Password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    size="small"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LockIcon sx={{ color: 'text.secondary', fontSize: 18 }} />
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+
+                  {/* Sign Up Button */}
+                  <Button
+                    fullWidth
+                    type="submit"
+                    variant="contained"
+                    disabled={formLoading}
+                    sx={{
+                      py: 1,
+                      fontSize: '0.85rem',
+                      fontWeight: 600,
+                      background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                      '&:hover': {
+                        background: 'linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)',
+                      },
+                    }}
+                  >
+                    {formLoading ? <CircularProgress size={20} color="inherit" /> : 'Create Account'}
+                  </Button>
+                </Stack>
+              </TabPanel>
+
+              {/* Divider */}
+              <Divider sx={{ width: '100%' }}>
+                <Typography 
+                  variant="caption" 
+                  color="text.secondary"
+                  sx={{ fontSize: '0.65rem' }}
+                >
+                  or continue with
+                </Typography>
+              </Divider>
+
+              {/* OAuth Buttons */}
+              <Stack 
+                direction="row" 
+                spacing={1.5} 
+                sx={{ width: '100%' }}
+              >
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<GoogleIcon sx={{ fontSize: 18 }} />}
+                  onClick={handleGoogleSignIn}
+                  sx={{
+                    py: 0.875,
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    borderColor: 'rgba(255, 255, 255, 0.15)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    '&:hover': {
+                      borderColor: 'primary.main',
+                      backgroundColor: 'rgba(139, 92, 246, 0.1)',
+                    },
+                  }}
+                >
+                  Google
+                </Button>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<GitHubIcon sx={{ fontSize: 18 }} />}
+                  onClick={handleGitHubSignIn}
+                  sx={{
+                    py: 0.875,
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    borderColor: 'rgba(255, 255, 255, 0.15)',
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    '&:hover': {
+                      borderColor: '#f0f6fc',
+                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                    },
+                  }}
+                >
+                  GitHub
+                </Button>
+              </Stack>
+
+              {/* Back to Home */}
+              <Button
+                startIcon={<ArrowBackIcon sx={{ fontSize: 16 }} />}
+                onClick={() => navigate('/')}
+                sx={{
+                  color: 'text.secondary',
+                  fontSize: '0.75rem',
+                  py: 0.5,
+                  '&:hover': { color: 'primary.main', backgroundColor: 'transparent' },
+                }}
+              >
+                Back to home
+              </Button>
+            </Stack>
+          </Paper>
+
+          {/* Footer Text */}
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            sx={{ 
+              display: 'block', 
+              textAlign: 'center', 
+              mt: 2,
+              fontSize: '0.65rem',
+            }}
+          >
+            By signing in, you agree to our Terms and Privacy Policy
+          </Typography>
+        </Container>
+      </Box>
+
+      {/* Forgot Password Dialog */}
+      <Dialog
+        open={forgotDialogOpen}
+        onClose={() => setForgotDialogOpen(false)}
+        maxWidth="xs"
+        fullWidth
+        PaperProps={{
+          sx: {
+            backgroundColor: 'background.paper',
+            backgroundImage: 'none',
+            m: 2,
+          },
+        }}
+      >
+        <DialogTitle sx={{ fontSize: '1rem', pb: 1 }}>
+          Reset Password
+        </DialogTitle>
+        <DialogContent>
+          <Typography 
+            variant="body2" 
+            color="text.secondary" 
+            sx={{ mb: 2, fontSize: '0.8rem' }}
+          >
+            Enter your email address and we'll send you a link to reset your password.
+          </Typography>
+          <TextField
+            fullWidth
+            type="email"
+            label="Email"
+            value={resetEmail}
+            onChange={(e) => setResetEmail(e.target.value)}
+            size="small"
+            autoFocus
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button size="small" onClick={() => setForgotDialogOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handlePasswordReset}
+            disabled={resetLoading}
+          >
+            {resetLoading ? <CircularProgress size={16} color="inherit" /> : 'Send Reset Link'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

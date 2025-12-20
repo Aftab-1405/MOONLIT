@@ -1,13 +1,14 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth';
 
 // Firebase configuration - fetched from backend for security
 let firebaseApp = null;
 let auth = null;
 let googleProvider = null;
+let githubProvider = null;
 
 export const initializeFirebase = async () => {
-  if (firebaseApp) return { auth, googleProvider };
+  if (firebaseApp) return { auth, googleProvider, githubProvider };
 
   try {
     // Fetch Firebase config from backend
@@ -23,15 +24,20 @@ export const initializeFirebase = async () => {
     // Initialize Firebase
     firebaseApp = initializeApp(firebaseConfig);
     auth = getAuth(firebaseApp);
-    googleProvider = new GoogleAuthProvider();
     
     // Configure Google provider
+    googleProvider = new GoogleAuthProvider();
     googleProvider.setCustomParameters({
       prompt: 'select_account'
     });
 
+    // Configure GitHub provider
+    githubProvider = new GithubAuthProvider();
+    githubProvider.addScope('read:user');
+    githubProvider.addScope('user:email');
+
     console.log('Firebase initialized successfully');
-    return { auth, googleProvider };
+    return { auth, googleProvider, githubProvider };
   } catch (error) {
     console.error('Failed to initialize Firebase:', error);
     throw error;
@@ -40,3 +46,4 @@ export const initializeFirebase = async () => {
 
 export const getFirebaseAuth = () => auth;
 export const getGoogleProvider = () => googleProvider;
+export const getGithubProvider = () => githubProvider;
