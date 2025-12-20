@@ -1,0 +1,220 @@
+# ==========================================
+# DB-Genie Root .gitignore
+# Covers: React/Vite (front-end) + Flask/Python (back-end)
+# ==========================================
+
+# ==========================================
+# ENVIRONMENT & SECRETS
+# ==========================================
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials/
+
+# ==========================================
+# PYTHON (Back-end)
+# ==========================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Flask stuff
+instance/
+.webassets-cache
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+cython_debug/
+
+# Ruff / Linters
+.ruff_cache/
+
+# SQLite databases
+*.sqlite3
+*.sqlite3-journal
+*.db
+
+# ==========================================
+# JAVASCRIPT/NODE.JS (Front-end)
+# ==========================================
+
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-ssr/
+*.local
+.next/
+out/
+.cache/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Coverage
+coverage/
+*.lcov
+.nyc_output/
+
+# ==========================================
+# IDE & EDITOR
+# ==========================================
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+!.vscode/launch.json
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.swp
+*.swo
+*.sw?
+*~
+
+# Visual Studio
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.user
+
+# JetBrains
+.idea/
+*.iml
+
+# ==========================================
+# OS GENERATED FILES
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ==========================================
+# FIREBASE
+# ==========================================
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*.firebaserc
+
+# ==========================================
+# AI/AGENT TOOLS
+# ==========================================
+.cursorignore
+.cursorindexingignore
+.agent/
+
+# ==========================================
+# MISCELLANEOUS
+# ==========================================
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+.output/
+tmp/
+temp/
+
+# Large files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+*.7z
