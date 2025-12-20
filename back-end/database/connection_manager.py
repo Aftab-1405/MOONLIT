@@ -167,6 +167,7 @@ class ConnectionManager:
     def get_cursor(self, config: dict, dictionary=False, buffered=True):
         """
         Context manager for getting a cursor with automatic cleanup.
+        IMPORTANT: Also returns connection to pool after cursor is closed.
 
         Args:
             config: Database configuration dict
@@ -188,9 +189,17 @@ class ConnectionManager:
         adapter = self._adapters[pool_key]
         conn = self.get_connection(config)
 
-        # Use adapter's cursor context manager
-        with adapter.get_cursor(conn, dictionary=dictionary, buffered=buffered) as cursor:
-            yield cursor
+        try:
+            # Use adapter's cursor context manager
+            with adapter.get_cursor(conn, dictionary=dictionary, buffered=buffered) as cursor:
+                yield cursor
+        finally:
+            # CRITICAL: Return connection to pool after cursor is closed
+            try:
+                adapter.return_connection_to_pool(self._pools[pool_key], conn)
+                logger.debug(f"Connection returned to pool {pool_key[:8]}")
+            except Exception as e:
+                logger.warning(f"Failed to return connection to pool: {e}")
 
     def close_pool(self, config: dict) -> bool:
         """

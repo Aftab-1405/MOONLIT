@@ -76,6 +76,18 @@ class BaseDatabaseAdapter(ABC):
         pass
 
     @abstractmethod
+    def return_connection_to_pool(self, pool: Any, connection: Any) -> None:
+        """
+        Return a connection back to the pool.
+        CRITICAL: Must be called after each use to prevent pool exhaustion.
+
+        Args:
+            pool: Connection pool the connection belongs to
+            connection: Database connection to return
+        """
+        pass
+
+    @abstractmethod
     @contextmanager
     def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
         """

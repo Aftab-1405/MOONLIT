@@ -30,12 +30,16 @@ const DB_TYPES = [
 ];
 
 function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase }) {
-  const [dbType, setDbType] = useState('mysql');
+  // Read default DB type from settings
+  const storedSettings = JSON.parse(localStorage.getItem('db-genie-settings') || '{}');
+  const defaultDbType = storedSettings.defaultDbType || 'postgresql';
+  
+  const [dbType, setDbType] = useState(defaultDbType);
   const [connectionMode, setConnectionMode] = useState('credentials'); // 'credentials' or 'connection_string'
   const [connectionString, setConnectionString] = useState('');
   const [formData, setFormData] = useState({
     host: 'localhost',
-    port: '3306',
+    port: DB_TYPES.find(d => d.value === defaultDbType)?.defaultPort?.toString() || '5432',
     user: '',
     password: '',
     database: '', // For SQLite, this is the file path
@@ -134,7 +138,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         setSuccess(data.message);
         setDatabases(data.schemas || []);
         setIsRemote(data.is_remote || false);  // Track if this is a remote connection
-        onConnect?.(data);
+        onConnect?.({ ...data, db_type: dbType }); // Include dbType from state
         
         // For remote DBs, fetch tables to show what's available
         if (data.is_remote && data.selectedDatabase) {

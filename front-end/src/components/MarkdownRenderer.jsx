@@ -1,17 +1,20 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Box, Typography, IconButton, Tooltip, Paper, CircularProgress } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip, Paper, CircularProgress, useTheme as useMuiTheme } from '@mui/material';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { useState } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import MermaidDiagram from './MermaidDiagram';
 
 // Custom code block component with copy and run buttons
 function CodeBlock({ children, className, onRunQuery }) {
   const [copied, setCopied] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
+  const muiTheme = useMuiTheme();
+  const isDarkMode = muiTheme.palette.mode === 'dark';
+  
   const language = className?.replace('language-', '') || '';
   const code = String(children).replace(/\n$/, '');
   const isSQL = ['sql', 'mysql', 'postgresql', 'sqlite'].includes(language.toLowerCase());
@@ -46,8 +49,9 @@ function CodeBlock({ children, className, onRunQuery }) {
         my: 2,
         borderRadius: 2,
         overflow: 'hidden',
-        backgroundColor: '#1E1E1E', // Match VS Code dark text background
-        border: '1px solid rgba(255,255,255,0.1)',
+        backgroundColor: isDarkMode ? '#1E1E1E' : '#f5f5f5',
+        border: '1px solid',
+        borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
       }}
     >
       {/* Header */}
@@ -58,8 +62,9 @@ function CodeBlock({ children, className, onRunQuery }) {
           justifyContent: 'space-between',
           px: 2,
           py: 0.75,
-          backgroundColor: 'rgba(255,255,255,0.03)',
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+          borderBottom: '1px solid',
+          borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
         }}
       >
         <Typography
@@ -102,7 +107,10 @@ function CodeBlock({ children, className, onRunQuery }) {
             <IconButton
               size="small"
               onClick={handleCopy}
-              sx={{ color: 'text.secondary', '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' } }}
+              sx={{ 
+                color: 'text.secondary', 
+                '&:hover': { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' } 
+              }}
             >
               <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
             </IconButton>
@@ -114,7 +122,7 @@ function CodeBlock({ children, className, onRunQuery }) {
       <Box sx={{ m: 0, overflow: 'auto' }}>
         <SyntaxHighlighter
           language={language || 'text'}
-          style={vscDarkPlus}
+          style={isDarkMode ? vscDarkPlus : vs}
           customStyle={{
             margin: 0,
             padding: '16px',

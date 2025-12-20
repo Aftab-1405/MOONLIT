@@ -265,8 +265,13 @@ def _process_table_info(table: str, db_name: str) -> str:
         logger.error(f"Error processing table {table}: {e}")
         return f"Table {table}: Error retrieving information\n"
 
-def execute_sql_query(sql_query: str) -> Dict:
+def execute_sql_query(sql_query: str, max_rows: int = None, timeout_seconds: int = None) -> Dict:
     """Execute SQL query securely - READ-ONLY VERSION WITH TIMING
+    
+    Args:
+        sql_query: SQL query to execute
+        max_rows: Maximum rows to return (from user settings, falls back to Config.MAX_QUERY_RESULTS)
+        timeout_seconds: Query timeout in seconds (from user settings, falls back to Config.QUERY_TIMEOUT_SECONDS)
     
     Supports both MySQL and PostgreSQL databases.
     """
@@ -307,15 +312,18 @@ def execute_sql_query(sql_query: str) -> Dict:
         db_type = config.get('db_type', 'mysql') if config else 'mysql'
 
         with get_cursor() as cursor:
+            # Use user-provided timeout or fall back to config
+            actual_timeout = timeout_seconds if timeout_seconds is not None else Config.QUERY_TIMEOUT_SECONDS
+            
             # Set query timeout based on database type
             if db_type == 'mysql':
                 try:
-                    cursor.execute(f"SET SESSION MAX_EXECUTION_TIME={Config.QUERY_TIMEOUT_SECONDS * 1000}")
+                    cursor.execute(f"SET SESSION MAX_EXECUTION_TIME={actual_timeout * 1000}")
                 except Exception:
                     pass  # Some MySQL versions don't support this
             elif db_type == 'postgresql':
                 try:
-                    cursor.execute(f"SET statement_timeout = '{Config.QUERY_TIMEOUT_SECONDS * 1000}ms'")
+                    cursor.execute(f"SET statement_timeout = '{actual_timeout * 1000}ms'")
                 except Exception:
                     pass  # May not have permission to set timeout
             
@@ -335,12 +343,13 @@ def execute_sql_query(sql_query: str) -> Dict:
                 # MySQL connector uses column_names
                 column_names = list(cursor.column_names) if hasattr(cursor, 'column_names') else []
 
-            # Check result size limit
+            # Check result size limit - use user-provided max_rows or fall back to config
+            actual_max_rows = max_rows if max_rows is not None else Config.MAX_QUERY_RESULTS
             row_count = len(rows)
             truncated = False
-            if row_count > Config.MAX_QUERY_RESULTS:
-                logger.warning(f"Query returned {row_count} rows, truncating to {Config.MAX_QUERY_RESULTS}")
-                rows = rows[:Config.MAX_QUERY_RESULTS]
+            if row_count > actual_max_rows:
+                logger.warning(f"Query returned {row_count} rows, truncating to {actual_max_rows}")
+                rows = rows[:actual_max_rows]
                 truncated = True
 
             result = {

@@ -1,4 +1,5 @@
-import { Box, Typography, Button, IconButton, Tooltip, Divider } from '@mui/material';
+import { useState } from 'react';
+import { Box, Typography, Button, IconButton, Tooltip, Divider, Popover, List, ListItemButton, ListItemText, ListItemIcon } from '@mui/material';
 
 // Modern, relevant icons
 import EditNoteIcon from '@mui/icons-material/EditNote';
@@ -6,6 +7,10 @@ import QuestionAnswerOutlinedIcon from '@mui/icons-material/QuestionAnswerOutlin
 import DeleteForeverOutlinedIcon from '@mui/icons-material/DeleteForeverOutlined';
 import CircleIcon from '@mui/icons-material/Circle';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
+import SwapHorizRoundedIcon from '@mui/icons-material/SwapHorizRounded';
+import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRounded';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import SchemaSelector from './SchemaSelector';
 
 function Sidebar({ 
@@ -16,9 +21,30 @@ function Sidebar({
   onDeleteConversation,
   isConnected,
   currentDatabase,
+  dbType,
+  availableDatabases = [],
   onOpenDbModal,
+  onDatabaseSwitch,
   onSchemaChange
 }) {
+  const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
+  const isPopoverOpen = Boolean(dbPopoverAnchor);
+
+  const handleDbCardClick = (event) => {
+    if (isConnected && availableDatabases.length > 0) {
+      setDbPopoverAnchor(event.currentTarget);
+    } else {
+      onOpenDbModal?.();
+    }
+  };
+
+  const handleDatabaseSelect = (dbName) => {
+    setDbPopoverAnchor(null);
+    if (dbName !== currentDatabase) {
+      onDatabaseSwitch?.(dbName);
+    }
+  };
+
   return (
     <Box 
       sx={{ 
@@ -42,14 +68,14 @@ function Sidebar({
             py: 1.25,
             px: 2,
             borderRadius: 2,
-            borderColor: 'rgba(255,255,255,0.1)',
+            borderColor: 'divider',
             color: 'text.primary',
             textTransform: 'none',
             backgroundColor: 'transparent',
             fontSize: '0.875rem',
             '&:hover': {
-              backgroundColor: 'rgba(6, 182, 212, 0.08)',
-              borderColor: 'rgba(6, 182, 212, 0.3)',
+              backgroundColor: 'action.hover',
+              borderColor: 'primary.main',
             }
           }}
         >
@@ -60,7 +86,7 @@ function Sidebar({
       {/* ===== DATABASE STATUS SECTION ===== */}
       <Box sx={{ px: 2, py: 2 }}>
         <Box
-          onClick={onOpenDbModal}
+          onClick={handleDbCardClick}
           sx={{
             p: 1.5,
             borderRadius: 2,
@@ -106,19 +132,91 @@ function Sidebar({
                 variant="caption" 
                 color="text.secondary" 
                 noWrap
-                sx={{ display: 'block', fontSize: '0.7rem' }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.7rem' }}
               >
-                {isConnected ? (currentDatabase || 'Database ready') : 'Click to connect'}
+                {isConnected ? (
+                  <>
+                    <StorageRoundedIcon sx={{ fontSize: 10 }} />
+                    {currentDatabase || 'Database ready'}
+                  </>
+                ) : (
+                  'Click to connect'
+                )}
               </Typography>
             </Box>
+            {/* Switch indicator when connected */}
+            {isConnected && availableDatabases.length > 1 && (
+              <Tooltip title="Switch database">
+                <SwapHorizRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+              </Tooltip>
+            )}
           </Box>
         </Box>
+
+        {/* Database Switcher Popover */}
+        <Popover
+          open={isPopoverOpen}
+          anchorEl={dbPopoverAnchor}
+          onClose={() => setDbPopoverAnchor(null)}
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+          transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+          PaperProps={{
+            sx: {
+              mt: 1,
+              minWidth: 200,
+              maxHeight: 300,
+              overflow: 'auto',
+            }
+          }}
+        >
+          <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <Typography variant="caption" fontWeight={600} color="text.secondary">
+              Switch Database
+            </Typography>
+          </Box>
+          <List dense sx={{ p: 0.5 }}>
+            {availableDatabases.map((db) => (
+              <ListItemButton
+                key={db}
+                selected={db === currentDatabase}
+                onClick={() => handleDatabaseSelect(db)}
+                sx={{ borderRadius: 1, py: 0.75 }}
+              >
+                <ListItemIcon sx={{ minWidth: 28 }}>
+                  {db === currentDatabase ? (
+                    <CheckCircleRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
+                  ) : (
+                    <StorageRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                  )}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={db} 
+                  primaryTypographyProps={{ fontSize: '0.8rem' }}
+                />
+              </ListItemButton>
+            ))}
+            <Divider sx={{ my: 0.5 }} />
+            <ListItemButton
+              onClick={() => { setDbPopoverAnchor(null); onOpenDbModal?.(); }}
+              sx={{ borderRadius: 1, py: 0.75 }}
+            >
+              <ListItemIcon sx={{ minWidth: 28 }}>
+                <AddCircleOutlineRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="New Connection" 
+                primaryTypographyProps={{ fontSize: '0.8rem', color: 'primary.main' }}
+              />
+            </ListItemButton>
+          </List>
+        </Popover>
       </Box>
 
       {/* ===== SCHEMA SELECTOR (PostgreSQL only) ===== */}
       <SchemaSelector 
         isConnected={isConnected} 
-        currentDatabase={currentDatabase} 
+        currentDatabase={currentDatabase}
+        dbType={dbType}
         onSchemaChange={onSchemaChange}
       />
 

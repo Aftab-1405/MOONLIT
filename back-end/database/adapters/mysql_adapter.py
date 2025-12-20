@@ -89,6 +89,18 @@ class MySQLAdapter(BaseDatabaseAdapter):
             logger.error(f"Failed to close MySQL pool: {err}")
             return False
 
+    def return_connection_to_pool(self, pool: Any, connection: Any) -> None:
+        """Return MySQL connection back to pool.
+        
+        For MySQL connector, pooled connections are returned automatically
+        when close() is called on a pooled connection.
+        """
+        try:
+            if connection and connection.is_connected():
+                connection.close()  # Returns to pool for pooled connections
+        except Exception as err:
+            logger.warning(f"Failed to return MySQL connection to pool: {err}")
+
     @contextmanager
     def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
         """Get MySQL cursor from connection."""

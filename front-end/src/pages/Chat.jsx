@@ -27,6 +27,8 @@ import ChatInput from '../components/ChatInput';
 import MessageList from '../components/MessageList';
 import DatabaseModal from '../components/DatabaseModal';
 import SQLResultsTable from '../components/SQLResultsTable';
+import SettingsModal from '../components/SettingsModal';
+import ConfirmDialog from '../components/ConfirmDialog';
 
 const DRAWER_WIDTH = 260;
 
@@ -40,8 +42,13 @@ function Chat() {
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [isDbConnected, setIsDbConnected] = useState(false);
   const [currentDatabase, setCurrentDatabase] = useState(null);
+  const [isRemote, setIsRemote] = useState(false);
+  const [dbType, setDbType] = useState(null);
+  const [availableDatabases, setAvailableDatabases] = useState([]);
   const [dbModalOpen, setDbModalOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [queryResults, setQueryResults] = useState(null);
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, sql: '', onConfirm: null });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   
   const messagesContainerRef = useRef(null);
@@ -72,6 +79,9 @@ function Chat() {
       const data = await response.json();
       setIsDbConnected(data.connected || false);
       setCurrentDatabase(data.current_database || null);
+      setIsRemote(data.is_remote || false);
+      setDbType(data.db_type || null);
+      setAvailableDatabases(data.databases || []);
     } catch (error) {
       console.error('Failed to check DB status:', error);
     }
@@ -146,26 +156,82 @@ function Chat() {
     if (data) {
       setIsDbConnected(true);
       if (data.selectedDatabase) setCurrentDatabase(data.selectedDatabase);
+      
+      // Update advanced state for sidebar features
+      if (data.is_remote !== undefined) setIsRemote(data.is_remote);
+      
+      // If db_type isn't in response, try to infer or keep existing (DatabaseModal usually sends it on connect)
+      if (data.db_type) setDbType(data.db_type);
+      
+      // Update available databases list
+      if (data.schemas) setAvailableDatabases(data.schemas);
+      
       setSnackbar({ open: true, message: 'Connected to database!', severity: 'success' });
     } else {
       setIsDbConnected(false);
       setCurrentDatabase(null);
+      setIsRemote(false);
+      setDbType(null);
+      setAvailableDatabases([]);
       setSnackbar({ open: true, message: 'Disconnected from database', severity: 'info' });
     }
   };
 
-  const handleRunQuery = async (sql) => {
+  // Ref to resolve the pending query promise (for spinner to work with confirmation)
+  const queryResolverRef = useRef(null);
+
+  const handleRunQuery = (sql) => {
     if (!isDbConnected) {
       setSnackbar({ open: true, message: 'Please connect to a database first', severity: 'warning' });
       setDbModalOpen(true);
-      return;
+      return Promise.resolve();
     }
+
+    // Get settings
+    const storedSettings = JSON.parse(localStorage.getItem('db-genie-settings') || '{}');
+    const confirmBeforeRun = storedSettings.confirmBeforeRun ?? false;
+    const maxRows = storedSettings.maxRows ?? 1000;
+    const queryTimeout = storedSettings.queryTimeout ?? 30;
+
+    // If confirmation needed, return a promise that resolves when dialog completes
+    if (confirmBeforeRun) {
+      return new Promise((resolve) => {
+        queryResolverRef.current = resolve;
+        setConfirmDialog({
+          open: true,
+          sql: sql,
+          onConfirm: async () => {
+            // Execute query - dialog's internal spinner shows during execution
+            await executeQuery(sql, maxRows, queryTimeout);
+            // Close dialog after query completes
+            setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
+            // Resolve promise to stop CodeBlock spinner  
+            queryResolverRef.current?.();
+          },
+          onCancel: () => {
+            setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
+            queryResolverRef.current?.();
+          },
+        });
+      });
+    }
+
+    // Execute directly if confirmation not required
+    return executeQuery(sql, maxRows, queryTimeout);
+  };
+
+  // Actual query execution (separated for confirmation flow)
+  const executeQuery = async (sql, maxRows, queryTimeout) => {
 
     try {
       const response = await fetch('/run_sql_query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sql_query: sql }),
+        body: JSON.stringify({ 
+          sql_query: sql,
+          max_rows: maxRows,
+          timeout: queryTimeout,
+        }),
       });
       const data = await response.json();
       if (data.status === 'success') {
@@ -261,7 +327,42 @@ function Chat() {
         onDeleteConversation={handleDeleteConversation}
         isConnected={isDbConnected}
         currentDatabase={currentDatabase}
+        dbType={dbType}
+        availableDatabases={availableDatabases}
         onOpenDbModal={() => setDbModalOpen(true)}
+        onDatabaseSwitch={async (dbName) => {
+          try {
+            // Determine correct endpoint and payload based on connection type
+            const endpoint = isRemote ? '/switch_remote_database' : '/connect_db';
+            const payload = isRemote ? { database: dbName } : { db_name: dbName };
+
+            const response = await fetch(endpoint, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            
+            // Handle different response formats (some return text, some json)
+            const text = await response.text();
+            let data;
+            try {
+              data = JSON.parse(text);
+            } catch (e) {
+              throw new Error('Invalid server response');
+            }
+
+            if (data.status === 'connected' || data.status === 'success') {
+              setCurrentDatabase(dbName);
+              // If remote switch returned new tables, we could show them, but for now just success
+              setSnackbar({ open: true, message: `Switched to ${dbName}`, severity: 'success' });
+            } else {
+              setSnackbar({ open: true, message: data.message || 'Failed to switch', severity: 'error' });
+            }
+          } catch (err) {
+            console.error('Database switch error:', err);
+            setSnackbar({ open: true, message: 'Failed to switch database', severity: 'error' });
+          }
+        }}
         onSchemaChange={(data) => {
           if (data) {
             setSnackbar({ 
@@ -363,7 +464,7 @@ function Chat() {
           <Typography variant="caption" color="text.secondary">{user?.email}</Typography>
         </Box>
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)' }} />
-        <MenuItem disabled><ListItemIcon><SettingsOutlinedIcon fontSize="small" /></ListItemIcon>Settings</MenuItem>
+        <MenuItem onClick={() => { handleMenuClose(); setSettingsOpen(true); }}><ListItemIcon><SettingsOutlinedIcon fontSize="small" /></ListItemIcon>Settings</MenuItem>
         <MenuItem onClick={handleLogout}><ListItemIcon><LogoutRoundedIcon fontSize="small" /></ListItemIcon>Sign out</MenuItem>
       </Menu>
 
@@ -500,6 +601,24 @@ function Chat() {
       >
         {queryResults && <SQLResultsTable data={queryResults} onClose={() => setQueryResults(null)} />}
       </Dialog>
+      
+      {/* Settings Modal */}
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      
+      {/* Query Confirmation Dialog */}
+      <ConfirmDialog
+        open={confirmDialog.open}
+        onClose={() => {
+          confirmDialog.onCancel?.();
+          setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
+        }}
+        onConfirm={confirmDialog.onConfirm}
+        title="Execute Query?"
+        message="You are about to execute the following SQL query:"
+        sqlQuery={confirmDialog.sql}
+        confirmText="Execute"
+        confirmColor="success"
+      />
     </Box>
   );
 }

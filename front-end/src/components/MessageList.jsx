@@ -131,21 +131,29 @@ function MessageList({ messages = [], user, onRunQuery, onSuggestionClick, isTyp
           pb: 8, // Added bottom padding to move content slightly up visually
         }}
       >
-        <Box sx={{ textAlign: 'center', maxWidth: 600 }}> {/* Increased width slightly */}
+        <Box sx={{ textAlign: 'center', maxWidth: 600 }}>
           <Box
             component="img"
             src="/product-logo.png"
             alt="DB-Genie"
-            sx={{ width: 48, height: 48, mb: 2 }} // Reduced logo size and margin
+            sx={{ 
+              width: 32, // Consistent small size
+              height: 32, 
+              mb: 3, 
+              opacity: 0.9 
+            }}
           />
 
-          <Typography variant="h5" fontWeight={600} sx={{ mb: 1 }}> {/* Reduced typography size */}
+          <Typography 
+            variant="h6" 
+            fontWeight={500} 
+            color="text.secondary"
+            sx={{ mb: 4 }}
+          >
             How can I help you today?
           </Typography>
 
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 4, lineHeight: 1.6 }}> {/* Reduced gap */}
-            Ask me anything about your database. I can write SQL queries, explain schemas, and visualize data.
-          </Typography>
+          {/* Removed verbose description text */}
 
           <Box
             sx={{

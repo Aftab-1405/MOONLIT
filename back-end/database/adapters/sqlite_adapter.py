@@ -101,6 +101,17 @@ class SQLiteAdapter(BaseDatabaseAdapter):
             logger.error(f"Failed to close SQLite pool: {err}")
             return False
 
+    def return_connection_to_pool(self, pool: Any, connection: Any) -> None:
+        """Return SQLite connection back to pool."""
+        try:
+            pool.return_connection(connection)
+        except Exception as err:
+            logger.warning(f"Failed to return SQLite connection to pool: {err}")
+            try:
+                connection.close()
+            except Exception:
+                pass
+
     @contextmanager
     def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
         """Get SQLite cursor from connection."""

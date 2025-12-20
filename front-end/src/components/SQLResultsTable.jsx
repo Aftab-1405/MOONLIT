@@ -34,6 +34,10 @@ function SQLResultsTable({ data, onClose }) {
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'chart'
 
+  // Read NULL display setting from user preferences
+  const storedSettings = JSON.parse(localStorage.getItem('db-genie-settings') || '{}');
+  const nullDisplay = storedSettings.nullDisplay ?? 'NULL';
+
   const { columns = [], result = [], row_count = 0, execution_time } = data || {};
 
   // Sorting logic
@@ -297,7 +301,7 @@ function SQLResultsTable({ data, onClose }) {
                         variant="body2"
                         sx={{ color: 'text.disabled', fontStyle: 'italic' }}
                       >
-                        NULL
+                        {nullDisplay || 'NULL'}
                       </Typography>
                     ) : (
                       String(row[column])

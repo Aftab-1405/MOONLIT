@@ -117,6 +117,18 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             logger.error(f"Failed to close PostgreSQL pool: {err}")
             return False
 
+    def return_connection_to_pool(self, pool: Any, connection: Any) -> None:
+        """Return PostgreSQL connection back to pool."""
+        try:
+            pool.putconn(connection)
+        except Exception as err:
+            logger.warning(f"Failed to return PostgreSQL connection to pool: {err}")
+            # Try to close the connection if we can't return it
+            try:
+                connection.close()
+            except Exception:
+                pass
+
     @contextmanager
     def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
         """Get PostgreSQL cursor from connection."""

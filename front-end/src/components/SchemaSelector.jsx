@@ -10,21 +10,24 @@ import {
 } from '@mui/material';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 
-function SchemaSelector({ isConnected, currentDatabase, onSchemaChange }) {
+function SchemaSelector({ isConnected, currentDatabase, dbType, onSchemaChange }) {
   const [schemas, setSchemas] = useState([]);
   const [currentSchema, setCurrentSchema] = useState('public');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Fetch schemas when connected
+  // Only show for PostgreSQL
+  const isPostgreSQL = dbType?.toLowerCase() === 'postgresql';
+
+  // Fetch schemas when connected to PostgreSQL
   useEffect(() => {
-    if (isConnected && currentDatabase) {
+    if (isConnected && currentDatabase && isPostgreSQL) {
       fetchSchemas();
     } else {
       setSchemas([]);
       setCurrentSchema('public');
     }
-  }, [isConnected, currentDatabase]);
+  }, [isConnected, currentDatabase, isPostgreSQL]);
 
   const fetchSchemas = async () => {
     setLoading(true);
@@ -77,8 +80,8 @@ function SchemaSelector({ isConnected, currentDatabase, onSchemaChange }) {
     }
   };
 
-  // Don't show if not connected or no schemas (non-PostgreSQL)
-  if (!isConnected || schemas.length === 0) {
+  // Don't show if not connected, no schemas, or not PostgreSQL
+  if (!isConnected || !isPostgreSQL || schemas.length === 0) {
     return null;
   }
 

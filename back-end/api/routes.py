@@ -539,10 +539,12 @@ def _handle_db_selection(db_name, conversation_id=None):
 @api_bp.route('/run_sql_query', methods=['POST'])
 def run_sql_query():
     data = request.get_json()
-    sql_query = data['sql_query']
+    sql_query = data.get('sql_query')
+    max_rows = data.get('max_rows', 1000)  # Default 1000 rows
+    timeout = data.get('timeout', 30)  # Default 30 seconds
     conversation_id = session.get('conversation_id')
 
-    result = execute_sql_query(sql_query)
+    result = execute_sql_query(sql_query, max_rows=max_rows, timeout_seconds=timeout)
 
     # Notify Gemini about the query execution
     db_name = get_current_database()  # Uses session-based config
@@ -770,6 +772,21 @@ def db_status():
             result['current_database'] = current_db
         except Exception:
             result['current_database'] = None
+
+        # Check if connected via remote connection string
+        try:
+            from database.session_utils import is_remote_connection
+            result['is_remote'] = is_remote_connection()
+        except Exception:
+            result['is_remote'] = False
+
+        # Provide database type for frontend feature detection (e.g., schema selector)
+        try:
+            from database.session_utils import get_db_type
+            db_type = get_db_type()
+            result['db_type'] = db_type or 'unknown'
+        except Exception:
+            result['db_type'] = 'unknown'
 
         return jsonify(result)
     except Exception as e:
