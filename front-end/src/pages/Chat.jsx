@@ -21,6 +21,7 @@ import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+import EditNoteRoundedIcon from '@mui/icons-material/EditNoteRounded';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/Sidebar';
 import ChatInput from '../components/ChatInput';
@@ -407,10 +408,8 @@ function Chat() {
           </Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography 
-              variant="body2" 
-              fontWeight={500} 
+              variant="subtitle2" 
               noWrap
-              sx={{ fontSize: '0.8rem' }}
             >
               {user?.displayName || 'User'}
             </Typography>
@@ -418,7 +417,7 @@ function Chat() {
               variant="caption" 
               color="text.secondary" 
               noWrap
-              sx={{ display: 'block', fontSize: '0.7rem' }}
+              sx={{ display: 'block' }}
             >
               {user?.email || ''}
             </Typography>
@@ -435,20 +434,27 @@ function Chat() {
         position="fixed"
         sx={{
           display: { md: 'none' },
-          backgroundColor: 'background.default',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          backgroundColor: 'transparent',
+          borderBottom: 'none', // Uniform look
         }}
         elevation={0}
       >
-        <Toolbar>
-          <IconButton color="inherit" edge="start" onClick={handleDrawerToggle} sx={{ mr: 2 }}>
-            <MenuRoundedIcon />
+        <Toolbar sx={{ justifyContent: 'space-between' }}>
+          <IconButton color="inherit" edge="start" onClick={handleDrawerToggle}>
+            <MenuRoundedIcon sx={{ color: 'text.secondary' }} />
           </IconButton>
-          <Box sx={{ display: 'flex', alignItems: 'center', flexGrow: 1 }}>
-            <Box component="img" src="/product-logo.png" alt="DB-Genie" sx={{ width: 24, height: 24, mr: 1 }} />
-            <Typography variant="subtitle1" fontWeight={600}>DB-Genie</Typography>
-          </Box>
-          <Avatar src={user?.photoURL} sx={{ width: 32, height: 32, cursor: 'pointer' }} onClick={handleMenuOpen} />
+          
+          {/* Right side: New Chat button (Profile accessible via sidebar) */}
+          <IconButton 
+            onClick={handleNewChat}
+            sx={{ 
+              color: 'primary.main',
+              bgcolor: 'rgba(6, 182, 212, 0.1)',
+              '&:hover': { bgcolor: 'rgba(6, 182, 212, 0.2)' }
+            }}
+          >
+            <EditNoteRoundedIcon />
+          </IconButton>
         </Toolbar>
       </AppBar>
 
@@ -460,7 +466,7 @@ function Chat() {
         PaperProps={{ sx: { minWidth: 180, bgcolor: 'background.paper', border: '1px solid', borderColor: 'divider' } }}
       >
         <Box sx={{ px: 2, py: 1.5 }}>
-          <Typography variant="body2" fontWeight={600}>{user?.displayName}</Typography>
+          <Typography variant="subtitle2">{user?.displayName}</Typography>
           <Typography variant="caption" color="text.secondary">{user?.email}</Typography>
         </Box>
         <Divider sx={{ borderColor: 'rgba(255,255,255,0.06)' }} />
@@ -476,12 +482,12 @@ function Chat() {
         ModalProps={{ keepMounted: true }}
         sx={{
           display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': { width: DRAWER_WIDTH, bgcolor: 'background.default', borderRight: '1px solid', borderColor: 'divider' },
+          '& .MuiDrawer-paper': { width: DRAWER_WIDTH, bgcolor: 'transparent', borderRight: '1px solid', borderColor: 'divider' },
         }}
       >
         <Toolbar>
           <Box component="img" src="/product-logo.png" alt="DB-Genie" sx={{ width: 24, height: 24, mr: 1 }} />
-          <Typography variant="subtitle1" fontWeight={600}>DB-Genie</Typography>
+          <Typography variant="subtitle1">DB-Genie</Typography>
         </Toolbar>
         {sidebarContent}
       </Drawer>
@@ -492,7 +498,7 @@ function Chat() {
         open={desktopOpen}
         sx={{
           display: { xs: 'none', md: 'block' },
-          '& .MuiDrawer-paper': { width: DRAWER_WIDTH, bgcolor: 'background.default', borderRight: '1px solid', borderColor: 'divider' },
+          '& .MuiDrawer-paper': { width: DRAWER_WIDTH, bgcolor: 'transparent', borderRight: '1px solid', borderColor: 'divider' },
         }}
       >
         <Toolbar sx={{ borderBottom: '1px solid rgba(255,255,255,0.06)', px: 2 }}>
@@ -508,7 +514,7 @@ function Chat() {
             }}
           >
             <Box component="img" src="/product-logo.png" alt="DB-Genie" sx={{ width: 24, height: 24, mr: 1 }} />
-            <Typography variant="subtitle1" fontWeight={600}>DB-Genie</Typography>
+            <Typography variant="subtitle1">DB-Genie</Typography>
           </Box>
         </Toolbar>
         {sidebarContent}
@@ -526,7 +532,7 @@ function Chat() {
           mt: { xs: '56px', md: 0 },
           height: { xs: 'calc(100vh - 56px)', md: '100vh' },
           overflow: 'hidden',
-          backgroundColor: 'background.paper',
+          backgroundColor: 'transparent',
           transition: 'margin 225ms cubic-bezier(0, 0, 0.2, 1) 0ms, width 225ms cubic-bezier(0, 0, 0.2, 1) 0ms',
           position: 'relative',
         }}

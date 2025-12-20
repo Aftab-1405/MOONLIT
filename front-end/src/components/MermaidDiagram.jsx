@@ -17,7 +17,7 @@ mermaid.initialize({
     lineColor: '#94a3b8',
     secondaryColor: '#14b8a6',
     tertiaryColor: '#1e293b',
-    background: '#12121a',
+    background: 'transparent',
     mainBkg: '#1e293b',
     nodeBorder: '#10b981',
     clusterBkg: '#1e293b',

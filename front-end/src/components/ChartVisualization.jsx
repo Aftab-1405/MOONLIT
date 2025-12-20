@@ -25,6 +25,7 @@ import {
   FormControl,
   InputLabel,
   Tooltip as MuiTooltip,
+  useTheme,
 } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
@@ -67,6 +68,7 @@ function ChartVisualization({ data, onClose }) {
   const [labelColumn, setLabelColumn] = useState('');
   const [valueColumn, setValueColumn] = useState('');
   const [fullscreen, setFullscreen] = useState(false);
+  const theme = useTheme();
 
   const { columns = [], result = [] } = data || {};
 
@@ -139,21 +141,21 @@ function ChartVisualization({ data, onClose }) {
         },
       },
       tooltip: {
-        backgroundColor: '#1e293b',
-        titleColor: '#f8fafc',
-        bodyColor: '#94a3b8',
-        borderColor: 'rgba(6, 182, 212, 0.3)',
+        backgroundColor: theme.palette.background.paper,
+        titleColor: theme.palette.text.primary,
+        bodyColor: theme.palette.text.secondary,
+        borderColor: theme.palette.primary.main,
         borderWidth: 1,
       },
     },
     scales: chartType !== 'pie' && chartType !== 'doughnut' ? {
       x: {
-        grid: { color: 'rgba(148, 163, 184, 0.1)' },
-        ticks: { color: '#94a3b8' },
+        grid: { color: theme.palette.divider },
+        ticks: { color: theme.palette.text.secondary },
       },
       y: {
-        grid: { color: 'rgba(148, 163, 184, 0.1)' },
-        ticks: { color: '#94a3b8' },
+        grid: { color: theme.palette.divider },
+        ticks: { color: theme.palette.text.secondary },
       },
     } : undefined,
   };

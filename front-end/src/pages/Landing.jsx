@@ -94,7 +94,7 @@ function Landing() {
   return (
     <Box
       sx={{
-        backgroundColor: '#0a0a0f',
+        backgroundColor: 'background.default',
         height: '100vh',
         overflowY: 'scroll',
         scrollSnapType: 'y mandatory',
@@ -130,10 +130,9 @@ function Landing() {
             {/* Headline */}
             <Typography
               component="h1"
+              variant="h1"
               sx={{
                 fontWeight: 800,
-                fontSize: { xs: '2.5rem', sm: '3.5rem', md: '4rem' },
-                lineHeight: 1.1,
                 letterSpacing: '-0.03em',
               }}
             >
@@ -153,7 +152,7 @@ function Landing() {
             </Typography>
 
             {/* Subtitle */}
-            <Typography variant="h6" color="text.secondary" sx={{ maxWidth: 500, fontWeight: 400 }}>
+            <Typography variant="subtitle1" color="text.secondary" sx={{ maxWidth: 500 }}>
               Stop wrestling with SQL. Let AI generate perfect queries and beautiful visualizations.
             </Typography>
 
@@ -167,8 +166,6 @@ function Landing() {
                 sx={{
                   px: 5,
                   py: 1.75,
-                  fontSize: '1.1rem',
-                  fontWeight: 600,
                   background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                   boxShadow: '0 0 40px rgba(16, 185, 129, 0.4)',
                   '&:hover': {
@@ -187,8 +184,6 @@ function Landing() {
                 sx={{
                   px: 5,
                   py: 1.75,
-                  fontSize: '1.1rem',
-                  fontWeight: 600,
                   borderColor: 'rgba(255, 255, 255, 0.2)',
                   '&:hover': { borderColor: 'secondary.main', backgroundColor: 'rgba(6, 182, 212, 0.1)' },
                 }}
@@ -205,7 +200,7 @@ function Landing() {
                 { value: '99.9%', label: 'Uptime' },
               ].map((stat) => (
                 <Box key={stat.label} textAlign="center">
-                  <Typography variant="h5" fontWeight={700} color="primary.main">{stat.value}</Typography>
+                  <Typography variant="h5" color="primary.main">{stat.value}</Typography>
                   <Typography variant="caption" color="text.secondary">{stat.label}</Typography>
                 </Box>
               ))}
@@ -224,10 +219,10 @@ function Landing() {
         <Container maxWidth="lg" sx={{ textAlign: 'center' }}>
           <Stack spacing={6} alignItems="center">
             <Box>
-              <Typography variant="overline" color="primary.main" fontWeight={600} sx={{ letterSpacing: 3 }}>
+              <Typography variant="overline" color="primary.main">
                 Why Choose DB-Genie
               </Typography>
-              <Typography component="h2" variant="h3" fontWeight={700} sx={{ mt: 1 }}>
+              <Typography component="h2" variant="h2" sx={{ mt: 1 }}>
                 Database Intelligence, <Box component="span" sx={{ color: 'primary.main' }}>Simplified</Box>
               </Typography>
             </Box>
@@ -239,7 +234,7 @@ function Landing() {
                     <Box sx={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(20, 184, 166, 0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 2, color: 'secondary.main' }}>
                       {prop.icon}
                     </Box>
-                    <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>{prop.title}</Typography>
+                    <Typography variant="h6" sx={{ mb: 1 }}>{prop.title}</Typography>
                     <Typography variant="body2" color="text.secondary">{prop.description}</Typography>
                   </Box>
                 </Grid>
@@ -254,10 +249,10 @@ function Landing() {
         <Container maxWidth="lg" sx={{ textAlign: 'center' }}>
           <Stack spacing={6} alignItems="center">
             <Box>
-              <Typography variant="overline" color="secondary.main" fontWeight={600} sx={{ letterSpacing: 3 }}>
+              <Typography variant="overline" color="secondary.main">
                 How It Works
               </Typography>
-              <Typography component="h2" variant="h3" fontWeight={700} sx={{ mt: 1 }}>
+              <Typography component="h2" variant="h2" sx={{ mt: 1 }}>
                 Three Simple Steps
               </Typography>
             </Box>
@@ -266,11 +261,11 @@ function Landing() {
               {steps.map((step, i) => (
                 <Grid item xs={12} sm={6} md={4} key={i}>
                   <Box sx={{ ...glassCard, p: 4, height: '100%', textAlign: 'center', position: 'relative' }}>
-                    <Typography sx={{ fontSize: '3rem', fontWeight: 800, background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.4), rgba(20, 184, 166, 0.25))', backgroundClip: 'text', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', position: 'absolute', top: 12, right: 20 }}>
+                    <Typography variant="h1" sx={{ fontWeight: 800, background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.4), rgba(20, 184, 166, 0.25))', backgroundClip: 'text', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', position: 'absolute', top: 12, right: 20 }}>
                       {step.number}
                     </Typography>
                     <Box sx={{ pt: 2 }}>
-                      <Typography variant="h6" fontWeight={600} sx={{ mb: 1 }}>{step.title}</Typography>
+                      <Typography variant="h6" sx={{ mb: 1 }}>{step.title}</Typography>
                       <Typography variant="body2" color="text.secondary">{step.description}</Typography>
                     </Box>
                   </Box>
@@ -286,10 +281,10 @@ function Landing() {
         <Container maxWidth="lg" sx={{ textAlign: 'center' }}>
           <Stack spacing={6} alignItems="center">
             <Box>
-              <Typography variant="overline" color="primary.main" fontWeight={600} sx={{ letterSpacing: 3 }}>
+              <Typography variant="overline" color="primary.main">
                 Testimonials
               </Typography>
-              <Typography component="h2" variant="h3" fontWeight={700} sx={{ mt: 1 }}>
+              <Typography component="h2" variant="h2" sx={{ mt: 1 }}>
                 Loved by Data Teams
               </Typography>
             </Box>
@@ -299,11 +294,11 @@ function Landing() {
                 <Grid item xs={12} sm={6} md={4} key={i}>
                   <Box sx={{ ...glassCard, p: 4, height: '100%', position: 'relative' }}>
                     <FormatQuoteRoundedIcon sx={{ position: 'absolute', top: 16, right: 16, fontSize: 32, color: 'secondary.main', opacity: 0.25 }} />
-                    <Typography variant="body1" sx={{ mb: 3, fontStyle: 'italic', lineHeight: 1.7 }}>"{t.quote}"</Typography>
+                    <Typography variant="body1" sx={{ mb: 3, fontStyle: 'italic' }}>"{t.quote}"</Typography>
                     <Stack direction="row" spacing={2} alignItems="center">
-                      <Avatar sx={{ bgcolor: 'primary.main', fontWeight: 600 }}>{t.avatar}</Avatar>
+                      <Avatar sx={{ bgcolor: 'primary.main' }}>{t.avatar}</Avatar>
                       <Box textAlign="left">
-                        <Typography variant="body2" fontWeight={600}>{t.author}</Typography>
+                        <Typography variant="subtitle2">{t.author}</Typography>
                         <Typography variant="caption" color="text.secondary">{t.role}</Typography>
                       </Box>
                     </Stack>
@@ -320,10 +315,10 @@ function Landing() {
         <Box sx={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, rgba(6, 182, 212, 0.12) 0%, transparent 60%)', pointerEvents: 'none' }} />
         <Container maxWidth="md" sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
           <Stack spacing={4} alignItems="center">
-            <Typography component="h2" variant="h3" fontWeight={700}>
+            <Typography component="h2" variant="h2">
               Ready to Transform Your Workflow?
             </Typography>
-            <Typography variant="h6" color="text.secondary" sx={{ maxWidth: 450, fontWeight: 400 }}>
+            <Typography variant="subtitle1" color="text.secondary" sx={{ maxWidth: 450 }}>
               Join thousands who query smarter, not harder.
             </Typography>
             <Button
@@ -334,8 +329,6 @@ function Landing() {
               sx={{
                 px: 6,
                 py: 2,
-                fontSize: '1.2rem',
-                fontWeight: 600,
                 background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                 boxShadow: '0 0 60px rgba(16, 185, 129, 0.5)',
                 '&:hover': {
@@ -357,11 +350,11 @@ function Landing() {
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center" justifyContent="space-between">
               <Stack direction="row" spacing={1} alignItems="center">
                 <Box component="img" src="/product-logo.png" alt="DB-Genie" sx={{ width: 24, height: 24 }} />
-                <Typography variant="body2" fontWeight={600}>DB-Genie</Typography>
+                <Typography variant="subtitle2">DB-Genie</Typography>
               </Stack>
               <Stack direction="row" spacing={3}>
                 {['About', 'Docs', 'Privacy', 'Terms'].map((l) => (
-                  <Link key={l} href="#" underline="hover" color="text.secondary" sx={{ fontSize: '0.8rem' }}>{l}</Link>
+                  <Link key={l} href="#" underline="hover" color="text.secondary" variant="body2">{l}</Link>
                 ))}
               </Stack>
               <Typography variant="caption" color="text.secondary">© {new Date().getFullYear()} ABN Alliance</Typography>

@@ -72,7 +72,6 @@ function Sidebar({
             color: 'text.primary',
             textTransform: 'none',
             backgroundColor: 'transparent',
-            fontSize: '0.875rem',
             '&:hover': {
               backgroundColor: 'action.hover',
               borderColor: 'primary.main',
@@ -121,10 +120,8 @@ function Sidebar({
             />
             <Box sx={{ flex: 1, minWidth: 0 }}>
               <Typography 
-                variant="body2" 
-                fontWeight={500} 
+                variant="subtitle2" 
                 color="text.primary"
-                sx={{ fontSize: '0.8rem' }}
               >
                 {isConnected ? 'Connected' : 'Not Connected'}
               </Typography>
@@ -132,7 +129,7 @@ function Sidebar({
                 variant="caption" 
                 color="text.secondary" 
                 noWrap
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.5, fontSize: '0.7rem' }}
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}
               >
                 {isConnected ? (
                   <>
@@ -170,7 +167,7 @@ function Sidebar({
           }}
         >
           <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-            <Typography variant="caption" fontWeight={600} color="text.secondary">
+            <Typography variant="overline" color="text.secondary">
               Switch Database
             </Typography>
           </Box>
@@ -191,7 +188,7 @@ function Sidebar({
                 </ListItemIcon>
                 <ListItemText 
                   primary={db} 
-                  primaryTypographyProps={{ fontSize: '0.8rem' }}
+                  primaryTypographyProps={{ variant: 'body2' }}
                 />
               </ListItemButton>
             ))}
@@ -205,7 +202,7 @@ function Sidebar({
               </ListItemIcon>
               <ListItemText 
                 primary="New Connection" 
-                primaryTypographyProps={{ fontSize: '0.8rem', color: 'primary.main' }}
+                primaryTypographyProps={{ variant: 'body2', color: 'primary.main' }}
               />
             </ListItemButton>
           </List>
@@ -235,15 +232,9 @@ function Sidebar({
         {/* Section Header */}
         <Box sx={{ px: 2, pt: 2, pb: 1 }}>
           <Typography 
-            variant="caption" 
-            fontWeight={600} 
+            variant="overline" 
             color="text.secondary" 
-            sx={{ 
-              display: 'block', 
-              letterSpacing: '0.08em',
-              fontSize: '0.65rem',
-              textTransform: 'uppercase',
-            }}
+            sx={{ display: 'block' }}
           >
             Recent Conversations
           </Typography>
@@ -341,7 +332,6 @@ function Sidebar({
                         ? 'text.primary' 
                         : 'text.secondary',
                       fontWeight: conv.id === currentConversationId ? 500 : 400,
-                      fontSize: '0.8rem',
                     }}
                   >
                     {conv.title || 'New Conversation'}

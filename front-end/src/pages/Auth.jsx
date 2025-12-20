@@ -285,18 +285,13 @@ function Auth() {
               <Box textAlign="center">
                 <Typography 
                   variant="h5" 
-                  fontWeight={700} 
-                  sx={{ 
-                    mb: 0.25,
-                    fontSize: { xs: '1.25rem', sm: '1.5rem' },
-                  }}
+                  sx={{ mb: 0.25 }}
                 >
                   {tabValue === 0 ? 'Welcome Back' : 'Create Account'}
                 </Typography>
                 <Typography 
                   variant="body2" 
                   color="text.secondary"
-                  sx={{ fontSize: { xs: '0.75rem', sm: '0.8rem' } }}
                 >
                   {tabValue === 0 
                     ? 'Sign in to start querying with AI' 
@@ -314,8 +309,6 @@ function Auth() {
                   minHeight: 36,
                   '& .MuiTab-root': {
                     minHeight: 36,
-                    fontSize: { xs: '0.75rem', sm: '0.8rem' },
-                    fontWeight: 600,
                     py: 0.5,
                   },
                   '& .Mui-selected': {
@@ -338,9 +331,9 @@ function Auth() {
                     width: '100%',
                     backgroundColor: 'rgba(244, 63, 94, 0.1)',
                     border: '1px solid rgba(244, 63, 94, 0.3)',
-                    fontSize: { xs: '0.7rem', sm: '0.8rem' },
                     py: 0.5,
                     '& .MuiAlert-icon': { fontSize: 18 },
+                    '& .MuiAlert-message': { fontSize: 'inherit' },
                   }}
                 >
                   {error || formError}
@@ -353,9 +346,9 @@ function Auth() {
                     width: '100%',
                     backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     border: '1px solid rgba(16, 185, 129, 0.3)',
-                    fontSize: { xs: '0.7rem', sm: '0.8rem' },
                     py: 0.5,
                     '& .MuiAlert-icon': { fontSize: 18 },
+                    '& .MuiAlert-message': { fontSize: 'inherit' },
                   }}
                 >
                   {successMessage}
@@ -420,7 +413,6 @@ function Auth() {
                       sx={{
                         color: 'primary.light',
                         textDecoration: 'none',
-                        fontSize: '0.7rem',
                         '&:hover': { textDecoration: 'underline' },
                       }}
                     >
@@ -436,8 +428,6 @@ function Auth() {
                     disabled={formLoading}
                     sx={{
                       py: 1,
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
                       background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                       '&:hover': {
                         background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
@@ -490,7 +480,7 @@ function Auth() {
                     onChange={(e) => setPassword(e.target.value)}
                     size="small"
                     helperText="At least 6 characters"
-                    FormHelperTextProps={{ sx: { fontSize: '0.65rem', mt: 0.25 } }}
+                    FormHelperTextProps={{ sx: { mt: 0.25 } }}
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
@@ -534,8 +524,6 @@ function Auth() {
                     disabled={formLoading}
                     sx={{
                       py: 1,
-                      fontSize: '0.85rem',
-                      fontWeight: 600,
                       background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
                       '&:hover': {
                         background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
@@ -552,7 +540,6 @@ function Auth() {
                 <Typography 
                   variant="caption" 
                   color="text.secondary"
-                  sx={{ fontSize: '0.65rem' }}
                 >
                   or continue with
                 </Typography>
@@ -571,8 +558,6 @@ function Auth() {
                   onClick={handleGoogleSignIn}
                   sx={{
                     py: 0.875,
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
                     borderColor: 'rgba(255, 255, 255, 0.15)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
                     '&:hover': {
@@ -590,8 +575,6 @@ function Auth() {
                   onClick={handleGitHubSignIn}
                   sx={{
                     py: 0.875,
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
                     borderColor: 'rgba(255, 255, 255, 0.15)',
                     backgroundColor: 'rgba(255, 255, 255, 0.02)',
                     '&:hover': {
@@ -606,11 +589,11 @@ function Auth() {
 
               {/* Back to Home */}
               <Button
+                variant="text"
                 startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 16 }} />}
                 onClick={() => navigate('/')}
                 sx={{
                   color: 'text.secondary',
-                  fontSize: '0.75rem',
                   py: 0.5,
                   '&:hover': { color: 'primary.main', backgroundColor: 'transparent' },
                 }}
@@ -628,7 +611,6 @@ function Auth() {
               display: 'block', 
               textAlign: 'center', 
               mt: 2,
-              fontSize: '0.65rem',
             }}
           >
             By signing in, you agree to our Terms and Privacy Policy
@@ -650,14 +632,14 @@ function Auth() {
           },
         }}
       >
-        <DialogTitle sx={{ fontSize: '1rem', pb: 1 }}>
+        <DialogTitle variant="h6" sx={{ pb: 1 }}>
           Reset Password
         </DialogTitle>
         <DialogContent>
           <Typography 
             variant="body2" 
             color="text.secondary" 
-            sx={{ mb: 2, fontSize: '0.8rem' }}
+            sx={{ mb: 2 }}
           >
             Enter your email address and we'll send you a link to reset your password.
           </Typography>
