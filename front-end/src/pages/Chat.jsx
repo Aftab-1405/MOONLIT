@@ -331,7 +331,14 @@ function Chat() {
       if (newConversationId && !currentConversationId) {
         setCurrentConversationId(newConversationId);
         navigate(`/chat/${newConversationId}`, { replace: true });
-        fetchConversations();
+        
+        // Optimistically add the new conversation to the list immediately
+        // Use the first part of the message as a temporary title
+        const tempTitle = message.substring(0, 50) + (message.length > 50 ? '...' : '');
+        setConversations((prev) => [
+          { id: newConversationId, title: tempTitle, created_at: new Date().toISOString() },
+          ...prev,
+        ]);
       }
 
       const reader = response.body.getReader();
@@ -381,6 +388,9 @@ function Chat() {
         }
         return updated;
       });
+
+      // Refresh conversations after streaming to get the real title from backend
+      fetchConversations();
     } catch (error) {
       setMessages((prev) => [...prev, { sender: 'ai', content: 'Sorry, I encountered an error. Please try again.' }]);
     }
