@@ -8,9 +8,11 @@ import {
   CircularProgress,
   Chip 
 } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 
 function SchemaSelector({ isConnected, currentDatabase, dbType, onSchemaChange }) {
+  const theme = useTheme();
   const [schemas, setSchemas] = useState([]);
   const [currentSchema, setCurrentSchema] = useState('public');
   const [loading, setLoading] = useState(false);
@@ -91,8 +93,8 @@ function SchemaSelector({ isConnected, currentDatabase, dbType, onSchemaChange }
         sx={{ 
           p: 1.5,
           borderRadius: 2,
-          backgroundColor: 'rgba(6, 182, 212, 0.04)',
-          border: '1px solid rgba(6, 182, 212, 0.1)',
+          backgroundColor: alpha(theme.palette.info.main, 0.04),
+          border: `1px solid ${alpha(theme.palette.info.main, 0.1)}`,
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -110,15 +112,15 @@ function SchemaSelector({ isConnected, currentDatabase, dbType, onSchemaChange }
             disabled={loading}
             sx={{
               fontSize: '0.8rem',
-              backgroundColor: 'rgba(0,0,0,0.2)',
+              backgroundColor: alpha(theme.palette.common.black, 0.2),
               '& .MuiSelect-select': {
                 py: 0.75,
               },
               '& .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'rgba(255,255,255,0.1)',
+                borderColor: alpha(theme.palette.common.white, 0.1),
               },
               '&:hover .MuiOutlinedInput-notchedOutline': {
-                borderColor: 'rgba(6, 182, 212, 0.3)',
+                borderColor: alpha(theme.palette.info.main, 0.3),
               },
             }}
           >

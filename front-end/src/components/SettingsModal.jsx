@@ -26,6 +26,7 @@ import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
+import PsychologyRoundedIcon from '@mui/icons-material/PsychologyRounded';
 import { useTheme } from '../contexts/ThemeContext';
 
 function SettingsModal({ open, onClose }) {
@@ -99,6 +100,70 @@ function SettingsModal({ open, onClose }) {
                 <DarkModeRoundedIcon sx={{ mr: 0.5, fontSize: 18 }} /> Dark
               </ToggleButton>
             </ToggleButtonGroup>
+          </Box>
+        </Box>
+
+        <Divider sx={{ my: 2 }} />
+
+        {/* AI Assistant Section (NEW) */}
+        <Box sx={{ mb: 3 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+            <PsychologyRoundedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+            <Typography variant="subtitle2" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, fontSize: '0.7rem' }}>
+              AI Assistant
+            </Typography>
+          </Box>
+          
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            {/* Enable Reasoning Toggle */}
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={settings.enableReasoning ?? true}
+                  onChange={(e) => updateSetting('enableReasoning', e.target.checked)}
+                  color="primary"
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body2" fontWeight={500}>Enable reasoning</Typography>
+                  <Typography variant="caption" color="text.secondary">Show AI's thinking process before answering</Typography>
+                </Box>
+              }
+              sx={{ ml: 0, alignItems: 'flex-start' }}
+            />
+
+            {/* Reasoning Effort - only visible when enabled */}
+            {settings.enableReasoning && (
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="body2" fontWeight={500}>Reasoning depth</Typography>
+                  <Typography variant="caption" color="text.secondary">Higher = more thorough but slower</Typography>
+                </Box>
+                <ToggleButtonGroup
+                  value={settings.reasoningEffort ?? 'medium'}
+                  exclusive
+                  onChange={(e, v) => v && updateSetting('reasoningEffort', v)}
+                  size="small"
+                  sx={{
+                    '& .MuiToggleButton-root': {
+                      px: 1.5,
+                      py: 0.5,
+                      fontSize: '0.75rem',
+                      '&.Mui-selected': {
+                        backgroundColor: 'primary.main',
+                        color: 'white',
+                        '&:hover': { backgroundColor: 'primary.dark' },
+                      },
+                    },
+                  }}
+                >
+                  <ToggleButton value="low">Low</ToggleButton>
+                  <ToggleButton value="medium">Med</ToggleButton>
+                  <ToggleButton value="high">High</ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+            )}
           </Box>
         </Box>
 

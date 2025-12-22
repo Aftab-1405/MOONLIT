@@ -43,8 +43,16 @@ class FirestoreService:
         return cls._db
 
     @staticmethod
-    def store_conversation(conversation_id, sender, message, user_id):
-        """Store conversation message in Firestore"""
+    def store_conversation(conversation_id, sender, message, user_id, tools=None):
+        """Store conversation message in Firestore
+        
+        Args:
+            conversation_id: The conversation ID
+            sender: 'user' or 'ai'
+            message: The message content
+            user_id: The user ID
+            tools: Optional list of tools used (for AI messages)
+        """
         try:
             db = FirestoreService.get_db()
             conversation_ref = db.collection('conversations').document(conversation_id)
@@ -56,12 +64,19 @@ class FirestoreService:
                     'messages': []
                 })
 
+            # Build the message object
+            message_data = {
+                'sender': sender,
+                'content': message,
+                'timestamp': datetime.now()
+            }
+            
+            # Add tools info if provided (for AI messages)
+            if tools:
+                message_data['tools'] = tools
+
             conversation_ref.update({
-                'messages': firestore.ArrayUnion([{
-                    'sender': sender,
-                    'content': message,
-                    'timestamp': datetime.now()
-                }])
+                'messages': firestore.ArrayUnion([message_data])
             })
             logger.debug(f"Conversation {conversation_id} updated successfully")
         except Exception as e:

@@ -1,7 +1,7 @@
 """
 Database Service
 
-High-level database operations with Gemini integration.
+High-level database operations with AI context integration.
 Centralizes all database business logic that involves AI notification.
 """
 
@@ -24,7 +24,7 @@ class DatabaseService:
         
         Args:
             new_db_name: Name of database to switch to
-            conversation_id: Optional conversation ID for Gemini notification
+            conversation_id: Optional conversation ID (deprecated)
             
         Returns:
             Dict with status, message, tables, selectedDatabase
@@ -37,7 +37,6 @@ class DatabaseService:
         )
         from database.operations import DatabaseOperations
         from database.adapters import get_adapter
-        from services.gemini_service import GeminiService
         
         # Validate request
         if not new_db_name:
@@ -79,6 +78,18 @@ class DatabaseService:
                     action="Switched"
                 )
                 
+                # Update context in Firestore for AI
+                user_id = session.get('user')
+                if user_id:
+                    try:
+                        from services.context_service import ContextService
+                        # Get host from config
+                        host = config.get('host', 'remote')
+                        ContextService.set_connection(user_id, 'postgresql', new_db_name, host, True)
+                        logger.debug(f"Updated context for database switch to {new_db_name}")
+                    except Exception as e:
+                        logger.warning(f"Failed to update context on database switch: {e}")
+                
                 logger.info(f"User switched to database: {new_db_name}")
                 return {
                     'status': 'connected',
@@ -95,11 +106,11 @@ class DatabaseService:
     @staticmethod
     def select_schema_with_notification(schema_name: str, conversation_id: str = None) -> dict:
         """
-        Select PostgreSQL schema + notify Gemini.
+        Select PostgreSQL schema + update AI context.
         
         Args:
             schema_name: Name of schema to select
-            conversation_id: Optional conversation ID for Gemini notification
+            conversation_id: Optional conversation ID (deprecated)
             
         Returns:
             Dict with status, schema, tables, message
@@ -110,7 +121,6 @@ class DatabaseService:
             get_db_cursor
         )
         from database.adapters import get_adapter
-        from services.gemini_service import GeminiService
         
         if not schema_name:
             return {'status': 'error', 'message': 'Schema name is required'}
@@ -136,11 +146,14 @@ class DatabaseService:
         except Exception as err:
             logger.error(f"Error fetching tables for schema {schema_name}: {err}")
         
-        # Notify Gemini about the schema and its tables
-        if conversation_id:
-            db_name = config.get('database', 'unknown')
-            schema_info = f"User selected PostgreSQL schema: {schema_name} in database {db_name}. Tables in this schema: {', '.join(tables) if tables else 'No tables found'}."
-            GeminiService.notify_gemini(conversation_id, schema_info)
+        # Update context in Firestore for AI
+        user_id = session.get('user')
+        if user_id:
+            try:
+                from services.context_service import ContextService
+                ContextService.update_schema(user_id, schema_name)
+            except Exception as e:
+                logger.warning(f"Failed to update schema context: {e}")
         
         logger.info(f"User selected schema: {schema_name} with {len(tables)} tables")
         
@@ -238,7 +251,7 @@ class DatabaseService:
     @staticmethod
     def disconnect_database() -> dict:
         """
-        Close connection pool + clear session.
+        Close connection pool + clear session + clear Firestore context.
         
         Returns:
             Dict with status and message
@@ -259,6 +272,15 @@ class DatabaseService:
             except Exception:
                 logger.debug('Failed to clear DatabaseOperations cache after disconnect')
             
+            # Clear Firestore context for AI
+            user_id = session.get('user')
+            if user_id:
+                try:
+                    from services.context_service import ContextService
+                    ContextService.clear_connection(user_id)
+                except Exception as e:
+                    logger.warning(f"Failed to clear context on disconnect: {e}")
+            
             logger.info(f"User disconnected from database (pool closed: {closed})")
             return {'status': 'success', 'message': 'Disconnected from database server.'}
         except Exception as e:
@@ -269,11 +291,11 @@ class DatabaseService:
     def execute_query_with_notification(sql_query: str, conversation_id: str = None, 
                                          max_rows: int = 1000, timeout: int = 30) -> dict:
         """
-        Execute SQL query + notify Gemini about results.
+        Execute SQL query + log to context for AI.
         
         Args:
             sql_query: SQL query to execute
-            conversation_id: Optional conversation ID for Gemini notification
+            conversation_id: Optional conversation ID (deprecated, context uses user_id)
             max_rows: Maximum rows to return
             timeout: Query timeout in seconds
             
@@ -282,22 +304,21 @@ class DatabaseService:
         """
         from database.operations import execute_sql_query
         from database.session_utils import get_current_database
-        from services.gemini_service import GeminiService
         
         result = execute_sql_query(sql_query, max_rows=max_rows, timeout_seconds=timeout)
         
-        # Notify Gemini about the query execution
+        # Log query to Firestore context for AI
         db_name = get_current_database()
+        user_id = session.get('user')
         
-        if result['status'] == 'success':
-            if 'result' in result:  # SELECT query
-                notify_msg = f'SELECT query executed on {db_name}. Retrieved {result["row_count"]} rows.'
-            else:  # Other queries
-                notify_msg = f'Query executed on {db_name} in table {result.get("table_name", "unknown")}. Affected rows: {result["affected_rows"]}. Query: {sql_query}'
-            GeminiService.notify_gemini(conversation_id, notify_msg)
-        else:
-            notify_msg = f'Error executing query on {db_name}: {result["message"]}. Query: {sql_query}'
-            GeminiService.notify_gemini(conversation_id, notify_msg)
+        if user_id:
+            try:
+                from services.context_service import ContextService
+                row_count = result.get('row_count', result.get('affected_rows', 0))
+                status = 'success' if result['status'] == 'success' else 'error'
+                ContextService.add_query(user_id, sql_query, db_name, row_count, status)
+            except Exception as e:
+                logger.warning(f"Failed to log query to context: {e}")
         
         return result
     
@@ -333,22 +354,22 @@ class DatabaseService:
             pass
     
     @staticmethod
-    def _fetch_and_notify_schema(get_db_cursor, db_name: str, conversation_id: str, action: str = "Connected") -> List[str]:
+    def _fetch_and_notify_schema(get_db_cursor, db_name: str, conversation_id: str = None, action: str = "Connected") -> List[str]:
         """
-        Fetch schema info and notify Gemini.
+        Fetch schema info and cache to Firestore for AI.
         
         Args:
             get_db_cursor: Context manager for getting cursor
             db_name: Database name
-            conversation_id: Conversation ID for notification
-            action: Action verb for notification (e.g., "Switched", "Connected")
+            conversation_id: Deprecated, uses user_id from session
+            action: Action description for logging
             
         Returns:
             List of table names
         """
-        from services.gemini_service import GeminiService
-        
         tables = []
+        columns = {}
+        
         try:
             with get_db_cursor() as cursor:
                 cursor.execute("""
@@ -359,33 +380,31 @@ class DatabaseService:
                 """)
                 tables = [row[0] for row in cursor.fetchall()]
                 
-                if tables:
-                    schema_info = f"{action} to PostgreSQL database: {db_name}\n\n"
-                    schema_info += f"Database contains {len(tables)} tables in the 'public' schema:\n\n"
-                    
-                    for table in tables:
+                # Fetch columns for each table (limit to 20 for performance)
+                for table in tables[:20]:
+                    try:
                         cursor.execute("""
-                            SELECT column_name, data_type, is_nullable
+                            SELECT column_name
                             FROM information_schema.columns
                             WHERE table_schema = 'public' AND table_name = %s
                             ORDER BY ordinal_position
                         """, (table,))
-                        columns = cursor.fetchall()
-                        
-                        schema_info += f"Table: {table}\n"
-                        for col_name, col_type, nullable in columns:
-                            null_str = "NULL" if nullable == 'YES' else "NOT NULL"
-                            schema_info += f"  - {col_name}: {col_type} ({null_str})\n"
-                        schema_info += "\n"
-                    
-                    if conversation_id:
-                        GeminiService.notify_gemini(conversation_id, schema_info)
-                else:
-                    schema_info = f"{action} to PostgreSQL database: {db_name}. No tables found in public schema."
-                    if conversation_id:
-                        GeminiService.notify_gemini(conversation_id, schema_info)
+                        columns[table] = [row[0] for row in cursor.fetchall()]
+                    except Exception:
+                        columns[table] = []
                         
         except Exception as schema_err:
             logger.warning(f"Failed to fetch schema: {schema_err}")
+        
+        # Cache schema to Firestore for AI context
+        user_id = session.get('user')
+        if user_id and tables:
+            try:
+                from services.context_service import ContextService
+                ContextService.set_connection(user_id, 'postgresql', db_name, 'remote', True)
+                ContextService.cache_schema(user_id, db_name, tables, columns)
+                logger.info(f"{action} - Cached schema for {db_name}: {len(tables)} tables")
+            except Exception as e:
+                logger.warning(f"Failed to cache schema context: {e}")
         
         return tables

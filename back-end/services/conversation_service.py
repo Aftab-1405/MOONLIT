@@ -39,19 +39,19 @@ class ConversationService:
     @staticmethod
     def initialize_conversation(conversation_id: str, history: list = None) -> None:
         """
-        Initialize or restore Gemini chat session with history.
+        Initialize conversation (no-op - conversation history is passed with each request).
         
         Args:
             conversation_id: The conversation to initialize
-            history: Optional list of message history to restore
+            history: Optional list of message history (not used)
         """
-        from services.gemini_service import GeminiService
-        GeminiService.get_or_create_chat_session(conversation_id, history)
+        # No-op: Cerebras doesn't need session initialization
+        pass
     
     @staticmethod
     def get_conversation_data(conversation_id: str) -> Optional[dict]:
         """
-        Fetch conversation from Firestore + initialize Gemini session with history.
+        Fetch conversation from Firestore.
         
         Args:
             conversation_id: The conversation to fetch
@@ -60,22 +60,13 @@ class ConversationService:
             Conversation data dict or None if not found
         """
         from services.firestore_service import FirestoreService
-        from services.gemini_service import GeminiService
         
         conv_data = FirestoreService.get_conversation(conversation_id)
         
         if conv_data:
             # Store conversation ID in session
             session['conversation_id'] = conversation_id
-            
-            # Convert message history to Gemini format
-            history = [
-                {"role": "user" if msg["sender"] == "user" else "model", "parts": [msg["content"]]}
-                for msg in conv_data.get('messages', [])
-            ]
-            
-            # Initialize Gemini session with history
-            GeminiService.get_or_create_chat_session(conversation_id, history)
+            # Note: History is now passed directly to generate_content, no session needed
             
         return conv_data
     
@@ -113,12 +104,16 @@ class ConversationService:
         return FirestoreService.get_conversations(user_id)
     
     @staticmethod
-    def create_streaming_generator(conversation_id: str, prompt: str, user_id: str) -> Generator:
+    def create_streaming_generator(conversation_id: str, prompt: str, user_id: str, 
+                                    db_config: dict = None,
+                                    enable_reasoning: bool = True,
+                                    reasoning_effort: str = 'medium') -> Generator:
         """
-        Create a generator for streaming AI responses.
+        Create a generator for streaming AI responses WITH tool support.
         
         Handles:
-        - Streaming from Gemini
+        - Streaming from Gemini with function calling
+        - Tool status markers ([TOOL_START], [TOOL_DONE])
         - Storing user prompt on first successful chunk
         - Storing complete AI response after streaming
         - Error handling for quota/API errors
@@ -129,50 +124,112 @@ class ConversationService:
             conversation_id: The conversation ID
             prompt: User's prompt
             user_id: The user ID for Firestore
+            db_config: Database connection config for tool execution
+            enable_reasoning: Whether to use reasoning (from user settings)
+            reasoning_effort: 'low', 'medium', or 'high' (from user settings)
             
         Yields:
-            Text chunks from AI response or error messages
+            Text chunks from AI response, tool status markers, or error messages
         """
-        from services.gemini_service import GeminiService
         from services.firestore_service import FirestoreService
-        from google.api_core.exceptions import ResourceExhausted, GoogleAPIError
+        from services.llm_service import LLMService
         
         prompt_stored = False
         full_response_content = []
+        tools_used = []  # Track tools for persistence
         
         try:
-            responses = GeminiService.send_message(conversation_id, prompt)
+            # Fetch existing conversation history for context
+            conv_data = FirestoreService.get_conversation(conversation_id)
+            history = None
+            if conv_data and conv_data.get('messages'):
+                history = [
+                    {"role": "user" if msg["sender"] == "user" else "model", "parts": [msg["content"]]}
+                    for msg in conv_data.get('messages', [])
+                ]
+                logger.debug(f"Loaded {len(history)} messages for context")
+            
+            # Use LLM Service (generic) with tool support
+            # Pass reasoning settings from user preferences
+            responses = LLMService.send_message_with_tools(
+                conversation_id, prompt, user_id, 
+                history=history, 
+                db_config=db_config,
+                enable_reasoning=enable_reasoning,
+                reasoning_effort=reasoning_effort
+            )
             
             for chunk in responses:
-                # Store user prompt only when we get the first successful chunk
-                if not prompt_stored:
+                # Tool status markers - pass through to frontend AND track for storage
+                if chunk.startswith('[TOOL_START]'):
+                    tool_name = chunk.replace('[TOOL_START] ', '').strip()
+                    tools_used.append({'name': tool_name, 'status': 'running'})
+                    
+                    # Store user prompt when we start using tools (if not already stored)
+                    if not prompt_stored:
+                        FirestoreService.store_conversation(conversation_id, 'user', prompt, user_id)
+                        prompt_stored = True
+                        logger.debug(f"Stored user prompt on tool start: {prompt[:50]}...")
+                    
+                    yield chunk
+                    continue
+                elif chunk.startswith('[TOOL_DONE]'):
+                    # Parse: [TOOL_DONE] toolname {"result": ...}
+                    import re
+                    match = re.match(r'\[TOOL_DONE\] (\w+) (.*)', chunk)
+                    if match:
+                        tool_name, result = match.groups()
+                        # Update the tool status
+                        for tool in tools_used:
+                            if tool['name'] == tool_name and tool['status'] == 'running':
+                                tool['status'] = 'done'
+                                tool['result'] = result
+                                break
+                    yield chunk
+                    continue
+                
+                # Store user prompt only when we get the first actual text chunk
+                if not prompt_stored and not chunk.startswith('['):
                     FirestoreService.store_conversation(conversation_id, 'user', prompt, user_id)
                     prompt_stored = True
+                    logger.debug(f"Stored user prompt on text chunk: {prompt[:50]}...")
                 
-                text_chunk = chunk.text
-                full_response_content.append(text_chunk)
-                yield text_chunk
+                # Collect non-tool content for storage
+                if not chunk.startswith('[TOOL_'):
+                    full_response_content.append(chunk)
+                
+                yield chunk
 
             # Store the complete AI response after streaming
-            if prompt_stored and full_response_content:
-                FirestoreService.store_conversation(conversation_id, 'ai', "".join(full_response_content), user_id)
+            # Save if: we stored the prompt AND (we have content OR we used tools)
+            if prompt_stored:
+                response_text = "".join(full_response_content).strip()
+                if response_text or tools_used:
+                    # If no text but tools were used, create a placeholder response
+                    if not response_text and tools_used:
+                        response_text = "(Used tools to gather information)"
+                        logger.warning("AI returned no text after tool use, using placeholder")
                     
-        except ResourceExhausted as quota_err:
-            # Handle quota exceeded - don't store anything
-            logger.warning(f'Gemini quota exceeded: {quota_err}')
-            error_msg = "⚠️ **API Rate Limit Exceeded**\n\nThe AI service is temporarily unavailable due to high usage. Please wait a moment and try again.\n\n_This message was not saved to your conversation._"
-            yield error_msg
+                    FirestoreService.store_conversation(
+                        conversation_id, 'ai', response_text, user_id,
+                        tools=tools_used if tools_used else None
+                    )
+                    logger.info(f"Stored AI response: {len(response_text)} chars, {len(tools_used)} tools")
+                    
+        except Exception as err:
+            # Handle any API or streaming errors
+            error_str = str(err).lower()
             
-        except GoogleAPIError as api_err:
-            # Handle other Google API errors
-            logger.error(f'Gemini API error: {api_err}')
-            error_msg = "⚠️ **AI Service Error**\n\nThere was a problem connecting to the AI service. Please try again.\n\n_This message was not saved to your conversation._"
-            yield error_msg
+            if 'rate_limit' in error_str or 'quota' in error_str or '429' in error_str:
+                logger.warning(f'Cerebras rate limit exceeded: {err}')
+                error_msg = "⚠️ **API Rate Limit Exceeded**\n\nThe AI service is temporarily unavailable due to high usage. Please wait a moment and try again.\n\n_This message was not saved to your conversation._"
+            elif 'authentication' in error_str or '401' in error_str:
+                logger.error(f'Cerebras authentication error: {err}')
+                error_msg = "⚠️ **Authentication Error**\n\nThere was a problem with the AI service authentication. Please check API keys.\n\n_This message was not saved to your conversation._"
+            else:
+                logger.error(f'Cerebras API error: {err}')
+                error_msg = "⚠️ **AI Service Error**\n\nThere was a problem connecting to the AI service. Please try again.\n\n_This message was not saved to your conversation._"
             
-        except Exception as stream_err:
-            # Handle any other streaming errors
-            logger.error(f'Streaming error: {stream_err}')
-            error_msg = "⚠️ **Unexpected Error**\n\nSomething went wrong. Please try again.\n\n_This message was not saved to your conversation._"
             yield error_msg
     
     @staticmethod

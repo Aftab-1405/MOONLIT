@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { Box, Typography, Button, IconButton, Tooltip, Divider, Popover, List, ListItemButton, ListItemText, ListItemIcon } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
 
-// Modern, relevant icons
+// Icons
 import EditNoteIcon from '@mui/icons-material/EditNote';
 import QuestionAnswerOutlinedIcon from '@mui/icons-material/QuestionAnswerOutlined';
 import DeleteForeverOutlinedIcon from '@mui/icons-material/DeleteForeverOutlined';
@@ -27,6 +28,7 @@ function Sidebar({
   onDatabaseSwitch,
   onSchemaChange
 }) {
+  const theme = useTheme();
   const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
   const isPopoverOpen = Boolean(dbPopoverAnchor);
 
@@ -91,20 +93,20 @@ function Sidebar({
             borderRadius: 2,
             cursor: 'pointer',
             backgroundColor: isConnected 
-              ? 'rgba(34, 197, 94, 0.06)' 
-              : 'rgba(239, 68, 68, 0.06)',
+              ? alpha(theme.palette.success.main, 0.06)
+              : alpha(theme.palette.error.main, 0.06),
             border: '1px solid',
             borderColor: isConnected 
-              ? 'rgba(34, 197, 94, 0.15)' 
-              : 'rgba(239, 68, 68, 0.15)',
+              ? alpha(theme.palette.success.main, 0.15)
+              : alpha(theme.palette.error.main, 0.15),
             transition: 'all 0.2s',
             '&:hover': {
               backgroundColor: isConnected 
-                ? 'rgba(34, 197, 94, 0.12)' 
-                : 'rgba(239, 68, 68, 0.12)',
+                ? alpha(theme.palette.success.main, 0.1)
+                : alpha(theme.palette.error.main, 0.1),
               borderColor: isConnected 
-                ? 'rgba(34, 197, 94, 0.25)' 
-                : 'rgba(239, 68, 68, 0.25)',
+                ? alpha(theme.palette.success.main, 0.25)
+                : alpha(theme.palette.error.main, 0.25),
             }
           }}
         >
@@ -113,9 +115,6 @@ function Sidebar({
               sx={{ 
                 fontSize: 8, 
                 color: isConnected ? 'success.main' : 'error.main',
-                filter: isConnected 
-                  ? 'drop-shadow(0 0 4px rgba(34, 197, 94, 0.6))' 
-                  : 'drop-shadow(0 0 4px rgba(239, 68, 68, 0.6))',
               }} 
             />
             <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -255,10 +254,10 @@ function Sidebar({
               background: 'transparent',
             },
             '&::-webkit-scrollbar-thumb': {
-              backgroundColor: 'rgba(148, 163, 184, 0.2)',
+              backgroundColor: alpha(theme.palette.text.secondary, 0.2),
               borderRadius: 2,
               '&:hover': {
-                backgroundColor: 'rgba(148, 163, 184, 0.3)',
+                backgroundColor: alpha(theme.palette.text.secondary, 0.3),
               }
             },
           }}
@@ -293,20 +292,20 @@ function Sidebar({
                   borderRadius: 1.5,
                   cursor: 'pointer',
                   backgroundColor: conv.id === currentConversationId 
-                    ? 'rgba(6, 182, 212, 0.1)' 
+                    ? alpha(theme.palette.primary.main, 0.1) 
                     : 'transparent',
                   border: '1px solid',
                   borderColor: conv.id === currentConversationId 
-                    ? 'rgba(6, 182, 212, 0.2)' 
+                    ? alpha(theme.palette.primary.main, 0.2)
                     : 'transparent',
                   transition: 'all 0.15s ease',
                   '&:hover': {
                     backgroundColor: conv.id === currentConversationId 
-                      ? 'rgba(6, 182, 212, 0.15)' 
-                      : 'rgba(148, 163, 184, 0.06)',
+                      ? alpha(theme.palette.primary.main, 0.15)
+                      : alpha(theme.palette.text.secondary, 0.06),
                     borderColor: conv.id === currentConversationId 
-                      ? 'rgba(6, 182, 212, 0.25)' 
-                      : 'rgba(148, 163, 184, 0.1)',
+                      ? alpha(theme.palette.primary.main, 0.25)
+                      : alpha(theme.palette.text.secondary, 0.1),
                     '& .delete-btn': { opacity: 1 }
                   }
                 }}
@@ -354,7 +353,7 @@ function Sidebar({
                       transition: 'all 0.15s ease',
                       '&:hover': { 
                         color: 'error.main', 
-                        backgroundColor: 'rgba(239, 68, 68, 0.1)' 
+                        backgroundColor: alpha(theme.palette.error.main, 0.1), 
                       }
                     }}
                   >

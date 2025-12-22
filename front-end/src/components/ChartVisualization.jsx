@@ -49,19 +49,9 @@ ChartJS.register(
   Filler
 );
 
-// Color palette matching theme
-const CHART_COLORS = [
-  'rgba(16, 185, 129, 0.8)',   // Emerald (primary)
-  'rgba(6, 182, 212, 0.8)',    // Cyan
-  'rgba(16, 185, 129, 0.8)',   // Emerald
-  'rgba(245, 158, 11, 0.8)',   // Amber
-  'rgba(244, 63, 94, 0.8)',    // Rose
-  'rgba(59, 130, 246, 0.8)',   // Blue
-  'rgba(168, 85, 247, 0.8)',   // Purple
-  'rgba(34, 211, 238, 0.8)',   // Lighter cyan
-];
-
-const CHART_COLORS_BORDER = CHART_COLORS.map(c => c.replace('0.8', '1'));
+// Color palette moved inside component to use theme
+// const CHART_COLORS = ...
+// const CHART_COLORS_BORDER = ...
 
 function ChartVisualization({ data, onClose }) {
   const [chartType, setChartType] = useState('bar');
@@ -69,6 +59,20 @@ function ChartVisualization({ data, onClose }) {
   const [valueColumn, setValueColumn] = useState('');
   const [fullscreen, setFullscreen] = useState(false);
   const theme = useTheme();
+
+  // Dynamic colors based on theme
+  const chartColors = useMemo(() => [
+    alpha(theme.palette.success.main, 0.8),
+    alpha(theme.palette.info.main, 0.8),
+    alpha(theme.palette.success.dark, 0.8),
+    alpha(theme.palette.warning.main, 0.8),
+    alpha(theme.palette.error.main, 0.8),
+    alpha(theme.palette.secondary.main, 0.8),
+    alpha(theme.palette.secondary.light, 0.8),
+    alpha(theme.palette.info.light, 0.8),
+  ], [theme]);
+
+  const chartColorsBorder = useMemo(() => chartColors.map(c => c.replace('0.8', '1')), [chartColors]);
 
   const { columns = [], result = [] } = data || {};
 
@@ -115,11 +119,11 @@ function ChartVisualization({ data, onClose }) {
           label: valueColumn,
           data: values,
           backgroundColor: chartType === 'pie' || chartType === 'doughnut' 
-            ? CHART_COLORS.slice(0, values.length) 
-            : CHART_COLORS[0],
+            ? chartColors.slice(0, values.length) 
+            : chartColors[0],
           borderColor: chartType === 'pie' || chartType === 'doughnut'
-            ? CHART_COLORS_BORDER.slice(0, values.length)
-            : CHART_COLORS_BORDER[0],
+            ? chartColorsBorder.slice(0, values.length)
+            : chartColorsBorder[0],
           borderWidth: 1,
           fill: chartType === 'line',
         },
@@ -196,7 +200,7 @@ function ChartVisualization({ data, onClose }) {
           m: { xs: 1, sm: 2 },
           overflow: 'hidden',
           border: '1px solid',
-          borderColor: 'rgba(6, 182, 212, 0.3)',
+          borderColor: alpha(theme.palette.info.main, 0.3),
           position: fullscreen ? 'fixed' : 'relative',
           top: fullscreen ? 16 : 'auto',
           left: fullscreen ? 16 : 'auto',
@@ -215,9 +219,9 @@ function ChartVisualization({ data, onClose }) {
             gap: 2,
             px: 2,
             py: 1.5,
-            backgroundColor: 'rgba(6, 182, 212, 0.08)',
+            backgroundColor: alpha(theme.palette.info.main, 0.08),
             borderBottom: '1px solid',
-            borderColor: 'rgba(6, 182, 212, 0.15)',
+            borderColor: alpha(theme.palette.info.main, 0.15),
           }}
         >
           <Typography variant="body2" fontWeight={500}>

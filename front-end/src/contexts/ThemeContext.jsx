@@ -30,6 +30,9 @@ const defaultSettings = {
   // Connection
   rememberConnection: false,
   defaultDbType: 'postgresql',
+  // AI Assistant (NEW)
+  enableReasoning: true,           // Toggle reasoning on/off
+  reasoningEffort: 'medium',       // 'low' | 'medium' | 'high'
 };
 
 // Theme Provider Component (LOGIC ONLY - no theme definitions)

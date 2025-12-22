@@ -19,98 +19,117 @@ const breakpoints = {
 const shape = { borderRadius: 12 };
 
 // ============================================
-// TYPOGRAPHY - Centralized, semantic variants
+// TYPOGRAPHY - Premium, refined type scale
 // ============================================
 const typography = {
   fontFamily: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
   
-  // Hero/Display headings (Landing Page)
+  // Hero/Display headings
   h1: { 
     fontWeight: 700, 
-    fontSize: '3rem',        // 48px - Will be responsive via responsiveFontSizes
+    fontSize: '3rem',
     lineHeight: 1.1,
-    letterSpacing: '-0.02em' 
+    letterSpacing: '-0.025em' 
   },
   h2: { 
     fontWeight: 600, 
-    fontSize: '2.25rem',     // 36px
+    fontSize: '2.25rem',
     lineHeight: 1.2,
-    letterSpacing: '-0.01em' 
+    letterSpacing: '-0.02em' 
   },
   h3: { 
     fontWeight: 600, 
-    fontSize: '1.75rem',     // 28px
+    fontSize: '1.75rem',
     lineHeight: 1.3,
-    letterSpacing: '-0.01em' 
+    letterSpacing: '-0.015em' 
   },
   
   // Section headings
-  h4: { fontWeight: 600, fontSize: '1.25rem', lineHeight: 1.4 },  // 20px
-  h5: { fontWeight: 600, fontSize: '1.125rem', lineHeight: 1.4 }, // 18px
-  h6: { fontWeight: 600, fontSize: '1rem', lineHeight: 1.5 },     // 16px
+  h4: { fontWeight: 600, fontSize: '1.25rem', lineHeight: 1.4 },
+  h5: { fontWeight: 600, fontSize: '1.125rem', lineHeight: 1.4 },
+  h6: { fontWeight: 600, fontSize: '1rem', lineHeight: 1.5 },
   
-  // Subtitles - Component headers, form labels  
-  subtitle1: { fontSize: '1rem', fontWeight: 500, lineHeight: 1.5 },     // 16px medium
-  subtitle2: { fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.5 }, // 14px medium
+  // Subtitles
+  subtitle1: { fontSize: '1rem', fontWeight: 500, lineHeight: 1.5 },
+  subtitle2: { fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.5 },
   
-  // Body - Primary content (Chat AI/User messages)
-  body1: { fontSize: '1rem', lineHeight: 1.6 },      // 16px - optimal for reading
-  body2: { fontSize: '0.875rem', lineHeight: 1.5 }, // 14px - secondary content, sidebar
+  // Body
+  body1: { fontSize: '1rem', lineHeight: 1.6 },
+  body2: { fontSize: '0.875rem', lineHeight: 1.5 },
   
   // Meta text
-  caption: { fontSize: '0.75rem', lineHeight: 1.4, letterSpacing: '0.02em' }, // 12px - timestamps
+  caption: { fontSize: '0.75rem', lineHeight: 1.4, letterSpacing: '0.02em' },
   overline: { 
-    fontSize: '0.625rem',    // 10px - section labels
+    fontSize: '0.625rem',
     fontWeight: 600, 
     lineHeight: 1.5, 
-    letterSpacing: '0.08em',
+    letterSpacing: '0.1em',
     textTransform: 'uppercase'
   },
   
-  // Buttons - No uppercase
+  // Buttons
   button: { textTransform: 'none', fontWeight: 500, fontSize: '0.875rem' },
 };
 
 // ============================================
-// COLOR PALETTES
+// PREMIUM COLOR PALETTES
 // ============================================
 
-// Primary - Emerald Green (CTAs, Success, Main Actions)
-const primaryColors = {
-  main: '#10b981',      // Emerald 500
-  light: '#34d399',     // Emerald 400
-  dark: '#059669',      // Emerald 600
+// Primary - Refined Teal (Premium, Sophisticated)
+const primaryColorsDark = {
+  main: '#14b8a6',      // Teal 500 - Rich, premium teal
+  light: '#2dd4bf',     // Teal 400
+  dark: '#0d9488',      // Teal 600
   contrastText: '#ffffff',
 };
 
-// Secondary - Cyan (AI Elements, Highlights, Accents)
-const secondaryColors = {
-  main: '#06b6d4',      // Cyan 500
-  light: '#22d3ee',     // Cyan 400
-  dark: '#0891b2',      // Cyan 600
+const primaryColorsLight = {
+  main: '#0d9488',      // Teal 600 - Deeper for light mode
+  light: '#14b8a6',     // Teal 500
+  dark: '#0f766e',      // Teal 700
   contrastText: '#ffffff',
 };
 
-// Status colors (shared between themes)
-const statusColors = {
+// Secondary - Indigo (Elegant accent)
+const secondaryColorsDark = {
+  main: '#818cf8',      // Indigo 400 - Soft, elegant
+  light: '#a5b4fc',     // Indigo 300
+  dark: '#6366f1',      // Indigo 500
+  contrastText: '#0f0f14',
+};
+
+const secondaryColorsLight = {
+  main: '#6366f1',      // Indigo 500
+  light: '#818cf8',     // Indigo 400
+  dark: '#4f46e5',      // Indigo 600
+  contrastText: '#ffffff',
+};
+
+// Status colors - Refined, muted tones
+const statusColorsDark = {
   success: { main: '#22c55e', light: '#4ade80', dark: '#16a34a' },
-  error: { main: '#ef4444', light: '#f87171', dark: '#dc2626' },
-  warning: { main: '#f59e0b', light: '#fbbf24', dark: '#d97706' },
-  info: { main: '#06b6d4', light: '#22d3ee', dark: '#0891b2' },
+  error: { main: '#f87171', light: '#fca5a5', dark: '#ef4444' },
+  warning: { main: '#fbbf24', light: '#fde047', dark: '#f59e0b' },
+  info: { main: '#38bdf8', light: '#7dd3fc', dark: '#0ea5e9' },
+};
+
+const statusColorsLight = {
+  success: { main: '#16a34a', light: '#22c55e', dark: '#15803d' },
+  error: { main: '#dc2626', light: '#ef4444', dark: '#b91c1c' },
+  warning: { main: '#d97706', light: '#f59e0b', dark: '#b45309' },
+  info: { main: '#0284c7', light: '#0ea5e9', dark: '#0369a1' },
 };
 
 // ============================================
-// COMPONENT OVERRIDES - Shared between themes
+// COMPONENT OVERRIDES
 // ============================================
 const getComponentOverrides = (mode) => ({
-  // Disable default ripple effect globally, add subtle click transform
   MuiButtonBase: {
     defaultProps: {
-      disableRipple: true, // Disable ripple effect globally
+      disableRipple: true,
     },
     styleOverrides: {
       root: {
-        // Subtle click effect using transform
         transition: 'transform 0.1s ease-in-out, opacity 0.1s ease-in-out',
         '&:active': {
           transform: 'scale(0.97)',
@@ -124,11 +143,11 @@ const getComponentOverrides = (mode) => ({
     styleOverrides: {
       body: {
         scrollbarWidth: 'thin',
-        scrollbarColor: mode === 'dark' ? '#475569 transparent' : '#cbd5e1 transparent',
+        scrollbarColor: mode === 'dark' ? '#3f3f46 transparent' : '#d4d4d8 transparent',
         '&::-webkit-scrollbar': { width: 8 },
         '&::-webkit-scrollbar-track': { background: 'transparent' },
         '&::-webkit-scrollbar-thumb': { 
-          backgroundColor: mode === 'dark' ? '#475569' : '#cbd5e1', 
+          backgroundColor: mode === 'dark' ? '#3f3f46' : '#d4d4d8', 
           borderRadius: 4 
         },
       },
@@ -150,11 +169,11 @@ const getComponentOverrides = (mode) => ({
         },
       },
       contained: { 
-        boxShadow: mode === 'dark' ? 'none' : '0 1px 3px rgba(0, 0, 0, 0.12)',
+        boxShadow: 'none',
         '&:hover': { 
           boxShadow: mode === 'dark' 
-            ? '0 4px 12px rgba(16, 185, 129, 0.3)' 
-            : '0 4px 12px rgba(5, 150, 105, 0.25)' 
+            ? '0 4px 12px rgba(20, 184, 166, 0.25)' 
+            : '0 4px 12px rgba(13, 148, 136, 0.2)' 
         },
         '&:active': {
           transform: 'scale(0.98)',
@@ -165,7 +184,9 @@ const getComponentOverrides = (mode) => ({
         borderWidth: 1.5, 
         '&:hover': { 
           borderWidth: 1.5,
-          backgroundColor: mode === 'light' ? 'rgba(5, 150, 105, 0.04)' : undefined,
+          backgroundColor: mode === 'dark' 
+            ? 'rgba(20, 184, 166, 0.08)' 
+            : 'rgba(13, 148, 136, 0.06)',
         } 
       },
     },
@@ -175,10 +196,13 @@ const getComponentOverrides = (mode) => ({
     styleOverrides: {
       root: { 
         backgroundImage: 'none', 
-        borderRadius: 16, 
-        backdropFilter: mode === 'dark' ? 'blur(20px)' : undefined,
-        boxShadow: mode === 'light' ? '0 1px 3px rgba(0,0,0,0.08)' : undefined,
-        border: mode === 'light' ? '1px solid rgba(100, 116, 139, 0.08)' : undefined,
+        borderRadius: 16,
+        boxShadow: mode === 'dark' 
+          ? 'none' 
+          : '0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03)',
+        border: mode === 'dark' 
+          ? '1px solid rgba(63, 63, 70, 0.5)' 
+          : '1px solid rgba(228, 228, 231, 0.8)',
       },
     },
   },
@@ -186,12 +210,13 @@ const getComponentOverrides = (mode) => ({
   MuiDialog: {
     styleOverrides: {
       paper: { 
-        backdropFilter: mode === 'dark' ? 'blur(20px)' : undefined, 
-        background: mode === 'dark' ? 'rgba(17, 17, 24, 0.95)' : '#ffffff', 
+        background: mode === 'dark' ? '#18181b' : '#ffffff',
         border: mode === 'dark' 
-          ? '1px solid rgba(148, 163, 184, 0.1)' 
-          : '1px solid rgba(100, 116, 139, 0.12)',
-        boxShadow: mode === 'light' ? '0 25px 50px -12px rgba(0, 0, 0, 0.2)' : undefined,
+          ? '1px solid rgba(63, 63, 70, 0.6)' 
+          : '1px solid rgba(228, 228, 231, 0.8)',
+        boxShadow: mode === 'dark'
+          ? '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+          : '0 25px 50px -12px rgba(0, 0, 0, 0.15)',
       },
     },
   },
@@ -200,10 +225,10 @@ const getComponentOverrides = (mode) => ({
     styleOverrides: {
       paper: { 
         borderRight: mode === 'dark' 
-          ? '1px solid rgba(148, 163, 184, 0.08)' 
-          : '1px solid rgba(100, 116, 139, 0.1)', 
+          ? '1px solid rgba(63, 63, 70, 0.5)' 
+          : '1px solid rgba(228, 228, 231, 0.8)', 
         backgroundImage: 'none',
-        backgroundColor: mode === 'light' ? '#f1f5f9' : undefined, // Slate 100 for light
+        backgroundColor: mode === 'dark' ? '#09090b' : '#fafafa',
       },
     },
   },
@@ -212,9 +237,11 @@ const getComponentOverrides = (mode) => ({
     styleOverrides: {
       root: {
         backgroundImage: 'none',
-        backgroundColor: mode === 'light' ? 'rgba(255, 255, 255, 0.9)' : undefined,
-        backdropFilter: mode === 'light' ? 'blur(10px)' : undefined,
-        borderBottom: mode === 'light' ? '1px solid rgba(100, 116, 139, 0.1)' : undefined,
+        backgroundColor: mode === 'dark' ? '#09090b' : 'rgba(250, 250, 250, 0.9)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: mode === 'dark' 
+          ? '1px solid rgba(63, 63, 70, 0.5)' 
+          : '1px solid rgba(228, 228, 231, 0.8)',
       },
     },
   },
@@ -223,20 +250,20 @@ const getComponentOverrides = (mode) => ({
     styleOverrides: {
       root: {
         '& .MuiOutlinedInput-root': {
-          borderRadius: 12,
-          backgroundColor: mode === 'light' ? '#ffffff' : undefined,
+          borderRadius: 10,
+          backgroundColor: mode === 'dark' ? 'rgba(24, 24, 27, 0.5)' : '#ffffff',
           '& fieldset': { 
             borderColor: mode === 'dark' 
-              ? 'rgba(148, 163, 184, 0.2)' 
-              : 'rgba(100, 116, 139, 0.2)' 
+              ? 'rgba(63, 63, 70, 0.6)' 
+              : 'rgba(228, 228, 231, 1)' 
           },
           '&:hover fieldset': { 
             borderColor: mode === 'dark' 
-              ? 'rgba(6, 182, 212, 0.5)' 
-              : 'rgba(5, 150, 105, 0.4)' 
+              ? 'rgba(20, 184, 166, 0.5)' 
+              : 'rgba(13, 148, 136, 0.4)' 
           },
           '&.Mui-focused fieldset': { 
-            borderColor: mode === 'dark' ? '#10b981' : '#059669', 
+            borderColor: mode === 'dark' ? '#14b8a6' : '#0d9488', 
             borderWidth: 2 
           },
         },
@@ -254,8 +281,8 @@ const getComponentOverrides = (mode) => ({
         transition: 'all 0.15s ease-in-out', 
         '&:hover': { 
           backgroundColor: mode === 'dark' 
-            ? 'rgba(148, 163, 184, 0.12)' 
-            : 'rgba(100, 116, 139, 0.08)' 
+            ? 'rgba(63, 63, 70, 0.5)' 
+            : 'rgba(228, 228, 231, 0.8)' 
         },
         '&:active': {
           transform: 'scale(0.92)',
@@ -268,14 +295,16 @@ const getComponentOverrides = (mode) => ({
   MuiAvatar: {
     styleOverrides: {
       root: {
-        border: '2px solid rgba(6, 182, 212, 0.3)',
+        border: mode === 'dark' 
+          ? '2px solid rgba(20, 184, 166, 0.3)' 
+          : '2px solid rgba(13, 148, 136, 0.25)',
       },
     },
   },
   
   MuiChip: {
     defaultProps: {
-      clickable: false, // If clickable, add these styles
+      clickable: false,
     },
     styleOverrides: {
       root: { 
@@ -286,19 +315,23 @@ const getComponentOverrides = (mode) => ({
           transform: 'scale(0.95)',
         },
       },
-      filled: mode === 'light' ? {
-        backgroundColor: 'rgba(5, 150, 105, 0.1)',
-        color: '#059669',
-      } : undefined,
+      filled: mode === 'dark' ? {
+        backgroundColor: 'rgba(20, 184, 166, 0.15)',
+        color: '#2dd4bf',
+      } : {
+        backgroundColor: 'rgba(13, 148, 136, 0.1)',
+        color: '#0d9488',
+      },
     },
   },
   
   MuiTooltip: {
     styleOverrides: {
       tooltip: { 
-        backgroundColor: mode === 'dark' ? '#1e293b' : '#334155', 
+        backgroundColor: mode === 'dark' ? '#27272a' : '#3f3f46', 
         borderRadius: 8, 
-        fontSize: '0.75rem' 
+        fontSize: '0.75rem',
+        border: mode === 'dark' ? '1px solid rgba(63, 63, 70, 0.6)' : 'none',
       },
     },
   },
@@ -308,11 +341,11 @@ const getComponentOverrides = (mode) => ({
       paper: { 
         borderRadius: 12, 
         border: mode === 'dark' 
-          ? '1px solid rgba(148, 163, 184, 0.1)' 
-          : '1px solid rgba(100, 116, 139, 0.1)', 
+          ? '1px solid rgba(63, 63, 70, 0.6)' 
+          : '1px solid rgba(228, 228, 231, 0.8)', 
         boxShadow: mode === 'dark' 
-          ? '0 20px 25px -5px rgba(0, 0, 0, 0.5)' 
-          : '0 10px 25px -5px rgba(0, 0, 0, 0.12)' 
+          ? '0 20px 25px -5px rgba(0, 0, 0, 0.4)' 
+          : '0 10px 25px -5px rgba(0, 0, 0, 0.08)' 
       },
     },
   },
@@ -329,16 +362,18 @@ const getComponentOverrides = (mode) => ({
         transition: 'all 0.1s ease-in-out',
         '&:hover': { 
           backgroundColor: mode === 'dark' 
-            ? 'rgba(148, 163, 184, 0.12)' 
-            : 'rgba(5, 150, 105, 0.08)' 
+            ? 'rgba(63, 63, 70, 0.5)' 
+            : 'rgba(228, 228, 231, 0.8)' 
         },
         '&:active': {
           transform: 'scale(0.98)',
           opacity: 0.9,
         },
-        '&.Mui-selected': mode === 'light' ? { 
-          backgroundColor: 'rgba(5, 150, 105, 0.12)' 
-        } : undefined,
+        '&.Mui-selected': { 
+          backgroundColor: mode === 'dark' 
+            ? 'rgba(20, 184, 166, 0.12)' 
+            : 'rgba(13, 148, 136, 0.1)' 
+        },
       },
     },
   },
@@ -353,8 +388,8 @@ const getComponentOverrides = (mode) => ({
         transition: 'all 0.1s ease-in-out',
         '&:hover': { 
           backgroundColor: mode === 'dark' 
-            ? 'rgba(148, 163, 184, 0.08)' 
-            : 'rgba(5, 150, 105, 0.06)' 
+            ? 'rgba(63, 63, 70, 0.4)' 
+            : 'rgba(228, 228, 231, 0.7)' 
         },
         '&:active': {
           transform: 'scale(0.98)',
@@ -362,12 +397,12 @@ const getComponentOverrides = (mode) => ({
         },
         '&.Mui-selected': { 
           backgroundColor: mode === 'dark' 
-            ? 'rgba(6, 182, 212, 0.1)' 
-            : 'rgba(5, 150, 105, 0.1)',
+            ? 'rgba(20, 184, 166, 0.12)' 
+            : 'rgba(13, 148, 136, 0.1)',
           '&:hover': { 
             backgroundColor: mode === 'dark' 
-              ? 'rgba(6, 182, 212, 0.15)' 
-              : 'rgba(5, 150, 105, 0.15)' 
+              ? 'rgba(20, 184, 166, 0.18)' 
+              : 'rgba(13, 148, 136, 0.15)' 
           },
         },
       },
@@ -376,7 +411,7 @@ const getComponentOverrides = (mode) => ({
   
   MuiTabs: {
     styleOverrides: {
-      indicator: { backgroundColor: mode === 'dark' ? '#10b981' : '#059669' },
+      indicator: { backgroundColor: mode === 'dark' ? '#14b8a6' : '#0d9488' },
     },
   },
   
@@ -390,14 +425,46 @@ const getComponentOverrides = (mode) => ({
         '&:active': {
           transform: 'scale(0.97)',
         },
-        '&.Mui-selected': { color: mode === 'dark' ? '#10b981' : '#059669' },
+        '&.Mui-selected': { color: mode === 'dark' ? '#14b8a6' : '#0d9488' },
+      },
+    },
+  },
+
+  MuiAlert: {
+    styleOverrides: {
+      root: {
+        borderRadius: 10,
+      },
+      standardSuccess: {
+        backgroundColor: mode === 'dark' 
+          ? 'rgba(34, 197, 94, 0.12)' 
+          : 'rgba(22, 163, 74, 0.1)',
+        color: mode === 'dark' ? '#4ade80' : '#16a34a',
+      },
+      standardError: {
+        backgroundColor: mode === 'dark' 
+          ? 'rgba(248, 113, 113, 0.12)' 
+          : 'rgba(220, 38, 38, 0.1)',
+        color: mode === 'dark' ? '#fca5a5' : '#dc2626',
+      },
+    },
+  },
+
+  MuiSnackbar: {
+    styleOverrides: {
+      root: {
+        '& .MuiAlert-root': {
+          boxShadow: mode === 'dark' 
+            ? '0 10px 25px -5px rgba(0, 0, 0, 0.4)' 
+            : '0 10px 25px -5px rgba(0, 0, 0, 0.1)',
+        },
       },
     },
   },
 });
 
 // ============================================
-// DARK THEME
+// DARK THEME - Premium Dark
 // ============================================
 export const createDarkTheme = () => {
   let theme = createTheme({
@@ -406,25 +473,25 @@ export const createDarkTheme = () => {
     typography,
     palette: {
       mode: 'dark',
-      primary: primaryColors,
-      secondary: secondaryColors,
-      ...statusColors,
+      primary: primaryColorsDark,
+      secondary: secondaryColorsDark,
+      ...statusColorsDark,
       background: {
-        default: '#0a0a0f',   // Near black, neutral
-        paper: '#111118',     // Slightly lighter
+        default: '#09090b',   // Zinc 950 - True dark
+        paper: '#18181b',     // Zinc 900 - Cards, elevated surfaces
       },
       text: {
-        primary: '#f8fafc',   // Slate 50
-        secondary: '#94a3b8', // Slate 400
-        disabled: '#475569',  // Slate 600
+        primary: '#fafafa',   // Zinc 50 - Crisp white
+        secondary: '#a1a1aa', // Zinc 400 - Muted
+        disabled: '#52525b',  // Zinc 600
       },
-      divider: 'rgba(148, 163, 184, 0.08)',
+      divider: 'rgba(63, 63, 70, 0.5)', // Zinc 700 with transparency
       action: {
-        active: '#f8fafc',
-        hover: 'rgba(148, 163, 184, 0.08)',
-        selected: 'rgba(148, 163, 184, 0.12)',
-        disabled: 'rgba(255, 255, 255, 0.3)',
-        disabledBackground: 'rgba(255, 255, 255, 0.12)',
+        active: '#fafafa',
+        hover: 'rgba(63, 63, 70, 0.4)',
+        selected: 'rgba(63, 63, 70, 0.6)',
+        disabled: 'rgba(250, 250, 250, 0.3)',
+        disabledBackground: 'rgba(250, 250, 250, 0.12)',
       },
     },
     shadows: [
@@ -443,7 +510,7 @@ export const createDarkTheme = () => {
 };
 
 // ============================================
-// LIGHT THEME
+// LIGHT THEME - Premium Light
 // ============================================
 export const createLightTheme = () => {
   let theme = createTheme({
@@ -452,48 +519,35 @@ export const createLightTheme = () => {
     typography,
     palette: {
       mode: 'light',
-      primary: {
-        main: '#059669',      // Emerald 600 (darker for better contrast)
-        light: '#10b981',     // Emerald 500
-        dark: '#047857',      // Emerald 700
-        contrastText: '#ffffff',
-      },
-      secondary: {
-        main: '#0891b2',      // Cyan 600
-        light: '#06b6d4',     // Cyan 500
-        dark: '#0e7490',      // Cyan 700
-        contrastText: '#ffffff',
-      },
-      success: { main: '#16a34a', light: '#22c55e', dark: '#15803d' },
-      error: { main: '#dc2626', light: '#ef4444', dark: '#b91c1c' },
-      warning: { main: '#d97706', light: '#f59e0b', dark: '#b45309' },
-      info: { main: '#0284c7', light: '#0ea5e9', dark: '#0369a1' },
+      primary: primaryColorsLight,
+      secondary: secondaryColorsLight,
+      ...statusColorsLight,
       background: {
-        default: '#f8fafc',   // Slate 50
-        paper: '#ffffff',
+        default: '#fafafa',   // Zinc 50 - Soft white
+        paper: '#ffffff',     // Pure white
       },
       text: {
-        primary: '#1e293b',   // Slate 800
-        secondary: '#64748b', // Slate 500
-        disabled: '#94a3b8',  // Slate 400
+        primary: '#18181b',   // Zinc 900 - Deep black
+        secondary: '#71717a', // Zinc 500 - Muted
+        disabled: '#a1a1aa',  // Zinc 400
       },
-      divider: 'rgba(100, 116, 139, 0.12)',
+      divider: 'rgba(228, 228, 231, 0.8)', // Zinc 200
       action: {
-        active: '#1e293b',
-        hover: 'rgba(100, 116, 139, 0.08)',
-        selected: 'rgba(5, 150, 105, 0.12)',
+        active: '#18181b',
+        hover: 'rgba(228, 228, 231, 0.6)',
+        selected: 'rgba(13, 148, 136, 0.12)',
         disabled: 'rgba(0, 0, 0, 0.26)',
         disabledBackground: 'rgba(0, 0, 0, 0.12)',
       },
     },
     shadows: [
       'none',
-      '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-      '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1)',
-      '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)',
-      '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1)',
-      '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
-      ...Array(19).fill('0 25px 50px -12px rgba(0, 0, 0, 0.15)'),
+      '0 1px 2px 0 rgba(0, 0, 0, 0.03)',
+      '0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px -1px rgba(0, 0, 0, 0.06)',
+      '0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05)',
+      '0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.05)',
+      '0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.05)',
+      ...Array(19).fill('0 25px 50px -12px rgba(0, 0, 0, 0.1)'),
     ],
     components: getComponentOverrides('light'),
   });
@@ -501,5 +555,5 @@ export const createLightTheme = () => {
   return responsiveFontSizes(theme);
 };
 
-// Default export for backward compatibility
+// Default export
 export default createDarkTheme();

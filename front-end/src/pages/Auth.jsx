@@ -21,6 +21,7 @@ import {
   DialogActions,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useTheme, alpha } from '@mui/material/styles';
 import GoogleIcon from '@mui/icons-material/Google';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
@@ -46,6 +47,11 @@ function TabPanel({ children, value, index }) {
 
 function Auth() {
   const navigate = useNavigate();
+  const theme = useTheme();
+
+  useEffect(() => {
+    document.title = 'DB-Genie - Sign In';
+  }, []);
   const {
     signInWithGoogle,
     signInWithGitHub,
@@ -217,7 +223,9 @@ function Auth() {
           left: '-20%',
           width: '60%',
           height: '60%',
-          background: 'radial-gradient(circle, rgba(6, 182, 212, 0.12) 0%, transparent 70%)',
+          width: '60%',
+          height: '60%',
+          background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.12)} 0%, transparent 70%)`,
           filter: 'blur(80px)',
           pointerEvents: 'none',
           zIndex: 0,
@@ -230,7 +238,7 @@ function Auth() {
           right: '-20%',
           width: '60%',
           height: '60%',
-          background: 'radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 70%)',
+          background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.15)} 0%, transparent 70%)`,
           filter: 'blur(80px)',
           pointerEvents: 'none',
           zIndex: 0,
@@ -261,10 +269,10 @@ function Auth() {
             elevation={0}
             sx={{
               p: { xs: 2.5, sm: 3.5 },
-              background: 'rgba(255, 255, 255, 0.03)',
+              background: alpha(theme.palette.background.paper, 0.03),
               backdropFilter: 'blur(20px)',
               WebkitBackdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255, 255, 255, 0.08)',
+              border: `1px solid ${alpha(theme.palette.common.white, 0.08)}`,
               borderRadius: { xs: 2, sm: 3 },
             }}
           >
@@ -277,7 +285,7 @@ function Auth() {
                 sx={{
                   width: { xs: 50, sm: 60 },
                   height: 'auto',
-                  filter: 'drop-shadow(0 8px 16px rgba(6, 182, 212, 0.3))',
+                  filter: `drop-shadow(0 8px 16px ${alpha(theme.palette.info.main, 0.3)})`,
                 }}
               />
 
@@ -329,8 +337,8 @@ function Auth() {
                   severity="error" 
                   sx={{ 
                     width: '100%',
-                    backgroundColor: 'rgba(244, 63, 94, 0.1)',
-                    border: '1px solid rgba(244, 63, 94, 0.3)',
+                    backgroundColor: alpha(theme.palette.error.main, 0.1),
+                    border: `1px solid ${alpha(theme.palette.error.main, 0.3)}`,
                     py: 0.5,
                     '& .MuiAlert-icon': { fontSize: 18 },
                     '& .MuiAlert-message': { fontSize: 'inherit' },
@@ -344,8 +352,8 @@ function Auth() {
                   severity="success" 
                   sx={{ 
                     width: '100%',
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    border: '1px solid rgba(16, 185, 129, 0.3)',
+                    backgroundColor: alpha(theme.palette.success.main, 0.1),
+                    border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
                     py: 0.5,
                     '& .MuiAlert-icon': { fontSize: 18 },
                     '& .MuiAlert-message': { fontSize: 'inherit' },
@@ -428,9 +436,9 @@ function Auth() {
                     disabled={formLoading}
                     sx={{
                       py: 1,
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
                       '&:hover': {
-                        background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
+                        background: `linear-gradient(135deg, ${theme.palette.success.light} 0%, ${theme.palette.success.main} 100%)`,
                       },
                     }}
                   >
@@ -524,9 +532,9 @@ function Auth() {
                     disabled={formLoading}
                     sx={{
                       py: 1,
-                      background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                      background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
                       '&:hover': {
-                        background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
+                        background: `linear-gradient(135deg, ${theme.palette.success.light} 0%, ${theme.palette.success.main} 100%)`,
                       },
                     }}
                   >
@@ -558,11 +566,11 @@ function Auth() {
                   onClick={handleGoogleSignIn}
                   sx={{
                     py: 0.875,
-                    borderColor: 'rgba(255, 255, 255, 0.15)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    borderColor: alpha(theme.palette.common.white, 0.15),
+                    backgroundColor: alpha(theme.palette.common.white, 0.02),
                     '&:hover': {
                       borderColor: 'primary.main',
-                      backgroundColor: 'rgba(6, 182, 212, 0.1)',
+                      backgroundColor: alpha(theme.palette.info.main, 0.1),
                     },
                   }}
                 >
@@ -575,11 +583,11 @@ function Auth() {
                   onClick={handleGitHubSignIn}
                   sx={{
                     py: 0.875,
-                    borderColor: 'rgba(255, 255, 255, 0.15)',
-                    backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                    borderColor: alpha(theme.palette.common.white, 0.15),
+                    backgroundColor: alpha(theme.palette.common.white, 0.02),
                     '&:hover': {
                       borderColor: '#f0f6fc',
-                      backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                      backgroundColor: alpha(theme.palette.common.white, 0.08),
                     },
                   }}
                 >

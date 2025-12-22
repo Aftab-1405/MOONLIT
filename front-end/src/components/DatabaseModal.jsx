@@ -16,6 +16,7 @@ import {
   InputAdornment,
   Divider,
 } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -30,6 +31,7 @@ const DB_TYPES = [
 ];
 
 function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase }) {
+  const theme = useTheme();
   // Read default DB type from settings
   const storedSettings = JSON.parse(localStorage.getItem('db-genie-settings') || '{}');
   const defaultDbType = storedSettings.defaultDbType || 'postgresql';
@@ -261,8 +263,9 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
               mb: 2,
               p: 2,
               borderRadius: 1,
-              backgroundColor: 'rgba(16, 185, 129, 0.15)',
-              border: '1px solid rgba(16, 185, 129, 0.3)',
+              borderRadius: 1,
+              backgroundColor: alpha(theme.palette.success.main, 0.15),
+              border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
               display: 'flex',
               alignItems: 'center',
               gap: 1,
@@ -302,11 +305,11 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 py: 1.5,
                 textTransform: 'none',
                 '&.Mui-selected': {
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  backgroundColor: alpha(theme.palette.success.main, 0.15),
                   borderColor: 'primary.main',
                   color: 'primary.main',
                   '&:hover': {
-                    backgroundColor: 'rgba(16, 185, 129, 0.25)',
+                    backgroundColor: alpha(theme.palette.success.main, 0.25),
                   },
                 },
               },
@@ -358,7 +361,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                       textTransform: 'none',
                       fontSize: '0.8rem',
                       '&.Mui-selected': {
-                        backgroundColor: 'rgba(6, 182, 212, 0.15)',
+                        backgroundColor: alpha(theme.palette.secondary.main, 0.15),
                         borderColor: 'secondary.main',
                         color: 'secondary.main',
                       },
@@ -540,7 +543,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           startIcon={loading && <CircularProgress size={16} color="inherit" />}
           sx={isConnected ? { 
             bgcolor: 'success.dark', 
-            '&.Mui-disabled': { bgcolor: 'rgba(16, 185, 129, 0.3)', color: 'rgba(255,255,255,0.7)' } 
+            '&.Mui-disabled': { bgcolor: alpha(theme.palette.success.main, 0.3), color: alpha(theme.palette.common.white, 0.7) } 
           } : {}}
         >
           {loading ? 'Connecting...' : isConnected ? `Connected to ${currentDatabase}` : 'Connect'}

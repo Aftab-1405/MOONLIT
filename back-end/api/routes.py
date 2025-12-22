@@ -41,20 +41,40 @@ def index():
 @login_required
 def pass_userinput_to_gemini():
     """Handle user input and stream AI response."""
+    from database.session_utils import get_db_config_from_session
+    
     data = request.get_json()
     prompt = data.get('prompt')
+    
+    # Extract reasoning settings from request (frontend settings)
+    enable_reasoning = data.get('enable_reasoning', True)
+    reasoning_effort = data.get('reasoning_effort', 'medium')
     
     conversation_id = ConversationService.create_or_get_conversation_id(data.get('conversation_id'))
     user_id = session.get('user')
     
-    logger.debug(f'Received prompt for conversation: {conversation_id}')
+    # Capture database config at request start - pass it explicitly to the generator
+    try:
+        db_config = get_db_config_from_session()
+        logger.debug(f'Captured db_config for AI tools: {db_config.get("database") if db_config else "None"}')
+    except Exception as e:
+        db_config = None
+        logger.debug(f'No db_config available: {e}')
+    
+    logger.debug(f'Received prompt for conversation: {conversation_id}, reasoning={enable_reasoning}')
     
     try:
-        generator = ConversationService.create_streaming_generator(conversation_id, prompt, user_id)
+        # Pass db_config and reasoning settings to the generator
+        generator = ConversationService.create_streaming_generator(
+            conversation_id, prompt, user_id, 
+            db_config=db_config,
+            enable_reasoning=enable_reasoning,
+            reasoning_effort=reasoning_effort
+        )
         headers = ConversationService.get_streaming_headers(conversation_id)
         return Response(generator, mimetype='text/plain', headers=headers)
     except Exception as e:
-        logger.error(f'Error initializing Gemini request: {e}')
+        logger.error(f'Error initializing chat request: {e}')
         if ConversationService.check_quota_error(str(e)):
             return jsonify({
                 'status': 'error', 

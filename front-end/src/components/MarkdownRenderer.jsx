@@ -2,8 +2,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Box, Typography, IconButton, Tooltip, Paper, CircularProgress, useTheme as useMuiTheme } from '@mui/material';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import MermaidDiagram from './MermaidDiagram';
@@ -49,7 +50,7 @@ function CodeBlock({ children, className, onRunQuery }) {
         my: 2,
         borderRadius: 2,
         overflow: 'hidden',
-        backgroundColor: isDarkMode ? '#1E1E1E' : '#f5f5f5',
+        backgroundColor: isDarkMode ? '#1E1E1E' : '#f8f8f8',
         border: '1px solid',
         borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
       }}
@@ -108,11 +109,15 @@ function CodeBlock({ children, className, onRunQuery }) {
               size="small"
               onClick={handleCopy}
               sx={{ 
-                color: 'text.secondary', 
+                color: copied ? 'success.main' : 'text.secondary', 
                 '&:hover': { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' } 
               }}
             >
-              <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
+              {copied ? (
+                <CheckRoundedIcon sx={{ fontSize: 14 }} />
+              ) : (
+                <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
+              )}
             </IconButton>
           </Tooltip>
         </Box>
@@ -142,11 +147,14 @@ function CodeBlock({ children, className, onRunQuery }) {
 
 // Inline code component
 function InlineCode({ children }) {
+  const muiTheme = useMuiTheme();
+  const isDarkMode = muiTheme.palette.mode === 'dark';
+  
   return (
     <Box
       component="code"
       sx={{
-        backgroundColor: 'rgba(255,255,255,0.08)',
+        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
         color: 'primary.light',
         px: 0.75,
         py: 0.25,
@@ -161,6 +169,38 @@ function InlineCode({ children }) {
 }
 
 function MarkdownRenderer({ content, onRunQuery }) {
+  const muiTheme = useMuiTheme();
+  const isDarkMode = muiTheme.palette.mode === 'dark';
+  
+  // Memoize the components object to prevent unnecessary re-renders
+  const components = useMemo(() => ({
+    // Handle code blocks vs inline code
+    code({ node, className, children, ...props }) {
+      // Check if it's inside a <pre> tag (code block) or standalone (inline)
+      const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line ||
+                          className?.startsWith('language-') ||
+                          String(children).includes('\n');
+      
+      if (isCodeBlock || className) {
+        return (
+          <CodeBlock className={className} onRunQuery={onRunQuery}>
+            {children}
+          </CodeBlock>
+        );
+      }
+      
+      // Inline code
+      return <InlineCode {...props}>{children}</InlineCode>;
+    },
+    // Ensure pre tags don't add extra wrapper
+    pre({ children }) {
+      return <>{children}</>;
+    },
+  }), [onRunQuery]);
+
+  // Memoize remarkPlugins to prevent unnecessary re-renders
+  const remarkPlugins = useMemo(() => [remarkGfm], []);
+
   return (
     <Box
       sx={{
@@ -179,40 +219,31 @@ function MarkdownRenderer({ content, onRunQuery }) {
           my: 1.5,
           color: 'text.secondary',
         },
-        '& hr': { border: 'none', borderTop: '1px solid rgba(255,255,255,0.1)', my: 2 },
+        '& hr': { 
+          border: 'none', 
+          borderTop: '1px solid',
+          borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+          my: 2 
+        },
         '& table': { width: '100%', borderCollapse: 'collapse', my: 2 },
-        '& th, & td': { border: '1px solid rgba(255,255,255,0.1)', px: 1.5, py: 0.75, textAlign: 'left' },
-        '& th': { backgroundColor: 'rgba(255,255,255,0.03)', fontWeight: 600 },
+        '& th, & td': { 
+          border: '1px solid',
+          borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+          px: 1.5, 
+          py: 0.75, 
+          textAlign: 'left' 
+        },
+        '& th': { 
+          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', 
+          fontWeight: 600 
+        },
         '& a': { color: 'primary.light', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },
         '& strong': { fontWeight: 600 },
       }}
     >
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        components={{
-          // Handle code blocks vs inline code
-          code({ node, className, children, ...props }) {
-            // Check if it's inside a <pre> tag (code block) or standalone (inline)
-            const isCodeBlock = node?.position?.start?.line !== node?.position?.end?.line ||
-                                className?.startsWith('language-') ||
-                                String(children).includes('\n');
-            
-            if (isCodeBlock || className) {
-              return (
-                <CodeBlock className={className} onRunQuery={onRunQuery}>
-                  {children}
-                </CodeBlock>
-              );
-            }
-            
-            // Inline code
-            return <InlineCode {...props}>{children}</InlineCode>;
-          },
-          // Ensure pre tags don't add extra wrapper
-          pre({ children }) {
-            return <>{children}</>;
-          },
-        }}
+        remarkPlugins={remarkPlugins}
+        components={components}
       >
         {content}
       </ReactMarkdown>

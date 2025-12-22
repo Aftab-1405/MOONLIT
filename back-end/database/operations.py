@@ -50,7 +50,7 @@ class DatabaseOperations:
             else:
                 query = adapter.get_databases_query()
             
-            with get_cursor() as cursor:
+            with get_db_cursor() as cursor:
                 cursor.execute(query)
                 databases = [db[0] for db in cursor.fetchall()]
 
@@ -88,7 +88,7 @@ class DatabaseOperations:
             config = get_db_config_from_session()
             db_type = config.get('db_type', 'mysql') if config else 'mysql'
             
-            with get_cursor() as cursor:
+            with get_db_cursor() as cursor:
                 if db_type == 'postgresql':
                     # Use PostgreSQL adapter's query with schema support
                     from database.adapters import get_adapter
@@ -164,7 +164,7 @@ class DatabaseOperations:
             validated_table = DatabaseSecurity.validate_table_name(table_name)
             validated_db = DatabaseSecurity.validate_database_name(db_name)
             
-            with get_cursor() as cursor:
+            with get_db_cursor() as cursor:
                 # Use faster SHOW TABLE STATUS for approximate count
                 cursor.execute(
                     "SELECT TABLE_ROWS FROM information_schema.TABLES WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s",
@@ -307,7 +307,7 @@ def execute_sql_query(sql_query: str, max_rows: int = None, timeout_seconds: int
         config = get_db_config_from_session()
         db_type = config.get('db_type', 'mysql') if config else 'mysql'
 
-        with get_cursor() as cursor:
+        with get_db_cursor() as cursor:
             # Use user-provided timeout or fall back to config
             actual_timeout = timeout_seconds if timeout_seconds is not None else Config.QUERY_TIMEOUT_SECONDS
             

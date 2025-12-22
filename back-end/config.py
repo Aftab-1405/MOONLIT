@@ -22,9 +22,8 @@ class Config:
     if not SECRET_KEY or SECRET_KEY == 'your_secret_key_here':
         raise ValueError("SECRET_KEY environment variable must be set to a real value (not the placeholder)")
     
-    # Gemini API Configuration
-    GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
-    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash')
+    # LLM API Configuration (Cerebras)
+    # LLM_API_KEY, LLM_BASE_URL, LLM_MODEL are read directly in llm_service.py
     
     # Firebase credentials from environment variables
     @staticmethod

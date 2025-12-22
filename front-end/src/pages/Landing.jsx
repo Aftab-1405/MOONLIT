@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { 
   Box, 
   Typography, 
@@ -10,6 +11,7 @@ import {
   Link,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useTheme, alpha } from '@mui/material/styles';
 
 // Icons
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
@@ -52,22 +54,28 @@ const FullScreenSection = ({ children, sx = {}, ...props }) => (
 );
 
 // Glassmorphism styles
-const glassCard = {
-  background: 'rgba(255, 255, 255, 0.03)',
+// Glassmorphism styles helper
+const getGlassCardStyles = (theme) => ({
+  background: alpha(theme.palette.background.paper, 0.03),
   backdropFilter: 'blur(20px)',
   WebkitBackdropFilter: 'blur(20px)',
-  border: '1px solid rgba(255, 255, 255, 0.08)',
+  border: `1px solid ${alpha(theme.palette.common.white, 0.08)}`,
   borderRadius: 4,
   transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
   '&:hover': {
-    background: 'rgba(148, 163, 184, 0.06)',
-    border: '1px solid rgba(148, 163, 184, 0.15)',
+    background: alpha(theme.palette.text.secondary, 0.06),
+    border: `1px solid ${alpha(theme.palette.text.secondary, 0.15)}`,
     transform: 'translateY(-4px)',
   },
-};
+});
 
 function Landing() {
   const navigate = useNavigate();
+  const theme = useTheme();
+
+  useEffect(() => {
+    document.title = 'DB-Genie - AI Database Assistant';
+  }, []);
 
   const valueProps = [
     {
@@ -120,8 +128,8 @@ function Landing() {
       {/* ===== SECTION 1: HERO ===== */}
       <FullScreenSection>
         {/* Background Effects */}
-        <Box sx={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse 80% 50% at 50% -20%, rgba(6, 182, 212, 0.15), transparent)', pointerEvents: 'none' }} />
-        <Box sx={{ position: 'absolute', bottom: '-30%', right: '-20%', width: 600, height: 600, background: 'radial-gradient(circle, rgba(6, 182, 212, 0.15) 0%, transparent 70%)', filter: 'blur(80px)', pointerEvents: 'none' }} />
+        <Box sx={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 80% 50% at 50% -20%, ${alpha(theme.palette.info.main, 0.15)}, transparent)`, pointerEvents: 'none' }} />
+        <Box sx={{ position: 'absolute', bottom: '-30%', right: '-20%', width: 600, height: 600, background: `radial-gradient(circle, ${alpha(theme.palette.info.main, 0.15)} 0%, transparent 70%)`, filter: 'blur(80px)', pointerEvents: 'none' }} />
         
         <Container maxWidth="md" sx={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
           <Stack spacing={4} alignItems="center">
@@ -133,7 +141,7 @@ function Landing() {
               sx={{
                 width: { xs: 80, md: 100 },
                 height: 'auto',
-                filter: 'drop-shadow(0 20px 40px rgba(6, 182, 212, 0.3))',
+                filter: `drop-shadow(0 20px 40px ${alpha(theme.palette.info.main, 0.3)})`,
                 animation: 'float 3s ease-in-out infinite',
                 '@keyframes float': {
                   '0%, 100%': { transform: 'translateY(0)' },
@@ -156,7 +164,7 @@ function Landing() {
                 component="span"
                 sx={{
                   display: 'block',
-                  background: 'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)',
+                  background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.primary.main} 100%)`,
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
@@ -181,11 +189,11 @@ function Landing() {
                 sx={{
                   px: 5,
                   py: 1.75,
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                  boxShadow: '0 0 40px rgba(16, 185, 129, 0.4)',
+                  background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+                  boxShadow: `0 0 40px ${alpha(theme.palette.success.main, 0.4)}`,
                   '&:hover': {
-                    background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
-                    boxShadow: '0 0 60px rgba(16, 185, 129, 0.5)',
+                    background: `linear-gradient(135deg, ${theme.palette.success.light} 0%, ${theme.palette.success.main} 100%)`,
+                    boxShadow: `0 0 60px ${alpha(theme.palette.success.main, 0.5)}`,
                     transform: 'translateY(-2px)',
                   },
                 }}
@@ -199,8 +207,8 @@ function Landing() {
                 sx={{
                   px: 5,
                   py: 1.75,
-                  borderColor: 'rgba(255, 255, 255, 0.2)',
-                  '&:hover': { borderColor: 'secondary.main', backgroundColor: 'rgba(6, 182, 212, 0.1)' },
+                  borderColor: alpha(theme.palette.common.white, 0.2),
+                  '&:hover': { borderColor: 'secondary.main', backgroundColor: alpha(theme.palette.info.main, 0.1) },
                 }}
               >
                 Watch Demo
@@ -230,7 +238,7 @@ function Landing() {
       </FullScreenSection>
 
       {/* ===== SECTION 2: VALUE PROPOSITION ===== */}
-      <FullScreenSection sx={{ background: 'linear-gradient(180deg, rgba(6, 182, 212, 0.02) 0%, transparent 100%)' }}>
+      <FullScreenSection sx={{ background: `linear-gradient(180deg, ${alpha(theme.palette.info.main, 0.02)} 0%, transparent 100%)` }}>
         <Container maxWidth="lg" sx={{ textAlign: 'center' }}>
           <Stack spacing={6} alignItems="center">
             <Box>
@@ -245,8 +253,8 @@ function Landing() {
             <Grid container spacing={4} justifyContent="center">
               {valueProps.map((prop, i) => (
                 <Grid item xs={12} sm={6} md={4} key={i}>
-                  <Box sx={{ ...glassCard, p: 4, height: '100%', textAlign: 'center' }}>
-                    <Box sx={{ width: 64, height: 64, borderRadius: '50%', background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.15), rgba(20, 184, 166, 0.08))', display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 2, color: 'secondary.main' }}>
+                  <Box sx={{ ...getGlassCardStyles(theme), p: 4, height: '100%', textAlign: 'center' }}>
+                    <Box sx={{ width: 64, height: 64, borderRadius: '50%', background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.15)}, ${alpha(theme.palette.primary.main, 0.08)})`, display: 'flex', alignItems: 'center', justifyContent: 'center', mx: 'auto', mb: 2, color: 'secondary.main' }}>
                       {prop.icon}
                     </Box>
                     <Typography variant="h6" sx={{ mb: 1 }}>{prop.title}</Typography>
@@ -275,8 +283,8 @@ function Landing() {
             <Grid container spacing={4} justifyContent="center">
               {steps.map((step, i) => (
                 <Grid item xs={12} sm={6} md={4} key={i}>
-                  <Box sx={{ ...glassCard, p: 4, height: '100%', textAlign: 'center', position: 'relative' }}>
-                    <Typography variant="h1" sx={{ fontWeight: 800, background: 'linear-gradient(135deg, rgba(6, 182, 212, 0.4), rgba(20, 184, 166, 0.25))', backgroundClip: 'text', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', position: 'absolute', top: 12, right: 20 }}>
+                  <Box sx={{ ...getGlassCardStyles(theme), p: 4, height: '100%', textAlign: 'center', position: 'relative' }}>
+                    <Typography variant="h1" sx={{ fontWeight: 800, background: `linear-gradient(135deg, ${alpha(theme.palette.info.main, 0.4)}, ${alpha(theme.palette.primary.main, 0.25)})`, backgroundClip: 'text', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', position: 'absolute', top: 12, right: 20 }}>
                       {step.number}
                     </Typography>
                     <Box sx={{ pt: 2 }}>
@@ -292,7 +300,7 @@ function Landing() {
       </FullScreenSection>
 
       {/* ===== SECTION 4: TESTIMONIALS ===== */}
-      <FullScreenSection sx={{ background: 'linear-gradient(180deg, transparent 0%, rgba(6, 182, 212, 0.02) 100%)' }}>
+      <FullScreenSection sx={{ background: `linear-gradient(180deg, transparent 0%, ${alpha(theme.palette.info.main, 0.02)} 100%)` }}>
         <Container maxWidth="lg" sx={{ textAlign: 'center' }}>
           <Stack spacing={6} alignItems="center">
             <Box>
@@ -307,7 +315,7 @@ function Landing() {
             <Grid container spacing={4} justifyContent="center">
               {testimonials.map((t, i) => (
                 <Grid item xs={12} sm={6} md={4} key={i}>
-                  <Box sx={{ ...glassCard, p: 4, height: '100%', position: 'relative' }}>
+                  <Box sx={{ ...getGlassCardStyles(theme), p: 4, height: '100%', position: 'relative' }}>
                     <FormatQuoteRoundedIcon sx={{ position: 'absolute', top: 16, right: 16, fontSize: 32, color: 'secondary.main', opacity: 0.25 }} />
                     <Typography variant="body1" sx={{ mb: 3, fontStyle: 'italic' }}>"{t.quote}"</Typography>
                     <Stack direction="row" spacing={2} alignItems="center">
@@ -327,7 +335,7 @@ function Landing() {
 
       {/* ===== SECTION 5: FINAL CTA ===== */}
       <FullScreenSection>
-        <Box sx={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at center, rgba(6, 182, 212, 0.12) 0%, transparent 60%)', pointerEvents: 'none' }} />
+        <Box sx={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse at center, ${alpha(theme.palette.info.main, 0.12)} 0%, transparent 60%)`, pointerEvents: 'none' }} />
         <Container maxWidth="md" sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
           <Stack spacing={4} alignItems="center">
             <Typography component="h2" variant="h2">
@@ -344,11 +352,11 @@ function Landing() {
               sx={{
                 px: 6,
                 py: 2,
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                boxShadow: '0 0 60px rgba(16, 185, 129, 0.5)',
+                background: `linear-gradient(135deg, ${theme.palette.success.main} 0%, ${theme.palette.success.dark} 100%)`,
+                boxShadow: `0 0 60px ${alpha(theme.palette.success.main, 0.5)}`,
                 '&:hover': {
-                  background: 'linear-gradient(135deg, #34d399 0%, #10b981 100%)',
-                  boxShadow: '0 0 80px rgba(16, 185, 129, 0.6)',
+                  background: `linear-gradient(135deg, ${theme.palette.success.light} 0%, ${theme.palette.success.main} 100%)`,
+                  boxShadow: `0 0 80px ${alpha(theme.palette.success.main, 0.6)}`,
                   transform: 'translateY(-3px)',
                 },
               }}
@@ -360,7 +368,7 @@ function Landing() {
         </Container>
 
         {/* Footer */}
-        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, py: 4, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+        <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, py: 4, borderTop: `1px solid ${alpha(theme.palette.common.white, 0.05)}` }}>
           <Container maxWidth="lg">
             <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center" justifyContent="space-between">
               <Stack direction="row" spacing={1} alignItems="center">

@@ -17,6 +17,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -39,7 +40,8 @@ function SQLResultsTable({ data, onClose }) {
   const nullDisplay = storedSettings.nullDisplay ?? 'NULL';
 
   const { columns = [], result = [], row_count = 0, execution_time } = data || {};
-
+  const theme = useTheme();
+  
   // Sorting logic
   const sortedData = useMemo(() => {
     if (!orderBy) return result;
@@ -172,8 +174,9 @@ function SQLResultsTable({ data, onClose }) {
       sx={{
         m: { xs: 1, sm: 2 },
         overflow: 'hidden',
+        overflow: 'hidden',
         border: '1px solid',
-        borderColor: 'rgba(16, 185, 129, 0.3)',
+        borderColor: alpha(theme.palette.success.main, 0.3),
       }}
     >
       {/* Header */}
@@ -186,9 +189,9 @@ function SQLResultsTable({ data, onClose }) {
           gap: 1,
           px: 2,
           py: 1.5,
-          backgroundColor: 'rgba(16, 185, 129, 0.1)',
+          backgroundColor: alpha(theme.palette.success.main, 0.1),
           borderBottom: '1px solid',
-          borderColor: 'rgba(16, 185, 129, 0.2)',
+          borderColor: alpha(theme.palette.success.main, 0.2),
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
@@ -199,14 +202,14 @@ function SQLResultsTable({ data, onClose }) {
           <Chip
             size="small"
             label={`${row_count} rows`}
-            sx={{ backgroundColor: 'rgba(16, 185, 129, 0.2)' }}
+            sx={{ backgroundColor: alpha(theme.palette.success.main, 0.2) }}
           />
           {execution_time && (
             <Chip
               size="small"
               icon={<TimerOutlinedIcon sx={{ fontSize: 14 }} />}
               label={`${execution_time.toFixed(2)}s`}
-              sx={{ backgroundColor: 'rgba(6, 182, 212, 0.15)' }}
+              sx={{ backgroundColor: alpha(theme.palette.info.main, 0.15) }}
             />
           )}
         </Box>
@@ -282,7 +285,7 @@ function SQLResultsTable({ data, onClose }) {
                 hover
                 sx={{
                   '&:hover': {
-                    backgroundColor: 'rgba(148, 163, 184, 0.04)',
+                    backgroundColor: alpha(theme.palette.text.secondary, 0.04),
                   },
                 }}
               >

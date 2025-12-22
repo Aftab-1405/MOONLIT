@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Box, TextField, IconButton, Tooltip, Typography, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import KeyboardReturnRoundedIcon from '@mui/icons-material/KeyboardReturnRounded';
 
@@ -37,25 +38,22 @@ function ChatInput({ onSend, disabled = false }) {
           maxWidth: 720,
           mx: 'auto',
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'flex-end',
           gap: 1.5,
           px: { xs: 2, sm: 2.5 },
           py: { xs: 1, sm: 1.25 },
-          borderRadius: 6,
-          border: '2px solid',
+          borderRadius: 3,
+          border: '1.5px solid',
           borderColor: isFocused 
             ? 'primary.main' 
-            : isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+            : isDarkMode ? alpha(theme.palette.common.white, 0.1) : alpha(theme.palette.common.black, 0.1),
           backgroundColor: isDarkMode ? 'background.paper' : '#ffffff',
           boxShadow: isFocused 
             ? isDarkMode 
-              ? '0 0 0 4px rgba(16, 185, 129, 0.15), 0 8px 30px rgba(0,0,0,0.25)' 
-              : '0 0 0 4px rgba(5, 150, 105, 0.1), 0 4px 20px rgba(0,0,0,0.08)'
-            : isDarkMode 
-              ? '0 4px 20px rgba(0,0,0,0.25)' 
-              : '0 2px 12px rgba(0,0,0,0.08)',
-          transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
-          transform: isFocused ? 'translateY(-2px)' : 'none',
+              ? `0 0 0 3px ${alpha(theme.palette.success.main, 0.12)}`
+              : `0 0 0 3px ${alpha(theme.palette.success.main, 0.08)}`
+            : 'none',
+          transition: 'all 0.2s ease',
         }}
       >
         {/* Input */}
@@ -74,7 +72,7 @@ function ChatInput({ onSend, disabled = false }) {
           InputProps={{
             disableUnderline: true,
             sx: { 
-              fontSize: '1rem',
+              fontSize: '0.95rem',
               lineHeight: 1.6,
               py: 0.5,
             },
@@ -88,7 +86,7 @@ function ChatInput({ onSend, disabled = false }) {
               py: 0,
               '&::placeholder': {
                 color: 'text.secondary',
-                opacity: 0.7,
+                opacity: 0.6,
               }
             },
           }}
@@ -101,21 +99,22 @@ function ChatInput({ onSend, disabled = false }) {
               type="submit"
               disabled={!hasText || disabled}
               sx={{
-                width: 40,
-                height: 40,
-                borderRadius: 3,
+                width: 38,
+                height: 38,
+                borderRadius: 2,
                 backgroundColor: hasText 
-                  ? 'primary.main' 
-                  : isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                  ? 'primary.main'
+                  : isDarkMode ? alpha(theme.palette.common.white, 0.05) : alpha(theme.palette.common.black, 0.04),
                 color: hasText ? 'white' : 'text.disabled',
-                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                transition: 'all 0.2s ease',
                 flexShrink: 0,
                 '&:hover': {
-                  backgroundColor: hasText ? 'primary.dark' : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'),
-                  transform: hasText ? 'scale(1.05)' : 'none',
+                  backgroundColor: hasText 
+                    ? 'primary.dark'
+                    : (isDarkMode ? alpha(theme.palette.common.white, 0.1) : alpha(theme.palette.common.black, 0.08)),
                 },
                 '&.Mui-disabled': {
-                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.04)',
+                  backgroundColor: isDarkMode ? alpha(theme.palette.common.white, 0.03) : alpha(theme.palette.common.black, 0.04),
                   color: 'text.disabled',
                 },
               }}
@@ -126,15 +125,16 @@ function ChatInput({ onSend, disabled = false }) {
         </Tooltip>
       </Box>
 
-      {/* Footer with keyboard hint */}
+      {/* Footer - properly centered */}
       <Box
         sx={{
           maxWidth: 720,
           mx: 'auto',
           mt: 1,
           display: 'flex',
-          justifyContent: { xs: 'center', sm: 'space-between' },
+          justifyContent: 'center',
           alignItems: 'center',
+          gap: 2,
           px: 1,
         }}
       >
@@ -142,14 +142,14 @@ function ChatInput({ onSend, disabled = false }) {
           variant="caption"
           sx={{ 
             color: 'text.secondary', 
-            opacity: 0.6,
+            opacity: 0.5,
             fontSize: '0.7rem',
-            display: { xs: 'none', sm: 'flex' }, // Hide on mobile
+            display: 'flex',
             alignItems: 'center',
             gap: 0.5,
           }}
         >
-          <KeyboardReturnRoundedIcon sx={{ fontSize: 12 }} />
+          <KeyboardReturnRoundedIcon sx={{ fontSize: 11 }} />
           Enter to send • Shift+Enter for new line
         </Typography>
         <Typography
@@ -157,9 +157,19 @@ function ChatInput({ onSend, disabled = false }) {
           sx={{ 
             color: 'text.secondary', 
             opacity: 0.5,
-            fontSize: { xs: '0.65rem', sm: '0.65rem' },
-            textAlign: { xs: 'center', sm: 'right' },
-            width: { xs: '100%', sm: 'auto' }
+            fontSize: '0.7rem',
+            display: { xs: 'none', sm: 'block' },
+          }}
+        >
+          •
+        </Typography>
+        <Typography
+          variant="caption"
+          sx={{ 
+            color: 'text.secondary', 
+            opacity: 0.5,
+            fontSize: '0.7rem',
+            display: { xs: 'none', sm: 'block' },
           }}
         >
           AI-powered • Always verify queries

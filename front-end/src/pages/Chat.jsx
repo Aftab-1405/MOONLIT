@@ -16,6 +16,8 @@ import {
   Alert,
   Dialog,
 } from '@mui/material';
+import { useTheme, alpha } from '@mui/material/styles';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import ViewSidebarOutlinedIcon from '@mui/icons-material/ViewSidebarOutlined';
@@ -34,6 +36,9 @@ import ConfirmDialog from '../components/ConfirmDialog';
 const DRAWER_WIDTH = 260;
 
 function Chat() {
+  const theme = useTheme();
+  const { conversationId } = useParams();
+  const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [desktopOpen, setDesktopOpen] = useState(true);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -74,6 +79,24 @@ function Chat() {
     fetchConversations();
   }, []);
 
+  // Handle URL changes
+  useEffect(() => {
+    if (conversationId) {
+      if (conversationId !== currentConversationId) {
+        handleSelectConversation(conversationId);
+      }
+    } else {
+      // No ID in URL = New Chat
+      if (currentConversationId) {
+        resetChatState();
+      }
+    }
+  }, [conversationId]);
+
+  useEffect(() => {
+    document.title = 'DB-Genie - Chat';
+  }, []);
+
   const checkDbStatus = async () => {
     try {
       const response = await fetch('/db_status');
@@ -107,16 +130,16 @@ function Chat() {
   const handleLogout = async () => { handleMenuClose(); await logout(); };
 
   const handleNewChat = async () => {
-    setMessages([]);
-    setCurrentConversationId(null);
-    setQueryResults(null);
-    setMobileOpen(false);
+    navigate('/chat');
+    // State reset is handled by useEffect on conversationId param change
     
     try {
       const response = await fetch('/new_conversation', { method: 'POST' });
       const data = await response.json();
       if (data.status === 'success') {
-        setCurrentConversationId(data.conversation_id);
+        const newId = data.conversation_id;
+        navigate(`/chat/${newId}`, { replace: true });
+        // Fetch conversations to ensure sidebar is updated (though it might be empty initially)
         fetchConversations();
       }
     } catch (error) {
@@ -133,6 +156,8 @@ function Chat() {
         const formattedMessages = (data.conversation.messages || []).map((msg) => ({
           sender: msg.sender,
           content: msg.content,
+          // Include tools if present (for AI messages with tool usage)
+          tools: msg.tools || undefined,
         }));
         setMessages(formattedMessages);
         setQueryResults(null);
@@ -141,6 +166,13 @@ function Chat() {
     } catch (error) {
       console.error('Failed to load conversation:', error);
     }
+  };
+
+  const resetChatState = () => {
+    setMessages([]);
+    setCurrentConversationId(null);
+    setQueryResults(null);
+    setMobileOpen(false);
   };
 
   const handleDeleteConversation = async (conversationId) => {
@@ -273,21 +305,31 @@ function Chat() {
 
     // Add user message and scroll immediately
     setMessages((prev) => [...prev, { sender: 'user', content: message }]);
-    setIsLoading(true);
     
     // Immediate scroll
     setTimeout(scrollToBottom, 10);
+
+    // Get reasoning settings from localStorage
+    const storedSettings = JSON.parse(localStorage.getItem('db-genie-settings') || '{}');
+    const enableReasoning = storedSettings.enableReasoning ?? true;
+    const reasoningEffort = storedSettings.reasoningEffort ?? 'medium';
 
     try {
       const response = await fetch('/pass_userinput_to_gemini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: message, conversation_id: currentConversationId }),
+        body: JSON.stringify({ 
+          prompt: message, 
+          conversation_id: currentConversationId,
+          enable_reasoning: enableReasoning,
+          reasoning_effort: reasoningEffort,
+        }),
       });
 
       const newConversationId = response.headers.get('X-Conversation-Id');
       if (newConversationId && !currentConversationId) {
         setCurrentConversationId(newConversationId);
+        navigate(`/chat/${newConversationId}`, { replace: true });
         fetchConversations();
       }
 
@@ -298,21 +340,48 @@ function Chat() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        aiResponse += decoder.decode(value, { stream: true });
-        setMessages((prev) => {
-          const updated = [...prev];
-          if (updated[updated.length - 1]?.sender === 'ai') {
-            updated[updated.length - 1].content = aiResponse;
-          } else {
-            updated.push({ sender: 'ai', content: aiResponse });
-          }
-          return updated;
-        });
+        
+        const chunk = decoder.decode(value, { stream: true });
+        
+        // All content (including inline tool markers [[TOOL:...]]) flows into aiResponse
+        // The MessageList component will parse and render tool indicators inline
+        aiResponse += chunk;
+        
+        // Update the AI message with new content (mark as streaming)
+        if (aiResponse) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            if (updated[updated.length - 1]?.sender === 'ai') {
+              updated[updated.length - 1] = { 
+                ...updated[updated.length - 1], 
+                content: aiResponse,
+                isStreaming: true
+              };
+            } else {
+              updated.push({ 
+                sender: 'ai', 
+                content: aiResponse,
+                isStreaming: true
+              });
+            }
+            return updated;
+          });
+        }
       }
+      
+      // Mark streaming as complete
+      setMessages((prev) => {
+        const updated = [...prev];
+        if (updated[updated.length - 1]?.sender === 'ai') {
+          updated[updated.length - 1] = { 
+            ...updated[updated.length - 1], 
+            isStreaming: false
+          };
+        }
+        return updated;
+      });
     } catch (error) {
       setMessages((prev) => [...prev, { sender: 'ai', content: 'Sorry, I encountered an error. Please try again.' }]);
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -323,8 +392,8 @@ function Chat() {
       <Sidebar
         conversations={conversations}
         currentConversationId={currentConversationId}
-        onNewChat={handleNewChat}
-        onSelectConversation={handleSelectConversation}
+        onNewChat={() => navigate('/chat')}
+        onSelectConversation={(id) => navigate(`/chat/${id}`)}
         onDeleteConversation={handleDeleteConversation}
         isConnected={isDbConnected}
         currentDatabase={currentDatabase}
@@ -391,8 +460,8 @@ function Chat() {
             border: '1px solid transparent',
             transition: 'all 0.15s ease',
             '&:hover': { 
-              backgroundColor: 'rgba(148, 163, 184, 0.06)',
-              borderColor: 'rgba(148, 163, 184, 0.1)',
+              backgroundColor: alpha(theme.palette.text.secondary, 0.06),
+              borderColor: alpha(theme.palette.text.secondary, 0.1),
             },
           }}
         >
@@ -401,7 +470,7 @@ function Chat() {
             sx={{ 
               width: 32, 
               height: 32,
-              border: '2px solid rgba(6, 182, 212, 0.3)',
+              border: `2px solid ${alpha(theme.palette.info.main, 0.3)}`,
             }}
           >
             {user?.displayName?.charAt(0)}
@@ -449,8 +518,8 @@ function Chat() {
             onClick={handleNewChat}
             sx={{ 
               color: 'primary.main',
-              bgcolor: 'rgba(6, 182, 212, 0.1)',
-              '&:hover': { bgcolor: 'rgba(6, 182, 212, 0.2)' }
+              bgcolor: alpha(theme.palette.info.main, 0.1),
+              '&:hover': { bgcolor: alpha(theme.palette.info.main, 0.2) }
             }}
           >
             <EditNoteRoundedIcon />

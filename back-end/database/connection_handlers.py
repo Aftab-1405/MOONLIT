@@ -39,6 +39,55 @@ def _clear_cache():
         logger.debug('Failed to clear DatabaseOperations cache')
 
 
+def _sync_connection_context(db_type: str, database: str, host: str, is_remote: bool, schema: str = 'public'):
+    """
+    Sync connection state to Firestore for AI context.
+    
+    This is called after successful connection to update the AI's knowledge
+    of the user's current database state.
+    """
+    try:
+        user_id = session.get('user')
+        if not user_id:
+            logger.debug('No user_id in session, skipping context sync')
+            return
+        
+        from services.context_service import ContextService
+        ContextService.set_connection(user_id, db_type, database, host, is_remote, schema)
+        logger.info(f"Synced connection context for user {user_id}: {db_type}/{database}")
+    except Exception as e:
+        logger.warning(f"Failed to sync connection context: {e}")
+
+
+def _cache_schema_context(database: str, tables: list, db_type: str):
+    """
+    Cache schema in Firestore for AI context.
+    
+    This is called after fetching schema to cache it for AI tools.
+    """
+    try:
+        user_id = session.get('user')
+        if not user_id:
+            return
+        
+        from services.context_service import ContextService
+        from database.operations import DatabaseOperations
+        
+        # Get columns for each table
+        columns = {}
+        for table in tables[:20]:  # Limit to 20 tables to avoid timeout
+            try:
+                table_schema = DatabaseOperations.get_table_schema(table, database)
+                columns[table] = [col.get('name', col.get('Field', str(col))) for col in table_schema]
+            except Exception:
+                columns[table] = []
+        
+        ContextService.cache_schema(user_id, database, tables, columns)
+        logger.info(f"Cached schema for user {user_id}: {database} ({len(tables)} tables)")
+    except Exception as e:
+        logger.warning(f"Failed to cache schema context: {e}")
+
+
 def _parse_connection_string(connection_string: str) -> Dict[str, str]:
     """Parse connection string to extract database name and host."""
     db_match = re.search(r'/([^/?]+)(\?|$)', connection_string)
@@ -92,16 +141,7 @@ def _fetch_remote_schema_info(adapter, db_name: str, schema: str = 'public') -> 
     return tables, schema_info
 
 
-def _notify_gemini_schema(schema_info: str, tables_count: int, db_name: str):
-    """Notify Gemini about database schema."""
-    try:
-        from services.gemini_service import GeminiService
-        conversation_id = session.get('conversation_id')
-        if schema_info:
-            GeminiService.notify_gemini(conversation_id, schema_info)
-            logger.info(f"Notified Gemini about {tables_count} tables in {db_name}")
-    except Exception as err:
-        logger.warning(f"Failed to notify Gemini: {err}")
+
 
 
 # =============================================================================
@@ -136,6 +176,9 @@ def _connect_local_sqlite(file_path: str):
         
         if adapter.validate_connection(conn):
             dbs_result = DatabaseOperations.get_databases()
+            
+            # Sync context to Firestore for AI
+            _sync_connection_context('sqlite', file_path, 'local', False)
             
             logger.info(f"User connected to SQLite database at {file_path}")
             return jsonify({
@@ -182,6 +225,9 @@ def _connect_local_mysql(host: str, port: int, user: str, password: str, databas
             dbs_result = DatabaseOperations.get_databases()
             
             if dbs_result.get('status') == 'success':
+                # Sync context to Firestore for AI
+                _sync_connection_context('mysql', database or 'mysql', host, False)
+                
                 logger.info(f"User connected to MySQL server {host}:{port} with {len(dbs_result.get('databases', []))} databases")
                 return jsonify({
                     'status': 'connected',
@@ -189,6 +235,9 @@ def _connect_local_mysql(host: str, port: int, user: str, password: str, databas
                     'schemas': dbs_result['databases'],
                     'db_type': 'mysql'
                 })
+            
+            # Sync context even if database list failed
+            _sync_connection_context('mysql', database or 'mysql', host, False)
             return jsonify({
                 'status': 'connected',
                 'message': 'Connected, but failed to fetch databases',
@@ -233,6 +282,9 @@ def _connect_local_postgresql(host: str, port: int, user: str, password: str, da
             dbs_result = DatabaseOperations.get_databases()
             
             if dbs_result.get('status') == 'success':
+                # Sync context to Firestore for AI
+                _sync_connection_context('postgresql', database or 'postgres', host, False)
+                
                 logger.info(f"User connected to PostgreSQL server {host}:{port} with {len(dbs_result.get('databases', []))} databases")
                 return jsonify({
                     'status': 'connected',
@@ -240,6 +292,9 @@ def _connect_local_postgresql(host: str, port: int, user: str, password: str, da
                     'schemas': dbs_result['databases'],
                     'db_type': 'postgresql'
                 })
+            
+            # Sync context even if database list failed
+            _sync_connection_context('postgresql', database or 'postgres', host, False)
             return jsonify({
                 'status': 'connected',
                 'message': 'Connected, but failed to fetch databases',
@@ -307,9 +362,12 @@ def _connect_remote_postgresql(connection_string: str):
                 logger.warning(f"Could not list databases: {db_list_err}")
                 all_databases = [db_name]
             
-            # Fetch schema info and notify Gemini
+            # Fetch schema info
             tables, schema_info = _fetch_remote_schema_info(adapter, db_name)
-            _notify_gemini_schema(schema_info, len(tables), db_name)
+            
+            # Sync context to Firestore for AI (replaces notify_gemini)
+            _sync_connection_context('postgresql', db_name, host, True)
+            _cache_schema_context(db_name, tables, 'postgresql')
             
             # Build response message
             message = f'Connected to remote PostgreSQL database: {db_name}'
@@ -398,33 +456,13 @@ def _connect_remote_mysql(connection_string: str):
                         ORDER BY TABLE_NAME
                     """)
                     tables = [row[0] for row in cursor.fetchall()]
-                    
-                    # Build schema info for Gemini
-                    if tables:
-                        schema_info = f"Connected to MySQL database: {db_name}\n\n"
-                        schema_info += f"Database contains {len(tables)} tables:\n\n"
-                        
-                        for table in tables:
-                            cursor.execute(f"""
-                                SELECT COLUMN_NAME, DATA_TYPE 
-                                FROM information_schema.COLUMNS 
-                                WHERE TABLE_SCHEMA = '{db_name}' AND TABLE_NAME = '{table}'
-                                ORDER BY ORDINAL_POSITION
-                            """)
-                            columns = cursor.fetchall()
-                            
-                            schema_info += f"Table: {table}\n"
-                            for col_name, col_type in columns:
-                                schema_info += f"  - {col_name}: {col_type}\n"
-                            schema_info += "\n"
-                        
-                        _notify_gemini_schema(schema_info, len(tables), db_name)
-                    else:
-                        schema_info = f"Connected to MySQL database: {db_name}. No tables found."
-                        _notify_gemini_schema(schema_info, 0, db_name)
                         
             except Exception as schema_err:
                 logger.warning(f"Failed to fetch MySQL schema: {schema_err}")
+            
+            # Sync context to Firestore for AI (replaces notify_gemini)
+            _sync_connection_context('mysql', db_name, host, True)
+            _cache_schema_context(db_name, tables, 'mysql')
             
             # Build response message
             message = f'Connected to remote MySQL database: {db_name}'
@@ -462,14 +500,13 @@ def _handle_db_selection(db_name: str, conversation_id: str = None):
     
     Args:
         db_name: Name of the database to select
-        conversation_id: Optional conversation ID for Gemini notification
+        conversation_id: Optional conversation ID (deprecated)
         
     Returns:
         JSON response with selection status
     """
-    from database.operations import fetch_database_info
-    from database.session_utils import update_database_in_session
-    from services.gemini_service import GeminiService
+    from database.operations import fetch_database_info, DatabaseOperations
+    from database.session_utils import update_database_in_session, get_db_config_from_session
     
     # Update database in session
     try:
@@ -477,15 +514,20 @@ def _handle_db_selection(db_name: str, conversation_id: str = None):
     except ValueError as e:
         return jsonify({'status': 'error', 'message': str(e)})
     
-    # Fetch database info and notify Gemini
+    # Fetch database info and sync to context
     try:
         db_info, detailed_info = fetch_database_info(db_name)
-        conversation_id = session.get('conversation_id', conversation_id)
         
-        if db_info and db_info.strip():
-            GeminiService.notify_gemini(conversation_id, db_info)
-        if detailed_info and detailed_info.strip():
-            GeminiService.notify_gemini(conversation_id, detailed_info)
+        # Sync context to Firestore for AI
+        config = get_db_config_from_session()
+        db_type = config.get('db_type', 'mysql') if config else 'mysql'
+        host = config.get('host', 'local') if config else 'local'
+        _sync_connection_context(db_type, db_name, host, False)
+        
+        # Cache schema for AI
+        tables = DatabaseOperations.get_tables(db_name)
+        if tables:
+            _cache_schema_context(db_name, tables, db_type)
         
         logger.info(f"User selected database: {db_name}")
         return jsonify({'status': 'connected', 'message': f'Connected to database {db_name}'})
