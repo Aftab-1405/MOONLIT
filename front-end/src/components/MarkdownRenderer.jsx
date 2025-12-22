@@ -196,6 +196,14 @@ function MarkdownRenderer({ content, onRunQuery }) {
     pre({ children }) {
       return <>{children}</>;
     },
+    // Wrap tables in a container for horizontal scrolling
+    table({ children, ...props }) {
+      return (
+        <Box sx={{ overflowX: 'auto', display: 'block', maxWidth: '100%', my: 2, borderRadius: 1 }}>
+          <table {...props}>{children}</table>
+        </Box>
+      );
+    },
   }), [onRunQuery]);
 
   // Memoize remarkPlugins to prevent unnecessary re-renders
