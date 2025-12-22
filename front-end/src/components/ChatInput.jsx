@@ -359,6 +359,7 @@ function ChatInput({
               fontSize: '0.8rem',
               height: 30,
               backgroundColor: 'transparent',
+              cursor: 'pointer',
               transition: 'all 0.15s ease',
               '& .MuiChip-icon': {
                 color: 'inherit',
