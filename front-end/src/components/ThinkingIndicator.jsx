@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Collapse } from '@mui/material';
+import { Box, Typography, Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import PsychologyRoundedIcon from '@mui/icons-material/PsychologyRounded';
@@ -27,63 +27,40 @@ const ThinkingIndicator = ({ content, isThinking }) => {
 
   // Purple/violet color scheme for thinking (distinct from teal tools)
   // Mapped to secondary (Indigo) for consistency
-  const colors = {
-    bg: alpha(theme.palette.secondary.main, 0.08),
-    border: alpha(theme.palette.secondary.main, 0.2),
-    text: theme.palette.secondary.light
-  };
+  // No local colors needed - handled by global MuiAccordion theme overrides
 
   if (!content && !isThinking) return null;
 
   return (
-    <Box 
-      sx={{ 
-        display: 'inline-flex',
-        flexDirection: 'column',
-        borderRadius: 2, 
-        bgcolor: colors.bg, 
-        border: `1px solid ${colors.border}`,
-        overflow: 'hidden',
-        mb: 1.5,
-        maxWidth: '100%',
-        transition: 'all 0.2s ease',
-      }}
+    <Accordion 
+      expanded={expanded} 
+      onChange={(_, isExpanded) => setExpanded(isExpanded)}
+      sx={{ mb: 1.5, maxWidth: '100%' }}
     >
-      {/* Header - Clickable to expand/collapse */}
-      <Box 
-        onClick={() => setExpanded(!expanded)} 
-        sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 0.75, 
-          py: 0.75, 
-          px: 1.25,
-          cursor: 'pointer',
-          '&:hover': {
-            bgcolor: alpha(theme.palette.common.white, 0.03)
-          }
+      <AccordionSummary
+        expandIcon={<KeyboardArrowDownIcon sx={{ fontSize: 14, color: 'text.secondary' }} />}
+        sx={{
+          flexDirection: 'row-reverse',
+          '& .MuiAccordionSummary-expandIconWrapper.Mui-expanded': {
+            transform: 'rotate(0deg)',
+          },
+          '& .MuiAccordionSummary-expandIconWrapper': {
+            transform: 'rotate(-90deg)',
+          },
+          '& .MuiAccordionSummary-content': {
+            ml: 1,
+            alignItems: 'center',
+            gap: 0.75,
+          },
         }}
       >
-        {/* Expand Arrow */}
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            transition: 'transform 0.2s ease',
-            transform: expanded ? 'rotate(0deg)' : 'rotate(-90deg)'
-          }}
-        >
-          <KeyboardArrowDownIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-        </Box>
-
         {/* Brain Icon */}
-        <PsychologyRoundedIcon sx={{ fontSize: 14, color: colors.text }} />
+        <PsychologyRoundedIcon sx={{ fontSize: 14, color: 'text.primary' }} />
         
         {/* Title */}
         <Typography 
           sx={{ 
-            color: colors.text, 
+            color: 'text.primary', 
             fontWeight: 500, 
             fontSize: '0.8rem' 
           }}
@@ -101,7 +78,7 @@ const ThinkingIndicator = ({ content, isThinking }) => {
                   width: 4, 
                   height: 4, 
                   borderRadius: '50%',
-                  bgcolor: colors.text,
+                  bgcolor: 'text.primary',
                   animation: 'pulse 1.4s infinite',
                   animationDelay: `${i * 0.2}s`,
                   '@keyframes pulse': {
@@ -120,35 +97,29 @@ const ThinkingIndicator = ({ content, isThinking }) => {
             sx={{ 
               color: 'text.secondary', 
               fontSize: '0.75rem',
-              opacity: 0.8 
+              opacity: 0.8,
+              ml: 'auto'
             }}
           >
             • {content.length} chars
           </Typography>
         )}
-      </Box>
+      </AccordionSummary>
       
-      {/* Expanded Content */}
-      <Collapse in={expanded} timeout={200}>
-        <Box 
-          sx={{ 
-            px: 1.5, 
-            pb: 1.25, 
-            pt: 0.75,
-            borderTop: `1px solid ${colors.border}`,
-            fontFamily: 'monospace',
-            fontSize: '0.75rem',
-            color: 'text.secondary',
-            whiteSpace: 'pre-wrap',
-            maxHeight: 200,
-            overflow: 'auto',
-            lineHeight: 1.5,
-          }}
-        >
-          {content || 'Processing...'}
-        </Box>
-      </Collapse>
-    </Box>
+      <AccordionDetails 
+        sx={{ 
+          fontFamily: 'monospace',
+          fontSize: '0.75rem',
+          color: 'text.secondary',
+          whiteSpace: 'pre-wrap',
+          maxHeight: 200,
+          overflow: 'auto',
+          lineHeight: 1.5,
+        }}
+      >
+        {content || 'Processing...'}
+      </AccordionDetails>
+    </Accordion>
   );
 };
 

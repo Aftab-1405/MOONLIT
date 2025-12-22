@@ -263,9 +263,9 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
               mb: 2,
               p: 2,
               borderRadius: 1,
-              borderRadius: 1,
-              backgroundColor: alpha(theme.palette.success.main, 0.15),
-              border: `1px solid ${alpha(theme.palette.success.main, 0.3)}`,
+
+              backgroundColor: alpha(theme.palette.text.primary, 0.05),
+              border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
               display: 'flex',
               alignItems: 'center',
               gap: 1,
@@ -276,7 +276,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 width: 8,
                 height: 8,
                 borderRadius: '50%',
-                backgroundColor: 'success.main',
+                backgroundColor: 'text.primary',
                 animation: 'pulse 2s infinite',
                 '@keyframes pulse': {
                   '0%, 100%': { opacity: 1 },
@@ -284,7 +284,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 },
               }}
             />
-            <Typography variant="body2" fontWeight={500} sx={{ color: 'success.main' }}>
+            <Typography variant="body2" fontWeight={500} sx={{ color: 'text.primary' }}>
               Connected to: {currentDatabase}
             </Typography>
           </Box>
@@ -305,11 +305,11 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 py: 1.5,
                 textTransform: 'none',
                 '&.Mui-selected': {
-                  backgroundColor: alpha(theme.palette.success.main, 0.15),
-                  borderColor: 'primary.main',
-                  color: 'primary.main',
+                  backgroundColor: alpha(theme.palette.text.primary, 0.05),
+                  borderColor: 'text.primary',
+                  color: 'text.primary',
                   '&:hover': {
-                    backgroundColor: alpha(theme.palette.success.main, 0.25),
+                    backgroundColor: alpha(theme.palette.text.primary, 0.1),
                   },
                 },
               },
@@ -542,8 +542,8 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           }
           startIcon={loading && <CircularProgress size={16} color="inherit" />}
           sx={isConnected ? { 
-            bgcolor: 'success.dark', 
-            '&.Mui-disabled': { bgcolor: alpha(theme.palette.success.main, 0.3), color: alpha(theme.palette.common.white, 0.7) } 
+            bgcolor: 'primary.main', 
+            '&.Mui-disabled': { bgcolor: alpha(theme.palette.primary.main, 0.5), color: theme.palette.primary.contrastText } 
           } : {}}
         >
           {loading ? 'Connecting...' : isConnected ? `Connected to ${currentDatabase}` : 'Connect'}

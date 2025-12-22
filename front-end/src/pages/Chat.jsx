@@ -520,6 +520,8 @@ function Chat() {
           isCollapsed={false}
           onToggleCollapse={() => {}}
           onOpenSettings={() => { setMobileOpen(false); setSettingsOpen(true); }}
+          user={user}
+          onMenuOpen={(e) => { setMobileOpen(false); handleMenuOpen(e); }}
         />
       </Drawer>
 
@@ -556,6 +558,8 @@ function Chat() {
           isCollapsed={sidebarCollapsed}
           onToggleCollapse={handleSidebarToggle}
           onOpenSettings={() => setSettingsOpen(true)}
+          user={user}
+          onMenuOpen={handleMenuOpen}
         />
       </Box>
 

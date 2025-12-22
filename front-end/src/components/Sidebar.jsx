@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Box, Typography, IconButton, Tooltip, Divider, Popover, List, ListItemButton, ListItemText, ListItemIcon } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip, Divider, Popover, List, ListItemButton, ListItemText, ListItemIcon, Avatar } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 
 // Icons - Using outlined/transparent versions for Grok-style look
@@ -14,7 +14,8 @@ import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRou
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import KeyboardDoubleArrowLeftRoundedIcon from '@mui/icons-material/KeyboardDoubleArrowLeftRounded';
 import KeyboardDoubleArrowRightRoundedIcon from '@mui/icons-material/KeyboardDoubleArrowRightRounded';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
+
+import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 
 // Sidebar widths
 const EXPANDED_WIDTH = 260;
@@ -37,11 +38,16 @@ function Sidebar({
   isCollapsed = false,
   onToggleCollapse,
   onOpenSettings,
+  // New props for profile
+  user = null,
+  onMenuOpen,
 }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
   const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
+  const [historyPopoverAnchor, setHistoryPopoverAnchor] = useState(null);
   const isPopoverOpen = Boolean(dbPopoverAnchor);
+  const isHistoryPopoverOpen = Boolean(historyPopoverAnchor);
 
   const handleDbCardClick = (event) => {
     if (isConnected && availableDatabases.length > 0) {
@@ -58,12 +64,18 @@ function Sidebar({
     }
   };
 
+  const handleHistoryClick = (event) => {
+    if (isCollapsed && conversations.length > 0) {
+      setHistoryPopoverAnchor(event.currentTarget);
+    }
+  };
+
   // Navigation items for Grok-style nav - Using distinct outlined icons
   const navItems = [
     { icon: <SearchOutlinedIcon sx={{ fontSize: 20 }} />, label: 'Search', tooltip: 'Search', action: () => {} },
     { icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 20 }} />, label: 'New Chat', tooltip: 'New Chat', action: onNewChat },
     { icon: <StorageOutlinedIcon sx={{ fontSize: 20 }} />, label: 'Database', tooltip: isConnected ? currentDatabase : 'Connect Database', action: onOpenDbModal },
-    { icon: <HistoryOutlinedIcon sx={{ fontSize: 20 }} />, label: 'History', tooltip: 'History', isSection: true },
+    { icon: <HistoryOutlinedIcon sx={{ fontSize: 20 }} />, label: 'History', tooltip: 'History', isSection: !isCollapsed, action: isCollapsed ? handleHistoryClick : undefined },
   ];
 
   return (
@@ -75,9 +87,9 @@ function Sidebar({
         display: 'flex', 
         flexDirection: 'column', 
         overflow: 'hidden',
-        backgroundColor: isDarkMode ? '#000000' : '#f8f8f8',
+        backgroundColor: isDarkMode ? '#000000' : '#F7F8FA',
         borderRight: '1px solid',
-        borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+        borderColor: isDarkMode ? '#1F1F1F' : '#D0D7DE',
         // Smooth transition for ALL properties
         transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       }}
@@ -99,8 +111,8 @@ function Sidebar({
           src="/product-logo.png" 
           alt="DB-Genie" 
           sx={{ 
-            width: 28, 
-            height: 28,
+            height: 24,
+            width: 24,
             opacity: 0.95,
           }} 
         />
@@ -156,6 +168,7 @@ function Sidebar({
                   alignItems: 'center',
                   gap: 1.5,
                   p: isCollapsed ? 1 : 1.25,
+                  height: 40, // Fixed height for consistency
                   mb: 0.5,
                   borderRadius: 2,
                   cursor: 'pointer',
@@ -203,7 +216,7 @@ function Sidebar({
         ))}
       </Box>
 
-      {/* ===== CONVERSATIONS LIST (Scrollable) ===== */}
+      {/* ===== CONVERSATIONS LIST (Scrollable - Always present for spacing) ===== */}
       <Box 
         sx={{ 
           flex: 1, 
@@ -237,8 +250,8 @@ function Sidebar({
             },
           }}
         >
-          {conversations.length === 0 ? (
-            !isCollapsed && (
+          {isCollapsed ? null : (
+            conversations.length === 0 ? (
               <Box 
                 sx={{ 
                   p: 2, 
@@ -250,8 +263,7 @@ function Sidebar({
                   No conversations yet
                 </Typography>
               </Box>
-            )
-          ) : (
+            ) : (
             conversations.map((conv) => (
               <Tooltip 
                 key={conv.id}
@@ -337,7 +349,7 @@ function Sidebar({
                 </Box>
               </Tooltip>
             ))
-          )}
+          ))}
         </Box>
       </Box>
 
@@ -399,11 +411,90 @@ function Sidebar({
         </List>
       </Popover>
 
-      {/* ===== BOTTOM: Collapse Toggle + Settings ===== */}
+      {/* History Popover (for collapsed sidebar) */}
+      <Popover
+        open={isHistoryPopoverOpen}
+        anchorEl={historyPopoverAnchor}
+        onClose={() => setHistoryPopoverAnchor(null)}
+        anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'center', horizontal: 'left' }}
+        PaperProps={{
+          sx: {
+            ml: 1,
+            minWidth: 240,
+            maxWidth: 320,
+            maxHeight: 400,
+            overflow: 'auto',
+          }
+        }}
+      >
+        <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Typography variant="overline" color="text.secondary">
+            Conversation History
+          </Typography>
+        </Box>
+        <List dense sx={{ p: 0.5 }}>
+          {conversations.length === 0 ? (
+            <Box sx={{ p: 2, textAlign: 'center' }}>
+              <Typography variant="caption" color="text.secondary">
+                No conversations yet
+              </Typography>
+            </Box>
+          ) : (
+            conversations.map((conv) => (
+              <ListItemButton
+                key={conv.id}
+                selected={conv.id === currentConversationId}
+                onClick={() => {
+                  setHistoryPopoverAnchor(null);
+                  onSelectConversation(conv.id);
+                }}
+                sx={{ borderRadius: 1, py: 0.75 }}
+              >
+                <ListItemIcon sx={{ minWidth: 28 }}>
+                  {conv.id === currentConversationId ? (
+                    <CheckCircleOutlineRoundedIcon sx={{ fontSize: 16, color: 'primary.main' }} />
+                  ) : (
+                    <QuestionAnswerOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                  )}
+                </ListItemIcon>
+                <ListItemText 
+                  primary={conv.title || 'New Conversation'} 
+                  primaryTypographyProps={{ 
+                    variant: 'body2',
+                    noWrap: true,
+                    sx: { fontWeight: conv.id === currentConversationId ? 500 : 400 }
+                  }}
+                />
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteConversation(conv.id);
+                  }}
+                  sx={{ 
+                    opacity: 0.5,
+                    padding: 0.5,
+                    color: 'text.secondary',
+                    '&:hover': { 
+                      opacity: 1,
+                      color: 'error.main', 
+                    }
+                  }}
+                >
+                  <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
+                </IconButton>
+              </ListItemButton>
+            ))
+          )}
+        </List>
+      </Popover>
+
+      {/* ===== BOTTOM: Profile + Settings + Collapse Toggle ===== */}
       <Box 
         sx={{ 
           borderTop: '1px solid',
-          borderColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+          borderColor: isDarkMode ? '#1F1F1F' : '#D0D7DE',
           p: isCollapsed ? 0.75 : 1,
           display: 'flex',
           flexDirection: isCollapsed ? 'column' : 'row',
@@ -413,22 +504,32 @@ function Sidebar({
           transition: 'all 0.25s ease',
         }}
       >
-        {/* Settings button */}
-        <Tooltip title={isCollapsed ? 'Settings' : ''} placement="right" arrow>
-          <IconButton
-            onClick={onOpenSettings}
-            size="small"
-            sx={{
-              color: 'text.secondary',
-              '&:hover': {
-                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                color: 'text.primary',
-              }
-            }}
-          >
-            <SettingsOutlinedIcon sx={{ fontSize: 18 }} />
-          </IconButton>
-        </Tooltip>
+        {/* Left side: Profile + Settings */}
+        <Box sx={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', alignItems: 'center', gap: isCollapsed ? 1 : 0.5 }}>
+          {/* Profile button */}
+          <Tooltip title={isCollapsed ? (user?.displayName || 'Profile') : ''} placement="right" arrow>
+            <IconButton
+              onClick={onMenuOpen}
+              size="small"
+              sx={{
+                p: 1, // Standardize padding
+                color: 'text.secondary',
+                '&:hover': {
+                  backgroundColor: isDarkMode ? 'rgba(31, 31, 31, 0.8)' : 'rgba(208, 215, 222, 0.6)',
+                  color: 'text.primary',
+                }
+              }}
+            >
+              {user?.photoURL ? (
+                <Avatar src={user.photoURL} sx={{ width: 24, height: 24 }} />
+              ) : (
+                <AccountCircleOutlinedIcon sx={{ fontSize: 24 }} />
+              )}
+            </IconButton>
+          </Tooltip>
+
+
+        </Box>
 
         {/* Collapse/Expand toggle - Chevron */}
         <Tooltip title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right" arrow>
@@ -436,17 +537,18 @@ function Sidebar({
             onClick={onToggleCollapse}
             size="small"
             sx={{
+              p: 1, // Standardize padding
               color: 'text.secondary',
               '&:hover': {
-                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                backgroundColor: isDarkMode ? 'rgba(31, 31, 31, 0.8)' : 'rgba(208, 215, 222, 0.6)',
                 color: 'text.primary',
               }
             }}
           >
             {isCollapsed ? (
-              <KeyboardDoubleArrowRightRoundedIcon sx={{ fontSize: 18 }} />
+              <KeyboardDoubleArrowRightRoundedIcon sx={{ fontSize: 20 }} />
             ) : (
-              <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 18 }} />
+              <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
             )}
           </IconButton>
         </Tooltip>

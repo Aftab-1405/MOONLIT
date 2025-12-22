@@ -7,6 +7,193 @@ import MarkdownRenderer from './MarkdownRenderer';
 import ToolStatusIndicator from './ToolStatusIndicator';
 import ThinkingIndicator from './ThinkingIndicator';
 
+/**
+ * Robust parser for [[TOOL:name:status:args:result]] markers.
+ * Uses a state machine approach to properly handle nested JSON braces.
+ * Only shows each tool ONCE at its final (done) status.
+ * 
+ * @param {string} text - The message text containing tool markers
+ * @returns {Array} - Array of {type: 'text'|'tool', ...} parts
+ */
+function parseToolMarkers(text) {
+  // First pass: find all tool markers and their positions
+  const markers = [];
+  let parseIndex = 0;
+  
+  while (parseIndex < text.length) {
+    const markerStart = text.indexOf('[[TOOL:', parseIndex);
+    if (markerStart === -1) break;
+    
+    // Parse: [[TOOL:name:status:args:result]]
+    const afterPrefix = markerStart + 7; // After "[[TOOL:"
+    
+    // Find name
+    const nameEnd = text.indexOf(':', afterPrefix);
+    if (nameEnd === -1) { parseIndex = markerStart + 1; continue; }
+    const toolName = text.slice(afterPrefix, nameEnd);
+    
+    // Find status  
+    const statusEnd = text.indexOf(':', nameEnd + 1);
+    if (statusEnd === -1) { parseIndex = markerStart + 1; continue; }
+    const status = text.slice(nameEnd + 1, statusEnd);
+    
+    // Parse args (JSON or "null")
+    let argsEnd, argsValue;
+    const argsStart = statusEnd + 1;
+    
+    if (text.slice(argsStart, argsStart + 4) === 'null') {
+      argsEnd = argsStart + 3;  // Last char of 'null' is at index +3
+      argsValue = 'null';
+    } else if (text[argsStart] === '{') {
+      argsEnd = findMatchingBrace(text, argsStart);
+      if (argsEnd === -1) { parseIndex = markerStart + 1; continue; }
+      argsValue = text.slice(argsStart, argsEnd + 1);
+    } else {
+      parseIndex = markerStart + 1;
+      continue;
+    }
+    
+    // Expect colon separator
+    if (text[argsEnd + 1] !== ':') { parseIndex = markerStart + 1; continue; }
+    
+    // Parse result (JSON or "null")
+    let resultEnd, resultValue;
+    const resultStart = argsEnd + 2;
+    
+    if (text.slice(resultStart, resultStart + 4) === 'null') {
+      resultEnd = resultStart + 3;  // Last char of 'null' is at index +3
+      resultValue = 'null';
+    } else if (text[resultStart] === '{') {
+      resultEnd = findMatchingBrace(text, resultStart);
+      if (resultEnd === -1) { parseIndex = markerStart + 1; continue; }
+      resultValue = text.slice(resultStart, resultEnd + 1);
+    } else {
+      parseIndex = markerStart + 1;
+      continue;
+    }
+    
+    // Expect closing ]]
+    if (text.slice(resultEnd + 1, resultEnd + 3) !== ']]') { 
+      parseIndex = markerStart + 1; 
+      continue; 
+    }
+    
+    const markerEnd = resultEnd + 3;
+    markers.push({
+      start: markerStart,
+      end: markerEnd,
+      name: toolName,
+      status,
+      args: argsValue,
+      result: resultValue
+    });
+    
+    parseIndex = markerEnd;
+  }
+  
+  // If no markers found, return original text
+  if (markers.length === 0) {
+    return [{ type: 'text', content: text }];
+  }
+  
+  // Find the last occurrence of each tool (to show final status only)
+  const lastIndexByTool = {};
+  markers.forEach((marker, idx) => {
+    lastIndexByTool[marker.name] = idx;
+  });
+  
+  // Build final parts: text segments + tool UI (only for last occurrence of each tool)
+  const parts = [];
+  let lastEnd = 0;
+  const toolsShown = new Set();
+  
+  for (let i = 0; i < markers.length; i++) {
+    const marker = markers[i];
+    
+    // Add text BEFORE this marker (text between previous marker and this one)
+    if (marker.start > lastEnd) {
+      const textContent = text.slice(lastEnd, marker.start).trim();
+      if (textContent) {
+        parts.push({ type: 'text', content: textContent });
+      }
+    }
+    
+    // Only add tool UI if this is the LAST occurrence of this tool name
+    const isLastOccurrence = lastIndexByTool[marker.name] === i;
+    if (isLastOccurrence && !toolsShown.has(marker.name)) {
+      parts.push({
+        type: 'tool',
+        name: marker.name,
+        status: marker.status,
+        args: marker.args,
+        result: marker.result
+      });
+      toolsShown.add(marker.name);
+    }
+    
+    // Always move past this marker (skipping its raw text)
+    lastEnd = marker.end;
+  }
+  
+  // Add any remaining text after the last marker
+  if (lastEnd < text.length) {
+    const remaining = text.slice(lastEnd).trim();
+    if (remaining) {
+      parts.push({ type: 'text', content: remaining });
+    }
+  }
+  
+  return parts.length > 0 ? parts : [{ type: 'text', content: text }];
+}
+
+/**
+ * Find the matching closing brace for an opening brace at startIndex.
+ * Properly handles nested braces and strings.
+ * 
+ * @param {string} text - The text to search
+ * @param {number} startIndex - Index of the opening brace '{'
+ * @returns {number} - Index of matching '}' or -1 if not found
+ */
+function findMatchingBrace(text, startIndex) {
+  if (text[startIndex] !== '{') return -1;
+  
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+  
+  for (let i = startIndex; i < text.length; i++) {
+    const char = text[i];
+    
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+    
+    if (char === '\\' && inString) {
+      escapeNext = true;
+      continue;
+    }
+    
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    
+    if (!inString) {
+      if (char === '{') {
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (depth === 0) {
+          return i;
+        }
+      }
+    }
+  }
+  
+  return -1; // No matching brace found
+}
+
 // Typing indicator animation
 function TypingIndicator() {
   const theme = useTheme();
@@ -106,12 +293,12 @@ function ChatMessage({ message, isUser, userAvatar, userName, onRunQuery }) {
                 py: 1.25,
                 borderRadius: '16px 16px 4px 16px',
                 backgroundColor: isDarkMode
-                  ? alpha(theme.palette.success.main, 0.15)
-                  : alpha(theme.palette.success.main, 0.1),
+                  ? alpha(theme.palette.text.primary, 0.05)
+                  : alpha(theme.palette.text.primary, 0.05),
                 border: '1px solid',
                 borderColor: isDarkMode 
-                  ? alpha(theme.palette.success.main, 0.2) 
-                  : alpha(theme.palette.success.main, 0.15),
+                  ? alpha(theme.palette.text.primary, 0.1) 
+                  : alpha(theme.palette.text.primary, 0.1),
               }}
             >
               <Typography 
@@ -135,7 +322,7 @@ function ChatMessage({ message, isUser, userAvatar, userName, onRunQuery }) {
                 sx={{
                   opacity: 0,
                   alignSelf: 'center',
-                  color: copied ? 'success.main' : 'text.secondary',
+                  color: copied ? 'text.primary' : 'text.secondary',
                   transition: 'opacity 0.2s',
                   '&:hover': { color: 'primary.main' },
                 }}
@@ -193,74 +380,8 @@ function ChatMessage({ message, isUser, userAvatar, userName, onRunQuery }) {
                 .replace(/\[\[THINKING:chunk:[\s\S]*?\]\]/g, '')
                 .replace(/\[\[THINKING:end\]\]/g, '');
               
-              // Parse [[TOOL:name:status:args:result]] markers (4 groups)
-              // Use a more robust regex that handles nested JSON
-              const toolMarkerRegex = /\[\[TOOL:(\w+):(\w+):(\{.*?\}|null):(\{.*?\}|null)\]\]/g;
-              const parts = [];
-              let lastIndex = 0;
-              let match;
-              
-              // Track tools to deduplicate - only show latest status per tool
-              const toolStates = new Map();
-              const toolPositions = [];
-              
-              while ((match = toolMarkerRegex.exec(cleanMessage)) !== null) {
-                const toolName = match[1];
-                const status = match[2];
-                const args = match[3];
-                const result = match[4];
-                
-                // Store position for ordering
-                toolPositions.push({
-                  index: match.index,
-                  endIndex: match.index + match[0].length,
-                  name: toolName
-                });
-                
-                // Update state - later matches (done) replace earlier (running)
-                toolStates.set(toolName, { name: toolName, status, args, result });
-              }
-              
-              // Rebuild parts, but only show each tool ONCE at its LAST position
-              const toolLastPositions = {};
-              toolPositions.forEach(pos => {
-                toolLastPositions[pos.name] = pos;
-              });
-              
-              // Now parse and build parts, skipping duplicate tool markers
-              const shownTools = new Set();
-              toolMarkerRegex.lastIndex = 0; // Reset regex
-              
-              while ((match = toolMarkerRegex.exec(cleanMessage)) !== null) {
-                const toolName = match[1];
-                const isLastOccurrence = toolLastPositions[toolName]?.index === match.index;
-                
-                if (match.index > lastIndex) {
-                  const textContent = cleanMessage.slice(lastIndex, match.index).trim();
-                  if (textContent) {
-                    parts.push({ type: 'text', content: textContent });
-                  }
-                }
-                
-                // Only show the tool if this is its last occurrence
-                if (isLastOccurrence && !shownTools.has(toolName)) {
-                  const toolState = toolStates.get(toolName);
-                  parts.push({
-                    type: 'tool',
-                    ...toolState
-                  });
-                  shownTools.add(toolName);
-                }
-                
-                lastIndex = match.index + match[0].length;
-              }
-              
-              if (lastIndex < cleanMessage.length) {
-                const remainingText = cleanMessage.slice(lastIndex).trim();
-                if (remainingText) {
-                  parts.push({ type: 'text', content: remainingText });
-                }
-              }
+              // Parse tool markers using robust JSON-aware parser
+              const parts = parseToolMarkers(cleanMessage);
               
               // Render thinking indicator + content
               return (
@@ -271,8 +392,8 @@ function ChatMessage({ message, isUser, userAvatar, userName, onRunQuery }) {
                   )}
                   
                   {/* Main content */}
-                  {parts.length === 0 ? (
-                    <MarkdownRenderer content={cleanMessage} onRunQuery={onRunQuery} />
+                  {parts.length === 1 && parts[0].type === 'text' && !parts[0].content.includes('[[TOOL:') ? (
+                    <MarkdownRenderer content={parts[0].content} onRunQuery={onRunQuery} />
                   ) : (
                     parts.map((part, idx) => {
                       if (part.type === 'text') {
@@ -309,7 +430,7 @@ function ChatMessage({ message, isUser, userAvatar, userName, onRunQuery }) {
               opacity: 0,
               alignSelf: 'flex-start',
               mt: 0.5,
-              color: copied ? 'success.main' : 'text.secondary',
+              color: copied ? 'text.primary' : 'text.secondary',
               transition: 'opacity 0.2s',
               '&:hover': { color: 'primary.main' },
             }}

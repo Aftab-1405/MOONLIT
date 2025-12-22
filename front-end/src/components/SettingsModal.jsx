@@ -85,11 +85,6 @@ function SettingsModal({ open, onClose }) {
                 '& .MuiToggleButton-root': {
                   px: 2,
                   py: 0.75,
-                  '&.Mui-selected': {
-                    backgroundColor: 'primary.main',
-                    color: 'white',
-                    '&:hover': { backgroundColor: 'primary.dark' },
-                  },
                 },
               }}
             >
@@ -150,11 +145,6 @@ function SettingsModal({ open, onClose }) {
                       px: 1.5,
                       py: 0.5,
                       fontSize: '0.75rem',
-                      '&.Mui-selected': {
-                        backgroundColor: 'primary.main',
-                        color: 'white',
-                        '&:hover': { backgroundColor: 'primary.dark' },
-                      },
                     },
                   }}
                 >

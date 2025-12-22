@@ -167,27 +167,35 @@ class LLMService:
         tools = LLMService.get_tool_definitions()
         
         try:
-            # Step 1: Initial call to model
-            logger.info(f"Sending request to LLM ({model_name}) with {len(tools)} tools")
+            # Agentic loop: Keep calling the model until it stops making tool calls
+            MAX_TOOL_ROUNDS = 10  # Safety limit to prevent infinite loops
+            tool_round = 0
             
-            response = client.chat.completions.create(
-                model=model_name,
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=0.1,  # Low temp for accurate tool usage
-                top_p=0.1
-            )
-            
-            response_message = response.choices[0].message
-            tool_calls = response_message.tool_calls
-            
-            # Step 2: Check if model wants to call tools
-            if tool_calls:
+            while tool_round < MAX_TOOL_ROUNDS:
+                tool_round += 1
+                logger.info(f"Tool round {tool_round}: Sending request to LLM ({model_name}) with {len(tools)} tools")
+                
+                response = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    temperature=0.1,  # Low temp for accurate tool usage
+                    top_p=0.1
+                )
+                
+                response_message = response.choices[0].message
+                tool_calls = response_message.tool_calls
+                
+                # If no tool calls, we're done with the loop
+                if not tool_calls:
+                    logger.info(f"No more tool calls after {tool_round} rounds")
+                    break
+                
                 # Add assistant response to messages
                 messages.append(response_message)
                 
-                # Step 3: Execute each tool call
+                # Execute each tool call in this round
                 for tool_call in tool_calls:
                     function_name = tool_call.function.name
                     try:
@@ -199,7 +207,6 @@ class LLMService:
                         function_args = {}
                     
                     # Extract conversational rationale if present
-                    # This allows AI to "speak" before the tool runs
                     rationale = function_args.get('rationale')
                     if rationale:
                         yield f"{rationale}\n\n"
@@ -209,7 +216,6 @@ class LLMService:
                     args_json = json.dumps(display_args, default=str)
                     
                     # Yield "running" status BEFORE tool execution
-                    # Format: [[TOOL:name:status:args:result]]
                     yield f"[[TOOL:{function_name}:running:{args_json}:null]]\n\n"
                     
                     # Execute the tool
@@ -228,121 +234,71 @@ class LLMService:
                         "name": function_name,
                         "content": function_response
                     })
-                
-                # Step 4: Get final response from model WITH STREAMING
-                logger.info("Getting final response after tool execution (streaming)")
-                
-                # Determine if we should use reasoning for this request
-                use_reasoning = enable_reasoning and LLMService.is_reasoning_model()
-                
-                if use_reasoning:
-                    # Use Cerebras SDK for reasoning models
-                    cerebras_client = LLMService._get_cerebras_client()
-                    stream = cerebras_client.chat.completions.create(
-                        model=model_name,
-                        messages=messages,
-                        stream=True,
-                        reasoning_effort=reasoning_effort,
-                        max_completion_tokens=8192,  # Reduced to avoid rate limits
-                        temperature=1,
-                        top_p=1
-                    )
-                else:
-                    stream = client.chat.completions.create(
-                        model=model_name,
-                        messages=messages,
-                        stream=True
-                    )
-                
-                # Yield chunks as they arrive, handling reasoning tokens
-                reasoning_started = False
-                first_chunk = True
-                for chunk in stream:
-                    delta = chunk.choices[0].delta
-                    
-                    # Debug: Log the first chunk to see its structure
-                    if first_chunk and use_reasoning:
-                        logger.info(f"First chunk delta type: {type(delta)}")
-                        logger.info(f"First chunk delta attrs: {dir(delta)}")
-                        logger.info(f"First chunk delta dict: {getattr(delta, '__dict__', {})}")
-                        first_chunk = False
-                    
-                    # Handle reasoning tokens (thinking) - use getattr for safer access
-                    # Cerebras returns reasoning in delta.reasoning field
-                    reasoning_content = getattr(delta, 'reasoning', None)
-                    if use_reasoning and reasoning_content:
-                        logger.debug(f"Reasoning chunk: {reasoning_content[:50]}...")
-                        if not reasoning_started:
-                            yield "[[THINKING:start]]"
-                            reasoning_started = True
-                        yield f"[[THINKING:chunk:{reasoning_content}]]"
-                    
-                    # Handle content tokens
-                    content = getattr(delta, 'content', None)
-                    if content:
-                        if reasoning_started:
-                            yield "[[THINKING:end]]"
-                            reasoning_started = False
-                        yield content
-                
-                # Close thinking if stream ended during reasoning
-                if reasoning_started:
-                    yield "[[THINKING:end]]"
+            
+            # After tool loop, get final streaming response
+            logger.info("Getting final response after all tool executions (streaming)")
+            
+            # Determine if we should use reasoning for this request
+            use_reasoning = enable_reasoning and LLMService.is_reasoning_model()
+            
+            if use_reasoning:
+                # Use Cerebras SDK for reasoning models
+                cerebras_client = LLMService._get_cerebras_client()
+                stream = cerebras_client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    stream=True,
+                    reasoning_effort=reasoning_effort,
+                    max_completion_tokens=8192,
+                    temperature=1,
+                    top_p=1
+                )
             else:
-                # No tool calls - stream the response with reasoning support
-                logger.info("No tool calls, streaming direct response")
+                # Final call without tools to get text response
+                stream = client.chat.completions.create(
+                    model=model_name,
+                    messages=messages,
+                    stream=True
+                )
+            
+            # Yield chunks as they arrive, handling reasoning tokens
+            reasoning_started = False
+            first_chunk = True
+            has_content = False
+            
+            for chunk in stream:
+                delta = chunk.choices[0].delta
                 
-                use_reasoning = enable_reasoning and LLMService.is_reasoning_model()
+                # Debug: Log the first chunk to see its structure
+                if first_chunk and use_reasoning:
+                    logger.info(f"First chunk delta type: {type(delta)}")
+                    logger.info(f"First chunk delta attrs: {dir(delta)}")
+                    first_chunk = False
                 
-                if use_reasoning:
-                    # Use Cerebras SDK for reasoning models
-                    cerebras_client = LLMService._get_cerebras_client()
-                    stream = cerebras_client.chat.completions.create(
-                        model=model_name,
-                        messages=messages,
-                        stream=True,
-                        reasoning_effort=reasoning_effort,
-                        max_completion_tokens=8192,
-                        temperature=1,
-                        top_p=1
-                    )
-                    
-                    # Handle streaming with reasoning
-                    reasoning_started = False
-                    first_chunk = True
-                    for chunk in stream:
-                        delta = chunk.choices[0].delta
-                        
-                        # Debug logging for first chunk
-                        if first_chunk:
-                            logger.info(f"[NO TOOLS] First chunk delta type: {type(delta)}")
-                            logger.info(f"[NO TOOLS] First chunk delta attrs: {[a for a in dir(delta) if not a.startswith('_')]}")
-                            first_chunk = False
-                        
-                        # Handle reasoning tokens
-                        reasoning_content = getattr(delta, 'reasoning', None)
-                        if reasoning_content:
-                            if not reasoning_started:
-                                yield "[[THINKING:start]]"
-                                reasoning_started = True
-                            yield f"[[THINKING:chunk:{reasoning_content}]]"
-                        
-                        # Handle content tokens
-                        content = getattr(delta, 'content', None)
-                        if content:
-                            if reasoning_started:
-                                yield "[[THINKING:end]]"
-                                reasoning_started = False
-                            yield content
-                    
+                # Handle reasoning tokens (thinking)
+                reasoning_content = getattr(delta, 'reasoning', None)
+                if use_reasoning and reasoning_content:
+                    if not reasoning_started:
+                        yield "[[THINKING:start]]"
+                        reasoning_started = True
+                    yield f"[[THINKING:chunk:{reasoning_content}]]"
+                
+                # Handle content tokens
+                content = getattr(delta, 'content', None)
+                if content:
+                    has_content = True
                     if reasoning_started:
                         yield "[[THINKING:end]]"
-                else:
-                    # Non-reasoning path - just return the response
-                    if response_message.content:
-                        yield response_message.content
-                    else:
-                        yield "I'm not sure how to handle that request using my available tools."
+                        reasoning_started = False
+                    yield content
+            
+            # Close thinking if stream ended during reasoning
+            if reasoning_started:
+                yield "[[THINKING:end]]"
+            
+            # If no content was yielded and no tools were called, provide fallback
+            if not has_content and tool_round == 1:
+                yield "I'm not sure how to handle that request using my available tools."
 
         except Exception as e:
             logger.error(f"Error in send_message_with_tools: {e}")
