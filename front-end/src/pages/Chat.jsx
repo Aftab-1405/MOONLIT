@@ -657,6 +657,7 @@ function Chat() {
               isConnected={isDbConnected}
               dbType={dbType}
               currentDatabase={currentDatabase}
+              showSuggestions={false}
             />
           </>
         )}

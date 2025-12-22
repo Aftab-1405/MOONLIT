@@ -29,6 +29,8 @@ function ChatInput({
   isConnected = false,
   dbType = null,
   currentDatabase = null,
+  // Control suggestions visibility
+  showSuggestions = true,
 }) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -328,7 +330,8 @@ function ChatInput({
         </Tooltip>
       </Box>
 
-      {/* Suggestion Chips - Below input */}
+      {/* Suggestion Chips - Below input (only when empty) */}
+      {showSuggestions && (
       <Box
         sx={{
           maxWidth: 760,
@@ -370,6 +373,7 @@ function ChatInput({
           />
         ))}
       </Box>
+      )}
 
       {/* Footer hint */}
       <Typography
