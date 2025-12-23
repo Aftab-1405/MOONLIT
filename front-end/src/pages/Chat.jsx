@@ -1,9 +1,7 @@
-
 import { 
   Box, 
   Typography, 
   IconButton,
-  Tooltip,
   Drawer, 
   AppBar, 
   Toolbar,
@@ -16,7 +14,7 @@ import {
   Alert,
   Dialog,
 } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import { useTheme, alpha } from '@mui/material/styles';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
@@ -31,6 +29,8 @@ import DatabaseModal from '../components/DatabaseModal';
 import SQLResultsTable from '../components/SQLResultsTable';
 import SettingsModal from '../components/SettingsModal';
 import ConfirmDialog from '../components/ConfirmDialog';
+import StarfieldCanvas from '../components/StarfieldCanvas';
+import useIdleDetection from '../hooks/useIdleDetection';
 
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
@@ -44,7 +44,6 @@ function Chat() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [messages, setMessages] = useState([]);
-  const [isLoading] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [isDbConnected, setIsDbConnected] = useState(false);
@@ -60,6 +59,9 @@ function Chat() {
   
   const messagesContainerRef = useRef(null);
   const { user, logout } = useAuth();
+  
+  // Idle detection for starfield animation (8 seconds timeout)
+  const isIdle = useIdleDetection(8000);
 
   // Scroll to bottom when messages change
   const scrollToBottom = useCallback(() => {
@@ -73,7 +75,7 @@ function Chat() {
     // Small delay to ensure DOM has updated
     const timer = setTimeout(scrollToBottom, 50);
     return () => clearTimeout(timer);
-  }, [messages, isLoading, scrollToBottom]);
+  }, [messages, scrollToBottom]);
 
   useEffect(() => {
     checkDbStatus();
@@ -256,7 +258,6 @@ function Chat() {
 
   // Actual query execution (separated for confirmation flow)
   const executeQuery = async (sql, maxRows, queryTimeout) => {
-
     try {
       const response = await fetch('/run_sql_query', {
         method: 'POST',
@@ -450,16 +451,38 @@ function Chat() {
   const currentSidebarWidth = sidebarCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', bgcolor: 'background.default', overflow: 'hidden' }}>
+    <Box sx={{ 
+      display: 'flex', 
+      height: '100vh', 
+      bgcolor: 'background.default', 
+      overflow: 'hidden',
+      position: 'relative',
+    }}>
+      {/* Animated Starfield Background - Activates when user is idle (dark theme only) */}
+      <StarfieldCanvas active={isIdle} />
+      
+      {/* Immersive gradient overlay */}
+      <Box
+        sx={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 0,
+          pointerEvents: 'none',
+          background: `radial-gradient(ellipse at top right, ${alpha(theme.palette.info.main, 0.04)} 0%, transparent 50%)`,
+        }}
+      />
+      
       {/* Mobile AppBar */}
       <AppBar
         position="fixed"
         sx={{
           display: { md: 'none' },
-          backgroundColor: isDarkMode ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.9)',
-          backdropFilter: 'blur(10px)',
+          backgroundColor: alpha(theme.palette.background.paper, isDarkMode ? 0.05 : 0.8),
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           borderBottom: '1px solid',
-          borderColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)',
+          borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
+          zIndex: 2,
         }}
         elevation={0}
       >
@@ -505,10 +528,14 @@ function Chat() {
         sx={{
           display: { xs: 'block', md: 'none' },
           '& .MuiDrawer-paper': { 
-            width: DRAWER_WIDTH, 
-            bgcolor: isDarkMode ? '#000000' : '#f8f8f8', 
+            width: DRAWER_WIDTH,
+            background: isDarkMode 
+              ? alpha(theme.palette.background.paper, 0.05)
+              : alpha(theme.palette.background.paper, 0.8),
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
             borderRight: '1px solid', 
-            borderColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)' 
+            borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
           },
         }}
       >
@@ -548,6 +575,8 @@ function Chat() {
           width: currentSidebarWidth,
           flexShrink: 0,
           transition: 'width 0.2s ease',
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         <Sidebar
@@ -596,10 +625,11 @@ function Chat() {
           overflow: 'hidden',
           backgroundColor: 'transparent',
           position: 'relative',
+          zIndex: 1,
         }}
       >
         {/* Empty state: Center logo + input together like Grok */}
-        {messages.length === 0 && !isLoading ? (
+        {messages.length === 0 ? (
           <Box
             sx={{
               flex: 1,
@@ -647,7 +677,7 @@ function Chat() {
             <Box sx={{ width: '100%', maxWidth: 760 }}>
               <ChatInput 
                 onSend={handleSendMessage} 
-                disabled={isLoading} 
+                disabled={false}
                 isConnected={isDbConnected}
                 dbType={dbType}
                 currentDatabase={currentDatabase}
@@ -665,15 +695,13 @@ function Chat() {
                 messages={messages}
                 user={user}
                 onRunQuery={handleRunQuery}
-                onSuggestionClick={handleSendMessage}
-                isTyping={isLoading}
               />
             </Box>
 
             {/* Input at bottom when there are messages */}
             <ChatInput 
               onSend={handleSendMessage} 
-              disabled={isLoading} 
+              disabled={false}
               isConnected={isDbConnected}
               dbType={dbType}
               currentDatabase={currentDatabase}

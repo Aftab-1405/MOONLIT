@@ -81,11 +81,13 @@ export const InlineThinkingBlock = ({ content, isActive }) => {
 
   if (!content && !isActive) return null;
 
+  // TRUE MONOCHROME: Use theme's primary color for thinking state
+  // Creates subtle, elegant distinction through opacity and borders
   const colors = {
-    bg: isDark ? alpha('#a78bfa', 0.1) : alpha('#8b5cf6', 0.08),
-    border: isDark ? alpha('#a78bfa', 0.2) : alpha('#8b5cf6', 0.15),
-    icon: isDark ? '#a78bfa' : '#7c3aed',
-    text: isDark ? '#c4b5fd' : '#6d28d9',
+    bg: alpha(theme.palette.primary.main, isDark ? 0.08 : 0.04),
+    border: alpha(theme.palette.primary.main, isDark ? 0.15 : 0.1),
+    icon: theme.palette.primary.main,
+    text: theme.palette.text.primary,
   };
 
   return (
@@ -103,7 +105,7 @@ export const InlineThinkingBlock = ({ content, isActive }) => {
           border: `1px solid ${colors.border}`,
           cursor: 'pointer',
           transition: 'all 0.2s ease',
-          '&:hover': { backgroundColor: isDark ? alpha('#a78bfa', 0.15) : alpha('#8b5cf6', 0.12) },
+          '&:hover': { backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.12 : 0.06) },
         }}
       >
         <KeyboardArrowDownIcon
@@ -132,7 +134,7 @@ export const InlineThinkingBlock = ({ content, isActive }) => {
             sx={{
               p: 1.25,
               borderRadius: 1.5,
-              backgroundColor: isDark ? alpha('#a78bfa', 0.05) : alpha('#8b5cf6', 0.04),
+              backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.04 : 0.03),
               fontFamily: '"JetBrains Mono", "Fira Code", monospace',
               fontSize: '0.72rem',
               lineHeight: 1.6,
@@ -173,24 +175,25 @@ export const InlineToolBlock = ({ tool }) => {
   const Icon = config.icon;
   const displayName = isRunning ? config.action : config.pastAction;
 
+  // NOW USING THEME SYSTEM - Colors come from theme.palette
   const colors = {
     running: {
-      bg: isDark ? alpha('#60a5fa', 0.1) : alpha('#3b82f6', 0.08),
-      border: isDark ? alpha('#60a5fa', 0.25) : alpha('#3b82f6', 0.2),
-      text: isDark ? '#93c5fd' : '#2563eb',
-      icon: isDark ? '#60a5fa' : '#3b82f6',
+      bg: alpha(theme.palette.info.main, isDark ? 0.1 : 0.08),
+      border: alpha(theme.palette.info.main, isDark ? 0.25 : 0.2),
+      text: theme.palette.info.main,
+      icon: theme.palette.info.main,
     },
     success: {
-      bg: isDark ? alpha('#4ade80', 0.08) : alpha('#22c55e', 0.06),
-      border: isDark ? alpha('#4ade80', 0.2) : alpha('#22c55e', 0.15),
-      text: isDark ? '#86efac' : '#16a34a',
-      icon: isDark ? '#4ade80' : '#22c55e',
+      bg: alpha(theme.palette.success.main, isDark ? 0.08 : 0.06),
+      border: alpha(theme.palette.success.main, isDark ? 0.2 : 0.15),
+      text: theme.palette.success.main,
+      icon: theme.palette.success.main,
     },
     error: {
-      bg: isDark ? alpha('#f87171', 0.1) : alpha('#ef4444', 0.08),
-      border: isDark ? alpha('#f87171', 0.25) : alpha('#ef4444', 0.2),
-      text: isDark ? '#fca5a5' : '#dc2626',
-      icon: isDark ? '#f87171' : '#ef4444',
+      bg: alpha(theme.palette.error.main, isDark ? 0.1 : 0.08),
+      border: alpha(theme.palette.error.main, isDark ? 0.25 : 0.2),
+      text: theme.palette.error.main,
+      icon: theme.palette.error.main,
     },
   };
 

@@ -3,7 +3,6 @@ import { Box, Typography, IconButton, Tooltip, Divider, Popover, List, ListItemB
 import { useTheme, alpha } from '@mui/material/styles';
 
 // Icons - Using outlined/transparent versions for Grok-style look
-import SearchOutlinedIcon from '@mui/icons-material/SearchOutlined';
 import ChatBubbleOutlineRoundedIcon from '@mui/icons-material/ChatBubbleOutlineRounded';
 import QuestionAnswerOutlinedIcon from '@mui/icons-material/QuestionAnswerOutlined';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
@@ -13,7 +12,6 @@ import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRou
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import KeyboardDoubleArrowLeftRoundedIcon from '@mui/icons-material/KeyboardDoubleArrowLeftRounded';
 import KeyboardDoubleArrowRightRoundedIcon from '@mui/icons-material/KeyboardDoubleArrowRightRounded';
-
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
 
 // Sidebar widths
@@ -60,7 +58,6 @@ function Sidebar({
 
   // Navigation items for Grok-style nav - Using distinct outlined icons
   const navItems = [
-    { icon: <SearchOutlinedIcon sx={{ fontSize: 20 }} />, label: 'Search', tooltip: 'Search', action: () => {} },
     { icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 20 }} />, label: 'New Chat', tooltip: 'New Chat', action: onNewChat },
     { icon: <StorageOutlinedIcon sx={{ fontSize: 20 }} />, label: 'Database', tooltip: isConnected ? currentDatabase : 'Connect Database', action: onOpenDbModal },
     { icon: <HistoryOutlinedIcon sx={{ fontSize: 20 }} />, label: 'History', tooltip: 'History', isSection: !isCollapsed, action: isCollapsed ? handleHistoryClick : undefined },
@@ -75,9 +72,14 @@ function Sidebar({
         display: 'flex', 
         flexDirection: 'column', 
         overflow: 'hidden',
-        backgroundColor: isDarkMode ? '#000000' : '#F7F8FA',
+        // Glassmorphism effect
+        background: isDarkMode 
+          ? alpha(theme.palette.background.paper, 0.05)
+          : alpha(theme.palette.background.paper, 0.8),
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         borderRight: '1px solid',
-        borderColor: isDarkMode ? '#1F1F1F' : '#D0D7DE',
+        borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
         // Smooth transition for ALL properties
         transition: 'all 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
       }}

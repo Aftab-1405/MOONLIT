@@ -52,11 +52,11 @@ const darkPalette = {
     disabled: 'rgba(255, 255, 255, 0.3)',
     disabledBackground: 'rgba(255, 255, 255, 0.12)',
   },
-  // Muted Semantic Colors for OLED Black
-  success: { main: '#2EA043', light: '#3FB950', dark: '#238636' },
-  error: { main: '#F85149', light: '#FF7B72', dark: '#DA3633' },
-  warning: { main: '#D4A72C', light: '#E3B341', dark: '#BB8009' },
-  info: { main: '#EDEDED', light: '#FFFFFF', dark: '#CCCCCC' },
+  // TRUE MONOCHROME: All semantic colors use grayscale
+  success: { main: '#FFFFFF', light: '#EDEDED', dark: '#E0E0E0' },      // White for success (bright, positive)
+  error: { main: '#A1A1AA', light: '#C0C0C0', dark: '#71717A' },        // Mid-gray for errors (subtle warning)
+  warning: { main: '#D4D4D4', light: '#E5E5E5', dark: '#A1A1A1' },      // Light gray for warnings
+  info: { main: '#EDEDED', light: '#FFFFFF', dark: '#CCCCCC' },         // Already monochrome ✅
 };
 
 const lightPalette = {
@@ -73,11 +73,11 @@ const lightPalette = {
     disabled: 'rgba(15, 23, 42, 0.26)',
     disabledBackground: 'rgba(15, 23, 42, 0.12)',
   },
-  // Clinical Semantic Colors
-  success: { main: '#16a34a', light: '#4ade80', dark: '#14532d' },
-  error: { main: '#dc2626', light: '#f87171', dark: '#7f1d1d' },
-  warning: { main: '#ca8a04', light: '#facc15', dark: '#713f12' },
-  info: { main: '#1F1F1F', light: '#000000', dark: '#333333' },
+  // TRUE MONOCHROME: All semantic colors use grayscale
+  success: { main: '#000000', light: '#333333', dark: '#000000' },      // Black for success (strong, definitive)
+  error: { main: '#52525B', light: '#71717A', dark: '#3F3F46' },        // Mid-gray for errors (subtle warning)
+  warning: { main: '#A1A1A1', light: '#C0C0C0', dark: '#737373' },      // Light gray for warnings
+  info: { main: '#1F1F1F', light: '#000000', dark: '#333333' },         // Already monochrome ✅
 };
 
 // ============================================

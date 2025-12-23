@@ -156,6 +156,8 @@ function ChatInput({
             ? (isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)')
             : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'),
           backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
           transition: 'all 0.2s ease',
           '&:hover': {
             borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
@@ -182,7 +184,7 @@ function ChatInput({
           fullWidth
           multiline
           maxRows={5}
-          placeholder="What do you want to know?"
+          placeholder="Ask anything..."
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -216,15 +218,17 @@ function ChatInput({
 
         {/* Schema Selector Button - Only for PostgreSQL */}
         {showSchemaSelector && (
-          <Tooltip title="Switch schema">
+          <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
             <Box
               onClick={(e) => setSchemaAnchor(e.currentTarget)}
               sx={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 0.5,
-                px: 1.25,
-                py: 0.5,
+                // Mobile: Compact icon-only button
+                px: { xs: 0.75, sm: 1.25 },
+                py: { xs: 0.75, sm: 0.5 },
+                minWidth: { xs: 32, sm: 'auto' },
                 borderRadius: '16px',
                 cursor: 'pointer',
                 backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
@@ -238,10 +242,12 @@ function ChatInput({
                 },
               }}
             >
-              <AccountTreeOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <AccountTreeOutlinedIcon sx={{ fontSize: { xs: 16, sm: 14 }, color: 'text.secondary' }} />
+              {/* Show text only on tablet and up */}
               <Typography 
                 variant="caption" 
                 sx={{ 
+                  display: { xs: 'none', sm: 'block' },
                   fontSize: '0.75rem',
                   color: 'text.secondary',
                   maxWidth: 80,
@@ -252,7 +258,7 @@ function ChatInput({
               >
                 {schemaLoading ? '...' : currentSchema}
               </Typography>
-              <KeyboardArrowDownRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+              <KeyboardArrowDownRoundedIcon sx={{ display: { xs: 'none', sm: 'block' }, fontSize: 14, color: 'text.secondary' }} />
             </Box>
           </Tooltip>
         )}

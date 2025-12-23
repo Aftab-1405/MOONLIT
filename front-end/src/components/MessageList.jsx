@@ -269,22 +269,7 @@ function AIMessage({ message, onRunQuery, isStreaming }) {
   );
 }
 
-function MessageList({ messages = [], user, onRunQuery, isTyping = false }) {
-  if (messages.length === 0 && !isTyping) {
-    return (
-      <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', px: 3, pb: 16 }}>
-        <Box sx={{ textAlign: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 2, mb: 2 }}>
-            <Box component="img" src="/product-logo.png" alt="DB-Genie" sx={{ width: { xs: 48, sm: 56 }, height: { xs: 48, sm: 56 }, opacity: 0.95 }} />
-            <Typography variant="h3" sx={{ fontWeight: 500, fontSize: { xs: '2rem', sm: '2.5rem' }, color: 'text.primary', letterSpacing: '-0.02em' }}>
-              DB-Genie
-            </Typography>
-          </Box>
-        </Box>
-      </Box>
-    );
-  }
-
+function MessageList({ messages = [], user, onRunQuery }) {
   return (
     <Box sx={{ flex: 1, overflow: 'auto', py: 2 }}>
       {messages.map((msg, index) => (
@@ -292,7 +277,6 @@ function MessageList({ messages = [], user, onRunQuery, isTyping = false }) {
           ? <UserMessage key={index} message={msg.content} userAvatar={user?.photoURL} userName={user?.displayName} />
           : <AIMessage key={index} message={msg.content} onRunQuery={onRunQuery} isStreaming={msg.isStreaming} />
       ))}
-      {isTyping && messages[messages.length - 1]?.sender === 'user' && <TypingIndicator />}
     </Box>
   );
 }
