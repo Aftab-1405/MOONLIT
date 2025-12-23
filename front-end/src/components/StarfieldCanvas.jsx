@@ -13,7 +13,7 @@ function StarfieldCanvas({ active = false }) {
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const starsRef = useRef([]);
-  // const nebulasRef = useRef([]); // Nebula effect removed
+  const nebulasRef = useRef([]);
   const meteorsRef = useRef([]);
   const cometsRef = useRef([]);
   const sparksRef = useRef([]);
@@ -131,7 +131,7 @@ function StarfieldCanvas({ active = false }) {
           y: Math.random() * h,
           radius: 200 + Math.random() * 300, // Larger clouds: 200-500px
           color,
-          baseOpacity: 0.12 + Math.random() * 0.10, // More visible: 0.12-0.22
+          baseOpacity: 0.04 + Math.random() * 0.04, // Low opacity: 0.04-0.08
           // Slow drift
           vx: (Math.random() - 0.5) * 0.08,
           vy: (Math.random() - 0.5) * 0.08,
@@ -246,8 +246,9 @@ function StarfieldCanvas({ active = false }) {
     if (starsRef.current.length === 0) {
       starsRef.current = initStars(width, height);
     }
-    // Nebula effect removed
-    // Aurora effect removed
+    if (nebulasRef.current.length === 0) {
+      nebulasRef.current = initNebulas(width, height);
+    }
 
     const animate = (timestamp) => {
       // Smooth opacity transition
@@ -268,7 +269,36 @@ function StarfieldCanvas({ active = false }) {
 
       const globalOpacity = opacityRef.current;
 
-      // Nebula effect removed
+      // === Draw Nebulas ===
+      // Large, slowly drifting cosmic clouds with subtle pulsing
+      for (const nebula of nebulasRef.current) {
+        // Update position (slow drift)
+        nebula.x += nebula.vx;
+        nebula.y += nebula.vy;
+        // Wrap around edges
+        if (nebula.x < -nebula.radius) nebula.x = width + nebula.radius;
+        if (nebula.x > width + nebula.radius) nebula.x = -nebula.radius;
+        if (nebula.y < -nebula.radius) nebula.y = height + nebula.radius;
+        if (nebula.y > height + nebula.radius) nebula.y = -nebula.radius;
+        // Pulse effect
+        nebula.pulsePhase += nebula.pulseSpeed;
+        const pulse = 0.85 + 0.15 * Math.sin(nebula.pulsePhase);
+        const opacity = nebula.baseOpacity * pulse * globalOpacity;
+        const { r, g, b } = nebula.color;
+        // Draw nebula as radial gradient
+        const gradient = ctx.createRadialGradient(
+          nebula.x, nebula.y, 0,
+          nebula.x, nebula.y, nebula.radius
+        );
+        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${opacity})`);
+        gradient.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, ${opacity * 0.6})`);
+        gradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, ${opacity * 0.3})`);
+        gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+        ctx.beginPath();
+        ctx.arc(nebula.x, nebula.y, nebula.radius, 0, Math.PI * 2);
+        ctx.fillStyle = gradient;
+        ctx.fill();
+      }
 
       // Aurora effect removed
 
@@ -480,7 +510,7 @@ function StarfieldCanvas({ active = false }) {
       canvas.height = height * dpr;
       ctx.scale(dpr, dpr);
       starsRef.current = initStars(width, height);
-      // Nebula and aurora effect removed
+      nebulasRef.current = initNebulas(width, height);
     };
 
     let resizeTimeout;

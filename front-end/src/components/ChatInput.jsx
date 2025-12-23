@@ -167,14 +167,174 @@ function ChatInput({
         pb: { xs: 2, sm: 2.5 },
       }}
     >
-      {/* Input Container - Pill shaped */}
+      {/* Toolbar - Compact row above input */}
+      {(showDatabaseSelector || showSchemaSelector || onOpenSqlEditor) && (
+        <Box
+          sx={{
+            maxWidth: 760,
+            mx: 'auto',
+            mb: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 0.5,
+            flexWrap: 'wrap',
+          }}
+        >
+          {/* Database Selector */}
+          {showDatabaseSelector && (
+            <Tooltip title={`Database: ${currentDatabase}`}>
+              <Chip
+                icon={<StorageOutlinedIcon sx={{ fontSize: 14 }} />}
+                label={currentDatabase}
+                onClick={(e) => setDbAnchor(e.currentTarget)}
+                size="small"
+                variant="outlined"
+                sx={{
+                  height: 26,
+                  fontSize: '0.75rem',
+                  borderColor: isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                  '&:hover': {
+                    borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                  },
+                }}
+              />
+            </Tooltip>
+          )}
+
+          {/* Schema Selector */}
+          {showSchemaSelector && (
+            <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
+              <Chip
+                icon={<AccountTreeOutlinedIcon sx={{ fontSize: 14 }} />}
+                label={currentSchema}
+                onClick={(e) => setSchemaAnchor(e.currentTarget)}
+                size="small"
+                variant="outlined"
+                sx={{
+                  height: 26,
+                  fontSize: '0.75rem',
+                  borderColor: isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                  '&:hover': {
+                    borderColor: isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
+                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)',
+                  },
+                }}
+              />
+            </Tooltip>
+          )}
+
+          {/* SQL Editor Toggle */}
+          {onOpenSqlEditor && (
+            <Tooltip title="Open SQL Editor">
+              <Chip
+                icon={<CodeRoundedIcon sx={{ fontSize: 14 }} />}
+                label="SQL Editor"
+                onClick={onOpenSqlEditor}
+                size="small"
+                variant="outlined"
+                sx={{
+                  height: 26,
+                  fontSize: '0.75rem',
+                  borderColor: isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                  '&:hover': {
+                    borderColor: 'success.main',
+                    backgroundColor: alpha(muiTheme.palette.success.main, 0.1),
+                    color: 'success.main',
+                  },
+                }}
+              />
+            </Tooltip>
+          )}
+        </Box>
+      )}
+
+      {/* Database Menu */}
+      <Menu
+        anchorEl={dbAnchor}
+        open={Boolean(dbAnchor)}
+        onClose={() => setDbAnchor(null)}
+        PaperProps={{
+          sx: {
+            minWidth: 180,
+            maxHeight: 320,
+          }
+        }}
+      >
+        <Typography 
+          variant="overline" 
+          sx={{ px: 2, py: 0.5, display: 'block', color: 'text.secondary' }}
+        >
+          Switch Database
+        </Typography>
+        {availableDatabases.map((db) => (
+          <MenuItem
+            key={db}
+            onClick={() => handleDatabaseChange(db)}
+            selected={db === currentDatabase}
+            sx={{ fontSize: '0.85rem' }}
+          >
+            <ListItemIcon sx={{ minWidth: 28 }}>
+              {db === currentDatabase ? (
+                <CheckRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
+              ) : (
+                <StorageOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+              )}
+            </ListItemIcon>
+            <ListItemText primary={db} />
+          </MenuItem>
+        ))}
+      </Menu>
+
+      {/* Schema Menu */}
+      <Menu
+        anchorEl={schemaAnchor}
+        open={Boolean(schemaAnchor)}
+        onClose={() => setSchemaAnchor(null)}
+        PaperProps={{
+          sx: {
+            minWidth: 160,
+            maxHeight: 280,
+          }
+        }}
+      >
+        <Typography 
+          variant="overline" 
+          sx={{ px: 2, py: 0.5, display: 'block', color: 'text.secondary' }}
+        >
+          PostgreSQL Schema
+        </Typography>
+        {schemas.map((schema) => (
+          <MenuItem
+            key={schema}
+            onClick={() => handleSchemaChange(schema)}
+            selected={schema === currentSchema}
+            sx={{ fontSize: '0.85rem' }}
+          >
+            <ListItemIcon sx={{ minWidth: 28 }}>
+              {schema === currentSchema ? (
+                <CheckRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
+              ) : (
+                <AccountTreeOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+              )}
+            </ListItemIcon>
+            <ListItemText primary={schema} />
+          </MenuItem>
+        ))}
+      </Menu>
+
+      {/* Input Container - Clean pill shaped */}
       <Box
         sx={{
           maxWidth: 760,
           mx: 'auto',
           display: 'flex',
           alignItems: 'center',
-          gap: 1,
+          gap: 0.75,
           px: { xs: 1.5, sm: 2 },
           py: { xs: 1, sm: 1.25 },
           borderRadius: '28px',
@@ -191,73 +351,63 @@ function ChatInput({
           },
         }}
       >
-        {/* Attachment icon (placeholder) */}
-        <IconButton
-          size="small"
-          sx={{
-            color: 'text.secondary',
-            opacity: 0.6,
-            '&:hover': {
-              opacity: 1,
-              backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-            }
-          }}
-        >
-          <AttachFileRoundedIcon sx={{ fontSize: 20 }} />
-        </IconButton>
+        {/* Left Actions - Grouped */}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
+          {/* Attachment icon */}
+          <Tooltip title="Attach file">
+            <IconButton
+              size="small"
+              sx={{
+                color: 'text.secondary',
+                opacity: 0.6,
+                width: 32,
+                height: 32,
+                '&:hover': {
+                  opacity: 1,
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                }
+              }}
+            >
+              <AttachFileRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
 
-        {/* Reasoning Toggle - Like Claude's thinking button */}
-        <Tooltip title={reasoningEnabled ? 'Thinking enabled (click to disable)' : 'Thinking disabled (click to enable)'}>
-          <IconButton
-            size="small"
-            onClick={toggleReasoning}
-            sx={{
-              color: reasoningEnabled ? 'primary.main' : 'text.secondary',
-              opacity: reasoningEnabled ? 1 : 0.5,
-              backgroundColor: reasoningEnabled 
-                ? alpha(muiTheme.palette.primary.main, isDarkMode ? 0.15 : 0.1)
-                : 'transparent',
-              border: '1px solid',
-              borderColor: reasoningEnabled 
-                ? alpha(muiTheme.palette.primary.main, 0.3)
-                : 'transparent',
-              transition: 'all 0.2s ease',
-              '&:hover': {
-                opacity: 1,
+          {/* Reasoning Toggle */}
+          <Tooltip title={reasoningEnabled ? 'Thinking enabled (click to disable)' : 'Thinking disabled (click to enable)'}>
+            <IconButton
+              size="small"
+              onClick={toggleReasoning}
+              sx={{
+                color: reasoningEnabled ? 'primary.main' : 'text.secondary',
+                opacity: reasoningEnabled ? 1 : 0.5,
+                width: 32,
+                height: 32,
                 backgroundColor: reasoningEnabled 
-                  ? alpha(muiTheme.palette.primary.main, isDarkMode ? 0.2 : 0.15)
-                  : (isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
-              }
-            }}
-          >
-            {reasoningEnabled ? (
-              <PsychologyOutlinedIcon sx={{ fontSize: 20 }} />
-            ) : (
-              <PsychologyAltOutlinedIcon sx={{ fontSize: 20 }} />
-            )}
-          </IconButton>
-        </Tooltip>
+                  ? alpha(muiTheme.palette.primary.main, isDarkMode ? 0.15 : 0.1)
+                  : 'transparent',
+                border: '1px solid',
+                borderColor: reasoningEnabled 
+                  ? alpha(muiTheme.palette.primary.main, 0.3)
+                  : 'transparent',
+                transition: 'all 0.2s ease',
+                '&:hover': {
+                  opacity: 1,
+                  backgroundColor: reasoningEnabled 
+                    ? alpha(muiTheme.palette.primary.main, isDarkMode ? 0.2 : 0.15)
+                    : (isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                }
+              }}
+            >
+              {reasoningEnabled ? (
+                <PsychologyOutlinedIcon sx={{ fontSize: 18 }} />
+              ) : (
+                <PsychologyAltOutlinedIcon sx={{ fontSize: 18 }} />
+              )}
+            </IconButton>
+          </Tooltip>
+        </Box>
 
-        {/* SQL Editor Toggle Button */}
-        <Tooltip title="Open SQL Editor">
-          <IconButton
-            size="small"
-            onClick={onOpenSqlEditor}
-            sx={{
-              color: 'text.secondary',
-              opacity: 0.6,
-              '&:hover': {
-                opacity: 1,
-                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                color: 'success.main',
-              }
-            }}
-          >
-            <CodeRoundedIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        </Tooltip>
-
-        {/* Input */}
+        {/* Input Field */}
         <TextField
           fullWidth
           multiline
@@ -293,120 +443,6 @@ function ChatInput({
             },
           }}
         />
-
-        {/* Database Selector - Icon only */}
-        {showDatabaseSelector && (
-          <Tooltip title={`Database: ${currentDatabase}`}>
-            <IconButton
-              size="small"
-              onClick={(e) => setDbAnchor(e.currentTarget)}
-              sx={{
-                color: 'text.secondary',
-                opacity: 0.7,
-                '&:hover': {
-                  opacity: 1,
-                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                },
-              }}
-            >
-              <StorageOutlinedIcon sx={{ fontSize: 20 }} />
-            </IconButton>
-          </Tooltip>
-        )}
-
-        {/* Database Menu */}
-        <Menu
-          anchorEl={dbAnchor}
-          open={Boolean(dbAnchor)}
-          onClose={() => setDbAnchor(null)}
-          PaperProps={{
-            sx: {
-              minWidth: 180,
-              maxHeight: 320,
-            }
-          }}
-        >
-          <Typography 
-            variant="overline" 
-            sx={{ px: 2, py: 0.5, display: 'block', color: 'text.secondary' }}
-          >
-            Switch Database
-          </Typography>
-          {availableDatabases.map((db) => (
-            <MenuItem
-              key={db}
-              onClick={() => handleDatabaseChange(db)}
-              selected={db === currentDatabase}
-              sx={{ fontSize: '0.85rem' }}
-            >
-              <ListItemIcon sx={{ minWidth: 28 }}>
-                {db === currentDatabase ? (
-                  <CheckRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
-                ) : (
-                  <StorageOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                )}
-              </ListItemIcon>
-              <ListItemText primary={db} />
-            </MenuItem>
-          ))}
-        </Menu>
-
-        {/* Schema Selector - Icon only, PostgreSQL only */}
-        {showSchemaSelector && (
-          <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
-            <IconButton
-              size="small"
-              onClick={(e) => setSchemaAnchor(e.currentTarget)}
-              sx={{
-                color: 'text.secondary',
-                opacity: 0.7,
-                '&:hover': {
-                  opacity: 1,
-                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                },
-              }}
-            >
-              <AccountTreeOutlinedIcon sx={{ fontSize: 20 }} />
-            </IconButton>
-          </Tooltip>
-        )}
-
-        {/* Schema Menu */}
-        <Menu
-          anchorEl={schemaAnchor}
-          open={Boolean(schemaAnchor)}
-          onClose={() => setSchemaAnchor(null)}
-          PaperProps={{
-            sx: {
-              minWidth: 160,
-              maxHeight: 280,
-            }
-          }}
-        >
-          <Typography 
-            variant="overline" 
-            sx={{ px: 2, py: 0.5, display: 'block', color: 'text.secondary' }}
-          >
-            PostgreSQL Schema
-          </Typography>
-          {schemas.map((schema) => (
-            <MenuItem
-              key={schema}
-              onClick={() => handleSchemaChange(schema)}
-              selected={schema === currentSchema}
-              sx={{ fontSize: '0.85rem' }}
-            >
-              <ListItemIcon sx={{ minWidth: 28 }}>
-                {schema === currentSchema ? (
-                  <CheckRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
-                ) : (
-                  <AccountTreeOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-                )}
-              </ListItemIcon>
-              <ListItemText primary={schema} />
-            </MenuItem>
-          ))}
-        </Menu>
 
         {/* Send Button */}
         <Tooltip title={hasText ? 'Send message' : 'Type a message'}>
