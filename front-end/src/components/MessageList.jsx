@@ -2,7 +2,7 @@ import { Box, Typography, Avatar, IconButton, Tooltip, useTheme as useMuiTheme }
 import { alpha, keyframes } from '@mui/material/styles';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { InlineThinkingBlock, InlineToolBlock } from './AIResponseSteps';
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -219,7 +219,7 @@ function UserMessage({ message, userAvatar, userName }) {
   );
 }
 
-function AIMessage({ message, onRunQuery, isStreaming }) {
+function AIMessage({ message, onRunQuery, onOpenSqlEditor, isStreaming }) {
   const [copied, setCopied] = useState(false);
   const muiTheme = useMuiTheme();
   const theme = muiTheme;
@@ -236,6 +236,52 @@ function AIMessage({ message, onRunQuery, isStreaming }) {
     () => segments.filter((segment) => segment.type === 'text' && segment.content.trim()),
     [segments]
   );
+
+  // Track which execute_query tools we've already auto-opened to prevent duplicates
+  const openedToolsRef = useRef(new Set());
+
+  // Auto-open SQL editor when execute_query tool completes successfully
+  useEffect(() => {
+    if (!onOpenSqlEditor || isStreaming) return;
+
+    segments.forEach((segment, idx) => {
+      if (
+        segment.type === 'tool' &&
+        segment.name === 'execute_query' &&
+        segment.status === 'done' &&
+        !openedToolsRef.current.has(idx)
+      ) {
+        // Mark as opened to prevent re-triggering
+        openedToolsRef.current.add(idx);
+
+        // Parse the tool result to get query and results
+        let parsedArgs = null;
+        let parsedResult = null;
+        try {
+          parsedArgs = segment.args && segment.args !== 'null' ? JSON.parse(segment.args) : null;
+          parsedResult = segment.result && segment.result !== 'null' ? JSON.parse(segment.result) : null;
+        } catch (e) {
+          // Ignore parse errors
+        }
+
+        // Only auto-open if we have successful results
+        if (parsedResult && parsedResult.success !== false && !parsedResult.error) {
+          const query = parsedArgs?.query || '';
+          const results = {
+            columns: parsedResult?.columns || [],
+            result: parsedResult?.data || [],
+            row_count: parsedResult?.row_count || 0,
+            truncated: parsedResult?.truncated || false,
+          };
+          
+          // Small delay to ensure UI is ready
+          setTimeout(() => {
+            onOpenSqlEditor(query, results);
+          }, 100);
+        }
+      }
+    });
+  }, [segments, isStreaming, onOpenSqlEditor]);
 
   const handleCopy = () => {
     const container = contentRef.current;
@@ -290,6 +336,7 @@ function AIMessage({ message, onRunQuery, isStreaming }) {
                   key={`${key}-${segment.name}`}
                   tool={segment}
                   isFirst={idx === 0}
+                  onOpenSqlEditor={onOpenSqlEditor}
                 />
               );
             }
@@ -316,13 +363,13 @@ function AIMessage({ message, onRunQuery, isStreaming }) {
   );
 }
 
-function MessageList({ messages = [], user, onRunQuery }) {
+function MessageList({ messages = [], user, onRunQuery, onOpenSqlEditor }) {
   return (
     <Box sx={{ flex: 1, overflow: 'auto', py: 2 }}>
       {messages.map((msg, index) => (
         msg.sender === 'user'
           ? <UserMessage key={index} message={msg.content} userAvatar={user?.photoURL} userName={user?.displayName} />
-          : <AIMessage key={index} message={msg.content} onRunQuery={onRunQuery} isStreaming={msg.isStreaming} />
+          : <AIMessage key={index} message={msg.content} onRunQuery={onRunQuery} onOpenSqlEditor={onOpenSqlEditor} isStreaming={msg.isStreaming} />
       ))}
     </Box>
   );

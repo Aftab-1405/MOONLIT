@@ -22,6 +22,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import PsychologyOutlinedIcon from '@mui/icons-material/PsychologyOutlined';
 import PsychologyAltOutlinedIcon from '@mui/icons-material/PsychologyAltOutlined';
+import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import { useTheme } from '../contexts/ThemeContext';
 
 function ChatInput({ 
@@ -35,6 +36,8 @@ function ChatInput({
   onDatabaseSwitch,
   // Control suggestions visibility
   showSuggestions = true,
+  // SQL Editor toggle
+  onOpenSqlEditor,
 }) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
@@ -232,6 +235,25 @@ function ChatInput({
             ) : (
               <PsychologyAltOutlinedIcon sx={{ fontSize: 20 }} />
             )}
+          </IconButton>
+        </Tooltip>
+
+        {/* SQL Editor Toggle Button */}
+        <Tooltip title="Open SQL Editor">
+          <IconButton
+            size="small"
+            onClick={onOpenSqlEditor}
+            sx={{
+              color: 'text.secondary',
+              opacity: 0.6,
+              '&:hover': {
+                opacity: 1,
+                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                color: 'success.main',
+              }
+            }}
+          >
+            <CodeRoundedIcon sx={{ fontSize: 20 }} />
           </IconButton>
         </Tooltip>
 

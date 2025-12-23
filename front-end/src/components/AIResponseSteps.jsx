@@ -14,6 +14,7 @@ import ViewColumnRoundedIcon from '@mui/icons-material/ViewColumnRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import ErrorRoundedIcon from '@mui/icons-material/ErrorRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
+import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 
 // Animations
 const fadeInUp = keyframes`
@@ -155,7 +156,7 @@ export const InlineThinkingBlock = ({ content, isActive, isFirst = false }) => {
 /**
  * Inline Tool Block - Shows tool execution inline
  */
-export const InlineToolBlock = ({ tool, isFirst = false }) => {
+export const InlineToolBlock = ({ tool, isFirst = false, onOpenSqlEditor }) => {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -304,9 +305,48 @@ export const InlineToolBlock = ({ tool, isFirst = false }) => {
 
             {parsedResult && !isRunning && (
               <Box>
-                <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
-                  Result
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
+                  <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                    Result
+                  </Typography>
+                  {tool.name === 'execute_query' && !isError && parsedResult?.success !== false && onOpenSqlEditor && (
+                    <Box
+                      component="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const query = parsedArgs?.query || '';
+                        const results = {
+                          columns: parsedResult?.columns || [],
+                          result: parsedResult?.data || [],
+                          row_count: parsedResult?.row_count || 0,
+                          truncated: parsedResult?.truncated || false,
+                        };
+                        onOpenSqlEditor(query, results);
+                      }}
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        px: 1,
+                        py: 0.25,
+                        border: 'none',
+                        borderRadius: 1,
+                        backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.15 : 0.1),
+                        color: 'primary.main',
+                        fontSize: '0.65rem',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        '&:hover': {
+                          backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.25 : 0.15),
+                        },
+                      }}
+                    >
+                      <OpenInNewRoundedIcon sx={{ fontSize: 12 }} />
+                      Open in Editor
+                    </Box>
+                  )}
+                </Box>
                 <Typography sx={{ fontSize: '0.75rem', color: isError ? 'error.main' : 'text.primary' }}>
                   {getDetailedResult(tool.name, parsedResult)}
                 </Typography>

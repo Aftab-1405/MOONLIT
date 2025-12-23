@@ -22,6 +22,7 @@ import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
+import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/Sidebar';
 import ChatInput from '../components/ChatInput';
@@ -31,6 +32,7 @@ import SQLResultsTable from '../components/SQLResultsTable';
 import SettingsModal from '../components/SettingsModal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import StarfieldCanvas from '../components/StarfieldCanvas';
+import SQLEditorCanvas from '../components/SQLEditorCanvas';
 import useIdleDetection from '../hooks/useIdleDetection';
 
 const DRAWER_WIDTH = 260;
@@ -58,6 +60,11 @@ function Chat() {
   const [queryResults, setQueryResults] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, sql: '', onConfirm: null });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  
+  // SQL Editor Canvas state
+  const [sqlEditorOpen, setSqlEditorOpen] = useState(false);
+  const [sqlEditorQuery, setSqlEditorQuery] = useState('');
+  const [sqlEditorResults, setSqlEditorResults] = useState(null);
   
   const messagesContainerRef = useRef(null);
   const { user, logout } = useAuth();
@@ -629,6 +636,9 @@ function Chat() {
           backgroundColor: 'transparent',
           position: 'relative',
           zIndex: 1,
+          // Shrink content when SQL Editor is open
+          marginRight: sqlEditorOpen ? '520px' : 0,
+          transition: 'margin-right 225ms cubic-bezier(0, 0, 0.2, 1)',
         }}
       >
         {/* Empty state: Center logo + input together like Grok */}
@@ -686,6 +696,7 @@ function Chat() {
                 currentDatabase={currentDatabase}
                 availableDatabases={availableDatabases}
                 onDatabaseSwitch={handleDatabaseSwitch}
+                onOpenSqlEditor={() => setSqlEditorOpen(true)}
               />
             </Box>
           </Box>
@@ -700,6 +711,11 @@ function Chat() {
                 messages={messages}
                 user={user}
                 onRunQuery={handleRunQuery}
+                onOpenSqlEditor={(query, results) => {
+                  setSqlEditorQuery(query || '');
+                  setSqlEditorResults(results || null);
+                  setSqlEditorOpen(true);
+                }}
               />
             </Box>
 
@@ -713,6 +729,7 @@ function Chat() {
               availableDatabases={availableDatabases}
               onDatabaseSwitch={handleDatabaseSwitch}
               showSuggestions={false}
+              onOpenSqlEditor={() => setSqlEditorOpen(true)}
             />
           </>
         )}
@@ -764,6 +781,17 @@ function Chat() {
         sqlQuery={confirmDialog.sql}
         confirmText="Execute"
         confirmColor="success"
+      />
+      
+      {/* SQL Editor Canvas */}
+      <SQLEditorCanvas
+        open={sqlEditorOpen}
+        onClose={() => setSqlEditorOpen(false)}
+        initialQuery={sqlEditorQuery}
+        initialResults={sqlEditorResults}
+        onRunQuery={handleRunQuery}
+        isConnected={isDbConnected}
+        currentDatabase={currentDatabase}
       />
     </Box>
   );
