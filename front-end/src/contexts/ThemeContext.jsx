@@ -21,6 +21,7 @@ const SETTINGS_KEY = 'db-genie-settings';
 const defaultSettings = {
   // Appearance
   theme: 'dark',
+  idleAnimation: true,             // Starfield animation when idle
   // Query Execution
   confirmBeforeRun: false,
   queryTimeout: 30,
@@ -33,6 +34,7 @@ const defaultSettings = {
   // AI Assistant
   enableReasoning: true,           // Toggle reasoning on/off
   reasoningEffort: 'medium',       // 'low' | 'medium' | 'high'
+  responseStyle: 'balanced',       // 'concise' | 'balanced' | 'detailed'
 };
 
 // Theme Provider Component (LOGIC ONLY - no theme definitions)

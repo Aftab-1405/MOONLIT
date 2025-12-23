@@ -14,7 +14,8 @@ import {
   Alert,
   Dialog,
 } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
+import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
+import { useTheme } from '../contexts/ThemeContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
@@ -36,8 +37,9 @@ const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
 
 function Chat() {
-  const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
+  const muiTheme = useMuiTheme();
+  const isDarkMode = muiTheme.palette.mode === 'dark';
+  const { settings } = useTheme();
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -62,6 +64,7 @@ function Chat() {
   
   // Idle detection for starfield animation (8 seconds timeout)
   const isIdle = useIdleDetection(8000);
+  const idleAnimationEnabled = settings.idleAnimation ?? true;
 
   // Scroll to bottom when messages change
   const scrollToBottom = useCallback(() => {
@@ -459,7 +462,7 @@ function Chat() {
       position: 'relative',
     }}>
       {/* Animated Starfield Background - Activates when user is idle (dark theme only) */}
-      <StarfieldCanvas active={isIdle} />
+      <StarfieldCanvas active={isIdle && idleAnimationEnabled} />
       
       {/* Immersive gradient overlay */}
       <Box
@@ -468,7 +471,7 @@ function Chat() {
           inset: 0,
           zIndex: 0,
           pointerEvents: 'none',
-          background: `radial-gradient(ellipse at top right, ${alpha(theme.palette.info.main, 0.04)} 0%, transparent 50%)`,
+          background: `radial-gradient(ellipse at top right, ${alpha(muiTheme.palette.info.main, 0.04)} 0%, transparent 50%)`,
         }}
       />
       
@@ -477,11 +480,11 @@ function Chat() {
         position="fixed"
         sx={{
           display: { md: 'none' },
-          backgroundColor: alpha(theme.palette.background.paper, isDarkMode ? 0.05 : 0.8),
+          backgroundColor: alpha(muiTheme.palette.background.paper, isDarkMode ? 0.05 : 0.8),
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           borderBottom: '1px solid',
-          borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
+          borderColor: alpha(muiTheme.palette.divider, isDarkMode ? 0.1 : 0.15),
           zIndex: 2,
         }}
         elevation={0}
@@ -530,12 +533,12 @@ function Chat() {
           '& .MuiDrawer-paper': { 
             width: DRAWER_WIDTH,
             background: isDarkMode 
-              ? alpha(theme.palette.background.paper, 0.05)
-              : alpha(theme.palette.background.paper, 0.8),
+              ? alpha(muiTheme.palette.background.paper, 0.05)
+              : alpha(muiTheme.palette.background.paper, 0.8),
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
             borderRight: '1px solid', 
-            borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
+            borderColor: alpha(muiTheme.palette.divider, isDarkMode ? 0.1 : 0.15),
           },
         }}
       >
@@ -681,6 +684,8 @@ function Chat() {
                 isConnected={isDbConnected}
                 dbType={dbType}
                 currentDatabase={currentDatabase}
+                availableDatabases={availableDatabases}
+                onDatabaseSwitch={handleDatabaseSwitch}
               />
             </Box>
           </Box>
@@ -705,6 +710,8 @@ function Chat() {
               isConnected={isDbConnected}
               dbType={dbType}
               currentDatabase={currentDatabase}
+              availableDatabases={availableDatabases}
+              onDatabaseSwitch={handleDatabaseSwitch}
               showSuggestions={false}
             />
           </>

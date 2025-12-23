@@ -6,35 +6,44 @@ import {
   Tooltip, 
   Typography, 
   Chip, 
-  useTheme,
+  useTheme as useMuiTheme,
   Menu,
   MenuItem,
   ListItemIcon,
   ListItemText,
-  CircularProgress,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
 import CableOutlinedIcon from '@mui/icons-material/CableOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
+import PsychologyOutlinedIcon from '@mui/icons-material/PsychologyOutlined';
+import PsychologyAltOutlinedIcon from '@mui/icons-material/PsychologyAltOutlined';
+import { useTheme } from '../contexts/ThemeContext';
 
 function ChatInput({ 
   onSend, 
   disabled = false, 
-  // Schema props
+  // Database/Schema props
   isConnected = false,
   dbType = null,
   currentDatabase = null,
+  availableDatabases = [],
+  onDatabaseSwitch,
   // Control suggestions visibility
   showSuggestions = true,
 }) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
+  const muiTheme = useMuiTheme();
+  const isDarkMode = muiTheme.palette.mode === 'dark';
+
+  // Use ThemeContext for reasoning state (syncs with Settings Modal)
+  const { settings, updateSetting } = useTheme();
+  const reasoningEnabled = settings.enableReasoning ?? true;
 
   // Schema state
   const [schemas, setSchemas] = useState([]);
@@ -42,8 +51,17 @@ function ChatInput({
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaAnchor, setSchemaAnchor] = useState(null);
 
+  // Database menu anchor
+  const [dbAnchor, setDbAnchor] = useState(null);
+
   const isPostgreSQL = dbType?.toLowerCase() === 'postgresql';
   const showSchemaSelector = isConnected && isPostgreSQL && schemas.length > 0;
+  const showDatabaseSelector = isConnected && availableDatabases.length > 1;
+
+  // Toggle reasoning via ThemeContext (syncs everywhere)
+  const toggleReasoning = () => {
+    updateSetting('enableReasoning', !reasoningEnabled);
+  };
 
   // Fetch schemas when connected to PostgreSQL
   useEffect(() => {
@@ -95,6 +113,12 @@ function ChatInput({
     }
   };
 
+  const handleDatabaseChange = (dbName) => {
+    setDbAnchor(null);
+    if (dbName === currentDatabase) return;
+    onDatabaseSwitch?.(dbName);
+  };
+
   const handleSubmit = (e) => {
     e?.preventDefault();
     if (message.trim() && !disabled) {
@@ -112,7 +136,7 @@ function ChatInput({
 
   const hasText = message.trim().length > 0;
 
-  // Suggestion chips with proper content
+  // Suggestion chips
   const suggestions = [
     { 
       label: 'Check Connection', 
@@ -140,7 +164,7 @@ function ChatInput({
         pb: { xs: 2, sm: 2.5 },
       }}
     >
-      {/* Input Container - Pill shaped like Grok */}
+      {/* Input Container - Pill shaped */}
       <Box
         sx={{
           maxWidth: 760,
@@ -179,6 +203,38 @@ function ChatInput({
           <AttachFileRoundedIcon sx={{ fontSize: 20 }} />
         </IconButton>
 
+        {/* Reasoning Toggle - Like Claude's thinking button */}
+        <Tooltip title={reasoningEnabled ? 'Thinking enabled (click to disable)' : 'Thinking disabled (click to enable)'}>
+          <IconButton
+            size="small"
+            onClick={toggleReasoning}
+            sx={{
+              color: reasoningEnabled ? 'primary.main' : 'text.secondary',
+              opacity: reasoningEnabled ? 1 : 0.5,
+              backgroundColor: reasoningEnabled 
+                ? alpha(muiTheme.palette.primary.main, isDarkMode ? 0.15 : 0.1)
+                : 'transparent',
+              border: '1px solid',
+              borderColor: reasoningEnabled 
+                ? alpha(muiTheme.palette.primary.main, 0.3)
+                : 'transparent',
+              transition: 'all 0.2s ease',
+              '&:hover': {
+                opacity: 1,
+                backgroundColor: reasoningEnabled 
+                  ? alpha(muiTheme.palette.primary.main, isDarkMode ? 0.2 : 0.15)
+                  : (isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+              }
+            }}
+          >
+            {reasoningEnabled ? (
+              <PsychologyOutlinedIcon sx={{ fontSize: 20 }} />
+            ) : (
+              <PsychologyAltOutlinedIcon sx={{ fontSize: 20 }} />
+            )}
+          </IconButton>
+        </Tooltip>
+
         {/* Input */}
         <TextField
           fullWidth
@@ -216,50 +272,80 @@ function ChatInput({
           }}
         />
 
-        {/* Schema Selector Button - Only for PostgreSQL */}
-        {showSchemaSelector && (
-          <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
-            <Box
-              onClick={(e) => setSchemaAnchor(e.currentTarget)}
+        {/* Database Selector - Icon only */}
+        {showDatabaseSelector && (
+          <Tooltip title={`Database: ${currentDatabase}`}>
+            <IconButton
+              size="small"
+              onClick={(e) => setDbAnchor(e.currentTarget)}
               sx={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0.5,
-                // Mobile: Compact icon-only button
-                px: { xs: 0.75, sm: 1.25 },
-                py: { xs: 0.75, sm: 0.5 },
-                minWidth: { xs: 32, sm: 'auto' },
-                borderRadius: '16px',
-                cursor: 'pointer',
-                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                border: '1px solid',
-                borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)',
-                transition: 'all 0.15s ease',
-                flexShrink: 0,
+                color: 'text.secondary',
+                opacity: 0.7,
                 '&:hover': {
-                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.06)',
-                  borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
+                  opacity: 1,
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
                 },
               }}
             >
-              <AccountTreeOutlinedIcon sx={{ fontSize: { xs: 16, sm: 14 }, color: 'text.secondary' }} />
-              {/* Show text only on tablet and up */}
-              <Typography 
-                variant="caption" 
-                sx={{ 
-                  display: { xs: 'none', sm: 'block' },
-                  fontSize: '0.75rem',
-                  color: 'text.secondary',
-                  maxWidth: 80,
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                {schemaLoading ? '...' : currentSchema}
-              </Typography>
-              <KeyboardArrowDownRoundedIcon sx={{ display: { xs: 'none', sm: 'block' }, fontSize: 14, color: 'text.secondary' }} />
-            </Box>
+              <StorageOutlinedIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+        )}
+
+        {/* Database Menu */}
+        <Menu
+          anchorEl={dbAnchor}
+          open={Boolean(dbAnchor)}
+          onClose={() => setDbAnchor(null)}
+          PaperProps={{
+            sx: {
+              minWidth: 180,
+              maxHeight: 320,
+            }
+          }}
+        >
+          <Typography 
+            variant="overline" 
+            sx={{ px: 2, py: 0.5, display: 'block', color: 'text.secondary' }}
+          >
+            Switch Database
+          </Typography>
+          {availableDatabases.map((db) => (
+            <MenuItem
+              key={db}
+              onClick={() => handleDatabaseChange(db)}
+              selected={db === currentDatabase}
+              sx={{ fontSize: '0.85rem' }}
+            >
+              <ListItemIcon sx={{ minWidth: 28 }}>
+                {db === currentDatabase ? (
+                  <CheckRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
+                ) : (
+                  <StorageOutlinedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+                )}
+              </ListItemIcon>
+              <ListItemText primary={db} />
+            </MenuItem>
+          ))}
+        </Menu>
+
+        {/* Schema Selector - Icon only, PostgreSQL only */}
+        {showSchemaSelector && (
+          <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
+            <IconButton
+              size="small"
+              onClick={(e) => setSchemaAnchor(e.currentTarget)}
+              sx={{
+                color: 'text.secondary',
+                opacity: 0.7,
+                '&:hover': {
+                  opacity: 1,
+                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                },
+              }}
+            >
+              <AccountTreeOutlinedIcon sx={{ fontSize: 20 }} />
+            </IconButton>
           </Tooltip>
         )}
 
@@ -335,7 +421,7 @@ function ChatInput({
         </Tooltip>
       </Box>
 
-      {/* Suggestion Chips - Below input (only when empty) */}
+      {/* Suggestion Chips - Below input */}
       {showSuggestions && (
       <Box
         sx={{
