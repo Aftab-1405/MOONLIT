@@ -2,7 +2,7 @@ import { Box, Typography, Avatar, IconButton, Tooltip, useTheme as useMuiTheme }
 import { alpha, keyframes } from '@mui/material/styles';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef } from 'react';
 import { InlineThinkingBlock, InlineToolBlock } from './AIResponseSteps';
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -223,19 +223,47 @@ function AIMessage({ message, onRunQuery, isStreaming }) {
   const [copied, setCopied] = useState(false);
   const muiTheme = useMuiTheme();
   const theme = muiTheme;
+  const contentRef = useRef(null);
 
-  const handleCopy = () => {
-    const cleanContent = message
-      .replace(/\[\[THINKING:start\]\]/g, '')
-      .replace(/\[\[THINKING:chunk:[^\]]*\]\]/g, '')
-      .replace(/\[\[THINKING:end\]\]/g, '')
-      .replace(/\[\[TOOL:[^\]]*\]\]/g, '');
-    navigator.clipboard.writeText(cleanContent);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
+  const getCleanContent = () => message
+    .replace(/\[\[THINKING:start\]\]/g, '')
+    .replace(/\[\[THINKING:chunk:[^\]]*\]\]/g, '')
+    .replace(/\[\[THINKING:end\]\]/g, '')
+    .replace(/\[\[TOOL:[^\]]*\]\]/g, '');
 
   const segments = useMemo(() => filterRedundantTools(parseMessageSegments(message)), [message]);
+  const textOnlySegments = useMemo(
+    () => segments.filter((segment) => segment.type === 'text' && segment.content.trim()),
+    [segments]
+  );
+
+  const handleCopy = () => {
+    const container = contentRef.current;
+    const htmlContent = container?.innerHTML;
+    const plainTextContent = (textOnlySegments.length
+      ? textOnlySegments.map((s) => s.content.trim()).filter(Boolean).join('\n\n')
+      : null) || container?.innerText || getCleanContent();
+
+    // Prefer copying rendered HTML + plaintext; fallback to plaintext only
+    if (htmlContent && navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+      const textBlob = new Blob([plainTextContent], { type: 'text/plain' });
+      navigator.clipboard.write([new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })])
+        .then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        })
+        .catch(() => {
+          navigator.clipboard.writeText(plainTextContent);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 2000);
+        });
+    } else {
+      navigator.clipboard.writeText(plainTextContent);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
 
   return (
     <Box sx={{ py: 1.5, px: { xs: 2, sm: 4, md: 6 }, '&:hover .copy-btn': { opacity: 1 }, animation: `${fadeIn} 0.3s ease-out` }}>
@@ -258,6 +286,12 @@ function AIMessage({ message, onRunQuery, isStreaming }) {
             }
             return null;
           })}
+          {/* Hidden text-only rendering used for clipboard copy (excludes tool/reasoning UI) */}
+          <Box ref={contentRef} sx={{ display: 'none' }} aria-hidden>
+            {textOnlySegments.map((segment, idx) => (
+              <MarkdownRenderer key={`copy-${idx}`} content={segment.content} onRunQuery={onRunQuery} />
+            ))}
+          </Box>
         </Box>
         <Tooltip title={copied ? 'Copied!' : 'Copy'}>
           <IconButton className="copy-btn" size="small" onClick={handleCopy} sx={{ opacity: 0, alignSelf: 'flex-start', mt: 0.5, color: copied ? 'text.primary' : 'text.secondary', transition: 'opacity 0.2s', '&:hover': { color: 'primary.main' } }}>
