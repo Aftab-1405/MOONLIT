@@ -247,6 +247,8 @@ function MarkdownRenderer({ content, onRunQuery }) {
         },
         '& a': { color: 'primary.light', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },
         '& strong': { fontWeight: 600 },
+        // Trim top margin on first block to align with avatar vertically
+        '& > *:first-of-type': { marginTop: 0 },
       }}
     >
       <ReactMarkdown

@@ -267,9 +267,9 @@ function AIMessage({ message, onRunQuery, isStreaming }) {
 
   return (
     <Box sx={{ py: 1.5, px: { xs: 2, sm: 4, md: 6 }, '&:hover .copy-btn': { opacity: 1 }, animation: `${fadeIn} 0.3s ease-out` }}>
-      <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', gap: 2 }}>
+      <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', gap: 2, alignItems: 'flex-start' }}>
         <Avatar src="/product-logo.png" sx={{ width: 32, height: 32, bgcolor: 'transparent', flexShrink: 0, border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}` }} />
-        <Box sx={{ flex: 1, minWidth: 0, pt: 0.25 }}>
+        <Box sx={{ flex: 1, minWidth: 0, pt: 0 }}>
           {segments.map((segment, idx) => {
             const isLast = idx === segments.length - 1;
             const key = `${idx}-${segment.type}`;
