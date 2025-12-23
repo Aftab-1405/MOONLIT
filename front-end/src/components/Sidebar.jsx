@@ -522,7 +522,24 @@ function Sidebar({
         </Box>
 
         {/* Collapse/Expand toggle - Chevron */}
-        <Tooltip title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right" arrow>
+        {isCollapsed ? (
+          <Tooltip title="Expand sidebar" placement="right" arrow>
+            <IconButton
+              onClick={onToggleCollapse}
+              size="small"
+              sx={{
+                p: 1, // Standardize padding
+                color: 'text.secondary',
+                '&:hover': {
+                  backgroundColor: isDarkMode ? 'rgba(31, 31, 31, 0.8)' : 'rgba(208, 215, 222, 0.6)',
+                  color: 'text.primary',
+                }
+              }}
+            >
+              <KeyboardDoubleArrowRightRoundedIcon sx={{ fontSize: 20 }} />
+            </IconButton>
+          </Tooltip>
+        ) : (
           <IconButton
             onClick={onToggleCollapse}
             size="small"
@@ -535,13 +552,9 @@ function Sidebar({
               }
             }}
           >
-            {isCollapsed ? (
-              <KeyboardDoubleArrowRightRoundedIcon sx={{ fontSize: 20 }} />
-            ) : (
-              <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
-            )}
+            <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
           </IconButton>
-        </Tooltip>
+        )}
       </Box>
     </Box>
   );
