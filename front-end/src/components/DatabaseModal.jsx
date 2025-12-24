@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef, memo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -25,6 +25,15 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 
+// API endpoints - centralized for maintainability
+const API = {
+  GET_DATABASES: '/get_databases',
+  GET_TABLES: '/get_tables',
+  CONNECT_DB: '/connect_db',
+  DISCONNECT_DB: '/disconnect_db',
+  SWITCH_REMOTE_DB: '/switch_remote_database',
+};
+
 const DB_TYPES = [
   { value: 'mysql', label: 'MySQL', defaultPort: 3306, supportsConnectionString: true },
   { value: 'postgresql', label: 'PostgreSQL', defaultPort: 5432, supportsConnectionString: true },
@@ -34,19 +43,19 @@ const DB_TYPES = [
 function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase }) {
   const muiTheme = useMuiTheme();
   
-  // Get default DB type from ThemeContext settings (not localStorage directly)
+  // Get default DB type from ThemeContext settings
   const { settings } = useTheme();
   const defaultDbType = settings.defaultDbType || 'postgresql';
   
   const [dbType, setDbType] = useState(defaultDbType);
-  const [connectionMode, setConnectionMode] = useState('credentials'); // 'credentials' or 'connection_string'
+  const [connectionMode, setConnectionMode] = useState('credentials');
   const [connectionString, setConnectionString] = useState('');
   const [formData, setFormData] = useState({
     host: 'localhost',
     port: DB_TYPES.find(d => d.value === defaultDbType)?.defaultPort?.toString() || '5432',
     user: '',
     password: '',
-    database: '', // For SQLite, this is the file path
+    database: '',
   });
   const [showPassword, setShowPassword] = useState(false);
   const [showConnectionString, setShowConnectionString] = useState(false);
@@ -54,37 +63,64 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [databases, setDatabases] = useState([]);
-  const [isRemote, setIsRemote] = useState(false); // Track if connected via connection string
+  const [isRemote, setIsRemote] = useState(false);
+
+  // Refs for timeout cleanup
+  const timeoutRefs = useRef([]);
 
   const isSQLite = dbType === 'sqlite';
   const supportsConnectionString = DB_TYPES.find(d => d.value === dbType)?.supportsConnectionString;
 
+  // Safe JSON parse with error handling
+  const safeJsonParse = useCallback((text, fallback = null) => {
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      console.error('JSON parse error:', e);
+      return fallback;
+    }
+  }, []);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach(clearTimeout);
+    };
+  }, []);
+
+  // Safe setTimeout that tracks refs
+  const safeSetTimeout = useCallback((callback, delay) => {
+    const id = setTimeout(callback, delay);
+    timeoutRefs.current.push(id);
+    return id;
+  }, []);
+
+  // Fetch databases - extracted and memoized
+  const fetchDatabases = useCallback(async () => {
+    try {
+      const response = await fetch(API.GET_DATABASES);
+      const data = await response.json();
+      if (data.status === 'success' && data.databases) {
+        setDatabases(data.databases);
+        if (data.is_remote) {
+          setIsRemote(true);
+          setDbType('postgresql');
+          setConnectionMode('connection_string');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to fetch databases:', err);
+    }
+  }, []);
+
   // Fetch databases when modal opens and already connected
   useEffect(() => {
     if (open && isConnected) {
-      // Fetch available databases from backend
-      const fetchDatabases = async () => {
-        try {
-          const response = await fetch('/get_databases');
-          const data = await response.json();
-          if (data.status === 'success' && data.databases) {
-            setDatabases(data.databases);
-            // If it's a remote connection (PostgreSQL with connection string)
-            if (data.is_remote) {
-              setIsRemote(true);
-              setDbType('postgresql');
-              setConnectionMode('connection_string');
-            }
-          }
-        } catch (err) {
-          console.error('Failed to fetch databases:', err);
-        }
-      };
       fetchDatabases();
     }
-  }, [open, isConnected]);
+  }, [open, isConnected, fetchDatabases]);
 
-  const handleDbTypeChange = (event, newType) => {
+  const handleDbTypeChange = useCallback((event, newType) => {
     if (newType) {
       setDbType(newType);
       const dbConfig = DB_TYPES.find((d) => d.value === newType);
@@ -95,15 +131,15 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       setError(null);
       setSuccess(null);
     }
-  };
+  }, []);
 
-  const handleInputChange = (e) => {
+  const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     setError(null);
-  };
+  }, []);
 
-  const handleConnect = async () => {
+  const handleConnect = useCallback(async () => {
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -114,13 +150,11 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       if (isSQLite) {
         payload = { db_type: dbType, db_name: formData.database };
       } else if (connectionMode === 'connection_string' && supportsConnectionString) {
-        // Use connection string for remote databases
         payload = { 
           db_type: dbType, 
           connection_string: connectionString 
         };
       } else {
-        // Use credentials for local databases
         payload = {
           db_type: dbType,
           host: formData.host,
@@ -130,7 +164,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         };
       }
 
-      const response = await fetch('/connect_db', {
+      const response = await fetch(API.CONNECT_DB, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -141,13 +175,12 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       if (data.status === 'connected') {
         setSuccess(data.message);
         setDatabases(data.schemas || []);
-        setIsRemote(data.is_remote || false);  // Track if this is a remote connection
-        onConnect?.({ ...data, db_type: dbType }); // Include dbType from state
+        setIsRemote(data.is_remote || false);
+        onConnect?.({ ...data, db_type: dbType });
         
-        // For remote DBs, fetch tables to show what's available
         if (data.is_remote && data.selectedDatabase) {
           try {
-            const tablesRes = await fetch('/get_tables');
+            const tablesRes = await fetch(API.GET_TABLES);
             const tablesData = await tablesRes.json();
             if (tablesData.status === 'success' && tablesData.tables?.length > 0) {
               setSuccess(`Connected to ${data.selectedDatabase}. Found ${tablesData.tables.length} tables: ${tablesData.tables.slice(0, 5).join(', ')}${tablesData.tables.length > 5 ? '...' : ''}`);
@@ -155,8 +188,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           } catch (e) {
             console.warn('Failed to fetch tables:', e);
           }
-          // Auto-close after showing success
-          setTimeout(() => onClose(), 2500);
+          safeSetTimeout(() => onClose(), 2500);
         }
       } else {
         setError(data.message || 'Failed to connect');
@@ -166,15 +198,14 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     } finally {
       setLoading(false);
     }
-  };
+  }, [isSQLite, dbType, formData, connectionMode, supportsConnectionString, connectionString, onConnect, onClose, safeSetTimeout]);
 
-  const handleSelectDatabase = async (dbName) => {
+  const handleSelectDatabase = useCallback(async (dbName) => {
     setLoading(true);
     setError(null);
 
     try {
-      // Use different endpoint for remote vs local connections
-      const endpoint = isRemote ? '/switch_remote_database' : '/connect_db';
+      const endpoint = isRemote ? API.SWITCH_REMOTE_DB : API.CONNECT_DB;
       const payload = isRemote ? { database: dbName } : { db_name: dbName };
       
       const response = await fetch(endpoint, {
@@ -183,7 +214,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         body: JSON.stringify(payload),
       });
 
-      // Check if response is ok before parsing JSON
       if (!response.ok) {
         const text = await response.text();
         throw new Error(text || `Server error: ${response.status}`);
@@ -194,12 +224,15 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         throw new Error('Empty response from server. Please restart the backend.');
       }
       
-      const data = JSON.parse(text);
+      const data = safeJsonParse(text);
+      if (!data) {
+        throw new Error('Invalid JSON response from server.');
+      }
 
       if (data.status === 'connected') {
         setSuccess(`Connected to ${dbName}${data.tables?.length ? ` (${data.tables.length} tables)` : ''}`);
         onConnect?.({ ...data, selectedDatabase: dbName });
-        setTimeout(() => onClose(), 1500);
+        safeSetTimeout(() => onClose(), 1500);
       } else {
         setError(data.message || 'Failed to select database');
       }
@@ -209,12 +242,12 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     } finally {
       setLoading(false);
     }
-  };
+  }, [isRemote, onConnect, onClose, safeSetTimeout, safeJsonParse]);
 
-  const handleDisconnect = async () => {
+  const handleDisconnect = useCallback(async () => {
     setLoading(true);
     try {
-      await fetch('/disconnect_db', { method: 'POST' });
+      await fetch(API.DISCONNECT_DB, { method: 'POST' });
       setDatabases([]);
       setSuccess(null);
       onConnect?.(null);
@@ -223,7 +256,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
     } finally {
       setLoading(false);
     }
-  };
+  }, [onConnect]);
 
   return (
     <Dialog
@@ -265,7 +298,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
               mb: 2,
               p: 2,
               borderRadius: 1,
-
               backgroundColor: alpha(muiTheme.palette.text.primary, 0.05),
               border: `1px solid ${alpha(muiTheme.palette.text.primary, 0.1)}`,
               display: 'flex',
@@ -327,7 +359,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
 
         {/* Connection Form */}
         {isSQLite ? (
-          // SQLite - Just file path
           <TextField
             fullWidth
             name="database"
@@ -346,9 +377,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             }}
           />
         ) : (
-          // MySQL/PostgreSQL - Connection form
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            {/* Connection Mode Toggle (PostgreSQL only) */}
             {supportsConnectionString && (
               <Box sx={{ mb: 1 }}>
                 <ToggleButtonGroup
@@ -386,7 +415,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
               </Box>
             )}
 
-            {/* Connection String Input */}
             {connectionMode === 'connection_string' && supportsConnectionString ? (
               <TextField
                 fullWidth
@@ -413,7 +441,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 helperText="Paste your connection string from your database provider"
               />
             ) : (
-              // Credentials form
               <>
                 <Box sx={{ display: 'flex', gap: 2 }}>
                   <TextField
@@ -541,7 +568,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           onClick={handleConnect}
           disabled={
             loading || 
-            isConnected ||  // Disable when already connected
+            isConnected ||
             (isSQLite 
               ? !formData.database 
               : connectionMode === 'connection_string' && supportsConnectionString
@@ -559,4 +586,4 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   );
 }
 
-export default DatabaseModal;
+export default memo(DatabaseModal);
