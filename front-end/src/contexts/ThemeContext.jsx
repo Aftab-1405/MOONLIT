@@ -1,11 +1,44 @@
-import { createContext, useContext, useState, useEffect, useMemo } from 'react';
+/**
+ * ThemeContext - MUI Theme Provider with Settings Integration
+ * 
+ * SEPARATION OF CONCERNS:
+ * - SettingsContext: Manages all user preferences (persistence, updates)
+ * - ThemeContext: Consumes theme setting to create MUI theme object
+ * 
+ * This context provides:
+ * 1. MUI ThemeProvider with dark/light theme based on settings
+ * 2. Backwards-compatible access to settings via useTheme hook
+ * 
+ * For new code, prefer using useSettings() directly from SettingsContext.
+ * The useTheme() hook is maintained for backwards compatibility.
+ * 
+ * @module ThemeContext
+ */
+
+import { createContext, useContext, useMemo } from 'react';
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
-import { createDarkTheme, createLightTheme } from '../theme';  // Import from theme.js
+import { createDarkTheme, createLightTheme } from '../theme';
+import { useSettings, SettingsProvider } from './SettingsContext';
 
-// Create context
-const ThemeContext = createContext();
+// =============================================================================
+// CONTEXT CREATION
+// =============================================================================
 
-// Hook to use theme context
+const ThemeContext = createContext(null);
+
+// =============================================================================
+// CUSTOM HOOK
+// =============================================================================
+
+/**
+ * Hook to access theme and settings.
+ * 
+ * For new code, consider using useSettings() directly for settings access:
+ * - useSettings() - For reading/writing user preferences
+ * - useTheme() - For theme + legacy settings access (backwards compatible)
+ * 
+ * @returns {Object} Theme state including settings, updateSetting, etc.
+ */
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {
@@ -14,74 +47,52 @@ export const useTheme = () => {
   return context;
 };
 
-// Settings storage key
-const SETTINGS_KEY = 'db-genie-settings';
+// =============================================================================
+// INNER THEME PROVIDER
+// =============================================================================
+// This component consumes SettingsContext and provides the MUI theme
 
-// Default settings - meaningful for a database query tool
-const defaultSettings = {
-  // Appearance
-  theme: 'dark',
-  idleAnimation: true,             // Starfield animation when idle
-  // Query Execution
-  confirmBeforeRun: false,
-  queryTimeout: 30,
-  // Results Display
-  maxRows: 1000,
-  nullDisplay: 'NULL',
-  // Connection
-  rememberConnection: false,
-  defaultDbType: 'postgresql',
-  // AI Assistant
-  enableReasoning: true,           // Toggle reasoning on/off
-  reasoningEffort: 'medium',       // 'low' | 'medium' | 'high'
-  responseStyle: 'balanced',       // 'concise' | 'balanced' | 'detailed'
-};
-
-// Theme Provider Component (LOGIC ONLY - no theme definitions)
-export function ThemeProvider({ children }) {
-  const [settings, setSettings] = useState(() => {
-    try {
-      const stored = localStorage.getItem(SETTINGS_KEY);
-      return stored ? { ...defaultSettings, ...JSON.parse(stored) } : defaultSettings;
-    } catch {
-      return defaultSettings;
-    }
-  });
-
-  // Persist settings to localStorage
-  useEffect(() => {
-    localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-  }, [settings]);
-
-  // Create theme based on settings - imports from theme.js (Separation of Concerns)
-  const theme = useMemo(() => {
+function ThemeProviderInner({ children }) {
+  const settingsContext = useSettings();
+  const { settings, isDarkMode, updateSetting, resetSettings } = settingsContext;
+  
+  // Create MUI theme based on the theme setting
+  // Memoized to prevent unnecessary recalculations
+  const muiTheme = useMemo(() => {
     return settings.theme === 'light' ? createLightTheme() : createDarkTheme();
   }, [settings.theme]);
-
-  // Update a single setting
-  const updateSetting = (key, value) => {
-    setSettings(prev => ({ ...prev, [key]: value }));
-  };
-
-  // Reset to defaults
-  const resetSettings = () => {
-    setSettings(defaultSettings);
-  };
-
+  
+  // Backwards-compatible value for useTheme consumers
   const value = {
     settings,
     updateSetting,
     resetSettings,
-    isDarkMode: settings.theme === 'dark',
+    isDarkMode,
     toggleTheme: () => updateSetting('theme', settings.theme === 'dark' ? 'light' : 'dark'),
   };
-
+  
   return (
     <ThemeContext.Provider value={value}>
-      <MuiThemeProvider theme={theme}>
+      <MuiThemeProvider theme={muiTheme}>
         {children}
       </MuiThemeProvider>
     </ThemeContext.Provider>
+  );
+}
+
+// =============================================================================
+// PROVIDER COMPONENT
+// =============================================================================
+
+/**
+ * Combined Settings + Theme provider.
+ * Wrap your app with this to enable both useSettings() and useTheme() hooks.
+ */
+export function ThemeProvider({ children }) {
+  return (
+    <SettingsProvider>
+      <ThemeProviderInner>{children}</ThemeProviderInner>
+    </SettingsProvider>
   );
 }
 

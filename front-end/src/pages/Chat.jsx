@@ -1,3 +1,22 @@
+/**
+ * Chat Page - Main Application Interface
+ * 
+ * This is the primary interface where users interact with the AI assistant
+ * and manage database connections. It orchestrates several components:
+ * - Sidebar: Navigation and conversation history
+ * - MessageList: Display of chat messages
+ * - ChatInput: User input field
+ * - SQLEditorCanvas: SQL query editor panel
+ * 
+ * STATE ORGANIZATION:
+ * - Database state: Managed via DatabaseContext (no prop drilling)
+ * - UI state: Local useState for modals, sidebar, snackbar
+ * - Chat state: Local useState for messages and conversations
+ * - Settings: Accessed via ThemeContext (useTheme hook)
+ * 
+ * @module Chat
+ */
+
 import { 
   Box, 
   Typography, 
@@ -16,13 +35,13 @@ import {
 } from '@mui/material';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme } from '../contexts/ThemeContext';
+import { useDatabaseConnection } from '../contexts/DatabaseContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import MenuOutlinedIcon from '@mui/icons-material/MenuOutlined';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
-import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/Sidebar';
 import ChatInput from '../components/ChatInput';
@@ -39,37 +58,75 @@ const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
 
 function Chat() {
+  // ===========================================================================
+  // HOOKS - External State & Navigation
+  // ===========================================================================
+  
   const muiTheme = useMuiTheme();
   const isDarkMode = muiTheme.palette.mode === 'dark';
   const { settings } = useTheme();
   const { conversationId } = useParams();
   const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  
+  // Database connection state from context (replaces 5 local useState calls)
+  const {
+    isConnected: isDbConnected,
+    currentDatabase,
+    dbType,
+    isRemote,
+    availableDatabases,
+    connect: connectDb,
+    switchDatabase,
+  } = useDatabaseConnection();
+  
+  // ===========================================================================
+  // LOCAL STATE - UI Controls
+  // ===========================================================================
+  // These remain local because they're purely UI concerns for this component
+  
   const [mobileOpen, setMobileOpen] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
+  const [dbModalOpen, setDbModalOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  
+  // ===========================================================================
+  // LOCAL STATE - Chat & Conversations
+  // ===========================================================================
+  // Could be moved to ConversationContext in future if needed elsewhere
+  
   const [messages, setMessages] = useState([]);
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
-  const [isDbConnected, setIsDbConnected] = useState(false);
-  const [currentDatabase, setCurrentDatabase] = useState(null);
-  const [isRemote, setIsRemote] = useState(false);
-  const [dbType, setDbType] = useState(null);
-  const [availableDatabases, setAvailableDatabases] = useState([]);
-  const [dbModalOpen, setDbModalOpen] = useState(false);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  
+  // ===========================================================================
+  // LOCAL STATE - Query & Results
+  // ===========================================================================
+  
   const [queryResults, setQueryResults] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({ open: false, sql: '', onConfirm: null });
-  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   
-  // SQL Editor Canvas state
+  // ===========================================================================
+  // LOCAL STATE - SQL Editor Canvas
+  // ===========================================================================
+  
   const [sqlEditorOpen, setSqlEditorOpen] = useState(false);
   const [sqlEditorQuery, setSqlEditorQuery] = useState('');
   const [sqlEditorResults, setSqlEditorResults] = useState(null);
   
-  const messagesContainerRef = useRef(null);
-  const { user, logout } = useAuth();
+  // ===========================================================================
+  // REFS
+  // ===========================================================================
   
-  // Idle detection for starfield animation (8 seconds timeout)
+  const messagesContainerRef = useRef(null);
+  const queryResolverRef = useRef(null);
+  
+  // ===========================================================================
+  // IDLE DETECTION - For Starfield Animation
+  // ===========================================================================
+  
   const isIdle = useIdleDetection(8000);
   const idleAnimationEnabled = settings.idleAnimation ?? true;
 
@@ -87,8 +144,13 @@ function Chat() {
     return () => clearTimeout(timer);
   }, [messages, scrollToBottom]);
 
+  // ===========================================================================
+  // INITIAL DATA FETCH
+  // ===========================================================================
+  // Database status is now handled by DatabaseContext on mount.
+  // Only fetch conversations here.
+  
   useEffect(() => {
-    checkDbStatus();
     fetchConversations();
   }, []);
 
@@ -120,9 +182,8 @@ function Chat() {
   
   useEffect(() => {
     const handleTabClose = () => {
-      // Get the persistence setting from localStorage
-      const storedSettings = JSON.parse(localStorage.getItem('db-genie-settings') || '{}');
-      const connectionPersistence = storedSettings.connectionPersistence ?? 0;
+      // Get the persistence setting from ThemeContext settings
+      const connectionPersistence = settings.connectionPersistence ?? 0;
       
       // Only send disconnect signal if persistence is "Never" (0)
       // Other values mean user wants connection to persist for that duration
@@ -142,23 +203,16 @@ function Chat() {
       window.removeEventListener('beforeunload', handleTabClose);
       window.removeEventListener('pagehide', handleTabClose);
     };
-  }, [isDbConnected]);
+  }, [isDbConnected, settings.connectionPersistence]);
 
-  const checkDbStatus = async () => {
-    try {
-      const response = await fetch('/db_status');
-      const data = await response.json();
-      setIsDbConnected(data.connected || false);
-      setCurrentDatabase(data.current_database || null);
-      setIsRemote(data.is_remote || false);
-      setDbType(data.db_type || null);
-      setAvailableDatabases(data.databases || []);
-    } catch (error) {
-      console.error('Failed to check DB status:', error);
-    }
-  };
+  // NOTE: checkDbStatus has been removed.
+  // Database status is now managed by DatabaseContext which fetches on mount.
 
-  const fetchConversations = async () => {
+  // ===========================================================================
+  // MEMOIZED FETCH FUNCTION
+  // ===========================================================================
+  
+  const fetchConversations = useCallback(async () => {
     try {
       const response = await fetch('/get_conversations');
       const data = await response.json();
@@ -168,15 +222,40 @@ function Chat() {
     } catch (error) {
       console.error('Failed to fetch conversations:', error);
     }
-  };
+  }, []);
 
-  const handleDrawerToggle = () => setMobileOpen(!mobileOpen);
-  const handleSidebarToggle = () => setSidebarCollapsed(!sidebarCollapsed);
-  const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
-  const handleMenuClose = () => setAnchorEl(null);
-  const handleLogout = async () => { handleMenuClose(); await logout(); };
+  // ===========================================================================
+  // MEMOIZED UI HANDLERS
+  // ===========================================================================
+  // These are passed to child components as callbacks.
+  // Memoization with useCallback prevents unnecessary re-renders.
+  
+  const handleDrawerToggle = useCallback(() => {
+    setMobileOpen(prev => !prev);
+  }, []);
+  
+  const handleSidebarToggle = useCallback(() => {
+    setSidebarCollapsed(prev => !prev);
+  }, []);
+  
+  const handleMenuOpen = useCallback((e) => {
+    setAnchorEl(e.currentTarget);
+  }, []);
+  
+  const handleMenuClose = useCallback(() => {
+    setAnchorEl(null);
+  }, []);
+  
+  const handleLogout = useCallback(async () => {
+    setAnchorEl(null);
+    await logout();
+  }, [logout]);
 
-  const handleNewChat = async () => {
+  // ===========================================================================
+  // CONVERSATION HANDLERS
+  // ===========================================================================
+  
+  const handleNewChat = useCallback(async () => {
     navigate('/chat');
     // State reset is handled by useEffect on conversationId param change
     
@@ -186,24 +265,22 @@ function Chat() {
       if (data.status === 'success') {
         const newId = data.conversation_id;
         navigate(`/chat/${newId}`, { replace: true });
-        // Fetch conversations to ensure sidebar is updated (though it might be empty initially)
         fetchConversations();
       }
     } catch (error) {
       console.error('Failed to create new conversation:', error);
     }
-  };
+  }, [navigate, fetchConversations]);
 
-  const handleSelectConversation = async (conversationId) => {
+  const handleSelectConversation = useCallback(async (convId) => {
     try {
-      const response = await fetch(`/get_conversation/${conversationId}`);
+      const response = await fetch(`/get_conversation/${convId}`);
       const data = await response.json();
       if (data.status === 'success' && data.conversation) {
-        setCurrentConversationId(conversationId);
+        setCurrentConversationId(convId);
         const formattedMessages = (data.conversation.messages || []).map((msg) => ({
           sender: msg.sender,
           content: msg.content,
-          // Include tools if present (for AI messages with tool usage)
           tools: msg.tools || undefined,
         }));
         setMessages(formattedMessages);
@@ -213,52 +290,43 @@ function Chat() {
     } catch (error) {
       console.error('Failed to load conversation:', error);
     }
-  };
+  }, []);
 
-  const resetChatState = () => {
+  const resetChatState = useCallback(() => {
     setMessages([]);
     setCurrentConversationId(null);
     setQueryResults(null);
     setMobileOpen(false);
-  };
+  }, []);
 
-  const handleDeleteConversation = async (conversationId) => {
+  const handleDeleteConversation = useCallback(async (convId) => {
     try {
-      await fetch(`/delete_conversation/${conversationId}`, { method: 'DELETE' });
-      setConversations((prev) => prev.filter((c) => c.id !== conversationId));
-      if (currentConversationId === conversationId) handleNewChat();
+      await fetch(`/delete_conversation/${convId}`, { method: 'DELETE' });
+      setConversations((prev) => prev.filter((c) => c.id !== convId));
+      if (currentConversationId === convId) {
+        navigate('/chat');
+      }
     } catch (error) {
       console.error('Failed to delete conversation:', error);
     }
-  };
+  }, [currentConversationId, navigate]);
 
-  const handleDbConnect = (data) => {
+  // ===========================================================================
+  // HANDLER: Database Connection
+  // ===========================================================================
+  // Called by DatabaseModal after successful connection.
+  // Uses connectDb from DatabaseContext to update global state.
+  
+  const handleDbConnect = useCallback((data) => {
     if (data) {
-      setIsDbConnected(true);
-      if (data.selectedDatabase) setCurrentDatabase(data.selectedDatabase);
-      
-      // Update advanced state for sidebar features
-      if (data.is_remote !== undefined) setIsRemote(data.is_remote);
-      
-      // If db_type isn't in response, try to infer or keep existing (DatabaseModal usually sends it on connect)
-      if (data.db_type) setDbType(data.db_type);
-      
-      // Update available databases list
-      if (data.schemas) setAvailableDatabases(data.schemas);
-      
+      // Update context with new connection data
+      connectDb(data);
       setSnackbar({ open: true, message: 'Connected to database!', severity: 'success' });
     } else {
-      setIsDbConnected(false);
-      setCurrentDatabase(null);
-      setIsRemote(false);
-      setDbType(null);
-      setAvailableDatabases([]);
+      // Disconnect handled by DatabaseModal calling disconnect() on context
       setSnackbar({ open: true, message: 'Disconnected from database', severity: 'info' });
     }
-  };
-
-  // Ref to resolve the pending query promise (for spinner to work with confirmation)
-  const queryResolverRef = useRef(null);
+  }, [connectDb]);
 
   const handleRunQuery = (sql) => {
     if (!isDbConnected) {
@@ -267,11 +335,10 @@ function Chat() {
       return Promise.resolve();
     }
 
-    // Get settings
-    const storedSettings = JSON.parse(localStorage.getItem('db-genie-settings') || '{}');
-    const confirmBeforeRun = storedSettings.confirmBeforeRun ?? false;
-    const maxRows = storedSettings.maxRows ?? 1000;
-    const queryTimeout = storedSettings.queryTimeout ?? 30;
+    // Get settings from ThemeContext (not localStorage directly)
+    const confirmBeforeRun = settings.confirmBeforeRun ?? false;
+    const maxRows = settings.maxRows ?? 1000;
+    const queryTimeout = settings.queryTimeout ?? 30;
 
     // If confirmation needed, return a promise that resolves when dialog completes
     if (confirmBeforeRun) {
@@ -355,10 +422,9 @@ function Chat() {
     // Immediate scroll
     setTimeout(scrollToBottom, 10);
 
-    // Get reasoning settings from localStorage
-    const storedSettings = JSON.parse(localStorage.getItem('db-genie-settings') || '{}');
-    const enableReasoning = storedSettings.enableReasoning ?? true;
-    const reasoningEffort = storedSettings.reasoningEffort ?? 'medium';
+    // Get reasoning settings from ThemeContext (not localStorage directly)
+    const enableReasoning = settings.enableReasoning ?? true;
+    const reasoningEffort = settings.reasoningEffort ?? 'medium';
 
     try {
       const response = await fetch('/pass_userinput_to_gemini', {
@@ -457,39 +523,19 @@ function Chat() {
     }
   };
 
-  const handleDatabaseSwitch = async (dbName) => {
-    try {
-      // Determine correct endpoint and payload based on connection type
-      const endpoint = isRemote ? '/switch_remote_database' : '/connect_db';
-      const payload = isRemote ? { database: dbName } : { db_name: dbName };
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-      
-      // Handle different response formats (some return text, some json)
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error('Invalid server response');
-      }
-
-      if (data.status === 'connected' || data.status === 'success') {
-        setCurrentDatabase(dbName);
-        // If remote switch returned new tables, we could show them, but for now just success
-        setSnackbar({ open: true, message: `Switched to ${dbName}`, severity: 'success' });
-      } else {
-        setSnackbar({ open: true, message: data.message || 'Failed to switch', severity: 'error' });
-      }
-    } catch (err) {
-      console.error('Database switch error:', err);
-      setSnackbar({ open: true, message: 'Failed to switch database', severity: 'error' });
+  // ===========================================================================
+  // HANDLER: Database Switch
+  // ===========================================================================
+  // Uses switchDatabase from DatabaseContext for consistent state updates.
+  
+  const handleDatabaseSwitch = useCallback(async (dbName) => {
+    const result = await switchDatabase(dbName);
+    if (result.success) {
+      setSnackbar({ open: true, message: `Switched to ${dbName}`, severity: 'success' });
+    } else {
+      setSnackbar({ open: true, message: result.error || 'Failed to switch', severity: 'error' });
     }
-  };
+  }, [switchDatabase]);
 
   // Sidebar width based on collapsed state
   const currentSidebarWidth = sidebarCollapsed ? COLLAPSED_WIDTH : DRAWER_WIDTH;

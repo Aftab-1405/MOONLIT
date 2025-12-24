@@ -16,7 +16,8 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
+import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
+import { useTheme } from '../contexts/ThemeContext';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -35,12 +36,13 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState('table');
 
-  const storedSettings = JSON.parse(localStorage.getItem('db-genie-settings') || '{}');
-  const nullDisplay = storedSettings.nullDisplay ?? 'NULL';
+  // Get settings from ThemeContext (not localStorage directly)
+  const { settings } = useTheme();
+  const nullDisplay = settings.nullDisplay ?? 'NULL';
 
   const { columns = [], result = [], row_count = 0, execution_time, truncated } = data || {};
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+  const muiTheme = useMuiTheme();
+  const isDark = muiTheme.palette.mode === 'dark';
   
   // Sorting logic
   const sortedData = useMemo(() => {
@@ -151,7 +153,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 borderRadius: 1.5,
                 px: 1.5,
                 '&.Mui-selected': {
-                  backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.2 : 0.1),
+                  backgroundColor: alpha(muiTheme.palette.primary.main, isDark ? 0.2 : 0.1),
                 },
               },
             }}
@@ -194,8 +196,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
           ...(embedded ? {} : {
             background: isDark 
-              ? `linear-gradient(180deg, ${alpha(theme.palette.success.main, 0.08)} 0%, transparent 100%)`
-              : `linear-gradient(180deg, ${alpha(theme.palette.success.main, 0.05)} 0%, transparent 100%)`,
+              ? `linear-gradient(180deg, ${alpha(muiTheme.palette.success.main, 0.08)} 0%, transparent 100%)`
+              : `linear-gradient(180deg, ${alpha(muiTheme.palette.success.main, 0.05)} 0%, transparent 100%)`,
           }),
         }}
       >
@@ -209,7 +211,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                backgroundColor: alpha(theme.palette.success.main, isDark ? 0.15 : 0.1),
+                backgroundColor: alpha(muiTheme.palette.success.main, isDark ? 0.15 : 0.1),
               }}
             >
               <DataArrayRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
@@ -222,10 +224,10 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
               height: 24,
               fontSize: '0.75rem',
               fontWeight: 600,
-              backgroundColor: alpha(theme.palette.success.main, isDark ? 0.15 : 0.1),
+              backgroundColor: alpha(muiTheme.palette.success.main, isDark ? 0.15 : 0.1),
               color: 'success.main',
               border: '1px solid',
-              borderColor: alpha(theme.palette.success.main, 0.3),
+              borderColor: alpha(muiTheme.palette.success.main, 0.3),
             }}
           />
           {execution_time && (
@@ -267,7 +269,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   px: 1,
                   py: 0.5,
                   '&.Mui-selected': {
-                    backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.2 : 0.1),
+                    backgroundColor: alpha(muiTheme.palette.primary.main, isDark ? 0.2 : 0.1),
                   },
                 },
               }}
@@ -340,8 +342,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                   key={column}
                   sx={{
                     backgroundColor: isDark 
-                      ? alpha(theme.palette.background.paper, 0.95)
-                      : theme.palette.background.paper,
+                      ? alpha(muiTheme.palette.background.paper, 0.95)
+                      : muiTheme.palette.background.paper,
                     fontWeight: 600,
                     fontSize: '0.75rem',
                     textTransform: 'uppercase',
