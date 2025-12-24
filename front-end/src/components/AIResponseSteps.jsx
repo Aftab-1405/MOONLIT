@@ -250,7 +250,7 @@ export const InlineToolBlock = ({ tool, isFirst = false, onOpenSqlEditor }) => {
       <Collapse in={expanded} timeout={200}>
         <Box sx={{ mt: 0.75, ml: 1, pl: 1.5, borderLeft: `2px solid ${scheme.border}` }}>
           <Box sx={{ p: 1.25, borderRadius: 1.5, backgroundColor: isDark ? alpha(scheme.icon, 0.05) : alpha(scheme.icon, 0.03) }}>
-            {parsedArgs?.sql_query && (
+            {parsedArgs?.query && (
               <Box sx={{ mb: 1 }}>
                 <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
                   Query
@@ -268,19 +268,19 @@ export const InlineToolBlock = ({ tool, isFirst = false, onOpenSqlEditor }) => {
                     border: `1px solid ${isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06)}`,
                   }}
                 >
-                  {parsedArgs.sql_query}
+                  {parsedArgs.query}
                 </Box>
               </Box>
             )}
 
-            {parsedArgs && Object.keys(parsedArgs).filter(k => !['sql_query', 'rationale'].includes(k)).length > 0 && (
+            {parsedArgs && Object.keys(parsedArgs).filter(k => !['query', 'rationale'].includes(k)).length > 0 && (
               <Box sx={{ mb: 1 }}>
                 <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
                   Parameters
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                   {Object.entries(parsedArgs)
-                    .filter(([key]) => !['sql_query', 'rationale'].includes(key))
+                    .filter(([key]) => !['query', 'rationale'].includes(key))
                     .map(([key, value]) => (
                       <Box
                         key={key}
