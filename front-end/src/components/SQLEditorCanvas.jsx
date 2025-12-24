@@ -4,11 +4,11 @@ import {
   Drawer,
   Typography,
   IconButton,
-  Button,
   Tooltip,
   Chip,
   CircularProgress,
-  Divider,
+  Tab,
+  Tabs,
 } from '@mui/material';
 import { useTheme, alpha, keyframes } from '@mui/material/styles';
 import Editor from '@monaco-editor/react';
@@ -16,15 +16,18 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
-import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
+import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
+import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import SQLResultsTable from './SQLResultsTable';
+import ChartVisualization from './ChartVisualization';
 
 // Animations
 const fadeIn = keyframes`
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 `;
 
 const DRAWER_WIDTH = 520;
@@ -45,12 +48,14 @@ function SQLEditorCanvas({
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [activeTab, setActiveTab] = useState(0); // 0: Editor, 1: Results, 2: Chart
   const editorRef = useRef(null);
 
   // Update query when initialQuery changes (e.g., from AI tool)
   useEffect(() => {
     if (initialQuery) {
       setQuery(initialQuery);
+      setActiveTab(0); // Switch to editor tab
     }
   }, [initialQuery]);
 
@@ -59,13 +64,28 @@ function SQLEditorCanvas({
     if (initialResults) {
       setResults(initialResults);
       setError(null);
+      setActiveTab(1); // Switch to results tab
     }
   }, [initialResults]);
 
-  const handleEditorDidMount = (editor) => {
+  const handleEditorDidMount = (editor, monaco) => {
     editorRef.current = editor;
-    // Focus editor when mounted
     editor.focus();
+    
+    // Make Monaco editor background transparent for starfield visibility
+    if (isDark) {
+      monaco.editor.defineTheme('transparent-dark', {
+        base: 'vs-dark',
+        inherit: true,
+        rules: [],
+        colors: {
+          'editor.background': '#00000000', // Fully transparent
+          'editor.lineHighlightBackground': '#ffffff08',
+          'editorGutter.background': '#00000000',
+        }
+      });
+      monaco.editor.setTheme('transparent-dark');
+    }
   };
 
   const handleRunQuery = useCallback(async () => {
@@ -93,7 +113,6 @@ function SQLEditorCanvas({
       const data = await response.json();
       
       if (data.status === 'success') {
-        // Transform backend data to SQLResultsTable format
         const columns = data.result?.fields || [];
         const rows = data.result?.rows || [];
         
@@ -114,6 +133,7 @@ function SQLEditorCanvas({
           execution_time: data.execution_time_ms ? data.execution_time_ms / 1000 : null,
         });
         setError(null);
+        setActiveTab(1); // Auto-switch to results tab
       } else {
         setError(data.message || 'Query execution failed');
         setResults(null);
@@ -130,6 +150,7 @@ function SQLEditorCanvas({
     setQuery('');
     setResults(null);
     setError(null);
+    setActiveTab(0);
     editorRef.current?.focus();
   }, []);
 
@@ -140,12 +161,198 @@ function SQLEditorCanvas({
   }, [query]);
 
   const handleKeyDown = useCallback((e) => {
-    // Ctrl/Cmd + Enter to run query
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
       e.preventDefault();
       handleRunQuery();
     }
   }, [handleRunQuery]);
+
+  // Tab change handler
+  const handleTabChange = (event, newValue) => {
+    setActiveTab(newValue);
+  };
+
+  // Render tab content
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 0: // Editor Tab
+        return (
+          <Box
+            sx={{
+              height: '100%',
+              display: 'flex',
+              flexDirection: 'column',
+              // Transparent background for starfield
+              backgroundColor: 'transparent',
+            }}
+          >
+            {/* Error Display */}
+            {error && (
+              <Box
+                sx={{
+                  px: 2.5,
+                  py: 1.5,
+                  backgroundColor: alpha(theme.palette.error.main, isDark ? 0.15 : 0.08),
+                  borderBottom: '1px solid',
+                  borderColor: alpha(theme.palette.error.main, 0.3),
+                  animation: `${fadeIn} 0.2s ease-out`,
+                }}
+              >
+                <Typography 
+                  variant="body2" 
+                  color="error.main" 
+                  sx={{ 
+                    fontSize: '0.8rem',
+                    fontFamily: 'monospace',
+                  }}
+                >
+                  ⚠ {error}
+                </Typography>
+              </Box>
+            )}
+            
+            {/* Full-height Editor with transparent background */}
+            <Box
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                backgroundColor: 'transparent',
+                '& .monaco-editor, & .monaco-editor-background, & .monaco-editor .margin': {
+                  backgroundColor: 'transparent !important',
+                },
+              }}
+              onKeyDown={handleKeyDown}
+            >
+              <Editor
+                height="100%"
+                language="sql"
+                theme={isDark ? 'vs-dark' : 'light'}
+                value={query}
+                onChange={(value) => setQuery(value || '')}
+                onMount={handleEditorDidMount}
+                options={{
+                  minimap: { enabled: false },
+                  fontSize: 13,
+                  fontFamily: '"JetBrains Mono", "Fira Code", "Monaco", "Consolas", monospace',
+                  lineNumbers: 'on',
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  wordWrap: 'on',
+                  padding: { top: 16, bottom: 16 },
+                  renderLineHighlight: 'line',
+                  lineHeight: 22,
+                  scrollbar: {
+                    verticalScrollbarSize: 8,
+                    horizontalScrollbarSize: 8,
+                  },
+                  suggest: {
+                    showKeywords: true,
+                  },
+                }}
+              />
+            </Box>
+          </Box>
+        );
+
+      case 1: // Results Tab
+        return (
+          <Box sx={{ height: '100%', overflow: 'auto', backgroundColor: 'transparent' }}>
+            {results ? (
+              <SQLResultsTable 
+                data={results} 
+                onClose={() => setResults(null)} 
+                embedded
+              />
+            ) : (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  color: 'text.secondary',
+                  gap: 2,
+                  animation: `${fadeIn} 0.3s ease-out`,
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.03),
+                    border: '2px dashed',
+                    borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
+                  }}
+                >
+                  <TableChartOutlinedIcon sx={{ fontSize: 32, opacity: 0.3 }} />
+                </Box>
+                <Typography variant="body1" sx={{ opacity: 0.6, fontWeight: 500 }}>
+                  No results yet
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.4, textAlign: 'center', px: 4 }}>
+                  Run a query to see results here
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        );
+
+      case 2: // Chart Tab
+        return (
+          <Box sx={{ height: '100%', overflow: 'auto', backgroundColor: 'transparent' }}>
+            {results ? (
+              <ChartVisualization 
+                data={results} 
+                embedded
+              />
+            ) : (
+              <Box
+                sx={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  height: '100%',
+                  color: 'text.secondary',
+                  gap: 2,
+                  animation: `${fadeIn} 0.3s ease-out`,
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 72,
+                    height: 72,
+                    borderRadius: 3,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.03),
+                    border: '2px dashed',
+                    borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
+                  }}
+                >
+                  <BarChartRoundedIcon sx={{ fontSize: 32, opacity: 0.3 }} />
+                </Box>
+                <Typography variant="body1" sx={{ opacity: 0.6, fontWeight: 500 }}>
+                  No data to visualize
+                </Typography>
+                <Typography variant="body2" sx={{ opacity: 0.4, textAlign: 'center', px: 4 }}>
+                  Run a query to create charts
+                </Typography>
+              </Box>
+            )}
+          </Box>
+        );
+
+      default:
+        return null;
+    }
+  };
 
   return (
     <Drawer
@@ -158,57 +365,70 @@ function SQLEditorCanvas({
         '& .MuiDrawer-paper': {
           width: DRAWER_WIDTH,
           boxSizing: 'border-box',
+          // Transparent background to see starfield - use very low opacity
           backgroundColor: isDark 
-            ? theme.palette.background.paper
-            : theme.palette.background.paper,
+            ? alpha('#0A0A0A', 0.75)  // 75% opacity for starfield visibility
+            : alpha('#FFFFFF', 0.92),
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           borderLeft: '1px solid',
           borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
           boxShadow: isDark 
-            ? '-4px 0 24px rgba(0, 0, 0, 0.4)'
-            : '-4px 0 24px rgba(0, 0, 0, 0.08)',
-          transition: 'transform 300ms cubic-bezier(0.4, 0, 0.2, 1)',
+            ? '-8px 0 40px rgba(0, 0, 0, 0.6)'
+            : '-8px 0 40px rgba(0, 0, 0, 0.12)',
+          display: 'flex',
+          flexDirection: 'column',
         },
       }}
     >
-      {/* Header */}
+      {/* Compact Header - Monochrome */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          px: 2.5,
-          py: 1.5,
+          px: 2,
+          py: 1.25,
           borderBottom: '1px solid',
-          borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
-          background: isDark 
-            ? `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, transparent 100%)`
-            : `linear-gradient(180deg, ${alpha(theme.palette.primary.main, 0.04)} 0%, transparent 100%)`,
+          borderColor: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06),
+          backgroundColor: 'transparent',
+          flexShrink: 0,
         }}
       >
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          {/* Modern SQL Editor Icon - Monochrome */}
           <Box
             sx={{
               width: 32,
               height: 32,
-              borderRadius: 1.5,
+              borderRadius: 2,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.15 : 0.1),
+              backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
               border: '1px solid',
-              borderColor: alpha(theme.palette.primary.main, 0.3),
+              borderColor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.1),
             }}
           >
-            <CodeRoundedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+            <TerminalRoundedIcon sx={{ fontSize: 18, color: 'text.primary' }} />
           </Box>
-          <Box>
-            <Typography variant="subtitle2" fontWeight={600} sx={{ lineHeight: 1.2 }}>
-              SQL Editor
-            </Typography>
-            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-              Write and execute queries
-            </Typography>
-          </Box>
+          <Typography variant="subtitle2" fontWeight={600}>
+            SQL Editor
+          </Typography>
+          {currentDatabase && (
+            <Chip
+              size="small"
+              icon={<StorageRoundedIcon sx={{ fontSize: 12 }} />}
+              label={currentDatabase}
+              sx={{ 
+                height: 22, 
+                fontSize: '0.7rem',
+                backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+                color: 'text.primary',
+                '& .MuiChip-icon': { ml: 0.5, color: 'inherit' },
+              }}
+            />
+          )}
         </Box>
         
         <Tooltip title="Close">
@@ -222,256 +442,204 @@ function SQLEditorCanvas({
               },
             }}
           >
-            <CloseRoundedIcon sx={{ fontSize: 20 }} />
+            <CloseRoundedIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Tooltip>
       </Box>
 
-      {/* Database Status Bar */}
+      {/* Centered Tab Bar - Monochrome */}
       <Box
         sx={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          px: 2.5,
-          py: 1,
-          backgroundColor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.02),
+          justifyContent: 'center',
           borderBottom: '1px solid',
           borderColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.05),
+          backgroundColor: 'transparent',
+          flexShrink: 0,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          {currentDatabase ? (
-            <Chip
-              size="small"
-              icon={<StorageRoundedIcon sx={{ fontSize: 14 }} />}
-              label={currentDatabase}
-              color="success"
-              variant="outlined"
-              sx={{ 
-                height: 26, 
-                fontSize: '0.75rem',
-                '& .MuiChip-icon': { ml: 0.5 },
-              }}
-            />
-          ) : (
-            <Chip
-              size="small"
-              label="Not connected"
-              color="warning"
-              variant="outlined"
-              sx={{ height: 26, fontSize: '0.75rem' }}
-            />
-          )}
-        </Box>
-        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.7rem' }}>
-          Ctrl+Enter to run
-        </Typography>
-      </Box>
-
-      {/* Editor Section */}
-      <Box
-        sx={{
-          height: 200,
-          borderBottom: '1px solid',
-          borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
-          position: 'relative',
-        }}
-        onKeyDown={handleKeyDown}
-      >
-        <Editor
-          height="100%"
-          language="sql"
-          theme={isDark ? 'vs-dark' : 'light'}
-          value={query}
-          onChange={(value) => setQuery(value || '')}
-          onMount={handleEditorDidMount}
-          options={{
-            minimap: { enabled: false },
-            fontSize: 13,
-            fontFamily: '"JetBrains Mono", "Fira Code", "Monaco", "Consolas", monospace',
-            lineNumbers: 'on',
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            wordWrap: 'on',
-            padding: { top: 12, bottom: 12 },
-            renderLineHighlight: 'line',
-            lineHeight: 20,
-            scrollbar: {
-              verticalScrollbarSize: 8,
-              horizontalScrollbarSize: 8,
+        <Tabs
+          value={activeTab}
+          onChange={handleTabChange}
+          centered
+          sx={{
+            minHeight: 44,
+            '& .MuiTabs-indicator': {
+              height: 2,
+              borderRadius: '2px 2px 0 0',
+              backgroundColor: isDark ? '#FFFFFF' : '#000000', // Monochrome
             },
-            suggest: {
-              showKeywords: true,
+            '& .MuiTab-root': {
+              minHeight: 44,
+              minWidth: 100,
+              px: 2.5,
+              py: 0,
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              textTransform: 'none',
+              color: 'text.secondary',
+              transition: 'all 0.2s ease',
+              '&.Mui-selected': {
+                color: 'text.primary', // Monochrome
+              },
+              '&:hover': {
+                color: 'text.primary',
+                backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04),
+              },
             },
           }}
-        />
+        >
+          <Tab 
+            icon={<TerminalRoundedIcon sx={{ fontSize: 16 }} />} 
+            iconPosition="start" 
+            label="Editor"
+          />
+          <Tab 
+            icon={<TableChartOutlinedIcon sx={{ fontSize: 16 }} />} 
+            iconPosition="start" 
+            label={
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                Results
+                {results && (
+                  <Chip 
+                    size="small" 
+                    label={results.row_count}
+                    sx={{ 
+                      height: 18, 
+                      fontSize: '0.65rem',
+                      fontWeight: 600,
+                      backgroundColor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.08),
+                      color: 'text.primary',
+                    }}
+                  />
+                )}
+              </Box>
+            }
+          />
+          <Tab 
+            icon={<BarChartRoundedIcon sx={{ fontSize: 16 }} />} 
+            iconPosition="start" 
+            label="Chart"
+            disabled={!results}
+          />
+        </Tabs>
       </Box>
 
-      {/* Action Bar */}
+      {/* Tab Content - Full Height with transparent bg */}
+      <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden', backgroundColor: 'transparent' }}>
+        {renderTabContent()}
+      </Box>
+
+      {/* Centered Floating Action Bar - Monochrome */}
       <Box
         sx={{
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'center',
+          gap: 1,
           px: 2,
           py: 1.5,
-          backgroundColor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.02),
-          borderBottom: '1px solid',
-          borderColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.05),
+          borderTop: '1px solid',
+          borderColor: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06),
+          backgroundColor: isDark 
+            ? alpha('#0A0A0A', 0.6)
+            : alpha('#FFFFFF', 0.7),
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
+          flexShrink: 0,
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          <Tooltip title={isRunning ? 'Running...' : 'Run Query (Ctrl+Enter)'}>
-            <span>
-              <IconButton
-                size="small"
-                onClick={handleRunQuery}
-                disabled={isRunning || !query.trim()}
-                sx={{
-                  color: isRunning ? 'text.secondary' : 'success.main',
-                  '&:hover': { 
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                  },
-                  '&.Mui-disabled': {
-                    color: 'text.disabled',
-                  },
-                }}
-              >
-                {isRunning ? (
-                  <CircularProgress size={18} color="inherit" />
-                ) : (
-                  <PlayArrowRoundedIcon sx={{ fontSize: 20 }} />
-                )}
-              </IconButton>
-            </span>
-          </Tooltip>
-          <Tooltip title={copied ? 'Copied!' : 'Copy query'}>
-            <span>
-              <IconButton 
-                size="small" 
-                onClick={handleCopy} 
-                disabled={!query.trim()}
-                sx={{ 
-                  color: copied ? 'success.main' : 'text.secondary',
-                  '&:hover': { 
-                    backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
-                  },
-                  '&.Mui-disabled': {
-                    color: 'text.disabled',
-                  },
-                }}
-              >
-                {copied ? (
-                  <CheckRoundedIcon sx={{ fontSize: 20 }} />
-                ) : (
-                  <ContentCopyRoundedIcon sx={{ fontSize: 20 }} />
-                )}
-              </IconButton>
-            </span>
-          </Tooltip>
-          <Tooltip title="Clear editor">
-            <IconButton 
-              size="small" 
-              onClick={handleClear} 
-              sx={{ 
-                color: 'text.secondary',
+        {/* Run Button - Monochrome */}
+        <Tooltip title={isRunning ? 'Running...' : 'Run Query (Ctrl+Enter)'}>
+          <span>
+            <IconButton
+              size="small"
+              onClick={handleRunQuery}
+              disabled={isRunning || !query.trim()}
+              sx={{
+                width: 36,
+                height: 36,
+                color: isRunning ? 'text.secondary' : 'text.primary',
+                backgroundColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+                border: '1px solid',
+                borderColor: isDark ? alpha('#fff', 0.15) : alpha('#000', 0.12),
                 '&:hover': { 
-                  backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                  backgroundColor: isDark ? alpha('#fff', 0.15) : alpha('#000', 0.12),
+                },
+                '&.Mui-disabled': {
+                  color: 'text.disabled',
+                  backgroundColor: 'transparent',
+                  borderColor: 'transparent',
                 },
               }}
             >
-              <DeleteOutlineRoundedIcon sx={{ fontSize: 20 }} />
+              {isRunning ? (
+                <CircularProgress size={18} color="inherit" />
+              ) : (
+                <PlayArrowRoundedIcon sx={{ fontSize: 20 }} />
+              )}
             </IconButton>
-          </Tooltip>
-        </Box>
-        {results && (
-          <Chip 
-            size="small" 
-            label={`${results.row_count} rows`}
-            sx={{ 
-              height: 22, 
-              fontSize: '0.7rem',
-              backgroundColor: alpha(theme.palette.success.main, isDark ? 0.15 : 0.1),
-              color: 'success.main',
-            }}
-          />
-        )}
-      </Box>
+          </span>
+        </Tooltip>
 
-      {/* Error Display */}
-      {error && (
-        <Box
-          sx={{
-            px: 2.5,
-            py: 1.5,
-            backgroundColor: alpha(theme.palette.error.main, isDark ? 0.15 : 0.08),
-            borderBottom: '1px solid',
-            borderColor: alpha(theme.palette.error.main, 0.3),
-            animation: `${fadeIn} 0.2s ease-out`,
-          }}
-        >
-          <Typography 
-            variant="body2" 
-            color="error.main" 
-            sx={{ 
-              fontSize: '0.8rem',
-              fontFamily: 'monospace',
-            }}
-          >
-            ⚠ {error}
-          </Typography>
-        </Box>
-      )}
+        {/* Separator */}
+        <Box sx={{ width: 1, height: 24, backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08), mx: 0.5 }} />
 
-      {/* Results Section */}
-      <Box
-        sx={{
-          flex: 1,
-          overflow: 'auto',
-          minHeight: 0,
-        }}
-      >
-        {results ? (
-          <SQLResultsTable 
-            data={results} 
-            onClose={() => setResults(null)} 
-          />
-        ) : (
-          <Box
-            sx={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              height: 200,
-              color: 'text.secondary',
-              gap: 1,
-            }}
-          >
-            <Box
-              sx={{
-                width: 56,
-                height: 56,
-                borderRadius: 2,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.03),
-                border: '1px dashed',
-                borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
+        {/* Copy Button */}
+        <Tooltip title={copied ? 'Copied!' : 'Copy query'}>
+          <span>
+            <IconButton 
+              size="small" 
+              onClick={handleCopy} 
+              disabled={!query.trim()}
+              sx={{ 
+                width: 36,
+                height: 36,
+                color: copied ? 'text.primary' : 'text.secondary',
+                backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04),
+                '&:hover': { 
+                  backgroundColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+                },
+                '&.Mui-disabled': {
+                  color: 'text.disabled',
+                },
               }}
             >
-              <CodeRoundedIcon sx={{ fontSize: 24, opacity: 0.4 }} />
-            </Box>
-            <Typography variant="body2" sx={{ opacity: 0.6, textAlign: 'center' }}>
-              Write a query and click Run
-            </Typography>
-            <Typography variant="caption" sx={{ opacity: 0.4 }}>
-              Results will appear here
-            </Typography>
-          </Box>
-        )}
+              {copied ? (
+                <CheckRoundedIcon sx={{ fontSize: 18 }} />
+              ) : (
+                <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />
+              )}
+            </IconButton>
+          </span>
+        </Tooltip>
+
+        {/* Clear Button */}
+        <Tooltip title="Clear all">
+          <IconButton 
+            size="small" 
+            onClick={handleClear} 
+            sx={{ 
+              width: 36,
+              height: 36,
+              color: 'text.secondary',
+              backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04),
+              '&:hover': { 
+                backgroundColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+              },
+            }}
+          >
+            <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
+          </IconButton>
+        </Tooltip>
+
+        {/* Separator */}
+        <Box sx={{ width: 1, height: 24, backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08), mx: 0.5 }} />
+
+        {/* Keyboard hint */}
+        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem', opacity: 0.7 }}>
+          Ctrl+Enter
+        </Typography>
       </Box>
     </Drawer>
   );

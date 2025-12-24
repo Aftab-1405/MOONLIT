@@ -27,7 +27,7 @@ import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import DataArrayRoundedIcon from '@mui/icons-material/DataArrayRounded';
 import ChartVisualization from './ChartVisualization';
 
-function SQLResultsTable({ data, onClose }) {
+function SQLResultsTable({ data, onClose, embedded = false }) {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
   const [orderBy, setOrderBy] = useState('');
@@ -128,8 +128,8 @@ function SQLResultsTable({ data, onClose }) {
     return null;
   }
 
-  // Chart view
-  if (viewMode === 'chart') {
+  // Chart view - only show when NOT embedded (in standalone usage)
+  if (!embedded && viewMode === 'chart') {
     return (
       <Box>
         <Box
@@ -180,7 +180,7 @@ function SQLResultsTable({ data, onClose }) {
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Header */}
+      {/* Header - Simplified when embedded */}
       <Box
         sx={{
           display: 'flex',
@@ -189,97 +189,101 @@ function SQLResultsTable({ data, onClose }) {
           flexWrap: 'wrap',
           gap: 1,
           px: 2,
-          py: 1.5,
+          py: embedded ? 1 : 1.5,
           borderBottom: '1px solid',
           borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
-          background: isDark 
-            ? `linear-gradient(180deg, ${alpha(theme.palette.success.main, 0.08)} 0%, transparent 100%)`
-            : `linear-gradient(180deg, ${alpha(theme.palette.success.main, 0.05)} 0%, transparent 100%)`,
+          ...(embedded ? {} : {
+            background: isDark 
+              ? `linear-gradient(180deg, ${alpha(theme.palette.success.main, 0.08)} 0%, transparent 100%)`
+              : `linear-gradient(180deg, ${alpha(theme.palette.success.main, 0.05)} 0%, transparent 100%)`,
+          }),
         }}
       >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box
-            sx={{
-              width: 28,
-              height: 28,
-              borderRadius: 1,
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {!embedded && (
+            <Box
+              sx={{
+                width: 28,
+                height: 28,
+                borderRadius: 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: alpha(theme.palette.success.main, isDark ? 0.15 : 0.1),
+              }}
+            >
+              <DataArrayRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
+            </Box>
+          )}
+          <Chip
+            size="small"
+            label={`${row_count} rows`}
+            sx={{ 
+              height: 24,
+              fontSize: '0.75rem',
+              fontWeight: 600,
               backgroundColor: alpha(theme.palette.success.main, isDark ? 0.15 : 0.1),
+              color: 'success.main',
+              border: '1px solid',
+              borderColor: alpha(theme.palette.success.main, 0.3),
             }}
-          >
-            <DataArrayRoundedIcon sx={{ fontSize: 16, color: 'success.main' }} />
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          />
+          {execution_time && (
             <Chip
               size="small"
-              label={`${row_count} rows`}
+              icon={<TimerOutlinedIcon sx={{ fontSize: 12 }} />}
+              label={`${execution_time.toFixed(2)}s`}
               sx={{ 
                 height: 24,
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                backgroundColor: alpha(theme.palette.success.main, isDark ? 0.15 : 0.1),
-                color: 'success.main',
-                border: '1px solid',
-                borderColor: alpha(theme.palette.success.main, 0.3),
+                fontSize: '0.7rem',
+                backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.05),
+                '& .MuiChip-icon': { ml: 0.5 },
               }}
             />
-            {execution_time && (
-              <Chip
-                size="small"
-                icon={<TimerOutlinedIcon sx={{ fontSize: 12 }} />}
-                label={`${execution_time.toFixed(2)}s`}
-                sx={{ 
-                  height: 24,
-                  fontSize: '0.7rem',
-                  backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.05),
-                  '& .MuiChip-icon': { ml: 0.5 },
-                }}
-              />
-            )}
-            {truncated && (
-              <Chip
-                size="small"
-                label="Truncated"
-                color="warning"
-                sx={{ height: 24, fontSize: '0.7rem' }}
-              />
-            )}
-          </Box>
+          )}
+          {truncated && (
+            <Chip
+              size="small"
+              label="Truncated"
+              color="warning"
+              sx={{ height: 24, fontSize: '0.7rem' }}
+            />
+          )}
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          {/* View Toggle */}
-          <ToggleButtonGroup
-            value={viewMode}
-            exclusive
-            onChange={(e, v) => v && setViewMode(v)}
-            size="small"
-            sx={{
-              mr: 1,
-              '& .MuiToggleButton-root': {
-                border: 'none',
-                borderRadius: 1,
-                px: 1,
-                py: 0.5,
-                '&.Mui-selected': {
-                  backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.2 : 0.1),
+          {/* View Toggle - Only show when NOT embedded */}
+          {!embedded && (
+            <ToggleButtonGroup
+              value={viewMode}
+              exclusive
+              onChange={(e, v) => v && setViewMode(v)}
+              size="small"
+              sx={{
+                mr: 1,
+                '& .MuiToggleButton-root': {
+                  border: 'none',
+                  borderRadius: 1,
+                  px: 1,
+                  py: 0.5,
+                  '&.Mui-selected': {
+                    backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.2 : 0.1),
+                  },
                 },
-              },
-            }}
-          >
-            <ToggleButton value="table">
-              <Tooltip title="Table View">
-                <TableChartOutlinedIcon sx={{ fontSize: 18 }} />
-              </Tooltip>
-            </ToggleButton>
-            <ToggleButton value="chart">
-              <Tooltip title="Chart View">
-                <BarChartRoundedIcon sx={{ fontSize: 18 }} />
-              </Tooltip>
-            </ToggleButton>
-          </ToggleButtonGroup>
+              }}
+            >
+              <ToggleButton value="table">
+                <Tooltip title="Table View">
+                  <TableChartOutlinedIcon sx={{ fontSize: 18 }} />
+                </Tooltip>
+              </ToggleButton>
+              <ToggleButton value="chart">
+                <Tooltip title="Chart View">
+                  <BarChartRoundedIcon sx={{ fontSize: 18 }} />
+                </Tooltip>
+              </ToggleButton>
+            </ToggleButtonGroup>
+          )}
           
           <Tooltip title={copied ? 'Copied!' : 'Copy as CSV'}>
             <IconButton 
@@ -309,7 +313,7 @@ function SQLResultsTable({ data, onClose }) {
               <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </Tooltip>
-          {onClose && (
+          {onClose && !embedded && (
             <Tooltip title="Close">
               <IconButton 
                 size="small" 
@@ -326,8 +330,8 @@ function SQLResultsTable({ data, onClose }) {
         </Box>
       </Box>
 
-      {/* Table */}
-      <TableContainer sx={{ flex: 1, maxHeight: 350 }}>
+      {/* Table - Remove maxHeight when embedded for better scrolling */}
+      <TableContainer sx={{ flex: 1, maxHeight: embedded ? 'none' : 350 }}>
         <Table stickyHeader size="small">
           <TableHead>
             <TableRow>

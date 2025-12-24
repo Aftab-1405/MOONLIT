@@ -52,7 +52,7 @@ ChartJS.register(
   Filler
 );
 
-function ChartVisualization({ data, onClose }) {
+function ChartVisualization({ data, onClose, embedded = false }) {
   const [chartType, setChartType] = useState('bar');
   const [labelColumn, setLabelColumn] = useState('');
   const [valueColumn, setValueColumn] = useState('');
@@ -352,7 +352,7 @@ function ChartVisualization({ data, onClose }) {
                   )}
                 </IconButton>
               </MuiTooltip>
-              {onClose && (
+              {onClose && !embedded && (
                 <MuiTooltip title="Close">
                   <IconButton 
                     size="small" 
