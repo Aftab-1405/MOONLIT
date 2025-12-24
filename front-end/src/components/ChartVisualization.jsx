@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef, memo } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -59,6 +59,7 @@ function ChartVisualization({ data, onClose, embedded = false }) {
   const [fullscreen, setFullscreen] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const chartRef = useRef(null);
 
   // Modern color palette
   const chartColors = useMemo(() => [
@@ -191,12 +192,12 @@ function ChartVisualization({ data, onClose, embedded = false }) {
   }), [chartType, theme, isDark]);
 
   const handleDownload = () => {
-    const canvas = document.querySelector('.chart-container canvas');
+    const canvas = chartRef.current?.canvas;
     if (canvas) {
       const url = canvas.toDataURL('image/png');
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'chart.png';
+      a.download = `chart-${chartType}-${Date.now()}.png`;
       a.click();
     }
   };
@@ -411,7 +412,7 @@ function ChartVisualization({ data, onClose, embedded = false }) {
           }}
         >
           {chartData && ChartComponent && (
-            <ChartComponent data={chartData} options={chartOptions} />
+            <ChartComponent ref={chartRef} data={chartData} options={chartOptions} />
           )}
         </Box>
       </Box>
@@ -435,4 +436,4 @@ function ChartVisualization({ data, onClose, embedded = false }) {
   );
 }
 
-export default ChartVisualization;
+export default memo(ChartVisualization);
