@@ -3,9 +3,9 @@ import { useTheme } from '@mui/material/styles';
 import { Box } from '@mui/material';
 
 /**
- * High-performance starfield animation with shooting stars.
- * Features tiny glowing stars and occasional meteor trails.
- * Optimized for dark theme; disabled on light theme.
+ * Ultra-realistic starfield with astronomical accuracy.
+ * Features: Spectral star classes, parallax depth layers, realistic twinkle physics.
+ * Optimized: Batched rendering, pre-computed values, visibility API pause.
  */
 function StarfieldCanvas({ active = false }) {
   const theme = useTheme();
@@ -13,20 +13,21 @@ function StarfieldCanvas({ active = false }) {
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const starsRef = useRef([]);
+  const dustRef = useRef([]);
   const nebulasRef = useRef([]);
   const meteorsRef = useRef([]);
   const cometsRef = useRef([]);
   const sparksRef = useRef([]);
-  // const auroraRef = useRef([]); // Aurora effect removed
   const opacityRef = useRef(0);
   const targetOpacityRef = useRef(0);
   const lastMeteorTimeRef = useRef(0);
   const lastCometTimeRef = useRef(0);
-  const nextMeteorDelayRef = useRef(2000 + Math.random() * 6000); // Initial random delay
-  const nextCometDelayRef = useRef(8000 + Math.random() * 12000); // Comets are rarer
+  const nextMeteorDelayRef = useRef(3000 + Math.random() * 5000);
+  const nextCometDelayRef = useRef(15000 + Math.random() * 20000);
+  const isVisibleRef = useRef(true);
+  const timeRef = useRef(0);
 
   useEffect(() => {
-    // Disable starfield on light theme - it doesn't look good
     if (!isDarkMode) return;
 
     const canvas = canvasRef.current;
@@ -36,323 +37,392 @@ function StarfieldCanvas({ active = false }) {
     let width = canvas.offsetWidth;
     let height = canvas.offsetHeight;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2); // Cap at 2x for performance
     canvas.width = width * dpr;
     canvas.height = height * dpr;
     ctx.scale(dpr, dpr);
 
-    // Cosmic color palette for stars - subtle tints that feel natural
-    const starColors = [
-      { r: 255, g: 255, b: 255 },   // Pure white (most common)
-      { r: 255, g: 255, b: 255 },   // Pure white (duplicate for higher chance)
-      { r: 255, g: 255, b: 255 },   // Pure white (duplicate for higher chance)
-      { r: 200, g: 220, b: 255 },   // Cool blue-white
-      { r: 180, g: 200, b: 255 },   // Soft blue
-      { r: 160, g: 180, b: 255 },   // Light blue
-      { r: 220, g: 200, b: 255 },   // Soft lavender
-      { r: 200, g: 180, b: 255 },   // Light purple
-      { r: 180, g: 220, b: 255 },   // Cyan-tinted
-      { r: 160, g: 230, b: 255 },   // Bright cyan
-      { r: 255, g: 240, b: 200 },   // Warm gold
-      { r: 255, g: 220, b: 180 },   // Soft amber
-      { r: 255, g: 200, b: 200 },   // Subtle rose
+    // Realistic stellar spectral classes (temperature-based colors)
+    // O, B, A, F, G, K, M classes
+    const spectralClasses = [
+      { r: 155, g: 176, b: 255, temp: 'O', rarity: 0.01 },  // Blue-white (hottest, rarest)
+      { r: 170, g: 191, b: 255, temp: 'B', rarity: 0.03 },  // Blue-white
+      { r: 202, g: 215, b: 255, temp: 'A', rarity: 0.08 },  // White
+      { r: 248, g: 247, b: 255, temp: 'F', rarity: 0.15 },  // Yellow-white
+      { r: 255, g: 244, b: 232, temp: 'G', rarity: 0.25 },  // Yellow (Sun-like)
+      { r: 255, g: 210, b: 161, temp: 'K', rarity: 0.25 },  // Orange
+      { r: 255, g: 204, b: 111, temp: 'K', rarity: 0.15 },  // Deep orange
+      { r: 255, g: 189, b: 111, temp: 'M', rarity: 0.08 },  // Red (coolest)
     ];
 
-    /**
-     * Initialize stars with natural clustering and subtle color/size/opacity variation.
-     * Uses a random cluster approach for realism.
-     */
+    // Select star color based on realistic distribution
+    const getStarColor = () => {
+      const rand = Math.random();
+      let cumulative = 0;
+      for (const sc of spectralClasses) {
+        cumulative += sc.rarity;
+        if (rand < cumulative) return sc;
+      }
+      return spectralClasses[4]; // Default to G-class
+    };
+
+    // Initialize stars with depth layers for parallax
     const initStars = (w, h) => {
       const stars = [];
       const area = w * h;
-      const baseCount = Math.floor(area / 18000); // Slightly denser
-      const clusterCount = Math.floor(Math.random() * 2) + 2; // 2-3 clusters
-      // Generate clusters
-      for (let c = 0; c < clusterCount; c++) {
-        const cx = Math.random() * w;
-        const cy = Math.random() * h;
-        const clusterStars = 8 + Math.floor(Math.random() * 8);
-        for (let i = 0; i < clusterStars; i++) {
-          const angle = Math.random() * Math.PI * 2;
-          const radius = Math.random() * 80 + 20;
-          const x = cx + Math.cos(angle) * radius + (Math.random() - 0.5) * 10;
-          const y = cy + Math.sin(angle) * radius + (Math.random() - 0.5) * 10;
-          const color = starColors[Math.floor(Math.random() * starColors.length)];
-          stars.push({
-            x: Math.max(0, Math.min(w, x)),
-            y: Math.max(0, Math.min(h, y)),
-            size: Math.random() * 1.3 + 0.5, // 0.5-1.8px
-            baseOpacity: Math.random() * 0.4 + 0.25, // 0.25-0.65
-            color,
-            vx: (Math.random() - 0.5) * 0.09,
-            vy: (Math.random() - 0.5) * 0.09,
-            twinklePhase: Math.random() * Math.PI * 2,
-            twinkleSpeed: Math.random() * 0.025 + 0.008,
-          });
-        }
-      }
-      // Add background stars (randomly scattered)
-      for (let i = 0; i < baseCount; i++) {
-        const color = starColors[Math.floor(Math.random() * starColors.length)];
+      
+      // Layer 1: Distant dim stars (most numerous, slowest)
+      const distantCount = Math.floor(area / 8000);
+      for (let i = 0; i < distantCount; i++) {
+        const color = getStarColor();
+        const size = 0.3 + Math.random() * 0.5;
         stars.push({
           x: Math.random() * w,
           y: Math.random() * h,
-          size: Math.random() * 1.1 + 0.3, // 0.3-1.4px
-          baseOpacity: Math.random() * 0.25 + 0.12, // 0.12-0.37
+          size,
+          layer: 0,
+          baseOpacity: 0.15 + Math.random() * 0.2,
           color,
-          vx: (Math.random() - 0.5) * 0.07,
-          vy: (Math.random() - 0.5) * 0.07,
+          colorStr: `rgb(${color.r}, ${color.g}, ${color.b})`,
+          vx: (Math.random() - 0.5) * 0.02,
+          vy: (Math.random() - 0.5) * 0.02,
           twinklePhase: Math.random() * Math.PI * 2,
-          twinkleSpeed: Math.random() * 0.018 + 0.006,
+          twinkleSpeed: 0.004 + Math.random() * 0.008,
+          twinkleIntensity: 0.1 + Math.random() * 0.15,
         });
       }
+      
+      // Layer 2: Mid-distance stars
+      const midCount = Math.floor(area / 25000);
+      for (let i = 0; i < midCount; i++) {
+        const color = getStarColor();
+        const size = 0.5 + Math.random() * 0.8;
+        stars.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          size,
+          layer: 1,
+          baseOpacity: 0.3 + Math.random() * 0.3,
+          color,
+          colorStr: `rgb(${color.r}, ${color.g}, ${color.b})`,
+          vx: (Math.random() - 0.5) * 0.04,
+          vy: (Math.random() - 0.5) * 0.04,
+          twinklePhase: Math.random() * Math.PI * 2,
+          twinkleSpeed: 0.008 + Math.random() * 0.012,
+          twinkleIntensity: 0.15 + Math.random() * 0.2,
+        });
+      }
+      
+      // Layer 3: Nearby bright stars (few, faster parallax)
+      const nearCount = Math.floor(area / 80000);
+      for (let i = 0; i < nearCount; i++) {
+        const color = getStarColor();
+        const size = 1.0 + Math.random() * 1.2;
+        stars.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          size,
+          layer: 2,
+          baseOpacity: 0.6 + Math.random() * 0.4,
+          color,
+          colorStr: `rgb(${color.r}, ${color.g}, ${color.b})`,
+          vx: (Math.random() - 0.5) * 0.08,
+          vy: (Math.random() - 0.5) * 0.08,
+          twinklePhase: Math.random() * Math.PI * 2,
+          twinkleSpeed: 0.015 + Math.random() * 0.02,
+          twinkleIntensity: 0.2 + Math.random() * 0.25,
+          // Bright stars get diffraction spikes
+          hasSpikes: size > 1.5,
+        });
+      }
+      
+      // Star clusters (realistic groupings)
+      const clusterCount = 2 + Math.floor(Math.random() * 2);
+      for (let c = 0; c < clusterCount; c++) {
+        const cx = Math.random() * w;
+        const cy = Math.random() * h;
+        const clusterStars = 12 + Math.floor(Math.random() * 15);
+        for (let i = 0; i < clusterStars; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const dist = Math.pow(Math.random(), 0.5) * 100; // Concentrated center
+          const color = getStarColor();
+          const size = 0.3 + Math.random() * 0.6;
+          stars.push({
+            x: Math.max(0, Math.min(w, cx + Math.cos(angle) * dist)),
+            y: Math.max(0, Math.min(h, cy + Math.sin(angle) * dist)),
+            size,
+            layer: 1,
+            baseOpacity: 0.25 + Math.random() * 0.35,
+            color,
+            colorStr: `rgb(${color.r}, ${color.g}, ${color.b})`,
+            vx: (Math.random() - 0.5) * 0.03,
+            vy: (Math.random() - 0.5) * 0.03,
+            twinklePhase: Math.random() * Math.PI * 2,
+            twinkleSpeed: 0.006 + Math.random() * 0.01,
+            twinkleIntensity: 0.12 + Math.random() * 0.18,
+          });
+        }
+      }
+      
       return stars;
     };
 
-    // Nebula color palette - brighter cosmic hues for visibility
+    // Cosmic dust particles (very subtle, adds depth)
+    const initDust = (w, h) => {
+      const dust = [];
+      const count = Math.floor((w * h) / 50000);
+      for (let i = 0; i < count; i++) {
+        dust.push({
+          x: Math.random() * w,
+          y: Math.random() * h,
+          size: 15 + Math.random() * 40,
+          opacity: 0.008 + Math.random() * 0.015,
+          vx: (Math.random() - 0.5) * 0.03,
+          vy: (Math.random() - 0.5) * 0.03,
+        });
+      }
+      return dust;
+    };
+
+    // Enhanced nebulas with more natural shapes
     const nebulaColors = [
-      { r: 130, g: 80, b: 220 },   // Vibrant purple
-      { r: 80, g: 100, b: 200 },   // Rich blue
-      { r: 100, g: 160, b: 240 },  // Bright blue
-      { r: 80, g: 180, b: 220 },   // Cyan
-      { r: 160, g: 100, b: 200 },  // Bright lavender
-      { r: 180, g: 80, b: 150 },   // Magenta
+      { r: 80, g: 60, b: 140 },   // Deep purple
+      { r: 50, g: 80, b: 120 },   // Navy blue
+      { r: 100, g: 50, b: 100 },  // Magenta
+      { r: 40, g: 100, b: 120 },  // Teal
+      { r: 120, g: 60, b: 80 },   // Dusty rose
     ];
 
-    // Initialize nebula clouds - large, visible gradient areas
     const initNebulas = (w, h) => {
       const nebulas = [];
-      const nebulaCount = 3 + Math.floor(Math.random() * 2); // 3-4 nebulas
-
-      for (let i = 0; i < nebulaCount; i++) {
+      const count = 2 + Math.floor(Math.random() * 2);
+      for (let i = 0; i < count; i++) {
         const color = nebulaColors[Math.floor(Math.random() * nebulaColors.length)];
         nebulas.push({
           x: Math.random() * w,
           y: Math.random() * h,
-          radius: 200 + Math.random() * 300, // Larger clouds: 200-500px
+          radius: 250 + Math.random() * 350,
           color,
-          baseOpacity: 0.04 + Math.random() * 0.04, // Low opacity: 0.04-0.08
-          // Slow drift
-          vx: (Math.random() - 0.5) * 0.08,
-          vy: (Math.random() - 0.5) * 0.08,
-          // Pulse effect
+          baseOpacity: 0.025 + Math.random() * 0.025,
+          vx: (Math.random() - 0.5) * 0.05,
+          vy: (Math.random() - 0.5) * 0.05,
           pulsePhase: Math.random() * Math.PI * 2,
-          pulseSpeed: 0.003 + Math.random() * 0.003,
+          pulseSpeed: 0.002 + Math.random() * 0.002,
         });
       }
       return nebulas;
     };
 
-    // Meteor color palette - vibrant trails
     const meteorColors = [
-      { r: 255, g: 255, b: 255 },   // White (classic)
-      { r: 180, g: 220, b: 255 },   // Ice blue
-      { r: 255, g: 200, b: 100 },   // Golden
-      { r: 255, g: 150, b: 200 },   // Pink
-      { r: 150, g: 255, b: 200 },   // Mint green
-      { r: 200, g: 180, b: 255 },   // Lavender
+      { r: 255, g: 255, b: 255 },
+      { r: 200, g: 230, b: 255 },
+      { r: 255, g: 220, b: 180 },
     ];
 
-    // Create a shooting star/meteor with random direction and color
     const createMeteor = (w, h) => {
-      const speed = 5 + Math.random() * 6; // Fast movement
-
-      // Calculate start position based on direction (spawn from edges)
-      let startX, startY;
-      const edge = Math.floor(Math.random() * 4);
-
-      switch (edge) {
-        case 0: startX = Math.random() * w; startY = -20; break;
-        case 1: startX = w + 20; startY = Math.random() * h; break;
-        case 2: startX = Math.random() * w; startY = h + 20; break;
-        default: startX = -20; startY = Math.random() * h; break;
-      }
-
-      // Direction towards center with randomness
-      const centerX = w / 2 + (Math.random() - 0.5) * w * 0.6;
-      const centerY = h / 2 + (Math.random() - 0.5) * h * 0.6;
-      const dirAngle = Math.atan2(centerY - startY, centerX - startX);
+      const speedVal = 8 + Math.random() * 8;
+      // More realistic: meteors enter from top/upper edges
+      const startX = Math.random() * w * 1.2 - w * 0.1;
+      const startY = -20;
+      const angle = Math.PI / 4 + (Math.random() - 0.5) * 0.5; // ~45 degrees down
       const color = meteorColors[Math.floor(Math.random() * meteorColors.length)];
 
       return {
         x: startX,
         y: startY,
-        vx: Math.cos(dirAngle) * speed,
-        vy: Math.sin(dirAngle) * speed,
-        length: 60 + Math.random() * 100, // Trail length
-        opacity: 0.8 + Math.random() * 0.2,
+        vx: Math.cos(angle) * speedVal * 0.3,
+        vy: Math.sin(angle) * speedVal,
+        speed: speedVal,
+        length: 80 + Math.random() * 120,
+        opacity: 0.9,
         life: 1.0,
-        decay: 0.010 + Math.random() * 0.008,
+        decay: 0.012 + Math.random() * 0.008,
         color,
-        sparkTimer: 0, // For spawning sparks
+        sparkTimer: 0,
+        trail: [], // Store trail positions for more realistic look
       };
     };
 
-    // Create a dramatic comet with long trail
+    const cometColors = [
+      { r: 150, g: 220, b: 255 },
+      { r: 255, g: 240, b: 200 },
+    ];
+
     const createComet = (w, h) => {
-      const speed = 2 + Math.random() * 2; // Slower than meteors
-
-      // Comets typically come from top-left or top-right
+      const speedVal = 1.5 + Math.random() * 1.5;
       const fromLeft = Math.random() > 0.5;
-      const startX = fromLeft ? -50 : w + 50;
-      const startY = Math.random() * h * 0.3; // Upper portion
-
-      // Direction: diagonal across screen
+      const startX = fromLeft ? -80 : w + 80;
+      const startY = Math.random() * h * 0.4;
       const targetX = fromLeft ? w + 100 : -100;
-      const targetY = h * 0.5 + Math.random() * h * 0.4;
+      const targetY = h * 0.4 + Math.random() * h * 0.4;
       const dirAngle = Math.atan2(targetY - startY, targetX - startX);
-
-      // Comet colors - more dramatic
-      const cometColors = [
-        { r: 100, g: 200, b: 255 },   // Bright cyan
-        { r: 255, g: 220, b: 150 },   // Warm gold
-        { r: 200, g: 150, b: 255 },   // Purple
-      ];
       const color = cometColors[Math.floor(Math.random() * cometColors.length)];
 
       return {
         x: startX,
         y: startY,
-        vx: Math.cos(dirAngle) * speed,
-        vy: Math.sin(dirAngle) * speed,
-        length: 200 + Math.random() * 150, // Very long trail
-        opacity: 0.9,
+        vx: Math.cos(dirAngle) * speedVal,
+        vy: Math.sin(dirAngle) * speedVal,
+        speed: speedVal,
+        length: 250 + Math.random() * 200,
+        opacity: 0.85,
         life: 1.0,
-        decay: 0.003 + Math.random() * 0.002, // Slow decay - lasts longer
+        decay: 0.002 + Math.random() * 0.001,
         color,
-        coreSize: 4 + Math.random() * 3, // Larger glowing head
+        coreSize: 5 + Math.random() * 3,
         sparkTimer: 0,
       };
     };
 
-    // Create spark particle (from meteors/comets)
     const createSpark = (x, y, baseVx, baseVy, color) => {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 0.5 + Math.random() * 1.5;
+      const speed = 0.3 + Math.random() * 1.2;
       return {
-        x,
-        y,
-        vx: baseVx * 0.3 + Math.cos(angle) * speed,
-        vy: baseVy * 0.3 + Math.sin(angle) * speed,
+        x, y,
+        vx: baseVx * 0.2 + Math.cos(angle) * speed,
+        vy: baseVy * 0.2 + Math.sin(angle) * speed,
         life: 1.0,
-        decay: 0.03 + Math.random() * 0.03,
-        size: 0.5 + Math.random() * 1,
+        decay: 0.04 + Math.random() * 0.04,
+        size: 0.4 + Math.random() * 0.8,
         color,
       };
     };
 
-    // Aurora effect removed
-
-    if (starsRef.current.length === 0) {
-      starsRef.current = initStars(width, height);
-    }
-    if (nebulasRef.current.length === 0) {
-      nebulasRef.current = initNebulas(width, height);
-    }
+    if (starsRef.current.length === 0) starsRef.current = initStars(width, height);
+    if (dustRef.current.length === 0) dustRef.current = initDust(width, height);
+    if (nebulasRef.current.length === 0) nebulasRef.current = initNebulas(width, height);
 
     const animate = (timestamp) => {
-      // Smooth opacity transition
+      if (!isVisibleRef.current) {
+        animationRef.current = requestAnimationFrame(animate);
+        return;
+      }
+
       const opacityDiff = targetOpacityRef.current - opacityRef.current;
       if (Math.abs(opacityDiff) > 0.005) {
-        opacityRef.current += opacityDiff * 0.03;
+        opacityRef.current += opacityDiff * 0.025;
       } else {
         opacityRef.current = targetOpacityRef.current;
       }
 
-      // Skip if fully transparent
       if (opacityRef.current < 0.01) {
         animationRef.current = requestAnimationFrame(animate);
         return;
       }
 
+      timeRef.current = timestamp * 0.001;
       ctx.clearRect(0, 0, width, height);
-
       const globalOpacity = opacityRef.current;
 
-      // === Draw Nebulas ===
-      // Large, slowly drifting cosmic clouds with subtle pulsing
+      // === Cosmic dust (very subtle background texture) ===
+      ctx.globalAlpha = globalOpacity;
+      for (const d of dustRef.current) {
+        d.x += d.vx;
+        d.y += d.vy;
+        if (d.x < -d.size) d.x = width + d.size;
+        if (d.x > width + d.size) d.x = -d.size;
+        if (d.y < -d.size) d.y = height + d.size;
+        if (d.y > height + d.size) d.y = -d.size;
+        
+        ctx.globalAlpha = d.opacity * globalOpacity;
+        ctx.fillStyle = 'rgb(180, 180, 200)';
+        ctx.beginPath();
+        ctx.arc(d.x, d.y, d.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // === Nebulas ===
       for (const nebula of nebulasRef.current) {
-        // Update position (slow drift)
         nebula.x += nebula.vx;
         nebula.y += nebula.vy;
-        // Wrap around edges
         if (nebula.x < -nebula.radius) nebula.x = width + nebula.radius;
         if (nebula.x > width + nebula.radius) nebula.x = -nebula.radius;
         if (nebula.y < -nebula.radius) nebula.y = height + nebula.radius;
         if (nebula.y > height + nebula.radius) nebula.y = -nebula.radius;
-        // Pulse effect
+
         nebula.pulsePhase += nebula.pulseSpeed;
-        const pulse = 0.85 + 0.15 * Math.sin(nebula.pulsePhase);
+        const pulse = 0.9 + 0.1 * Math.sin(nebula.pulsePhase);
         const opacity = nebula.baseOpacity * pulse * globalOpacity;
         const { r, g, b } = nebula.color;
-        // Draw nebula as radial gradient
+
         const gradient = ctx.createRadialGradient(
           nebula.x, nebula.y, 0,
           nebula.x, nebula.y, nebula.radius
         );
         gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${opacity})`);
-        gradient.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, ${opacity * 0.6})`);
-        gradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, ${opacity * 0.3})`);
+        gradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, ${opacity * 0.7})`);
+        gradient.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, ${opacity * 0.3})`);
         gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+
+        ctx.globalAlpha = 1;
         ctx.beginPath();
         ctx.arc(nebula.x, nebula.y, nebula.radius, 0, Math.PI * 2);
         ctx.fillStyle = gradient;
         ctx.fill();
       }
 
-      // Aurora effect removed
-
-      // === Draw Stars ===
-      // Stars drift slowly and twinkle with a natural, non-synchronized phase.
+      // === Stars (batched by layer for efficiency) ===
       for (const star of starsRef.current) {
-        // Update position (gentle drift)
         star.x += star.vx;
         star.y += star.vy;
-        // Wrap around edges
         if (star.x < -5) star.x = width + 5;
         if (star.x > width + 5) star.x = -5;
         if (star.y < -5) star.y = height + 5;
         if (star.y > height + 5) star.y = -5;
-        // Twinkle: phase and speed are unique per star
+
         star.twinklePhase += star.twinkleSpeed;
-        // More natural twinkle: combine two sine waves
-        const twinkle = 0.6 + 0.4 * Math.sin(star.twinklePhase) * Math.sin(star.twinklePhase * 0.7 + 1.3);
-        const opacity = star.baseOpacity * twinkle * globalOpacity;
-        const { r, g, b } = star.color;
-        // Draw star as a soft radial gradient (not a solid dot)
-        const gradient = ctx.createRadialGradient(
-          star.x, star.y, 0,
-          star.x, star.y, star.size * 2.2
-        );
-        gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, ${opacity})`);
-        gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${opacity * 0.3})`);
-        gradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
+        // Realistic atmospheric scintillation
+        const scintillation = 1 - star.twinkleIntensity + 
+          star.twinkleIntensity * (0.5 + 0.5 * Math.sin(star.twinklePhase) * Math.sin(star.twinklePhase * 1.7 + 0.5));
+        const opacity = star.baseOpacity * scintillation * globalOpacity;
+
+        ctx.globalAlpha = opacity;
+        ctx.fillStyle = star.colorStr;
         ctx.beginPath();
-        ctx.arc(star.x, star.y, star.size * 2.2, 0, Math.PI * 2);
-        ctx.fillStyle = gradient;
+        ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
         ctx.fill();
+
+        // Glow for brighter stars
+        if (star.layer >= 1) {
+          ctx.globalAlpha = opacity * 0.25;
+          ctx.beginPath();
+          ctx.arc(star.x, star.y, star.size * 2.5, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Diffraction spikes for brightest stars
+        if (star.hasSpikes && opacity > 0.5) {
+          ctx.globalAlpha = opacity * 0.4;
+          ctx.strokeStyle = star.colorStr;
+          ctx.lineWidth = 0.5;
+          const spikeLen = star.size * 4;
+          ctx.beginPath();
+          ctx.moveTo(star.x - spikeLen, star.y);
+          ctx.lineTo(star.x + spikeLen, star.y);
+          ctx.moveTo(star.x, star.y - spikeLen);
+          ctx.lineTo(star.x, star.y + spikeLen);
+          ctx.stroke();
+        }
       }
+      ctx.globalAlpha = 1;
 
       // === Spawn Meteors ===
-      // Random spawn interval: 2-8 seconds (stored in ref to avoid recalculating every frame)
       const timeSinceLastMeteor = timestamp - lastMeteorTimeRef.current;
-
       if (globalOpacity > 0.5 && timeSinceLastMeteor > nextMeteorDelayRef.current) {
-        if (meteorsRef.current.length < 3) { // Max 3 meteors at once
+        if (meteorsRef.current.length < 2) {
           meteorsRef.current.push(createMeteor(width, height));
           lastMeteorTimeRef.current = timestamp;
-          // Set next random delay for future spawn
-          nextMeteorDelayRef.current = 2000 + Math.random() * 6000;
+          nextMeteorDelayRef.current = 4000 + Math.random() * 8000;
         }
       }
 
-      // === Spawn Comets (rarer) ===
+      // === Spawn Comets ===
       const timeSinceLastComet = timestamp - lastCometTimeRef.current;
       if (globalOpacity > 0.5 && timeSinceLastComet > nextCometDelayRef.current) {
-        if (cometsRef.current.length < 1) { // Max 1 comet at once
+        if (cometsRef.current.length < 1) {
           cometsRef.current.push(createComet(width, height));
           lastCometTimeRef.current = timestamp;
-          nextCometDelayRef.current = 10000 + Math.random() * 15000; // 10-25 seconds
+          nextCometDelayRef.current = 20000 + Math.random() * 25000;
         }
       }
 
@@ -360,21 +430,19 @@ function StarfieldCanvas({ active = false }) {
       sparksRef.current = sparksRef.current.filter((spark) => {
         spark.x += spark.vx;
         spark.y += spark.vy;
-        spark.vy += 0.02; // Slight gravity
+        spark.vy += 0.015;
         spark.life -= spark.decay;
-
         if (spark.life <= 0) return false;
 
         const { r, g, b } = spark.color;
-        const sparkOpacity = spark.life * globalOpacity * 0.8;
-
+        ctx.globalAlpha = spark.life * globalOpacity * 0.7;
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
         ctx.beginPath();
         ctx.arc(spark.x, spark.y, spark.size, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${sparkOpacity})`;
         ctx.fill();
-
         return true;
       });
+      ctx.globalAlpha = 1;
 
       // === Draw Meteors ===
       meteorsRef.current = meteorsRef.current.filter((meteor) => {
@@ -383,54 +451,39 @@ function StarfieldCanvas({ active = false }) {
         meteor.life -= meteor.decay;
         meteor.sparkTimer += 1;
 
-        // Spawn sparks occasionally
-        if (meteor.sparkTimer > 3 && Math.random() > 0.7) {
+        if (meteor.sparkTimer > 2 && Math.random() > 0.6) {
           sparksRef.current.push(createSpark(meteor.x, meteor.y, meteor.vx, meteor.vy, meteor.color));
           meteor.sparkTimer = 0;
         }
 
-        // Remove meteors that are dead or have left the screen
-        if (meteor.life <= 0 ||
-          meteor.x < -100 || meteor.x > width + 100 ||
-          meteor.y < -100 || meteor.y > height + 100) {
-          return false;
-        }
+        if (meteor.life <= 0 || meteor.y > height + 50) return false;
 
         const { r, g, b } = meteor.color;
         const meteorOpacity = meteor.opacity * meteor.life * globalOpacity;
-
-        // Draw meteor trail with colored gradient
-        const speed = Math.sqrt(meteor.vx ** 2 + meteor.vy ** 2);
-        const tailX = meteor.x - (meteor.vx / speed) * meteor.length * meteor.life;
-        const tailY = meteor.y - (meteor.vy / speed) * meteor.length * meteor.life;
+        const tailX = meteor.x - (meteor.vx / meteor.speed) * meteor.length * meteor.life;
+        const tailY = meteor.y - (meteor.vy / meteor.speed) * meteor.length * meteor.life;
 
         const gradient = ctx.createLinearGradient(tailX, tailY, meteor.x, meteor.y);
         gradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0)`);
-        gradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${meteorOpacity * 0.3})`);
-        gradient.addColorStop(0.8, `rgba(255, 255, 255, ${meteorOpacity * 0.6})`);
+        gradient.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, ${meteorOpacity * 0.4})`);
+        gradient.addColorStop(0.9, `rgba(255, 255, 255, ${meteorOpacity * 0.8})`);
         gradient.addColorStop(1, `rgba(255, 255, 255, ${meteorOpacity})`);
 
         ctx.beginPath();
         ctx.moveTo(tailX, tailY);
         ctx.lineTo(meteor.x, meteor.y);
         ctx.strokeStyle = gradient;
-        ctx.lineWidth = 2;
+        ctx.lineWidth = 2.5;
         ctx.lineCap = 'round';
         ctx.stroke();
 
         // Bright head
-        const headGradient = ctx.createRadialGradient(
-          meteor.x, meteor.y, 0,
-          meteor.x, meteor.y, 4
-        );
-        headGradient.addColorStop(0, `rgba(255, 255, 255, ${meteorOpacity})`);
-        headGradient.addColorStop(0.5, `rgba(${r}, ${g}, ${b}, ${meteorOpacity * 0.5})`);
-        headGradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
-
+        ctx.globalAlpha = meteorOpacity;
+        ctx.fillStyle = '#fff';
         ctx.beginPath();
-        ctx.arc(meteor.x, meteor.y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = headGradient;
+        ctx.arc(meteor.x, meteor.y, 2, 0, Math.PI * 2);
         ctx.fill();
+        ctx.globalAlpha = 1;
 
         return true;
       });
@@ -442,58 +495,44 @@ function StarfieldCanvas({ active = false }) {
         comet.life -= comet.decay;
         comet.sparkTimer += 1;
 
-        // Comets spawn more sparks
         if (comet.sparkTimer > 2) {
           sparksRef.current.push(createSpark(comet.x, comet.y, comet.vx, comet.vy, comet.color));
-          if (Math.random() > 0.5) {
-            sparksRef.current.push(createSpark(comet.x, comet.y, comet.vx, comet.vy, comet.color));
-          }
           comet.sparkTimer = 0;
         }
 
-        // Remove comets that are dead or have left the screen
-        if (comet.life <= 0 ||
-          comet.x < -200 || comet.x > width + 200 ||
-          comet.y < -200 || comet.y > height + 200) {
-          return false;
-        }
+        if (comet.life <= 0 || comet.x < -250 || comet.x > width + 250) return false;
 
         const { r, g, b } = comet.color;
         const cometOpacity = comet.opacity * comet.life * globalOpacity;
+        const tailX = comet.x - (comet.vx / comet.speed) * comet.length * comet.life;
+        const tailY = comet.y - (comet.vy / comet.speed) * comet.length * comet.life;
 
-        // Draw comet tail - very long gradient
-        const speed = Math.sqrt(comet.vx ** 2 + comet.vy ** 2);
-        const tailX = comet.x - (comet.vx / speed) * comet.length * comet.life;
-        const tailY = comet.y - (comet.vy / speed) * comet.length * comet.life;
-
-        // Wide, fading tail
         const tailGradient = ctx.createLinearGradient(tailX, tailY, comet.x, comet.y);
         tailGradient.addColorStop(0, `rgba(${r}, ${g}, ${b}, 0)`);
-        tailGradient.addColorStop(0.3, `rgba(${r}, ${g}, ${b}, ${cometOpacity * 0.1})`);
-        tailGradient.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, ${cometOpacity * 0.3})`);
-        tailGradient.addColorStop(0.9, `rgba(255, 255, 255, ${cometOpacity * 0.7})`);
+        tailGradient.addColorStop(0.4, `rgba(${r}, ${g}, ${b}, ${cometOpacity * 0.15})`);
+        tailGradient.addColorStop(0.8, `rgba(255, 255, 255, ${cometOpacity * 0.5})`);
         tailGradient.addColorStop(1, `rgba(255, 255, 255, ${cometOpacity})`);
 
         ctx.beginPath();
         ctx.moveTo(tailX, tailY);
         ctx.lineTo(comet.x, comet.y);
         ctx.strokeStyle = tailGradient;
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 4;
         ctx.lineCap = 'round';
         ctx.stroke();
 
         // Glowing core
         const coreGradient = ctx.createRadialGradient(
           comet.x, comet.y, 0,
-          comet.x, comet.y, comet.coreSize * 2
+          comet.x, comet.y, comet.coreSize * 2.5
         );
         coreGradient.addColorStop(0, `rgba(255, 255, 255, ${cometOpacity})`);
-        coreGradient.addColorStop(0.3, `rgba(255, 255, 255, ${cometOpacity * 0.8})`);
-        coreGradient.addColorStop(0.6, `rgba(${r}, ${g}, ${b}, ${cometOpacity * 0.5})`);
+        coreGradient.addColorStop(0.4, `rgba(255, 255, 255, ${cometOpacity * 0.6})`);
+        coreGradient.addColorStop(0.7, `rgba(${r}, ${g}, ${b}, ${cometOpacity * 0.3})`);
         coreGradient.addColorStop(1, `rgba(${r}, ${g}, ${b}, 0)`);
 
         ctx.beginPath();
-        ctx.arc(comet.x, comet.y, comet.coreSize * 2, 0, Math.PI * 2);
+        ctx.arc(comet.x, comet.y, comet.coreSize * 2.5, 0, Math.PI * 2);
         ctx.fillStyle = coreGradient;
         ctx.fill();
 
@@ -510,24 +549,29 @@ function StarfieldCanvas({ active = false }) {
       canvas.height = height * dpr;
       ctx.scale(dpr, dpr);
       starsRef.current = initStars(width, height);
+      dustRef.current = initDust(width, height);
       nebulasRef.current = initNebulas(width, height);
     };
 
     let resizeTimeout;
     const debouncedResize = () => {
       clearTimeout(resizeTimeout);
-      resizeTimeout = setTimeout(handleResize, 150);
+      resizeTimeout = setTimeout(handleResize, 200);
+    };
+
+    const handleVisibility = () => {
+      isVisibleRef.current = !document.hidden;
     };
 
     window.addEventListener('resize', debouncedResize);
+    document.addEventListener('visibilitychange', handleVisibility);
     animationRef.current = requestAnimationFrame(animate);
 
     return () => {
       window.removeEventListener('resize', debouncedResize);
+      document.removeEventListener('visibilitychange', handleVisibility);
       clearTimeout(resizeTimeout);
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-      }
+      if (animationRef.current) cancelAnimationFrame(animationRef.current);
     };
   }, [isDarkMode]);
 
@@ -535,7 +579,6 @@ function StarfieldCanvas({ active = false }) {
     targetOpacityRef.current = active ? 1 : 0;
   }, [active]);
 
-  // Don't render canvas on light theme
   if (!isDarkMode) return null;
 
   return (
