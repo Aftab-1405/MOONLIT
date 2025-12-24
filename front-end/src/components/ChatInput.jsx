@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, memo } from 'react';
 import { 
   Box, 
   TextField, 
@@ -62,21 +62,12 @@ function ChatInput({
   const showDatabaseSelector = isConnected && availableDatabases.length > 1;
 
   // Toggle reasoning via ThemeContext (syncs everywhere)
-  const toggleReasoning = () => {
+  const toggleReasoning = useCallback(() => {
     updateSetting('enableReasoning', !reasoningEnabled);
-  };
+  }, [updateSetting, reasoningEnabled]);
 
-  // Fetch schemas when connected to PostgreSQL
-  useEffect(() => {
-    if (isConnected && currentDatabase && isPostgreSQL) {
-      fetchSchemas();
-    } else {
-      setSchemas([]);
-      setCurrentSchema('public');
-    }
-  }, [isConnected, currentDatabase, isPostgreSQL]);
-
-  const fetchSchemas = async () => {
+  // Fetch schemas function
+  const fetchSchemas = useCallback(async () => {
     setSchemaLoading(true);
     try {
       const response = await fetch('/get_schemas');
@@ -91,9 +82,19 @@ function ChatInput({
     } finally {
       setSchemaLoading(false);
     }
-  };
+  }, []);
 
-  const handleSchemaChange = async (schema) => {
+  // Fetch schemas when connected to PostgreSQL
+  useEffect(() => {
+    if (isConnected && currentDatabase && isPostgreSQL) {
+      fetchSchemas();
+    } else {
+      setSchemas([]);
+      setCurrentSchema('public');
+    }
+  }, [isConnected, currentDatabase, isPostgreSQL, fetchSchemas]);
+
+  const handleSchemaChange = useCallback(async (schema) => {
     setSchemaAnchor(null);
     if (schema === currentSchema) return;
     
@@ -114,28 +115,28 @@ function ChatInput({
     } finally {
       setSchemaLoading(false);
     }
-  };
+  }, [currentSchema]);
 
-  const handleDatabaseChange = (dbName) => {
+  const handleDatabaseChange = useCallback((dbName) => {
     setDbAnchor(null);
     if (dbName === currentDatabase) return;
     onDatabaseSwitch?.(dbName);
-  };
+  }, [currentDatabase, onDatabaseSwitch]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = useCallback((e) => {
     e?.preventDefault();
     if (message.trim() && !disabled) {
       onSend(message.trim());
       setMessage('');
     }
-  };
+  }, [message, disabled, onSend]);
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
-  };
+  }, [handleSubmit]);
 
   const hasText = message.trim().length > 0;
 
@@ -353,23 +354,22 @@ function ChatInput({
       >
         {/* Left Actions - Grouped */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25, flexShrink: 0 }}>
-          {/* Attachment icon */}
-          <Tooltip title="Attach file">
-            <IconButton
-              size="small"
-              sx={{
-                color: 'text.secondary',
-                opacity: 0.6,
-                width: 32,
-                height: 32,
-                '&:hover': {
-                  opacity: 1,
-                  backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
-                }
-              }}
-            >
-              <AttachFileRoundedIcon sx={{ fontSize: 18 }} />
-            </IconButton>
+          {/* Attachment icon - Coming soon */}
+          <Tooltip title="Attach file (coming soon)">
+            <span>
+              <IconButton
+                size="small"
+                disabled
+                sx={{
+                  color: 'text.secondary',
+                  opacity: 0.4,
+                  width: 32,
+                  height: 32,
+                }}
+              >
+                <AttachFileRoundedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </span>
           </Tooltip>
 
           {/* Reasoning Toggle */}
@@ -543,4 +543,4 @@ function ChatInput({
   );
 }
 
-export default ChatInput;
+export default memo(ChatInput);
