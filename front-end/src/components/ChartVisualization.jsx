@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, memo } from 'react';
+import { useState, useMemo, useEffect, useRef, memo, useCallback } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -37,6 +37,7 @@ import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
 import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 
 // Register Chart.js components
 ChartJS.register(
@@ -52,7 +53,7 @@ ChartJS.register(
   Filler
 );
 
-function ChartVisualization({ data, onClose, embedded = false }) {
+function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewModeChange }) {
   const [chartType, setChartType] = useState('bar');
   const [labelColumn, setLabelColumn] = useState('');
   const [valueColumn, setValueColumn] = useState('');
@@ -61,19 +62,20 @@ function ChartVisualization({ data, onClose, embedded = false }) {
   const isDark = theme.palette.mode === 'dark';
   const chartRef = useRef(null);
 
-  // Modern color palette
+  // Chart.js default vibrant color palette (solid, no transparency)
   const chartColors = useMemo(() => [
-    '#10b981', // emerald
-    '#3b82f6', // blue
-    '#8b5cf6', // violet
-    '#f59e0b', // amber
-    '#ef4444', // red
-    '#06b6d4', // cyan
-    '#ec4899', // pink
-    '#84cc16', // lime
+    'rgb(54, 162, 235)',   // Blue
+    'rgb(255, 99, 132)',   // Red/Pink
+    'rgb(255, 206, 86)',   // Yellow
+    'rgb(75, 192, 192)',   // Teal
+    'rgb(153, 102, 255)',  // Purple
+    'rgb(255, 159, 64)',   // Orange
+    'rgb(46, 204, 113)',   // Green
+    'rgb(231, 76, 60)',    // Dark Red
   ], []);
 
-  const chartColorsBg = useMemo(() => chartColors.map(c => alpha(c, 0.7)), [chartColors]);
+  // Same colors for background (solid, visible)
+  const chartColorsBg = chartColors;
 
   const { columns = [], result = [] } = data || {};
 
@@ -98,45 +100,38 @@ function ChartVisualization({ data, onClose, embedded = false }) {
 
   // Auto-select columns when data changes
   useEffect(() => {
-    if (!labelColumn && stringColumns.length) {
+    if (stringColumns.length && !labelColumn) {
       setLabelColumn(stringColumns[0]);
     }
-    if (!valueColumn && numericColumns.length) {
+    if (numericColumns.length && !valueColumn) {
       setValueColumn(numericColumns[0]);
     }
   }, [stringColumns, numericColumns, labelColumn, valueColumn]);
 
-  // Prepare chart data
+  // Chart configuration
   const chartData = useMemo(() => {
     if (!labelColumn || !valueColumn || !result.length) return null;
 
-    const labels = result.map(row => String(row[labelColumn] || ''));
-    const values = result.map(row => Number(row[valueColumn]) || 0);
+    const labels = result.slice(0, 50).map(row => String(row[labelColumn] ?? ''));
+    const values = result.slice(0, 50).map(row => Number(row[valueColumn]) || 0);
+
+    const isPieOrDoughnut = chartType === 'pie' || chartType === 'doughnut';
 
     return {
       labels,
-      datasets: [
-        {
-          label: valueColumn,
-          data: values,
-          backgroundColor: chartType === 'pie' || chartType === 'doughnut' 
-            ? chartColorsBg.slice(0, values.length) 
-            : chartColorsBg[0],
-          borderColor: chartType === 'pie' || chartType === 'doughnut'
-            ? chartColors.slice(0, values.length)
-            : chartColors[0],
-          borderWidth: 2,
-          borderRadius: chartType === 'bar' ? 6 : 0,
-          fill: chartType === 'line',
-          tension: 0.3,
-          pointRadius: 4,
-          pointHoverRadius: 6,
-        },
-      ],
+      datasets: [{
+        label: valueColumn,
+        data: values,
+        backgroundColor: isPieOrDoughnut ? chartColorsBg : chartColorsBg[0],
+        borderColor: isPieOrDoughnut ? chartColors : chartColors[0],
+        borderWidth: isPieOrDoughnut ? 2 : 2,
+        borderRadius: chartType === 'bar' ? 4 : 0,
+        fill: chartType === 'line',
+        tension: 0.3,
+      }],
     };
   }, [labelColumn, valueColumn, result, chartType, chartColors, chartColorsBg]);
 
-  // Chart options
   const chartOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
@@ -145,62 +140,43 @@ function ChartVisualization({ data, onClose, embedded = false }) {
         display: chartType === 'pie' || chartType === 'doughnut',
         position: 'right',
         labels: {
-          color: theme.palette.text.primary,
-          font: { family: 'Inter', size: 12 },
-          padding: 16,
+          color: theme.palette.text.secondary,
+          font: { size: 11 },
+          padding: 12,
           usePointStyle: true,
-          pointStyle: 'circle',
         },
       },
       tooltip: {
-        backgroundColor: isDark ? alpha('#1e293b', 0.95) : alpha('#fff', 0.95),
-        titleColor: theme.palette.text.primary,
-        bodyColor: theme.palette.text.secondary,
-        borderColor: theme.palette.divider,
-        borderWidth: 1,
+        backgroundColor: isDark ? alpha('#fff', 0.95) : alpha('#000', 0.9),
+        titleColor: isDark ? '#000' : '#fff',
+        bodyColor: isDark ? '#000' : '#fff',
+        padding: 10,
         cornerRadius: 8,
-        padding: 12,
         titleFont: { weight: 600 },
-        bodyFont: { size: 13 },
       },
     },
-    scales: chartType !== 'pie' && chartType !== 'doughnut' ? {
+    scales: chartType === 'pie' || chartType === 'doughnut' ? {} : {
       x: {
-        grid: { 
-          color: alpha(theme.palette.divider, 0.5),
-          drawBorder: false,
-        },
-        ticks: { 
-          color: theme.palette.text.secondary,
-          font: { size: 11 },
-          maxRotation: 45,
-        },
-        border: { display: false },
+        grid: { color: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06) },
+        ticks: { color: theme.palette.text.secondary, font: { size: 11 } },
       },
       y: {
-        grid: { 
-          color: alpha(theme.palette.divider, 0.5),
-          drawBorder: false,
-        },
-        ticks: { 
-          color: theme.palette.text.secondary,
-          font: { size: 11 },
-        },
-        border: { display: false },
+        grid: { color: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06) },
+        ticks: { color: theme.palette.text.secondary, font: { size: 11 } },
+        beginAtZero: true,
       },
-    } : undefined,
+    },
   }), [chartType, theme, isDark]);
 
-  const handleDownload = () => {
-    const canvas = chartRef.current?.canvas;
-    if (canvas) {
-      const url = canvas.toDataURL('image/png');
+  const handleDownload = useCallback(() => {
+    if (chartRef.current) {
+      const canvas = chartRef.current.canvas;
       const a = document.createElement('a');
-      a.href = url;
+      a.href = canvas.toDataURL('image/png');
       a.download = `chart-${chartType}-${Date.now()}.png`;
       a.click();
     }
-  };
+  }, [chartType]);
 
   const ChartComponent = {
     bar: Bar,
@@ -224,196 +200,196 @@ function ChartVisualization({ data, onClose, embedded = false }) {
 
   return (
     <>
-      <Box
-        sx={{
-          m: fullscreen ? 0 : { xs: 1, sm: 2 },
-          p: 2,
-          borderRadius: fullscreen ? 0 : 2,
-          border: fullscreen ? 'none' : '1px solid',
-          borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
-          backgroundColor: isDark 
-            ? alpha(theme.palette.background.paper, fullscreen ? 1 : 0.95)
-            : theme.palette.background.paper,
-          position: fullscreen ? 'fixed' : 'relative',
-          top: fullscreen ? 0 : 'auto',
-          left: fullscreen ? 0 : 'auto',
-          right: fullscreen ? 0 : 'auto',
-          bottom: fullscreen ? 0 : 'auto',
-          zIndex: fullscreen ? 9999 : 'auto',
-        }}
-      >
-        {/* Header */}
+      {/* Main container - matches SQLResultsTable structure exactly */}
+      <Box sx={{ 
+        display: 'flex', 
+        flexDirection: 'column', 
+        height: '100%',
+        minHeight: 400, // Match SQLResultsTable
+        position: fullscreen ? 'fixed' : 'relative',
+        inset: fullscreen ? 0 : 'auto',
+        zIndex: fullscreen ? 9999 : 'auto',
+        backgroundColor: fullscreen ? (isDark ? '#0a0a0a' : '#fff') : 'transparent',
+      }}>
+        {/* Header - same structure as SQLResultsTable */}
         <Box
           sx={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             flexWrap: 'wrap',
-            gap: 2,
-            mb: 2,
+            gap: 1,
+            px: 2,
+            py: embedded ? 1 : 1.5,
+            borderBottom: '1px solid',
+            borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
+            backgroundColor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.02),
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box
-              sx={{
-                width: 28,
-                height: 28,
-                borderRadius: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                backgroundColor: alpha(theme.palette.info.main, isDark ? 0.15 : 0.1),
-              }}
-            >
-              <InsightsRoundedIcon sx={{ fontSize: 16, color: 'info.main' }} />
-            </Box>
-            <Typography variant="subtitle2" fontWeight={600}>
-              Visualization
-            </Typography>
-            <Chip 
-              size="small" 
-              label={chartType.charAt(0).toUpperCase() + chartType.slice(1)}
-              sx={{ 
-                height: 22, 
-                fontSize: '0.7rem',
-                textTransform: 'capitalize',
-                backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
-              }}
-            />
-          </Box>
-
-          {/* Controls */}
+          {/* Left side - Title and selectors */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* Chart Type Toggle */}
-            <ToggleButtonGroup
-              value={chartType}
-              exclusive
-              onChange={(e, v) => v && setChartType(v)}
-              size="small"
-              sx={{
-                '& .MuiToggleButton-root': {
-                  border: 'none',
-                  borderRadius: 1,
-                  px: 1,
-                  py: 0.5,
-                  '&.Mui-selected': {
-                    backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.2 : 0.1),
-                  },
-                },
-              }}
-            >
-              <ToggleButton value="bar">
-                <MuiTooltip title="Bar Chart">
-                  <BarChartRoundedIcon sx={{ fontSize: 18 }} />
-                </MuiTooltip>
-              </ToggleButton>
-              <ToggleButton value="line">
-                <MuiTooltip title="Line Chart">
-                  <ShowChartRoundedIcon sx={{ fontSize: 18 }} />
-                </MuiTooltip>
-              </ToggleButton>
-              <ToggleButton value="pie">
-                <MuiTooltip title="Pie Chart">
-                  <PieChartOutlineRoundedIcon sx={{ fontSize: 18 }} />
-                </MuiTooltip>
-              </ToggleButton>
-              <ToggleButton value="doughnut">
-                <MuiTooltip title="Doughnut Chart">
-                  <DonutLargeRoundedIcon sx={{ fontSize: 18 }} />
-                </MuiTooltip>
-              </ToggleButton>
-            </ToggleButtonGroup>
+            {/* Back to Table View - only when viewMode is passed */}
+            {!embedded && viewMode && onViewModeChange && (
+              <MuiTooltip title="Table View">
+                <IconButton 
+                  size="small" 
+                  onClick={() => onViewModeChange('table')}
+                  sx={{ 
+                    color: 'text.secondary',
+                    '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                  }}
+                >
+                  <ArrowBackIcon sx={{ fontSize: 20 }} />
+                </IconButton>
+              </MuiTooltip>
+            )}
+            
+            {/* Column Selectors inline */}
+            <FormControl size="small" sx={{ minWidth: 100 }}>
+              <InputLabel sx={{ fontSize: '0.75rem' }}>Label</InputLabel>
+              <Select
+                value={labelColumn}
+                label="Label"
+                onChange={(e) => setLabelColumn(e.target.value)}
+                sx={{ fontSize: '0.8rem', height: 32 }}
+              >
+                {columns.map(col => (
+                  <MenuItem key={col} value={col} sx={{ fontSize: '0.8rem' }}>{col}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <FormControl size="small" sx={{ minWidth: 100 }}>
+              <InputLabel sx={{ fontSize: '0.75rem' }}>Value</InputLabel>
+              <Select
+                value={valueColumn}
+                label="Value"
+                onChange={(e) => setValueColumn(e.target.value)}
+                sx={{ fontSize: '0.8rem', height: 32 }}
+              >
+                {numericColumns.map(col => (
+                  <MenuItem key={col} value={col} sx={{ fontSize: '0.8rem' }}>{col}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
 
-            <Box sx={{ display: 'flex', gap: 0.5 }}>
-              <MuiTooltip title="Download PNG">
+          {/* Right side - Controls */}
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <MuiTooltip title="Download PNG">
+              <IconButton 
+                size="small" 
+                onClick={handleDownload}
+                sx={{ 
+                  color: 'text.secondary',
+                  '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                }}
+              >
+                <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
+              </IconButton>
+            </MuiTooltip>
+            <MuiTooltip title={fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
+              <IconButton 
+                size="small" 
+                onClick={() => setFullscreen(!fullscreen)}
+                sx={{ 
+                  color: 'text.secondary',
+                  '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
+                }}
+              >
+                {fullscreen ? (
+                  <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
+                ) : (
+                  <FullscreenRoundedIcon sx={{ fontSize: 18 }} />
+                )}
+              </IconButton>
+            </MuiTooltip>
+            {onClose && !embedded && (
+              <MuiTooltip title="Close">
                 <IconButton 
                   size="small" 
-                  onClick={handleDownload}
+                  onClick={onClose}
                   sx={{ 
                     color: 'text.secondary',
                     '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
                   }}
                 >
-                  <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
+                  <CloseRoundedIcon sx={{ fontSize: 18 }} />
                 </IconButton>
               </MuiTooltip>
-              <MuiTooltip title={fullscreen ? 'Exit Fullscreen' : 'Fullscreen'}>
-                <IconButton 
-                  size="small" 
-                  onClick={() => setFullscreen(!fullscreen)}
-                  sx={{ 
-                    color: 'text.secondary',
-                    '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
-                  }}
-                >
-                  {fullscreen ? (
-                    <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
-                  ) : (
-                    <FullscreenRoundedIcon sx={{ fontSize: 18 }} />
-                  )}
-                </IconButton>
-              </MuiTooltip>
-              {onClose && !embedded && (
-                <MuiTooltip title="Close">
-                  <IconButton 
-                    size="small" 
-                    onClick={onClose}
-                    sx={{ 
-                      color: 'text.secondary',
-                      '&:hover': { backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06) },
-                    }}
-                  >
-                    <CloseRoundedIcon sx={{ fontSize: 18 }} />
-                  </IconButton>
-                </MuiTooltip>
-              )}
-            </Box>
+            )}
           </Box>
         </Box>
 
-        {/* Column Selectors */}
-        <Box sx={{ display: 'flex', gap: 2, mb: 2, flexWrap: 'wrap' }}>
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <InputLabel sx={{ fontSize: '0.85rem' }}>Label Column</InputLabel>
-            <Select
-              value={labelColumn}
-              label="Label Column"
-              onChange={(e) => setLabelColumn(e.target.value)}
-              sx={{ fontSize: '0.85rem' }}
-            >
-              {columns.map(col => (
-                <MenuItem key={col} value={col} sx={{ fontSize: '0.85rem' }}>{col}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <FormControl size="small" sx={{ minWidth: 140 }}>
-            <InputLabel sx={{ fontSize: '0.85rem' }}>Value Column</InputLabel>
-            <Select
-              value={valueColumn}
-              label="Value Column"
-              onChange={(e) => setValueColumn(e.target.value)}
-              sx={{ fontSize: '0.85rem' }}
-            >
-              {numericColumns.map(col => (
-                <MenuItem key={col} value={col} sx={{ fontSize: '0.85rem' }}>{col}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-        </Box>
-
-        {/* Chart */}
+        {/* Chart Area - no padding to match TableContainer */}
         <Box
           className="chart-container"
           sx={{
-            height: fullscreen ? 'calc(100vh - 180px)' : 300,
-            p: 1,
-            borderRadius: 2,
-            backgroundColor: isDark ? alpha('#fff', 0.02) : alpha('#000', 0.02),
+            flex: 1,
+            minHeight: 250,
+            overflow: 'hidden',
           }}
         >
           {chartData && ChartComponent && (
             <ChartComponent ref={chartRef} data={chartData} options={chartOptions} />
           )}
+        </Box>
+
+        {/* Footer - chart type toggle centered */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 2,
+            px: 2,
+            minHeight: 52,
+            borderTop: '1px solid',
+            borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
+          }}
+        >
+          <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', position: 'absolute', left: 16 }}>
+            {result.length > 50 ? `Showing 50 of ${result.length} data points` : `${result.length} data points`}
+          </Typography>
+          
+          {/* Chart Type Toggle */}
+          <ToggleButtonGroup
+            value={chartType}
+            exclusive
+            onChange={(e, v) => v && setChartType(v)}
+            size="small"
+            sx={{
+              '& .MuiToggleButton-root': {
+                border: 'none',
+                borderRadius: 1,
+                px: 1.5,
+                py: 0.5,
+                '&.Mui-selected': {
+                  backgroundColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+                },
+              },
+            }}
+          >
+            <ToggleButton value="bar">
+              <MuiTooltip title="Bar Chart">
+                <BarChartRoundedIcon sx={{ fontSize: 18 }} />
+              </MuiTooltip>
+            </ToggleButton>
+            <ToggleButton value="line">
+              <MuiTooltip title="Line Chart">
+                <ShowChartRoundedIcon sx={{ fontSize: 18 }} />
+              </MuiTooltip>
+            </ToggleButton>
+            <ToggleButton value="pie">
+              <MuiTooltip title="Pie Chart">
+                <PieChartOutlineRoundedIcon sx={{ fontSize: 18 }} />
+              </MuiTooltip>
+            </ToggleButton>
+            <ToggleButton value="doughnut">
+              <MuiTooltip title="Doughnut Chart">
+                <DonutLargeRoundedIcon sx={{ fontSize: 18 }} />
+              </MuiTooltip>
+            </ToggleButton>
+          </ToggleButtonGroup>
         </Box>
       </Box>
 

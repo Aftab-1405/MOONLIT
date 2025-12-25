@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, memo } from 'react';
 import {
   Box,
   Drawer,
@@ -50,6 +50,14 @@ function SQLEditorCanvas({
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState(0); // 0: Editor, 1: Results, 2: Chart
   const editorRef = useRef(null);
+  const copyTimeoutRef = useRef(null);
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    };
+  }, []);
 
   // Update query when initialQuery changes (e.g., from AI tool)
   useEffect(() => {
@@ -157,7 +165,8 @@ function SQLEditorCanvas({
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(query);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
   }, [query]);
 
   const handleKeyDown = useCallback((e) => {
@@ -168,9 +177,9 @@ function SQLEditorCanvas({
   }, [handleRunQuery]);
 
   // Tab change handler
-  const handleTabChange = (event, newValue) => {
+  const handleTabChange = useCallback((event, newValue) => {
     setActiveTab(newValue);
-  };
+  }, []);
 
   // Render tab content
   const renderTabContent = () => {
@@ -645,4 +654,4 @@ function SQLEditorCanvas({
   );
 }
 
-export default SQLEditorCanvas;
+export default memo(SQLEditorCanvas);
