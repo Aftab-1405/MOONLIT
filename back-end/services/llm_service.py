@@ -66,11 +66,27 @@ class LLMService:
     @staticmethod
     def _summarize_result(tool_name: str, result: Dict[str, Any]) -> str:
         """
-        Create a structured summary of the tool result for the UI.
+        Create a structured summary of the tool result for the UI stream.
         
-        Uses Pydantic models for consistent, typed output.
+        This goes to frontend via [[TOOL:...]] marker and includes full data.
         """
         structured = structure_tool_result(tool_name, result)
+        return json.dumps(structured)
+    
+    @staticmethod
+    def _summarize_for_llm(tool_name: str, result: Dict[str, Any]) -> str:
+        """
+        Create a token-efficient summary for LLM context.
+        
+        For execute_query, excludes the full 'data' field - LLM only sees 'preview'.
+        This prevents token limit issues with large query results.
+        """
+        structured = structure_tool_result(tool_name, result)
+        
+        # Remove full data field for execute_query - LLM only needs preview
+        if tool_name == "execute_query" and 'data' in structured:
+            del structured['data']
+        
         return json.dumps(structured)
     
     @staticmethod
@@ -207,21 +223,26 @@ class LLMService:
                         function_name, function_args, user_id, db_config=db_config
                     )
                     
-                    # Yield "done" status with STRUCTURED result
+                    # Yield "done" status with STRUCTURED result (includes full data for frontend)
                     result_summary = LLMService._summarize_result(
                         function_name, 
                         json.loads(function_response)
                     )
                     yield f"[[TOOL:{function_name}:done:{args_json}:{result_summary}]]\n\n"
                     
+                    # Create token-efficient summary for LLM context (excludes full data)
+                    llm_summary = LLMService._summarize_for_llm(
+                        function_name,
+                        json.loads(function_response)
+                    )
+                    
                     # Add tool response to messages for LLM context
-                    # Using result_summary (preview only) instead of raw function_response
-                    # This keeps LLM context token-efficient - full data is in cache for frontend
+                    # Using llm_summary (preview only) to keep LLM context token-efficient
                     messages.append({
                         "tool_call_id": tool_call.id,
                         "role": "tool",
                         "name": function_name,
-                        "content": result_summary
+                        "content": llm_summary
                     })
             
             # After tool loop, get final streaming response
@@ -378,6 +399,9 @@ class LLMService:
             - NEVER output raw JSON or debug fields (cached_at, source, row_count)
             - Summarize tool results in natural language
             - Use markdown tables for tabular data
+            - **NEVER echo tool calls as text** - Do NOT write function_name(args){result} in your response
+            - Tools are called via the function API, not by printing text
+            - Your response should ONLY contain the natural language explanation of results
             
             ## CONVERSATION FLOW WITH RATIONALE
             

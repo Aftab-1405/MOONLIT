@@ -26,7 +26,6 @@ export default defineConfig({
       '/get_tables': 'http://localhost:5000',
       '/get_table_schema': 'http://localhost:5000',
       '/run_sql_query': 'http://localhost:5000',
-      '/query-result': 'http://localhost:5000',
       '/db_status': 'http://localhost:5000',
       '/db_heartbeat': 'http://localhost:5000',
       '/switch_remote_database': 'http://localhost:5000',

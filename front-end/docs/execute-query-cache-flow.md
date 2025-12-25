@@ -1,14 +1,14 @@
-# Execute Query Cache Flow
+# Execute Query Flow
 
-Documentation for the optimized query result caching system that enables token-efficient LLM interactions while providing full data to the frontend.
+Documentation for the optimized query result flow that enables token-efficient LLM interactions while providing full data to the frontend.
 
 ## Overview
 
-When the AI agent executes a SQL query, the system follows a cache-based architecture:
-- **LLM receives**: Preview data (5 rows) + `result_id`
-- **Frontend receives**: Full data fetched from cache via `result_id`
+When the AI agent executes a SQL query, the system follows an embedded data architecture:
+- **LLM receives**: Preview data (5 rows) via result_summary
+- **Frontend receives**: Full data embedded in streamed tool result
 
-This approach saves LLM tokens while ensuring users see complete query results.
+This approach saves LLM tokens while keeping architecture simple (no cache, no extra API calls).
 
 ---
 
@@ -20,7 +20,6 @@ sequenceDiagram
     participant Frontend
     participant LLM
     participant Backend
-    participant Cache
     participant Database
 
     User->>Frontend: "Show me all orders"
@@ -30,20 +29,20 @@ sequenceDiagram
     Backend->>Database: Run SQL query
     Database-->>Backend: Full result (N rows)
     
-    Note over Backend,Cache: Cache full data
-    Backend->>Cache: store(result_id, full_data)
+    Note over Backend: Create tool result
+    Backend->>Backend: preview = first 5 rows
+    Backend->>Backend: data = all rows
     
-    Note over Backend,LLM: Send preview only
-    Backend-->>LLM: {preview: 5 rows, result_id}
+    Note over Backend,LLM: LLM sees preview only
+    Backend-->>LLM: result_summary (preview)
     LLM-->>Backend: "Here's a preview..."
-    Backend-->>Frontend: Stream response + tool result
     
-    Note over Frontend: Auto-open SQL Editor
-    Frontend->>Backend: GET /query-result/{result_id}
-    Backend->>Cache: get(result_id)
-    Cache-->>Backend: full_data (N rows)
-    Backend-->>Frontend: Full result
-    Frontend->>User: Display all N rows
+    Note over Backend,Frontend: Stream includes full data
+    Backend-->>Frontend: Stream response + tool marker with full data
+    
+    Note over Frontend: Parse data directly
+    Frontend->>Frontend: Extract data from tool result
+    Frontend->>User: Display all N rows in SQL Editor
 ```
 
 ---
@@ -54,18 +53,15 @@ sequenceDiagram
 
 | File | Purpose |
 |------|---------|
-| `services/result_cache.py` | In-memory cache with 5-min TTL |
-| `services/tool_schemas.py` | `QueryResult` model with `result_id` |
-| `api/routes.py` | `GET /query-result/{id}` endpoint |
-| `services/llm_service.py` | System prompt with preview guidance |
+| `services/tool_schemas.py` | `QueryResult` model with `preview` and `data` fields |
+| `services/llm_service.py` | Sends `result_summary` (preview only) to LLM context |
 
 ### Frontend
 
 | File | Purpose |
 |------|---------|
-| `MessageList.jsx` | Fetches full data via `result_id` on tool completion |
+| `MessageList.jsx` | Parses full `data` directly from tool result |
 | `SQLEditorCanvas.jsx` | Displays results in table |
-| `vite.config.js` | Proxy for `/query-result` endpoint |
 
 ---
 
@@ -76,7 +72,7 @@ sequenceDiagram
 User: "Show me top 10 customers by revenue"
 ```
 
-### 2. LLM Receives (Token-Efficient)
+### 2. Tool Result Structure
 ```json
 {
   "success": true,
@@ -89,69 +85,53 @@ User: "Show me top 10 customers by revenue"
     {"customer_id": 4, "name": "LocalBiz", "revenue": 38000},
     {"customer_id": 5, "name": "StartupXYZ", "revenue": 35000}
   ],
-  "result_id": "a1b2c3d4-5678-90ab-cdef"
+  "data": [
+    {"customer_id": 1, "name": "Acme Corp", "revenue": 50000},
+    {"customer_id": 2, "name": "TechStart", "revenue": 45000},
+    ... all 10 rows ...
+  ]
 }
 ```
 
-### 3. LLM Response
-```
-Here's a preview of the top customers by revenue. 
-You can see all 10 results in the Result section.
+### 3. What LLM Sees (result_summary)
+Only the preview (5 rows) for token efficiency.
 
-| Customer | Revenue |
-|----------|---------|
-| Acme Corp | $50,000 |
-| TechStart | $45,000 |
-| GlobalInc | $42,000 |
-| ... | ... |
-```
-
-### 4. Frontend Fetches Full Data
-```javascript
-// MessageList.jsx - on tool completion
-const response = await fetch(`/query-result/${resultId}`);
-const fullData = await response.json();
-// fullData contains all 10 rows
-```
+### 4. What Frontend Parses
+Full `data` array from the tool marker in the stream.
 
 ### 5. SQL Editor Shows Complete Results
 All 10 rows displayed in the Results tab.
 
 ---
 
-## Cache Behavior
+## Why No Cache?
 
-| Property | Value |
-|----------|-------|
-| TTL | 5 minutes |
-| Storage | In-memory (per-server) |
-| Fallback | Preview data from tool result |
-
-### Cache Miss Handling
-If cache fetch fails (expired or server restart):
-1. Frontend falls back to preview data from tool result
-2. User sees 5 rows instead of full result
-3. No error shown - graceful degradation
-
----
-
-## System Prompt Guidance
-
-The LLM is instructed to inform users about preview limits:
-
+### Previous Approach (Removed)
 ```
-When execute_query returns results:
-- You receive a PREVIEW (first 5 rows) for context efficiency
-- Full results are automatically available in the Result section
-- If row_count > 5, inform the user naturally:
-  "Here's a preview of the results. You can see all X rows in the Result section."
+Backend → Cache full data in Redis → Return result_id
+Frontend → Extra API call → GET /query-result/{id}
 ```
+
+### Current Approach (Simpler)
+```
+Backend → Embed full data in tool result
+Frontend → Parse directly from stream
+```
+
+### Comparison
+
+| Factor | With Cache | Without Cache (Current) |
+|--------|------------|------------------------|
+| API calls | 2 per query | 1 per query |
+| Architecture | Complex | Simple |
+| Cost at scale | Expensive | Free |
+| Dependencies | Redis cache service | None |
 
 ---
 
 ## Benefits
 
-1. **Token Efficiency**: LLM context only has 5 preview rows, not full dataset
+1. **Token Efficiency**: LLM context only has 5 preview rows
 2. **Full Data Access**: Users get complete results in SQL Editor
-3. **Graceful Fallback**: Preview available if cache fails
-4. **Transparent UX**: Agent informs users about preview limit
+3. **Simple Architecture**: No cache, no extra API calls
+4. **Cost Effective**: No Redis bandwidth costs for large results

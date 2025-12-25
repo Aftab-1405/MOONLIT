@@ -62,9 +62,26 @@ class ContextService:
     # =========================================================================
     
     @staticmethod
-    def _get_context_ref(user_id: str):
+    def _normalize_user_id(user_id) -> str:
+        """
+        Normalize user_id to string for Firestore document ID.
+        
+        Handles both:
+        - Dict format (new auth): {'uid': '...', 'email': '...', ...}
+        - String format (legacy): 'user@example.com'
+        
+        Uses email for backward compatibility with existing Firestore documents.
+        """
+        if isinstance(user_id, dict):
+            return user_id.get('email') or user_id.get('uid') or str(user_id)
+        return str(user_id) if user_id else 'anonymous'
+    
+    @staticmethod
+    def _get_context_ref(user_id):
         """Get Firestore document reference for user context."""
         from services.firestore_service import FirestoreService
+        # Normalize user_id to handle dict format from new auth
+        user_id = ContextService._normalize_user_id(user_id)
         db = FirestoreService.get_db()
         return db.collection(ContextService.COLLECTION_NAME).document(user_id)
     

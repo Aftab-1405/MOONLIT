@@ -450,49 +450,29 @@ const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor
         // Only auto-open if we have successful results
         if (parsedResult && parsedResult.success !== false && !parsedResult.error) {
           const query = parsedArgs?.query || '';
-          const resultId = parsedResult?.result_id;
           
-          // Fetch full results from cache if result_id available
-          const fetchFullResults = async () => {
-            let fullData = null;
-            
-            if (resultId) {
-              try {
-                const response = await fetch(`/query-result/${resultId}`);
-                if (response.ok) {
-                  const cached = await response.json();
-                  if (cached.status === 'success') {
-                    fullData = cached;
-                  }
-                }
-              } catch (e) {
-                // Cache miss - fall back to preview
-                console.warn('[SQLEditor] Cache fetch failed, using preview:', e);
-              }
-            }
-            
-            // Use cached full data or fallback to preview from tool result
-            const results = fullData || {
-              columns: parsedResult?.columns || [],
-              data: parsedResult?.data || parsedResult?.preview || [],
-              row_count: parsedResult?.row_count || 0,
-              truncated: parsedResult?.truncated || false,
-            };
-            
-            // Normalize: SQLResultsTable expects 'result' not 'data'
-            const normalizedResults = {
-              columns: results.columns || [],
-              result: results.data || [],
-              row_count: results.row_count || 0,
-              truncated: results.truncated || false,
-            };
-            
-            onOpenSqlEditor(query, normalizedResults);
+          // Parse full data directly from tool result (no cache fetch needed)
+          // Backend now embeds full data in the streamed tool result
+          const results = {
+            columns: parsedResult?.columns || [],
+            data: parsedResult?.data || parsedResult?.preview || [],
+            row_count: parsedResult?.row_count || 0,
+            truncated: parsedResult?.truncated || false,
+          };
+          
+          // Normalize: SQLResultsTable expects 'result' not 'data'
+          const normalizedResults = {
+            columns: results.columns || [],
+            result: results.data || [],
+            row_count: results.row_count || 0,
+            truncated: results.truncated || false,
           };
           
           // Small delay to ensure UI is ready
           if (sqlEditorTimeoutRef.current) clearTimeout(sqlEditorTimeoutRef.current);
-          sqlEditorTimeoutRef.current = setTimeout(fetchFullResults, 100);
+          sqlEditorTimeoutRef.current = setTimeout(() => {
+            onOpenSqlEditor(query, normalizedResults);
+          }, 100);
         }
       }
     });
