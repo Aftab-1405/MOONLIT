@@ -17,11 +17,48 @@ def auth():
 
 @auth_bp.route('/set_session', methods=['POST'])
 def set_session():
+    """
+    Verify Firebase ID token and establish session.
+    
+    Expects JSON body:
+    {
+        "user": {...},  // User data from Firebase Auth
+        "idToken": "..."  // Firebase ID token for verification
+    }
+    """
     data = request.get_json()
-    session['user'] = data['user']
-    session['conversation_id'] = str(uuid.uuid4())
-    logger.debug(f'Session set for user: {session["user"]} with conversation_id: {session["conversation_id"]}')
-    return jsonify({'status': 'success', 'conversation_id': session['conversation_id']})
+    
+    # Get the ID token for verification
+    id_token = data.get('idToken')
+    if not id_token:
+        logger.warning('set_session called without idToken')
+        return jsonify({'status': 'error', 'message': 'ID token required'}), 400
+    
+    try:
+        from firebase_admin import auth
+        # Verify the token cryptographically with Firebase
+        decoded_token = auth.verify_id_token(id_token)
+        
+        # Token is valid - store verified user info in session
+        session['user'] = {
+            'uid': decoded_token['uid'],
+            'email': decoded_token.get('email'),
+            'name': decoded_token.get('name'),
+            'picture': decoded_token.get('picture'),
+            'verified': True
+        }
+        session['conversation_id'] = str(uuid.uuid4())
+        
+        logger.info(f'Session established for verified user: {decoded_token["uid"]}')
+        return jsonify({
+            'status': 'success', 
+            'conversation_id': session['conversation_id'],
+            'user': session['user']
+        })
+        
+    except Exception as e:
+        logger.error(f'Token verification failed: {e}')
+        return jsonify({'status': 'error', 'message': 'Invalid or expired token'}), 401
 
 @auth_bp.route('/check_session', methods=['GET'])
 def check_session():

@@ -73,12 +73,23 @@ export const AuthProvider = ({ children }) => {
                 photoURL: firebaseUser.photoURL,
               });
               
-              // Set session on backend
+              // Set session on backend with verified ID token
               try {
+                // Get Firebase ID token for backend verification
+                const idToken = await firebaseUser.getIdToken();
+                
                 await fetch('/set_session', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ user: firebaseUser.email }),
+                  body: JSON.stringify({ 
+                    user: {
+                      uid: firebaseUser.uid,
+                      email: firebaseUser.email,
+                      displayName: firebaseUser.displayName,
+                      photoURL: firebaseUser.photoURL
+                    },
+                    idToken  // Backend verifies this cryptographically
+                  }),
                 });
               } catch (err) {
                 console.error('Failed to set session:', err);
