@@ -77,6 +77,7 @@ function Chat() {
     isRemote,
     availableDatabases,
     connect: connectDb,
+    resetConnectionState,
     switchDatabase,
   } = useDatabaseConnection();
   
@@ -323,10 +324,12 @@ function Chat() {
       connectDb(data);
       setSnackbar({ open: true, message: 'Connected to database!', severity: 'success' });
     } else {
-      // Disconnect handled by DatabaseModal calling disconnect() on context
+      // Reset context state to reflect disconnection
+      // Note: DatabaseModal already called the API, this just syncs UI state
+      resetConnectionState();
       setSnackbar({ open: true, message: 'Disconnected from database', severity: 'info' });
     }
-  }, [connectDb]);
+  }, [connectDb, resetConnectionState]);
 
   const handleRunQuery = (sql) => {
     if (!isDbConnected) {

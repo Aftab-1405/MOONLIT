@@ -263,6 +263,15 @@ export function DatabaseProvider({ children }) {
   }, []);
   
   // ===========================================================================
+  // ACTION: RESET CONNECTION STATE (UI only, no API call)
+  // ===========================================================================
+  // Used when API was already called externally (e.g., from DatabaseModal)
+  
+  const resetConnectionState = useCallback(() => {
+    dispatch({ type: ActionTypes.DISCONNECT, payload: {} });
+  }, []);
+  
+  // ===========================================================================
   // ACTION: SWITCH DATABASE
   // ===========================================================================
   
@@ -343,6 +352,7 @@ export function DatabaseProvider({ children }) {
     // Actions
     connect,
     disconnect,
+    resetConnectionState,
     switchDatabase,
     refreshStatus,
     setError,
