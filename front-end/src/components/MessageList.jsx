@@ -12,6 +12,151 @@ const fadeIn = keyframes`
 `;
 
 /**
+ * Hook for progressive word-by-word typing animation
+ * Reveals content at controlled speed regardless of how fast backend sends it
+ * 
+ * Performance optimized:
+ * - Uses requestAnimationFrame (syncs with browser paint cycle)
+ * - Batches state updates to reduce React re-renders (~20/sec instead of 35)
+ * - Uses refs for internal tracking to avoid unnecessary renders
+ * - Skips over tool/thinking markers to prevent partial marker display
+ * 
+ * @param {string} content - Full content to reveal
+ * @param {boolean} isStreaming - Whether content is still streaming
+ * @param {number} wordsPerSecond - Target reveal speed (default: 35 words/sec)
+ * @returns {string} - Revealed content so far
+ */
+function useTypingAnimation(content, isStreaming, wordsPerSecond = 35) {
+  const [revealedContent, setRevealedContent] = useState('');
+  const animationRef = useRef(null);
+  const lastStateUpdateRef = useRef(Date.now());
+  const revealedIndexRef = useRef(0);
+  
+  // Minimum time between React state updates (limits re-renders)
+  const STATE_UPDATE_INTERVAL = 50; // 20 updates/sec max
+  
+  useEffect(() => {
+    // If not streaming, show everything immediately
+    if (!isStreaming) {
+      setRevealedContent(content);
+      revealedIndexRef.current = content.length;
+      return;
+    }
+    
+    // If already fully revealed, no need to animate
+    if (revealedIndexRef.current >= content.length) {
+      return;
+    }
+    
+    const msPerWord = 1000 / wordsPerSecond;
+    let lastWordTime = Date.now();
+    
+    /**
+     * Find the safe reveal point - avoiding partial markers
+     * Returns the safe index to reveal up to
+     */
+    const findSafeRevealPoint = (targetIdx) => {
+      // Check if we're about to enter a marker
+      const markerStarts = ['[[TOOL:', '[[THINKING:'];
+      
+      for (const marker of markerStarts) {
+        // Look for marker start before targetIdx
+        let searchStart = Math.max(0, targetIdx - 100); // Look back reasonable distance
+        let markerPos = content.indexOf(marker, searchStart);
+        
+        while (markerPos !== -1 && markerPos < targetIdx) {
+          // Found a marker that starts before target
+          // Find its end
+          const markerEnd = content.indexOf(']]', markerPos);
+          
+          if (markerEnd === -1) {
+            // Marker not complete yet - don't reveal into it
+            return Math.min(targetIdx, markerPos);
+          } else if (targetIdx <= markerEnd + 2) {
+            // Target is inside the marker - skip to end of marker
+            return markerEnd + 2;
+          }
+          
+          // Check for next marker
+          markerPos = content.indexOf(marker, markerPos + 1);
+        }
+        
+        // Check if targetIdx is about to enter a new marker
+        const nextMarker = content.indexOf(marker, targetIdx);
+        if (nextMarker !== -1 && nextMarker < targetIdx + 20) {
+          // Very close to a marker start - check if it's complete
+          const markerEnd = content.indexOf(']]', nextMarker);
+          if (markerEnd === -1) {
+            // Incomplete marker ahead - stop before it
+            return nextMarker;
+          }
+        }
+      }
+      
+      return targetIdx;
+    };
+    
+    const animate = () => {
+      const now = Date.now();
+      const wordElapsed = now - lastWordTime;
+      
+      // Move reveal pointer forward based on elapsed time (smooth internal tracking)
+      if (wordElapsed >= msPerWord) {
+        let nextIdx = revealedIndexRef.current;
+        const wordsToReveal = Math.max(1, Math.floor(wordElapsed / msPerWord));
+        
+        for (let w = 0; w < wordsToReveal && nextIdx < content.length; w++) {
+          // Skip to next word boundary
+          while (nextIdx < content.length && !/\s/.test(content[nextIdx])) {
+            nextIdx++;
+          }
+          // Skip whitespace
+          while (nextIdx < content.length && /\s/.test(content[nextIdx])) {
+            nextIdx++;
+          }
+        }
+        
+        // Adjust to safe point (avoiding partial markers)
+        nextIdx = findSafeRevealPoint(nextIdx);
+        
+        revealedIndexRef.current = nextIdx;
+        lastWordTime = now;
+      }
+      
+      // Only update React state at throttled interval to reduce re-renders
+      const stateElapsed = now - lastStateUpdateRef.current;
+      if (stateElapsed >= STATE_UPDATE_INTERVAL || revealedIndexRef.current >= content.length) {
+        setRevealedContent(content.slice(0, revealedIndexRef.current));
+        lastStateUpdateRef.current = now;
+      }
+      
+      // Continue animating if not fully revealed
+      if (revealedIndexRef.current < content.length) {
+        animationRef.current = requestAnimationFrame(animate);
+      }
+    };
+    
+    animationRef.current = requestAnimationFrame(animate);
+    
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [content, isStreaming, wordsPerSecond]);
+  
+  // Reset when content is reset (new message)
+  useEffect(() => {
+    if (content.length < revealedIndexRef.current) {
+      revealedIndexRef.current = 0;
+      setRevealedContent('');
+    }
+  }, [content]);
+  
+  return revealedContent;
+}
+
+/**
  * Parses message content into segments: 'text', 'thinking', 'tool'
  * Segments are returned in EXACT order for true inline rendering.
  */
@@ -236,6 +381,10 @@ const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor
   const copyTimeoutRef = useRef(null);
   const sqlEditorTimeoutRef = useRef(null);
 
+  // Apply typing animation to raw message before parsing
+  // This creates smooth reveal of all content (text, thinking, tools)
+  const revealedMessage = useTypingAnimation(message, isStreaming, 35);
+
   // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
@@ -250,7 +399,8 @@ const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor
     .replace(/\[\[THINKING:end\]\]/g, '')
     .replace(/\[\[TOOL:[^\]]*\]\]/g, ''), [message]);
 
-  const segments = useMemo(() => filterRedundantTools(parseMessageSegments(message)), [message]);
+  // Parse the REVEALED content (not full message) for progressive appearance
+  const segments = useMemo(() => filterRedundantTools(parseMessageSegments(revealedMessage)), [revealedMessage]);
   const textOnlySegments = useMemo(
     () => segments.filter((segment) => segment.type === 'text' && segment.content.trim()),
     [segments]
@@ -300,22 +450,49 @@ const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor
         // Only auto-open if we have successful results
         if (parsedResult && parsedResult.success !== false && !parsedResult.error) {
           const query = parsedArgs?.query || '';
+          const resultId = parsedResult?.result_id;
           
-          // Backend may return data as 'data' or 'preview' depending on the tool path
-          const rowData = parsedResult?.data || parsedResult?.preview || [];
-          
-          const results = {
-            columns: parsedResult?.columns || [],
-            result: rowData,
-            row_count: parsedResult?.row_count || 0,
-            truncated: parsedResult?.truncated || false,
+          // Fetch full results from cache if result_id available
+          const fetchFullResults = async () => {
+            let fullData = null;
+            
+            if (resultId) {
+              try {
+                const response = await fetch(`/query-result/${resultId}`);
+                if (response.ok) {
+                  const cached = await response.json();
+                  if (cached.status === 'success') {
+                    fullData = cached;
+                  }
+                }
+              } catch (e) {
+                // Cache miss - fall back to preview
+                console.warn('[SQLEditor] Cache fetch failed, using preview:', e);
+              }
+            }
+            
+            // Use cached full data or fallback to preview from tool result
+            const results = fullData || {
+              columns: parsedResult?.columns || [],
+              data: parsedResult?.data || parsedResult?.preview || [],
+              row_count: parsedResult?.row_count || 0,
+              truncated: parsedResult?.truncated || false,
+            };
+            
+            // Normalize: SQLResultsTable expects 'result' not 'data'
+            const normalizedResults = {
+              columns: results.columns || [],
+              result: results.data || [],
+              row_count: results.row_count || 0,
+              truncated: results.truncated || false,
+            };
+            
+            onOpenSqlEditor(query, normalizedResults);
           };
           
           // Small delay to ensure UI is ready
           if (sqlEditorTimeoutRef.current) clearTimeout(sqlEditorTimeoutRef.current);
-          sqlEditorTimeoutRef.current = setTimeout(() => {
-            onOpenSqlEditor(query, results);
-          }, 100);
+          sqlEditorTimeoutRef.current = setTimeout(fetchFullResults, 100);
         }
       }
     });

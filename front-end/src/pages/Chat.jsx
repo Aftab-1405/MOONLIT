@@ -138,12 +138,20 @@ function Chat() {
     }
   }, []);
 
-  // Auto-scroll on new messages
+  // Check if currently streaming (last message is AI and isStreaming=true)
+  const isCurrentlyStreaming = messages.length > 0 && 
+    messages[messages.length - 1]?.sender === 'ai' && 
+    messages[messages.length - 1]?.isStreaming;
+  
+  // Get last message content for dependency tracking
+  const lastMessageContent = messages[messages.length - 1]?.content || '';
+
+  // Auto-scroll: triggers on new messages AND during streaming content updates
   useEffect(() => {
     // Small delay to ensure DOM has updated
-    const timer = setTimeout(scrollToBottom, 50);
+    const timer = setTimeout(scrollToBottom, 16);
     return () => clearTimeout(timer);
-  }, [messages, scrollToBottom]);
+  }, [messages, lastMessageContent, scrollToBottom]);
 
   // ===========================================================================
   // INITIAL DATA FETCH

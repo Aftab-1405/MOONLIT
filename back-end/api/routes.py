@@ -295,6 +295,33 @@ def run_sql_query():
 
 
 # =============================================================================
+# QUERY RESULT CACHE ROUTES
+# =============================================================================
+
+@api_bp.route('/query-result/<result_id>', methods=['GET'])
+def get_cached_query_result(result_id):
+    """
+    Fetch full query results from cache by ID.
+    
+    Frontend uses this to get full data when opening SQL Editor,
+    while LLM only received preview in the streaming response.
+    """
+    from services import result_cache
+    
+    result = result_cache.get_result(result_id)
+    if result:
+        return jsonify({
+            'status': 'success',
+            **result
+        })
+    
+    return jsonify({
+        'status': 'error',
+        'message': 'Result not found or expired'
+    }), 404
+
+
+# =============================================================================
 # USER SETTINGS ROUTES
 # =============================================================================
 

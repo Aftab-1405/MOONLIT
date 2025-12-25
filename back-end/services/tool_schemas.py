@@ -159,7 +159,8 @@ class QueryResult(ToolResultBase):
     column_count: int = 0
     columns: List[str] = []
     truncated: bool = False
-    preview: List[Dict[str, Any]] = []  # First 3 rows for display
+    preview: List[Dict[str, Any]] = []  # First 3-5 rows for LLM context (token-efficient)
+    result_id: Optional[str] = None  # ID to fetch full data from cache (frontend use)
 
 
 class RecentQueriesResult(ToolResultBase):
@@ -264,13 +265,31 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             ).model_dump()
         
         elif tool_name == "execute_query":
+            from services import result_cache
+            
             data = raw_result.get('data', [])
+            columns = raw_result.get('columns', [])
+            row_count = raw_result.get('row_count', len(data))
+            
+            # Cache full results and generate ID for frontend retrieval
+            result_id = None
+            if data:
+                result_id = result_cache.generate_result_id()
+                result_cache.store_result(result_id, {
+                    "columns": columns,
+                    "data": data,
+                    "row_count": row_count,
+                    "truncated": raw_result.get('truncated', False)
+                })
+            
+            # Return only preview to LLM (token-efficient)
             return QueryResult(
-                row_count=raw_result.get('row_count', len(data)),
-                column_count=len(raw_result.get('columns', [])),
-                columns=raw_result.get('columns', []),
+                row_count=row_count,
+                column_count=len(columns),
+                columns=columns,
                 truncated=raw_result.get('truncated', False),
-                preview=data[:3]  # First 3 rows for preview
+                preview=data[:5],  # 5 rows for LLM context
+                result_id=result_id  # Frontend fetches full data via this ID
             ).model_dump()
         
         elif tool_name == "get_recent_queries":

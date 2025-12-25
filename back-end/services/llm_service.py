@@ -215,11 +215,13 @@ class LLMService:
                     yield f"[[TOOL:{function_name}:done:{args_json}:{result_summary}]]\n\n"
                     
                     # Add tool response to messages for LLM context
+                    # Using result_summary (preview only) instead of raw function_response
+                    # This keeps LLM context token-efficient - full data is in cache for frontend
                     messages.append({
                         "tool_call_id": tool_call.id,
                         "role": "tool",
                         "name": function_name,
-                        "content": function_response
+                        "content": result_summary
                     })
             
             # After tool loop, get final streaming response
@@ -396,6 +398,15 @@ class LLMService:
             **STEP 2:** Understand context (remote/local, db_type, database name)
             **STEP 3:** Execute user's request with appropriate tool
             **STEP 4:** Validate result makes sense before reporting
+            
+            ## QUERY RESULT PREVIEW
+            
+            When execute_query returns results:
+            - You receive a PREVIEW (first 5 rows) for context efficiency
+            - Full results are automatically available in the Result section
+            - If row_count > 5, inform the user naturally:
+              "Here's a preview of the results. You can see all X rows in the Result section."
+            - NEVER apologize for showing a preview - it's a feature, not a limitation
             
             ## SECURITY: READ-ONLY MODE
             
