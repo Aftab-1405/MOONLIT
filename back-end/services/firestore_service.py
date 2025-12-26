@@ -88,7 +88,12 @@ class FirestoreService:
         """Get all conversations for a user"""
         try:
             db = FirestoreService.get_db()
-            conversations = db.collection('conversations').where('user_id', '==', user_id).get()
+            from google.cloud.firestore_v1 import FieldFilter
+            conversations = (
+                db.collection('conversations')
+                .where(filter=FieldFilter('user_id', '==', user_id))
+                .get()
+            )
             conversation_list = []
             for conv in conversations:
                 conv_data = conv.to_dict()
@@ -99,6 +104,8 @@ class FirestoreService:
                         'title': conv_data['messages'][0]['content'][:40] + ('...' if len(conv_data['messages'][0]['content']) > 40 else ''),
                         'preview': conv_data['messages'][0]['content'][:50] + '...'
                     })
+            # Sort by timestamp descending (newest first)
+            conversation_list.sort(key=lambda x: x['timestamp'], reverse=True)
             return conversation_list
         except Exception as e:
             logger.error(f"Error retrieving conversations: {e}")
