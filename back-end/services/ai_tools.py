@@ -628,10 +628,19 @@ class AIToolExecutor:
         if not connection.get('connected'):
             return {"error": "Not connected to any database"}
         
-        # Safety check: Only allow SELECT queries
+        # Safety check: Block write operations (database-agnostic blacklist approach)
+        import re
         query_upper = query.strip().upper()
-        if not query_upper.startswith('SELECT'):
-            return {"error": "Only SELECT queries are allowed through this tool. For other queries, use the SQL editor."}
+        # Remove string literals to avoid false positives
+        cleaned = re.sub(r"'[^']*'", '', query_upper)
+        cleaned = re.sub(r'"[^"]*"', '', cleaned)
+        
+        DANGEROUS_KEYWORDS = {'INSERT', 'UPDATE', 'DELETE', 'DROP', 'CREATE', 'ALTER', 'TRUNCATE'}
+        words = set(re.findall(r'\b[A-Z_]+\b', cleaned))
+        dangerous_found = words & DANGEROUS_KEYWORDS
+        
+        if dangerous_found:
+            return {"error": f"Query contains blocked keywords: {', '.join(dangerous_found)}. Only read-only queries are allowed."}
         
         try:
             # Use explicitly passed db_config (preferred) or fall back to session-based

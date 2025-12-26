@@ -349,7 +349,10 @@ function ChatInput({
           backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
-          transition: 'all 0.2s ease',
+          transition: (theme) => theme.transitions.create(
+            ['border-color', 'background-color', 'box-shadow'],
+            { duration: theme.transitions.duration.short }
+          ),
           '&:hover': {
             borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
           },

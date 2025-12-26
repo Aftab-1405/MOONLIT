@@ -1,15 +1,13 @@
 import { Box, Typography, Avatar, IconButton, Tooltip, useTheme as useMuiTheme } from '@mui/material';
-import { alpha, keyframes } from '@mui/material/styles';
+import { alpha } from '@mui/material/styles';
+import Fade from '@mui/material/Fade';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { InlineThinkingBlock, InlineToolBlock } from './AIResponseSteps';
 import MarkdownRenderer from './MarkdownRenderer';
 
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
+// Animations now handled by MUI Fade component
 
 /**
  * Hook for progressive word-by-word typing animation
@@ -351,7 +349,8 @@ const UserMessage = memo(function UserMessage({ message, userAvatar, userName })
   }, [message]);
 
   return (
-    <Box sx={{ py: 1.5, px: { xs: 2, sm: 4, md: 6 }, animation: `${fadeIn} 0.3s ease-out` }}>
+    <Fade in timeout={300}>
+    <Box sx={{ py: 1.5, px: { xs: 2, sm: 4, md: 6 } }}>
       <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', justifyContent: 'flex-end' }}>
         <Box sx={{ display: 'flex', gap: 1.5, maxWidth: '80%', flexDirection: 'row-reverse', '&:hover .copy-btn': { opacity: 1 } }}>
           <Avatar src={userAvatar} sx={{ width: 32, height: 32, bgcolor: 'primary.main', fontSize: '0.85rem', fontWeight: 600 }}>
@@ -370,6 +369,7 @@ const UserMessage = memo(function UserMessage({ message, userAvatar, userName })
         </Box>
       </Box>
     </Box>
+    </Fade>
   );
 });
 
@@ -507,7 +507,8 @@ const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor
   }, [getCleanContent]);
 
   return (
-    <Box sx={{ py: 1.5, px: { xs: 2, sm: 4, md: 6 }, '&:hover .copy-btn': { opacity: 1 }, animation: `${fadeIn} 0.3s ease-out` }}>
+    <Fade in timeout={300}>
+    <Box sx={{ py: 1.5, px: { xs: 2, sm: 4, md: 6 }, '&:hover .copy-btn': { opacity: 1 } }}>
       <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', gap: 2, alignItems: 'flex-start' }}>
         <Avatar src="/product-logo.png" sx={{ width: 32, height: 32, bgcolor: 'transparent', flexShrink: 0, border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}` }} />
         <Box sx={{ flex: 1, minWidth: 0, pt: 0 }}>
@@ -555,6 +556,7 @@ const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor
         </Tooltip>
       </Box>
     </Box>
+    </Fade>
   );
 });
 

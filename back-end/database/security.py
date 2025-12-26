@@ -23,7 +23,8 @@ class DatabaseSecurity:
         'LIMIT', 'OFFSET', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER',
         'ON', 'AS', 'AND', 'OR', 'NOT', 'IN', 'LIKE', 'BETWEEN',
         'IS', 'NULL', 'COUNT', 'SUM', 'AVG', 'MAX', 'MIN',
-        'DISTINCT', 'ASC', 'DESC', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END'
+        'DISTINCT', 'ASC', 'DESC', 'CASE', 'WHEN', 'THEN', 'ELSE', 'END',
+        'WITH', 'RECURSIVE'  # CTEs (Common Table Expressions)
     })
     
     # Expanded dangerous keywords to include all DML operations
@@ -34,9 +35,10 @@ class DatabaseSecurity:
         'INSERT', 'UPDATE', 'DELETE', 'INTO', 'VALUES', 'SET'  # Added DML operations
     })
     
-    # Query type detection patterns - Only SELECT is allowed
+    # Query type detection patterns - Only SELECT and WITH(CTE) are allowed
     _QUERY_TYPE_PATTERNS = {
         'SELECT': re.compile(r'^\s*SELECT\b', re.IGNORECASE),
+        'WITH': re.compile(r'^\s*WITH\b', re.IGNORECASE),  # CTE - also a SELECT query
         'INSERT': re.compile(r'^\s*INSERT\b', re.IGNORECASE),
         'UPDATE': re.compile(r'^\s*UPDATE\b', re.IGNORECASE),
         'DELETE': re.compile(r'^\s*DELETE\b', re.IGNORECASE)
@@ -100,14 +102,9 @@ class DatabaseSecurity:
         # Small helpers to keep cognitive complexity low
         analysis['query_type'] = DatabaseSecurity._detect_query_type(query_stripped)
 
-        if not analysis['query_type']:
-            analysis['warnings'].append("Unknown or potentially unsafe query type")
-            analysis['is_safe'] = False
-
-        # Strict enforcement: Only SELECT queries are allowed
-        if not DatabaseSecurity._is_query_type_allowed(analysis['query_type']):
-            analysis['warnings'].append(f"Query type '{analysis['query_type']}' is not allowed. Only SELECT queries are permitted.")
-            analysis['is_safe'] = False
+        # Note: We no longer reject unknown query types
+        # Different databases have different syntax (EXPLAIN, SHOW, DESCRIBE, etc.)
+        # Instead, we rely on blacklisting dangerous keywords below
 
         # Dangerous keywords
         dangerous_found = DatabaseSecurity._detect_dangerous_keywords(query_upper)
@@ -137,8 +134,8 @@ class DatabaseSecurity:
 
     @staticmethod
     def _is_query_type_allowed(query_type: Optional[str]) -> bool:
-        """Only SELECT is allowed."""
-        return query_type == 'SELECT'
+        """Only SELECT and WITH (CTE) are allowed."""
+        return query_type in ('SELECT', 'WITH')
 
     @staticmethod
     def _detect_dangerous_keywords(query_upper: str):

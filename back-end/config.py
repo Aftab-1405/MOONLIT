@@ -128,7 +128,8 @@ class Config:
         return True
 
     # CORS Configuration
-    CORS_ORIGINS = os.getenv('CORS_ORIGINS', '*').split(',')
+    _cors_origins_raw = os.getenv('CORS_ORIGINS')
+    CORS_ORIGINS = _cors_origins_raw.split(',') if _cors_origins_raw else None
 
     # Rate Limiting Configuration
     RATELIMIT_ENABLED = os.getenv('RATELIMIT_ENABLED', 'True').lower() == 'true'
@@ -173,8 +174,8 @@ class ProductionConfig(Config):
         """Additional validation for production environment"""
         if len(cls.SECRET_KEY) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters for production")
-        if cls.CORS_ORIGINS == ['*']:
-            print("⚠️  Warning: CORS_ORIGINS is set to '*' in production. Consider restricting this.")
+        if not cls.CORS_ORIGINS:
+            raise ValueError("CORS_ORIGINS must be explicitly set in production environment")
         return True
 
 

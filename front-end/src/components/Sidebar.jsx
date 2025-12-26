@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, memo } from 'react';
 import { Box, Typography, IconButton, Tooltip, Divider, Popover, List, ListItemButton, ListItemText, ListItemIcon, Avatar } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 
@@ -560,4 +560,4 @@ function Sidebar({
   );
 }
 
-export default Sidebar;
+export default memo(Sidebar);

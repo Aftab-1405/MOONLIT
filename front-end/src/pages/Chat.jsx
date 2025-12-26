@@ -32,6 +32,7 @@ import {
   Snackbar,
   Alert,
   Dialog,
+  Grow,
 } from '@mui/material';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme } from '../contexts/ThemeContext';
@@ -135,7 +136,10 @@ function Chat() {
   // Scroll to bottom when messages change
   const scrollToBottom = useCallback(() => {
     if (messagesContainerRef.current) {
-      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      });
     }
   }, []);
 
@@ -832,7 +836,7 @@ function Chat() {
             {/* Messages Container */}
             <Box 
               ref={messagesContainerRef}
-              sx={{ flex: 1, overflow: 'auto', scrollBehavior: 'smooth' }}
+              sx={{ flex: 1, overflow: 'auto' }}
             >
               <MessageList
                 messages={messages}
@@ -882,6 +886,7 @@ function Chat() {
         onClose={() => setQueryResults(null)}
         maxWidth="xl"
         fullWidth
+        TransitionComponent={Grow}
         PaperProps={{
           sx: {
             bgcolor: 'background.paper',
