@@ -10,6 +10,7 @@ import {
   CircularProgress,
   useTheme,
 } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 
@@ -65,7 +66,7 @@ function ConfirmDialog({
     >
       <DialogTitle sx={{ pb: 1, display: 'flex', alignItems: 'center', gap: 1.5 }}>
         {icon || <WarningAmberRoundedIcon sx={{ color: 'warning.main' }} />}
-        <Typography variant="h6" fontWeight={600}>
+        <Typography variant="h6" component="span" fontWeight={600}>
           {title}
         </Typography>
       </DialogTitle>
@@ -81,7 +82,7 @@ function ConfirmDialog({
             sx={{
               p: 2,
               borderRadius: 2,
-              backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.2)' : 'rgba(0, 0, 0, 0.04)',
+              backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.2 : 0.04),
               border: '1px solid',
               borderColor: 'divider',
               fontFamily: '"Fira Code", "Monaco", monospace',

@@ -1,6 +1,7 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Box, Typography, IconButton, Tooltip, Paper, CircularProgress, useTheme as useMuiTheme } from '@mui/material';
+import { Box, Typography, IconButton, Tooltip, Paper, CircularProgress, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
@@ -13,8 +14,8 @@ import MermaidDiagram from './MermaidDiagram';
 function CodeBlock({ children, className, onRunQuery }) {
   const [copied, setCopied] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const muiTheme = useMuiTheme();
-  const isDarkMode = muiTheme.palette.mode === 'dark';
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   
   const language = className?.replace('language-', '') || '';
   const code = String(children).replace(/\n$/, '');
@@ -63,7 +64,7 @@ function CodeBlock({ children, className, onRunQuery }) {
         overflow: 'hidden',
         backgroundColor: isDarkMode ? '#1E1E1E' : '#f8f8f8',
         border: '1px solid',
-        borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+        borderColor: alpha(theme.palette.text.primary, 0.1),
       }}
     >
       {/* Header */}
@@ -74,9 +75,9 @@ function CodeBlock({ children, className, onRunQuery }) {
           justifyContent: 'space-between',
           px: 2,
           py: 0.75,
-          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)',
+          backgroundColor: alpha(theme.palette.text.primary, 0.03),
           borderBottom: '1px solid',
-          borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+          borderColor: alpha(theme.palette.text.primary, 0.1),
         }}
       >
         <Typography
@@ -101,7 +102,7 @@ function CodeBlock({ children, className, onRunQuery }) {
                   disabled={isRunning}
                   sx={{ 
                     color: isRunning ? 'text.secondary' : 'success.main', 
-                    '&:hover': { backgroundColor: 'rgba(16, 185, 129, 0.1)' },
+                    '&:hover': { backgroundColor: alpha(theme.palette.success.main, 0.1) },
                     minWidth: 28,
                     minHeight: 28,
                   }}
@@ -121,7 +122,7 @@ function CodeBlock({ children, className, onRunQuery }) {
               onClick={handleCopy}
               sx={{ 
                 color: copied ? 'success.main' : 'text.secondary', 
-                '&:hover': { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)' } 
+                '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.05) } 
               }}
             >
               {copied ? (
@@ -158,14 +159,14 @@ function CodeBlock({ children, className, onRunQuery }) {
 
 // Inline code component
 function InlineCode({ children }) {
-  const muiTheme = useMuiTheme();
-  const isDarkMode = muiTheme.palette.mode === 'dark';
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   
   return (
     <Box
       component="code"
       sx={{
-        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+        backgroundColor: alpha(theme.palette.text.primary, 0.08),
         color: 'primary.light',
         px: 0.75,
         py: 0.25,
@@ -180,8 +181,8 @@ function InlineCode({ children }) {
 }
 
 function MarkdownRenderer({ content, onRunQuery }) {
-  const muiTheme = useMuiTheme();
-  const isDarkMode = muiTheme.palette.mode === 'dark';
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
   
   // Memoize the components object to prevent unnecessary re-renders
   const components = useMemo(() => ({
@@ -241,19 +242,19 @@ function MarkdownRenderer({ content, onRunQuery }) {
         '& hr': { 
           border: 'none', 
           borderTop: '1px solid',
-          borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+          borderColor: alpha(theme.palette.text.primary, 0.1),
           my: 2 
         },
         '& table': { width: '100%', borderCollapse: 'collapse', my: 2 },
         '& th, & td': { 
           border: '1px solid',
-          borderColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
+          borderColor: alpha(theme.palette.text.primary, 0.1),
           px: 1.5, 
           py: 0.75, 
           textAlign: 'left' 
         },
         '& th': { 
-          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)', 
+          backgroundColor: alpha(theme.palette.text.primary, 0.03), 
           fontWeight: 600 
         },
         '& a': { color: 'primary.light', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },

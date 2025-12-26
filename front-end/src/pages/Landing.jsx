@@ -253,7 +253,7 @@ function DemoSection() {
           <Box
             sx={{
               borderRadius: '12px 12px 0 0',
-              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+              backgroundColor: alpha(theme.palette.common.white, isDark ? 0.05 : 0) || alpha(theme.palette.common.black, isDark ? 0 : 0.05),
               border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
               borderBottom: 'none',
               px: 2,
@@ -275,7 +275,7 @@ function DemoSection() {
                 px: 2,
                 py: 0.5,
                 borderRadius: 1,
-                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                backgroundColor: isDark ? alpha(theme.palette.common.white, 0.05) : alpha(theme.palette.common.black, 0.05),
                 fontSize: '0.7rem',
                 color: 'text.secondary',
               }}
@@ -297,7 +297,7 @@ function DemoSection() {
               borderRadius: '0 0 12px 12px',
               border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
               borderTop: 'none',
-              backgroundColor: isDark ? '#0a0a0a' : '#f5f5f5',
+              backgroundColor: theme.palette.background.paper,
             }}
           >
             <source src="/db-genie-demo.mp4" type="video/mp4" />

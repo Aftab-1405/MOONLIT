@@ -382,8 +382,8 @@ function SQLEditorCanvas({
           borderLeft: '1px solid',
           borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
           boxShadow: isDark 
-            ? '-8px 0 40px rgba(0, 0, 0, 0.6)'
-            : '-8px 0 40px rgba(0, 0, 0, 0.12)',
+            ? `-8px 0 40px ${alpha(theme.palette.common.black, 0.6)}`
+            : `-8px 0 40px ${alpha(theme.palette.common.black, 0.12)}`,
           display: 'flex',
           flexDirection: 'column',
         },

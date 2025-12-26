@@ -16,8 +16,8 @@ import {
   InputAdornment,
   Divider,
 } from '@mui/material';
-import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, alpha } from '@mui/material/styles';
+import { useSettings } from '../contexts/SettingsContext';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -43,10 +43,10 @@ const DB_TYPES = [
 ];
 
 function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase }) {
-  const muiTheme = useMuiTheme();
+  const theme = useTheme();
   
-  // Get default DB type from ThemeContext settings
-  const { settings } = useTheme();
+  // Get default DB type from SettingsContext
+  const { settings } = useSettings();
   const defaultDbType = settings.defaultDbType || 'postgresql';
   
   const [dbType, setDbType] = useState(defaultDbType);
@@ -300,8 +300,8 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
               mb: 2,
               p: 2,
               borderRadius: 1,
-              backgroundColor: alpha(muiTheme.palette.text.primary, 0.05),
-              border: `1px solid ${alpha(muiTheme.palette.text.primary, 0.1)}`,
+              backgroundColor: alpha(theme.palette.text.primary, 0.05),
+              border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
               display: 'flex',
               alignItems: 'center',
               gap: 1,
@@ -341,11 +341,11 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 py: 1.5,
                 textTransform: 'none',
                 '&.Mui-selected': {
-                  backgroundColor: alpha(muiTheme.palette.text.primary, 0.05),
+                  backgroundColor: alpha(theme.palette.text.primary, 0.05),
                   borderColor: 'text.primary',
                   color: 'text.primary',
                   '&:hover': {
-                    backgroundColor: alpha(muiTheme.palette.text.primary, 0.1),
+                    backgroundColor: alpha(theme.palette.text.primary, 0.1),
                   },
                 },
               },
@@ -394,7 +394,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                       textTransform: 'none',
                       fontSize: '0.8rem',
                       '&.Mui-selected': {
-                        backgroundColor: alpha(muiTheme.palette.secondary.main, 0.15),
+                        backgroundColor: alpha(theme.palette.secondary.main, 0.15),
                         borderColor: 'secondary.main',
                         color: 'secondary.main',
                       },
@@ -538,7 +538,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                     borderWidth: 1.25,
                     ...(db === currentDatabase && {
                       borderColor: 'primary.main',
-                      backgroundColor: alpha(muiTheme.palette.primary.main, 0.06),
+                      backgroundColor: alpha(theme.palette.primary.main, 0.06),
                     }),
                   }}
                 >

@@ -403,7 +403,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: isDark ? 'rgba(0, 0, 0, 0.9)' : 'rgba(0, 0, 0, 0.7)',
+            backgroundColor: alpha(theme.palette.common.black, isDark ? 0.9 : 0.7),
             zIndex: 9998,
           }}
         />

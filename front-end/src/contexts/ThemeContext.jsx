@@ -58,7 +58,7 @@ function ThemeProviderInner({ children }) {
   
   // Create MUI theme based on the theme setting
   // Memoized to prevent unnecessary recalculations
-  const muiTheme = useMemo(() => {
+  const theme = useMemo(() => {
     return settings.theme === 'light' ? createLightTheme() : createDarkTheme();
   }, [settings.theme]);
   
@@ -73,7 +73,7 @@ function ThemeProviderInner({ children }) {
   
   return (
     <ThemeContext.Provider value={value}>
-      <MuiThemeProvider theme={muiTheme}>
+      <MuiThemeProvider theme={theme}>
         {children}
       </MuiThemeProvider>
     </ThemeContext.Provider>

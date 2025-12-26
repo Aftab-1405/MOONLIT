@@ -1,4 +1,4 @@
-import { Box, Typography, Avatar, IconButton, Tooltip, useTheme as useMuiTheme } from '@mui/material';
+import { Box, Typography, Avatar, IconButton, Tooltip, useTheme } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
 import Fade from '@mui/material/Fade';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
@@ -313,11 +313,11 @@ function filterRedundantTools(segments) {
 }
 
 const TypingIndicator = memo(function TypingIndicator() {
-  const muiTheme = useMuiTheme();
+  const theme = useTheme();
   return (
     <Box sx={{ py: 2.5, px: { xs: 2, sm: 4, md: 6 } }}>
       <Box sx={{ maxWidth: 800, mx: 'auto', display: 'flex', gap: 2 }}>
-        <Avatar src="/product-logo.png" sx={{ width: 24, height: 24, bgcolor: 'transparent', border: `1px solid ${alpha(muiTheme.palette.primary.main, 0.3)}` }} />
+        <Avatar src="/product-logo.png" sx={{ width: 24, height: 24, bgcolor: 'transparent', border: `1px solid ${alpha(theme.palette.primary.main, 0.3)}` }} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, pt: 1 }}>
           {[0, 1, 2].map((i) => (
             <Box
@@ -337,7 +337,7 @@ const TypingIndicator = memo(function TypingIndicator() {
 
 const UserMessage = memo(function UserMessage({ message, userAvatar, userName }) {
   const [copied, setCopied] = useState(false);
-  const muiTheme = useMuiTheme();
+  const theme = useTheme();
   const copyTimeoutRef = useRef(null);
 
   // Cleanup timeout on unmount
@@ -362,7 +362,7 @@ const UserMessage = memo(function UserMessage({ message, userAvatar, userName })
           <Avatar src={userAvatar} sx={{ width: 24, height: 24, bgcolor: 'primary.main', fontSize: '0.75rem', fontWeight: 600, alignSelf: 'flex-start', mt: 0.5 }}>
             {!userAvatar && (userName?.charAt(0).toUpperCase() || 'U')}
           </Avatar>
-          <Box sx={{ px: 2, py: 1.25, borderRadius: '16px 16px 4px 16px', backgroundColor: alpha(muiTheme.palette.text.primary, 0.05), border: '1px solid', borderColor: alpha(muiTheme.palette.text.primary, 0.1) }}>
+          <Box sx={{ px: 2, py: 1.25, borderRadius: '16px 16px 4px 16px', backgroundColor: alpha(theme.palette.text.primary, 0.05), border: '1px solid', borderColor: alpha(theme.palette.text.primary, 0.1) }}>
             <Typography sx={{ lineHeight: 1.6, whiteSpace: 'pre-wrap', color: 'text.primary', fontSize: '0.925rem' }}>
               {message}
             </Typography>
@@ -381,8 +381,8 @@ const UserMessage = memo(function UserMessage({ message, userAvatar, userName })
 
 const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor, isStreaming, isWaiting }) {
   const [copied, setCopied] = useState(false);
-  const muiTheme = useMuiTheme();
-  const theme = muiTheme;
+  const theme = useTheme();
+
   const contentRef = useRef(null);
   const copyTimeoutRef = useRef(null);
   const sqlEditorTimeoutRef = useRef(null);

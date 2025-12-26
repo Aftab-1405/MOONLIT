@@ -353,7 +353,7 @@ function MermaidDiagram({ code }) {
                 '& svg': { 
                   maxWidth: '100%', 
                   height: 'auto',
-                  filter: isDark ? 'none' : 'drop-shadow(0 2px 8px rgba(0,0,0,0.08))',
+                  filter: isDark ? 'none' : `drop-shadow(0 2px 8px ${alpha(theme.palette.common.black, 0.08)})`,
                   pointerEvents: 'none',
                 },
               }}
@@ -370,7 +370,7 @@ function MermaidDiagram({ code }) {
           sx={{ 
             position: 'fixed', 
             inset: 0, 
-            backgroundColor: isDark ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.8)', 
+            backgroundColor: alpha(theme.palette.common.black, isDark ? 0.9 : 0.8), 
             zIndex: 9998,
             cursor: 'pointer',
           }}

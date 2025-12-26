@@ -19,8 +19,8 @@ import {
   InputAdornment,
   Snackbar,
 } from '@mui/material';
-import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme, alpha } from '@mui/material/styles';
+import { useSettings } from '../contexts/SettingsContext';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
@@ -48,13 +48,13 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   const resizeStartX = useRef(0);
   const resizeStartWidth = useRef(0);
 
-  // Get settings from ThemeContext
-  const { settings } = useTheme();
+  // Get settings from SettingsContext
+  const { settings } = useSettings();
   const nullDisplay = settings.nullDisplay ?? 'NULL';
 
   const { columns = [], result = [], row_count = 0, execution_time, truncated } = data || {};
-  const muiTheme = useMuiTheme();
-  const isDark = muiTheme.palette.mode === 'dark';
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
 
   // Cleanup timeouts on unmount
   useEffect(() => {
@@ -391,8 +391,8 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                     minWidth: 80,
                     maxWidth: 500,
                     backgroundColor: isDark 
-                      ? alpha(muiTheme.palette.background.paper, 0.95)
-                      : muiTheme.palette.background.paper,
+                      ? alpha(theme.palette.background.paper, 0.95)
+                      : theme.palette.background.paper,
                     fontWeight: 600,
                     fontSize: '0.75rem',
                     textTransform: 'uppercase',
@@ -528,8 +528,12 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
         onRowsPerPageChange={handleChangeRowsPerPage}
         rowsPerPageOptions={[10, 25, 50, 100]}
         sx={{
+          position: 'relative',
+          zIndex: 1,
+          flexShrink: 0,
           borderTop: '1px solid',
           borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
+          backgroundColor: theme.palette.background.paper,
           '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
             fontSize: '0.75rem',
           },

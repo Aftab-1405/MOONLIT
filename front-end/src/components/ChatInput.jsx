@@ -6,7 +6,6 @@ import {
   Tooltip, 
   Typography, 
   Chip, 
-  useTheme as useMuiTheme,
   Menu,
   MenuItem,
   ListItemIcon,
@@ -24,7 +23,8 @@ import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
 import NoiseAwareIcon from '@mui/icons-material/NoiseAware';
 import RecordVoiceOverOutlinedIcon from '@mui/icons-material/RecordVoiceOverOutlined';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme } from '@mui/material/styles';
+import { useTheme as useCustomTheme } from '../contexts/ThemeContext';
 
 function ChatInput({ 
   onSend,
@@ -44,11 +44,11 @@ function ChatInput({
 }) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
-  const muiTheme = useMuiTheme();
-  const isDarkMode = muiTheme.palette.mode === 'dark';
+  const theme = useTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
 
   // Use ThemeContext for reasoning state (syncs with Settings Modal)
-  const { settings, updateSetting } = useTheme();
+  const { settings, updateSetting } = useCustomTheme();
   const reasoningEnabled = settings.enableReasoning ?? true;
 
   // Schema state
@@ -197,11 +197,11 @@ function ChatInput({
                 sx={{
                   height: 26,
                   fontSize: '0.75rem',
-                  borderColor: alpha(muiTheme.palette.text.primary, 0.12),
-                  backgroundColor: alpha(muiTheme.palette.text.primary, 0.03),
+                  borderColor: alpha(theme.palette.text.primary, 0.12),
+                  backgroundColor: alpha(theme.palette.text.primary, 0.03),
                   '&:hover': {
-                    borderColor: alpha(muiTheme.palette.text.primary, 0.2),
-                    backgroundColor: alpha(muiTheme.palette.text.primary, 0.05),
+                    borderColor: alpha(theme.palette.text.primary, 0.2),
+                    backgroundColor: alpha(theme.palette.text.primary, 0.05),
                   },
                 }}
               />
@@ -220,11 +220,11 @@ function ChatInput({
                 sx={{
                   height: 26,
                   fontSize: '0.75rem',
-                  borderColor: alpha(muiTheme.palette.text.primary, 0.12),
-                  backgroundColor: alpha(muiTheme.palette.text.primary, 0.03),
+                  borderColor: alpha(theme.palette.text.primary, 0.12),
+                  backgroundColor: alpha(theme.palette.text.primary, 0.03),
                   '&:hover': {
-                    borderColor: alpha(muiTheme.palette.text.primary, 0.2),
-                    backgroundColor: alpha(muiTheme.palette.text.primary, 0.05),
+                    borderColor: alpha(theme.palette.text.primary, 0.2),
+                    backgroundColor: alpha(theme.palette.text.primary, 0.05),
                   },
                 }}
               />
@@ -243,11 +243,11 @@ function ChatInput({
                 sx={{
                   height: 26,
                   fontSize: '0.75rem',
-                  borderColor: alpha(muiTheme.palette.text.primary, 0.12),
-                  backgroundColor: alpha(muiTheme.palette.text.primary, 0.03),
+                  borderColor: alpha(theme.palette.text.primary, 0.12),
+                  backgroundColor: alpha(theme.palette.text.primary, 0.03),
                   '&:hover': {
-                    borderColor: alpha(muiTheme.palette.text.primary, 0.2),
-                    backgroundColor: alpha(muiTheme.palette.text.primary, 0.05),
+                    borderColor: alpha(theme.palette.text.primary, 0.2),
+                    backgroundColor: alpha(theme.palette.text.primary, 0.05),
                   },
                 }}
               />
@@ -343,9 +343,9 @@ function ChatInput({
           borderRadius: '28px',
           border: '1px solid',
           borderColor: isFocused 
-            ? (isDarkMode ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)')
-            : (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'),
-          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+            ? alpha(theme.palette.text.primary, 0.2)
+            : alpha(theme.palette.text.primary, 0.1),
+          backgroundColor: alpha(theme.palette.text.primary, 0.04),
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
           transition: (theme) => theme.transitions.create(
@@ -353,7 +353,7 @@ function ChatInput({
             { duration: theme.transitions.duration.short }
           ),
           '&:hover': {
-            borderColor: isDarkMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.12)',
+            borderColor: alpha(theme.palette.text.primary, 0.15),
           },
         }}
       >
@@ -399,7 +399,7 @@ function ChatInput({
                   opacity: 1,
                   backgroundColor: reasoningEnabled 
                     ? alpha('#A855F7', isDarkMode ? 0.2 : 0.15)
-                    : (isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                    : alpha(theme.palette.text.primary, 0.06),
                 }
               }}
             >
@@ -462,7 +462,7 @@ function ChatInput({
                 borderRadius: '50%',
                 backgroundColor: (hasText || isStreaming)
                   ? (isStreaming 
-                      ? muiTheme.palette.error.main
+                      ? theme.palette.error.main
                       : (isDarkMode ? '#ffffff' : '#000000'))
                   : 'transparent',
                 color: (hasText || isStreaming)
@@ -473,9 +473,9 @@ function ChatInput({
                 '&:hover': {
                   backgroundColor: (hasText || isStreaming)
                     ? (isStreaming 
-                        ? muiTheme.palette.error.dark
-                        : (isDarkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)'))
-                    : (isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
+                        ? theme.palette.error.dark
+                        : alpha(theme.palette.text.primary, 0.9))
+                    : alpha(theme.palette.text.primary, 0.06),
                 },
                 '&.Mui-disabled': {
                   backgroundColor: 'transparent',
@@ -517,7 +517,7 @@ function ChatInput({
             variant="outlined"
             sx={{
               borderRadius: '16px',
-              borderColor: isDarkMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)',
+              borderColor: alpha(theme.palette.text.primary, 0.12),
               color: 'text.secondary',
               fontSize: '0.8rem',
               height: 30,
@@ -529,8 +529,8 @@ function ChatInput({
                 ml: 0.5,
               },
               '&:hover': {
-                borderColor: isDarkMode ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)',
-                backgroundColor: isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.02)',
+                borderColor: alpha(theme.palette.text.primary, 0.25),
+                backgroundColor: alpha(theme.palette.text.primary, 0.04),
                 color: 'text.primary',
               },
             }}

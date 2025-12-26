@@ -35,7 +35,7 @@ import {
   Grow,
 } from '@mui/material';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
-import { useTheme } from '../contexts/ThemeContext';
+import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { useDatabaseConnection } from '../contexts/DatabaseContext';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -63,9 +63,9 @@ function Chat() {
   // HOOKS - External State & Navigation
   // ===========================================================================
   
-  const muiTheme = useMuiTheme();
-  const isDarkMode = muiTheme.palette.mode === 'dark';
-  const { settings } = useTheme();
+  const theme = useMuiTheme();
+  const isDarkMode = theme.palette.mode === 'dark';
+  const { settings } = useAppTheme();
   const { conversationId } = useParams();
   const navigate = useNavigate();
   const { user, logout } = useAuth();
@@ -611,7 +611,7 @@ function Chat() {
           inset: 0,
           zIndex: 0,
           pointerEvents: 'none',
-          background: `radial-gradient(ellipse at top right, ${alpha(muiTheme.palette.info.main, 0.04)} 0%, transparent 50%)`,
+          background: `radial-gradient(ellipse at top right, ${alpha(theme.palette.info.main, 0.04)} 0%, transparent 50%)`,
         }}
       />
       
@@ -620,11 +620,11 @@ function Chat() {
         position="fixed"
         sx={{
           display: { md: 'none' },
-          backgroundColor: alpha(muiTheme.palette.background.paper, isDarkMode ? 0.05 : 0.8),
+          backgroundColor: alpha(theme.palette.background.paper, isDarkMode ? 0.05 : 0.8),
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           borderBottom: '1px solid',
-          borderColor: alpha(muiTheme.palette.divider, isDarkMode ? 0.1 : 0.15),
+          borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
           zIndex: 2,
         }}
         elevation={0}
@@ -657,7 +657,7 @@ function Chat() {
           <Typography variant="subtitle2">{user?.displayName}</Typography>
           <Typography variant="caption" color="text.secondary">{user?.email}</Typography>
         </Box>
-        <Divider sx={{ borderColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }} />
+        <Divider sx={{ borderColor: alpha(theme.palette.divider, 0.5) }} />
         <MenuItem onClick={() => { handleMenuClose(); setSettingsOpen(true); }}><ListItemIcon><SettingsOutlinedIcon fontSize="small" /></ListItemIcon>Settings</MenuItem>
         <MenuItem onClick={handleLogout}><ListItemIcon><LogoutOutlinedIcon fontSize="small" /></ListItemIcon>Sign out</MenuItem>
       </Menu>
@@ -673,12 +673,12 @@ function Chat() {
           '& .MuiDrawer-paper': { 
             width: DRAWER_WIDTH,
             background: isDarkMode 
-              ? alpha(muiTheme.palette.background.paper, 0.05)
-              : alpha(muiTheme.palette.background.paper, 0.8),
+              ? alpha(theme.palette.background.paper, 0.05)
+              : alpha(theme.palette.background.paper, 0.8),
             backdropFilter: 'blur(12px)',
             WebkitBackdropFilter: 'blur(12px)',
             borderRight: '1px solid', 
-            borderColor: alpha(muiTheme.palette.divider, isDarkMode ? 0.1 : 0.15),
+            borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
           },
         }}
       >

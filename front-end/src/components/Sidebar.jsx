@@ -166,7 +166,7 @@ function Sidebar({
                   color: 'text.secondary',
                   transition: 'all 0.2s ease',
                   '&:hover': {
-                    backgroundColor: isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)',
+                    backgroundColor: alpha(theme.palette.text.primary, 0.06),
                     color: 'text.primary',
                   },
                   // Database connection indicator
@@ -271,13 +271,13 @@ function Sidebar({
                     cursor: 'pointer',
                     justifyContent: isCollapsed ? 'center' : 'flex-start',
                     backgroundColor: conv.id === currentConversationId 
-                      ? (isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)')
+                      ? alpha(theme.palette.text.primary, 0.08)
                       : 'transparent',
                     transition: 'all 0.2s ease',
                     '&:hover': {
                       backgroundColor: conv.id === currentConversationId 
-                        ? (isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)')
-                        : (isDarkMode ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)'),
+                        ? alpha(theme.palette.text.primary, 0.1)
+                        : alpha(theme.palette.text.primary, 0.04),
                       '& .delete-btn': { opacity: 1 }
                     }
                   }}
@@ -505,7 +505,7 @@ function Sidebar({
                 p: 1, // Standardize padding
                 color: 'text.secondary',
                 '&:hover': {
-                  backgroundColor: isDarkMode ? 'rgba(31, 31, 31, 0.8)' : 'rgba(208, 215, 222, 0.6)',
+                  backgroundColor: alpha(theme.palette.divider, 0.8),
                   color: 'text.primary',
                 }
               }}
@@ -531,7 +531,7 @@ function Sidebar({
                 p: 1, // Standardize padding
                 color: 'text.secondary',
                 '&:hover': {
-                  backgroundColor: isDarkMode ? 'rgba(31, 31, 31, 0.8)' : 'rgba(208, 215, 222, 0.6)',
+                  backgroundColor: alpha(theme.palette.divider, 0.8),
                   color: 'text.primary',
                 }
               }}
@@ -547,7 +547,7 @@ function Sidebar({
               p: 1, // Standardize padding
               color: 'text.secondary',
               '&:hover': {
-                backgroundColor: isDarkMode ? 'rgba(31, 31, 31, 0.8)' : 'rgba(208, 215, 222, 0.6)',
+                backgroundColor: alpha(theme.palette.divider, 0.8),
                 color: 'text.primary',
               }
             }}
