@@ -1,18 +1,68 @@
 // Landing.jsx
-import { useEffect, useMemo, useCallback } from 'react';
+import { useEffect, useMemo, useCallback, useRef, useState } from 'react';
 import {
-  Box, Container, Stack, Typography, Button, Grid, Avatar, Link,
-  useMediaQuery
+  Box, Container, Stack, Typography, Button, Grid, Avatar, Link
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import { useTheme, alpha } from '@mui/material/styles';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ShieldIcon from '@mui/icons-material/Shield';
 import InsightsIcon from '@mui/icons-material/Insights';
 import StarfieldCanvas from '../components/StarfieldCanvas';
+
+// ---------- Scroll Animation Hook ----------
+function useInView(options = {}) {
+  const ref = useRef(null);
+  const [isInView, setIsInView] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setIsInView(true);
+          observer.unobserve(element); // Only animate once
+        }
+      },
+      { threshold: 0.1, rootMargin: '0px 0px -50px 0px', ...options }
+    );
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  return { ref, isInView };
+}
+
+// ---------- Fade-in Animation Wrapper ----------
+const FadeInSection = ({ children, delay = 0, direction = 'up' }) => {
+  const { ref, isInView } = useInView();
+  
+  const transforms = {
+    up: 'translateY(30px)',
+    down: 'translateY(-30px)',
+    left: 'translateX(30px)',
+    right: 'translateX(-30px)',
+    none: 'none',
+  };
+
+  return (
+    <Box
+      ref={ref}
+      sx={{
+        opacity: isInView ? 1 : 0,
+        transform: isInView ? 'none' : transforms[direction],
+        transition: `opacity 0.6s ease-out ${delay}s, transform 0.6s ease-out ${delay}s`,
+      }}
+    >
+      {children}
+    </Box>
+  );
+};
 
 // ---------- Shared styles ----------
 const glassCard = (theme) => ({
@@ -37,20 +87,21 @@ const glassCard = (theme) => ({
   },
 });
 
-// ---------- Utility: SnapSection ----------
-const SnapSection = ({ children, sx = {} }) => (
+// ---------- Utility: Section ----------
+const Section = ({ children, sx = {}, id, fullHeight = false }) => (
   <Box
+    id={id}
     component="section"
     sx={{
-      minHeight: '100vh',
+      minHeight: fullHeight ? '100vh' : 'auto',
       width: '100%',
-      scrollSnapAlign: 'start',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       position: 'relative',
-      overflow: 'hidden',
-      px: { xs: 3, md: 0 },
+      overflow: 'visible',
+      py: fullHeight ? 0 : { xs: 10, md: 14 },
+      px: { xs: 2, md: 0 },
       ...sx,
     }}
   >
@@ -62,7 +113,7 @@ const SnapSection = ({ children, sx = {} }) => (
 function Hero({ onGetStarted }) {
   const theme = useTheme();
   return (
-    <SnapSection>
+    <Section fullHeight>
       <Box sx={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 80% 50% at 50% -20%, ${alpha(theme.palette.info.main, 0.12)}, transparent)`, pointerEvents: 'none' }} />
       <Container maxWidth="md" sx={{ zIndex: 2, textAlign: 'center' }}>
         <Stack spacing={4} alignItems="center">
@@ -81,7 +132,14 @@ function Hero({ onGetStarted }) {
             <Button aria-label="Get started" variant="contained" size="large" onClick={onGetStarted} endIcon={<ArrowForwardRoundedIcon />} sx={{ px: 5, borderRadius: 8 }}>
               Get Started Free
             </Button>
-            <Button aria-label="Watch demo" variant="outlined" size="large" startIcon={<PlayCircleOutlinedIcon />} sx={{ px: 5, borderRadius: 8 }}>
+            <Button 
+              aria-label="Watch demo" 
+              variant="outlined" 
+              size="large" 
+              startIcon={<PlayCircleOutlinedIcon />} 
+              onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
+              sx={{ px: 5, borderRadius: 8 }}
+            >
               Watch Demo
             </Button>
           </Stack>
@@ -99,11 +157,7 @@ function Hero({ onGetStarted }) {
           </Stack>
         </Stack>
       </Container>
-
-      <Box sx={{ position: 'absolute', bottom: 22, animation: 'bounce 2s infinite', '@keyframes bounce': { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(8px)' } } }}>
-        <ExpandMoreRoundedIcon sx={{ fontSize: 38, opacity: 0.5 }} aria-hidden />
-      </Box>
-    </SnapSection>
+    </Section>
   );
 }
 
@@ -116,50 +170,155 @@ function ValueGrid() {
   ], [theme.palette]);
 
   return (
-    <SnapSection sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.info.main, 0.03)} 40%, transparent)` }}>
+    <Section sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.info.main, 0.03)} 40%, transparent)` }}>
       <Container maxWidth="lg">
-        <Box textAlign="center" mb={6}>
-          <Typography variant="overline" color="primary.main" fontWeight="bold">How It Works</Typography>
-          <Typography variant="h3" fontWeight="bold">Think. Query. <span style={{ color: theme.palette.primary.main }}>Deliver.</span></Typography>
-        </Box>
+        <FadeInSection>
+          <Box textAlign="center" mb={6}>
+            <Typography variant="overline" color="primary.main" fontWeight="bold">How It Works</Typography>
+            <Typography variant="h3" fontWeight="bold">Think. Query. <span style={{ color: theme.palette.primary.main }}>Deliver.</span></Typography>
+          </Box>
+        </FadeInSection>
         <Grid container spacing={2} justifyContent="center">
-          {values.map((v) => (
+          {values.map((v, i) => (
             <Grid item xs={12} sm={4} key={v.title}>
-              <Box sx={{ ...glassCard(theme), p: 3, textAlign: 'center' }}>
-                <Box
-                  sx={{
-                    width: 48,
-                    height: 48,
-                    borderRadius: '50%',
-                    background: `linear-gradient(135deg, ${alpha(v.color, 0.25)}, ${alpha(v.color, 0.15)})`,
-                    border: `2px solid ${alpha(v.color, 0.3)}`,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    mx: 'auto',
-                    mb: 2,
-                    transition: 'transform 0.3s ease',
-                    '&:hover': {
-                      transform: 'scale(1.1) rotate(5deg)',
-                      background: `linear-gradient(135deg, ${alpha(v.color, 0.35)}, ${alpha(v.color, 0.25)})`,
-                      border: `2px solid ${alpha(v.color, 0.5)}`,
-                    },
-                  }}
-                >
-                  <v.Icon sx={{ fontSize: 24, color: v.color }} aria-hidden />
+              <FadeInSection delay={i * 0.1}>
+                <Box sx={{ ...glassCard(theme), p: 3, textAlign: 'center' }}>
+                  <Box
+                    sx={{
+                      width: 48,
+                      height: 48,
+                      borderRadius: '50%',
+                      background: `linear-gradient(135deg, ${alpha(v.color, 0.25)}, ${alpha(v.color, 0.15)})`,
+                      border: `2px solid ${alpha(v.color, 0.3)}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      mx: 'auto',
+                      mb: 2,
+                      transition: 'transform 0.3s ease',
+                      '&:hover': {
+                        transform: 'scale(1.1) rotate(5deg)',
+                        background: `linear-gradient(135deg, ${alpha(v.color, 0.35)}, ${alpha(v.color, 0.25)})`,
+                        border: `2px solid ${alpha(v.color, 0.5)}`,
+                      },
+                    }}
+                  >
+                    <v.Icon sx={{ fontSize: 24, color: v.color }} aria-hidden />
+                  </Box>
+                  <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1, color: 'text.primary' }}>
+                    {v.title}
+                  </Typography>
+                  <Typography color="text.secondary" variant="body2" sx={{ lineHeight: 1.6, fontSize: '0.8rem' }}>
+                    {v.desc}
+                  </Typography>
                 </Box>
-                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1, color: 'text.primary' }}>
-                  {v.title}
-                </Typography>
-                <Typography color="text.secondary" variant="body2" sx={{ lineHeight: 1.6, fontSize: '0.8rem' }}>
-                  {v.desc}
-                </Typography>
-              </Box>
+              </FadeInSection>
             </Grid>
           ))}
         </Grid>
       </Container>
-    </SnapSection>
+    </Section>
+  );
+}
+
+function DemoSection() {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  
+  return (
+    <Section id="demo-section" sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.primary.main, 0.02)} 50%, transparent)` }}>
+      <Container maxWidth="lg">
+        <FadeInSection>
+          <Box textAlign="center" mb={3}>
+            <Typography variant="overline" color="secondary.main" fontWeight="bold">See It In Action</Typography>
+            <Typography variant="h4" fontWeight="bold">
+              From Question to <span style={{ color: theme.palette.secondary.main }}>Answer</span>
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: 450, mx: 'auto' }}>
+              Watch how DB-Genie transforms natural language into SQL and returns live results.
+            </Typography>
+          </Box>
+        </FadeInSection>
+        
+        {/* Video Container with Browser Chrome */}
+        <FadeInSection delay={0.2}>
+          <Box
+            sx={{
+              position: 'relative',
+              maxWidth: { xs: '100%', sm: 650, md: 750 },
+              mx: 'auto',
+            }}
+        >
+          {/* Browser chrome effect */}
+          <Box
+            sx={{
+              borderRadius: '12px 12px 0 0',
+              backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+              border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
+              borderBottom: 'none',
+              px: 2,
+              py: 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+            }}
+          >
+            <Box sx={{ display: 'flex', gap: 0.75 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#FF5F56' }} />
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#FFBD2E' }} />
+              <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: '#27C93F' }} />
+            </Box>
+            <Box
+              sx={{
+                flex: 1,
+                ml: 2,
+                px: 2,
+                py: 0.5,
+                borderRadius: 1,
+                backgroundColor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)',
+                fontSize: '0.7rem',
+                color: 'text.secondary',
+              }}
+            >
+              db-genie.app/chat
+            </Box>
+          </Box>
+          
+          {/* Video Player */}
+          <Box
+            component="video"
+            autoPlay
+            loop
+            muted
+            playsInline
+            sx={{
+              width: '100%',
+              display: 'block',
+              borderRadius: '0 0 12px 12px',
+              border: `1px solid ${alpha(theme.palette.text.primary, 0.1)}`,
+              borderTop: 'none',
+              backgroundColor: isDark ? '#0a0a0a' : '#f5f5f5',
+            }}
+          >
+            <source src="/db-genie-demo.mp4" type="video/mp4" />
+            Your browser does not support the video tag.
+          </Box>
+          
+          {/* Glow effect */}
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: -30,
+              background: `radial-gradient(ellipse at center, ${alpha(theme.palette.primary.main, 0.12)}, transparent 70%)`,
+              pointerEvents: 'none',
+              zIndex: -1,
+              filter: 'blur(30px)',
+            }}
+          />
+        </Box>
+        </FadeInSection>
+      </Container>
+    </Section>
   );
 }
 
@@ -172,7 +331,7 @@ function StepsGrid() {
   ], []);
 
   return (
-    <SnapSection>
+    <Section>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={6}>
           <Typography variant="overline" color="secondary.main" fontWeight="bold">Getting Started</Typography>
@@ -224,7 +383,7 @@ function StepsGrid() {
           ))}
         </Grid>
       </Container>
-    </SnapSection>
+    </Section>
   );
 }
 
@@ -260,7 +419,7 @@ function SupportedDatabases() {
   ], []);
 
   return (
-    <SnapSection sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.success.main, 0.02)} 40%, transparent)` }}>
+    <Section sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.success.main, 0.02)} 40%, transparent)` }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={6}>
           <Typography variant="overline" color="success.main" fontWeight="bold">Universal Compatibility</Typography>
@@ -371,82 +530,21 @@ function SupportedDatabases() {
           * Oracle Cloud Autonomous DB requires wallet authentication
         </Typography>
       </Container>
-    </SnapSection>
-  );
-}
-
-function Testimonials() {
-  const theme = useTheme();
-  const tests = useMemo(() => ([
-    { quote: "I just describe what I need and it figures out the joins. No more guessing table relationships.", author: 'Alex Thompson', role: 'Backend Developer', avatar: 'AT' },
-    { quote: "Finally I can query our production data without bothering the DBA team. And it's read-only so nothing breaks.", author: 'Priya Sharma', role: 'Product Manager', avatar: 'PS' },
-    { quote: "The schema analysis is solid. It understands foreign keys and suggests the right columns.", author: 'Marcus Chen', role: 'Data Analyst', avatar: 'MC' },
-  ]), []);
-  return (
-    <SnapSection sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.info.main, 0.03)} 40%, transparent)` }}>
-      <Container maxWidth="lg">
-        <Box textAlign="center" mb={6}>
-          <Typography variant="overline" color="primary.main" fontWeight="bold">What Users Say</Typography>
-          <Typography variant="h3" fontWeight="bold">Built for Real Workflows</Typography>
-        </Box>
-        <Grid container spacing={3} justifyContent="center">
-          {tests.map((t) => (
-            <Grid item xs={12} md={4} key={t.author}>
-              <Box sx={{ ...glassCard(theme), p: 4.5, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography
-                    variant="body1"
-                    sx={{
-                      mb: 3,
-                      fontStyle: 'italic',
-                      lineHeight: 1.7,
-                      color: 'text.primary',
-                    }}
-                  >
-                    {t.quote}
-                  </Typography>
-                </Box>
-                <Stack direction="row" spacing={2} alignItems="center" sx={{ mt: 'auto' }}>
-                  <Avatar
-                    sx={{
-                      bgcolor: 'primary.main',
-                      fontWeight: 600,
-                      width: 44,
-                      height: 44,
-                      fontSize: '0.875rem',
-                    }}
-                  >
-                    {t.avatar}
-                  </Avatar>
-                  <Box>
-                    <Typography variant="subtitle2" fontWeight={700} sx={{ color: 'text.primary' }}>
-                      {t.author}
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem' }}>
-                      {t.role}
-                    </Typography>
-                  </Box>
-                </Stack>
-              </Box>
-            </Grid>
-          ))}
-        </Grid>
-      </Container>
-    </SnapSection>
+    </Section>
   );
 }
 
 function FinalCTA({ onGetStarted }) {
   const theme = useTheme();
   return (
-    <SnapSection sx={{ flexDirection: 'column', justifyContent: 'space-between' }}>
+    <Section fullHeight sx={{ flexDirection: 'column', justifyContent: 'space-between' }}>
       <Box />
       <Container maxWidth="md" sx={{ textAlign: 'center' }}>
         <Stack spacing={3} alignItems="center">
           <Typography variant="h2" fontWeight="bold">Stop Writing SQL. Start Asking Questions.</Typography>
           <Typography color="text.secondary" sx={{ maxWidth: 480 }}>Connect your database. Describe what you need. Let the AI agent handle the rest.</Typography>
           <Button variant="contained" size="large" onClick={onGetStarted} sx={{ px: 6, py: 1.75, borderRadius: 8 }}>Try It Now</Button>
-          <Typography variant="caption" color="text.secondary">Free to use \u2022 No signup required for demo</Typography>
+          <Typography variant="caption" color="text.secondary">Free to use • No signup required for demo</Typography>
         </Stack>
       </Container>
 
@@ -466,7 +564,7 @@ function FinalCTA({ onGetStarted }) {
           </Stack>
         </Container>
       </Box>
-    </SnapSection>
+    </Section>
   );
 }
 
@@ -474,7 +572,6 @@ function FinalCTA({ onGetStarted }) {
 export default function Landing() {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   useEffect(() => { document.title = 'DB-Genie - AI Database Assistant'; }, []);
 
@@ -483,13 +580,10 @@ export default function Landing() {
   return (
     <Box
       sx={{
-        height: '100vh',
-        overflowY: 'auto',
+        minHeight: '100vh',
         overflowX: 'hidden',
-        scrollSnapType: isMobile ? 'none' : 'y mandatory',
         backgroundColor: 'background.default',
         scrollBehavior: 'smooth',
-        '&::-webkit-scrollbar': { display: 'none' },
       }}
       role="main"
     >
@@ -500,9 +594,9 @@ export default function Landing() {
 
       <Hero onGetStarted={handleGetStarted} />
       <ValueGrid />
+      <DemoSection />
       <StepsGrid />
       <SupportedDatabases />
-      <Testimonials />
       <FinalCTA onGetStarted={handleGetStarted} />
     </Box>
   );
