@@ -371,6 +371,8 @@ function SettingsModal({ open, onClose }) {
               >
                 <MenuItem value="mysql">MySQL</MenuItem>
                 <MenuItem value="postgresql">PostgreSQL</MenuItem>
+                <MenuItem value="sqlserver">SQL Server</MenuItem>
+                <MenuItem value="oracle">Oracle</MenuItem>
                 <MenuItem value="sqlite">SQLite</MenuItem>
               </Select>
             </FormControl>

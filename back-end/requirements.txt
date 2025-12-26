@@ -9,6 +9,8 @@ Flask-Limiter>=3.5.0,<4.0.0
 # DB - Multi-database support
 mysql-connector-python>=8.1.0,<9.0.0
 psycopg2-binary>=2.9.0,<3.0.0
+pyodbc>=4.0.39,<5.0.0
+oracledb>=2.0.0,<3.0.0
 # SQLite is built into Python, no additional package needed
 
 # Firebase Admin SDK

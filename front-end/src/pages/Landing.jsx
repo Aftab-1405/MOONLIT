@@ -68,13 +68,14 @@ function Hero({ onGetStarted }) {
         <Stack spacing={4} alignItems="center">
           <Box component="img" src="/brand-logo.png" alt="DB-Genie logo" sx={{ width: { xs: 72, md: 100 }, animation: 'float 4s ease-in-out infinite', '@keyframes float': { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } } }} />
           <Typography component="h1" variant="h1" sx={{ fontWeight: 800, fontSize: { xs: '2rem', md: '3.75rem' } }}>
-            Query Your Database<br />
+            Your AI Database Agent
+            <br />
             <Box component="span" sx={{ background: `linear-gradient(135deg, ${theme.palette.success.main}, ${theme.palette.primary.main})`, backgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Using Plain English
+              That Thinks and Acts
             </Box>
           </Typography>
           <Typography color="text.secondary" sx={{ maxWidth: 560 }}>
-            Stop wrestling with SQL. Let AI generate correct queries, diagrams and visualizations instantly.
+            A web-based agentic AI that understands your questions, reasons through your schema, writes SQL, executes queries, and delivers results — all in one conversation.
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Button aria-label="Get started" variant="contained" size="large" onClick={onGetStarted} endIcon={<ArrowForwardRoundedIcon />} sx={{ px: 5, borderRadius: 8 }}>
@@ -86,9 +87,9 @@ function Hero({ onGetStarted }) {
           </Stack>
           <Stack direction="row" spacing={6} sx={{ pt: 3 }}>
             {[
-              { value: '10K+', label: 'Queries' },
-              { value: '500+', label: 'Users' },
-              { value: '99.9%', label: 'Uptime' },
+              { value: '5', label: 'Databases' },
+              { value: '20+', label: 'Cloud Providers' },
+              { value: 'Read-Only', label: 'Safe Mode' },
             ].map((s) => (
               <Box key={s.label} textAlign="center">
                 <Typography variant="h5" color="primary.main" fontWeight="bold">{s.value}</Typography>
@@ -109,26 +110,26 @@ function Hero({ onGetStarted }) {
 function ValueGrid() {
   const theme = useTheme();
   const values = useMemo(() => [
-    { Icon: AutoAwesomeIcon, title: 'AI-Powered Queries', desc: 'Describe what you need in plain English and get optimized SQL instantly.', color: theme.palette.primary.main },
-    { Icon: ShieldIcon, title: 'Completely Secure', desc: 'Read-only mode. We never store your credentials or query results.', color: theme.palette.success.main },
-    { Icon: InsightsIcon, title: 'Instant Insights', desc: 'Auto-generated ER diagrams and beautiful data visualizations.', color: theme.palette.info.main },
+    { Icon: AutoAwesomeIcon, title: 'Agentic Reasoning', desc: 'The AI analyzes your schema, understands relationships, and plans multi-step queries autonomously.', color: theme.palette.primary.main },
+    { Icon: ShieldIcon, title: 'Read-Only Execution', desc: 'Queries run in your browser session. No data stored. Dangerous operations blocked at 3 layers.', color: theme.palette.success.main },
+    { Icon: InsightsIcon, title: 'Live Results', desc: 'See SQL, run it instantly, view formatted tables \u2014 or ask for ER diagrams and charts.', color: theme.palette.info.main },
   ], [theme.palette]);
 
   return (
     <SnapSection sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.info.main, 0.03)} 40%, transparent)` }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={6}>
-          <Typography variant="overline" color="primary.main" fontWeight="bold">Why Choose DB-Genie</Typography>
-          <Typography variant="h3" fontWeight="bold">Database Intelligence, <span style={{ color: theme.palette.primary.main }}>Simplified</span></Typography>
+          <Typography variant="overline" color="primary.main" fontWeight="bold">How It Works</Typography>
+          <Typography variant="h3" fontWeight="bold">Think. Query. <span style={{ color: theme.palette.primary.main }}>Deliver.</span></Typography>
         </Box>
-        <Grid container spacing={3} justifyContent="center">
+        <Grid container spacing={2} justifyContent="center">
           {values.map((v) => (
-            <Grid item xs={12} md={4} key={v.title}>
-              <Box sx={{ ...glassCard(theme), p: 4.5, textAlign: 'center' }}>
+            <Grid item xs={12} sm={4} key={v.title}>
+              <Box sx={{ ...glassCard(theme), p: 3, textAlign: 'center' }}>
                 <Box
                   sx={{
-                    width: 56,
-                    height: 56,
+                    width: 48,
+                    height: 48,
                     borderRadius: '50%',
                     background: `linear-gradient(135deg, ${alpha(v.color, 0.25)}, ${alpha(v.color, 0.15)})`,
                     border: `2px solid ${alpha(v.color, 0.3)}`,
@@ -136,7 +137,7 @@ function ValueGrid() {
                     alignItems: 'center',
                     justifyContent: 'center',
                     mx: 'auto',
-                    mb: 3,
+                    mb: 2,
                     transition: 'transform 0.3s ease',
                     '&:hover': {
                       transform: 'scale(1.1) rotate(5deg)',
@@ -145,12 +146,12 @@ function ValueGrid() {
                     },
                   }}
                 >
-                  <v.Icon sx={{ fontSize: 28, color: v.color }} aria-hidden />
+                  <v.Icon sx={{ fontSize: 24, color: v.color }} aria-hidden />
                 </Box>
-                <Typography variant="h6" fontWeight={700} sx={{ mb: 1.5, color: 'text.primary' }}>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1, color: 'text.primary' }}>
                   {v.title}
                 </Typography>
-                <Typography color="text.secondary" variant="body2" sx={{ lineHeight: 1.7 }}>
+                <Typography color="text.secondary" variant="body2" sx={{ lineHeight: 1.6, fontSize: '0.8rem' }}>
                   {v.desc}
                 </Typography>
               </Box>
@@ -165,17 +166,17 @@ function ValueGrid() {
 function StepsGrid() {
   const theme = useTheme();
   const steps = useMemo(() => [
-    { num: '01', title: 'Connect', desc: 'Link your MySQL, PostgreSQL, or SQLite database.' },
-    { num: '02', title: 'Ask', desc: 'Type your question in natural language.' },
-    { num: '03', title: 'Get Results', desc: 'Receive perfect SQL and instant visualizations.' },
+    { num: '01', title: 'Connect', desc: 'Securely link MySQL, PostgreSQL, SQL Server, Oracle, or SQLite \u2014 local or cloud.' },
+    { num: '02', title: 'Ask', desc: 'Describe what you need. The AI reasons through your schema automatically.' },
+    { num: '03', title: 'Execute', desc: 'Review the generated SQL, run it with one click, see results instantly.' },
   ], []);
 
   return (
     <SnapSection>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={6}>
-          <Typography variant="overline" color="secondary.main" fontWeight="bold">How It Works</Typography>
-          <Typography variant="h3" fontWeight="bold">Three Simple Steps</Typography>
+          <Typography variant="overline" color="secondary.main" fontWeight="bold">Getting Started</Typography>
+          <Typography variant="h3" fontWeight="bold">From Question to Answer in Seconds</Typography>
         </Box>
         <Grid container spacing={3} justifyContent="center">
           {steps.map((s) => (
@@ -227,19 +228,166 @@ function StepsGrid() {
   );
 }
 
+function SupportedDatabases() {
+  const theme = useTheme();
+  
+  const databases = useMemo(() => [
+    {
+      name: 'MySQL',
+      color: '#00758F',
+      providers: ['Local', 'PlanetScale', 'TiDB Cloud', 'Aiven', 'AWS RDS', 'Google Cloud SQL'],
+    },
+    {
+      name: 'PostgreSQL',
+      color: '#336791',
+      providers: ['Local', 'Neon', 'Supabase', 'Railway', 'Render', 'AWS RDS', 'Azure'],
+    },
+    {
+      name: 'SQL Server',
+      color: '#CC2927',
+      providers: ['Local', 'Azure SQL', 'AWS RDS', 'Google Cloud SQL'],
+    },
+    {
+      name: 'Oracle',
+      color: '#F80000',
+      providers: ['Local', 'AWS RDS', 'Oracle Cloud*'],
+    },
+    {
+      name: 'SQLite',
+      color: '#003B57',
+      providers: ['Local File'],
+    },
+  ], []);
+
+  return (
+    <SnapSection sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.success.main, 0.02)} 40%, transparent)` }}>
+      <Container maxWidth="lg">
+        <Box textAlign="center" mb={6}>
+          <Typography variant="overline" color="success.main" fontWeight="bold">Universal Compatibility</Typography>
+          <Typography variant="h3" fontWeight="bold">
+            5 Major Databases, <span style={{ color: theme.palette.success.main }}>One Platform</span>
+          </Typography>
+          <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 600, mx: 'auto' }}>
+            Connect to any major relational database — local or cloud. We support all major providers.
+          </Typography>
+        </Box>
+        
+        {/* Infinite Scroll Carousel */}
+        <Box
+          sx={{
+            position: 'relative',
+            overflow: 'hidden',
+            '&::before, &::after': {
+              content: '""',
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              width: 80,
+              zIndex: 2,
+              pointerEvents: 'none',
+            },
+            '&::before': {
+              left: 0,
+              background: `linear-gradient(to right, ${theme.palette.background.default}, transparent)`,
+            },
+            '&::after': {
+              right: 0,
+              background: `linear-gradient(to left, ${theme.palette.background.default}, transparent)`,
+            },
+          }}
+        >
+          <Box
+            sx={{
+              display: 'flex',
+              gap: 3,
+              animation: 'scroll 25s linear infinite',
+              '@keyframes scroll': {
+                '0%': { transform: 'translateX(0)' },
+                '100%': { transform: 'translateX(-50%)' },
+              },
+              '&:hover': {
+                animationPlayState: 'paused',
+              },
+            }}
+          >
+            {/* Duplicate items for infinite scroll effect */}
+            {[...databases, ...databases].map((db, index) => (
+              <Box
+                key={`${db.name}-${index}`}
+                sx={{
+                  ...glassCard(theme),
+                  p: 3,
+                  minWidth: 280,
+                  flexShrink: 0,
+                  textAlign: 'center',
+                  cursor: 'default',
+                }}
+              >
+                <Box
+                  sx={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 2,
+                    background: `linear-gradient(135deg, ${alpha(db.color, 0.2)}, ${alpha(db.color, 0.1)})`,
+                    border: `2px solid ${alpha(db.color, 0.3)}`,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    mx: 'auto',
+                    mb: 2,
+                  }}
+                >
+                  <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: db.color }}>
+                    {db.name.slice(0, 2).toUpperCase()}
+                  </Typography>
+                </Box>
+                <Typography variant="h6" fontWeight={700} sx={{ mb: 1, color: 'text.primary' }}>
+                  {db.name}
+                </Typography>
+                <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="center" gap={0.5}>
+                  {db.providers.map((provider) => (
+                    <Box
+                      key={provider}
+                      sx={{
+                        px: 1,
+                        py: 0.25,
+                        borderRadius: 1,
+                        backgroundColor: alpha(db.color, 0.08),
+                        border: `1px solid ${alpha(db.color, 0.15)}`,
+                      }}
+                    >
+                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
+                        {provider}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+        
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', mt: 3 }}>
+          * Oracle Cloud Autonomous DB requires wallet authentication
+        </Typography>
+      </Container>
+    </SnapSection>
+  );
+}
+
 function Testimonials() {
   const theme = useTheme();
   const tests = useMemo(() => ([
-    { quote: "DB-Genie cut our reporting time by 80%.", author: 'Sarah Chen', role: 'Head of Marketing', avatar: 'SC' },
-    { quote: "Like having a senior DBA on call 24/7.", author: 'Marcus Rodriguez', role: 'Founder & CEO', avatar: 'MR' },
-    { quote: "Saved us weeks of documentation work.", author: 'Priya Patel', role: 'Data Engineer', avatar: 'PP' },
+    { quote: "I just describe what I need and it figures out the joins. No more guessing table relationships.", author: 'Alex Thompson', role: 'Backend Developer', avatar: 'AT' },
+    { quote: "Finally I can query our production data without bothering the DBA team. And it's read-only so nothing breaks.", author: 'Priya Sharma', role: 'Product Manager', avatar: 'PS' },
+    { quote: "The schema analysis is solid. It understands foreign keys and suggests the right columns.", author: 'Marcus Chen', role: 'Data Analyst', avatar: 'MC' },
   ]), []);
   return (
     <SnapSection sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.info.main, 0.03)} 40%, transparent)` }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={6}>
-          <Typography variant="overline" color="primary.main" fontWeight="bold">Testimonials</Typography>
-          <Typography variant="h3" fontWeight="bold">Loved by Data Teams</Typography>
+          <Typography variant="overline" color="primary.main" fontWeight="bold">What Users Say</Typography>
+          <Typography variant="h3" fontWeight="bold">Built for Real Workflows</Typography>
         </Box>
         <Grid container spacing={3} justifyContent="center">
           {tests.map((t) => (
@@ -295,10 +443,10 @@ function FinalCTA({ onGetStarted }) {
       <Box />
       <Container maxWidth="md" sx={{ textAlign: 'center' }}>
         <Stack spacing={3} alignItems="center">
-          <Typography variant="h2" fontWeight="bold">Ready to Transform Your Workflow?</Typography>
-          <Typography color="text.secondary" sx={{ maxWidth: 480 }}>Join thousands who query smarter, not harder.</Typography>
-          <Button variant="contained" size="large" onClick={onGetStarted} sx={{ px: 6, py: 1.75, borderRadius: 8 }}>Start Free Today</Button>
-          <Typography variant="caption" color="text.secondary">No credit card required</Typography>
+          <Typography variant="h2" fontWeight="bold">Stop Writing SQL. Start Asking Questions.</Typography>
+          <Typography color="text.secondary" sx={{ maxWidth: 480 }}>Connect your database. Describe what you need. Let the AI agent handle the rest.</Typography>
+          <Button variant="contained" size="large" onClick={onGetStarted} sx={{ px: 6, py: 1.75, borderRadius: 8 }}>Try It Now</Button>
+          <Typography variant="caption" color="text.secondary">Free to use \u2022 No signup required for demo</Typography>
         </Stack>
       </Container>
 
@@ -353,6 +501,7 @@ export default function Landing() {
       <Hero onGetStarted={handleGetStarted} />
       <ValueGrid />
       <StepsGrid />
+      <SupportedDatabases />
       <Testimonials />
       <FinalCTA onGetStarted={handleGetStarted} />
     </Box>

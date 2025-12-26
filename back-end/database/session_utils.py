@@ -37,7 +37,7 @@ def set_db_config_in_session(host: str, port: int, user: str, password: str, dat
         user: Database user
         password: Database password
         database: Database name (optional)
-        db_type: Database type ('mysql', 'postgresql', or 'sqlite'), defaults to 'mysql'
+        db_type: Database type ('mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle'), defaults to 'mysql'
     """
     config = {
         'db_type': db_type.lower(),
@@ -119,7 +119,7 @@ def get_current_adapter():
     Get the database adapter for the current session's database type.
     
     Returns:
-        Database adapter instance (MySQLAdapter, PostgreSQLAdapter, or SQLiteAdapter)
+        Database adapter instance (MySQLAdapter, PostgreSQLAdapter, SQLiteAdapter, SQLServerAdapter, or OracleAdapter)
         
     Raises:
         ValueError: If no database configuration exists or type is unsupported
@@ -165,7 +165,7 @@ def get_db_type() -> Optional[str]:
     Get the database type from session configuration.
 
     Returns:
-        Database type ('mysql', 'postgresql', 'sqlite') or None
+        Database type ('mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle') or None
     """
     config = get_db_config_from_session()
     if config:

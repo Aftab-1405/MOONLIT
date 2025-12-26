@@ -23,10 +23,11 @@ class ConnectionService:
         
         Args:
             connection_params: Dict containing connection parameters
-                - db_type: 'mysql', 'postgresql', or 'sqlite'
+                - db_type: 'mysql', 'postgresql', 'sqlite', 'sqlserver', or 'oracle'
                 - connection_string: For remote connections
                 - host, port, user, password: For local connections
                 - db_name: For SQLite or database selection
+                - service_name: For Oracle connections
                 
         Returns:
             Flask Response with JSON body
@@ -38,6 +39,10 @@ class ConnectionService:
             _connect_local_postgresql,
             _connect_remote_postgresql,
             _connect_remote_mysql,
+            _connect_local_sqlserver,
+            _connect_remote_sqlserver,
+            _connect_local_oracle,
+            _connect_remote_oracle,
             _handle_db_selection
         )
         
@@ -52,6 +57,10 @@ class ConnectionService:
                 return _connect_remote_postgresql(connection_string)
             elif db_type == 'mysql':
                 return _connect_remote_mysql(connection_string)
+            elif db_type == 'sqlserver':
+                return _connect_remote_sqlserver(connection_string)
+            elif db_type == 'oracle':
+                return _connect_remote_oracle(connection_string)
             else:
                 return jsonify({
                     'status': 'error', 
@@ -77,6 +86,10 @@ class ConnectionService:
                 return _connect_local_mysql(host, port, user, password, connection_params.get('db_name'))
             elif db_type == 'postgresql':
                 return _connect_local_postgresql(host, port, user, password, connection_params.get('db_name'))
+            elif db_type == 'sqlserver':
+                return _connect_local_sqlserver(host, port, user, password, connection_params.get('db_name'))
+            elif db_type == 'oracle':
+                return _connect_local_oracle(host, port, user, password, connection_params.get('service_name') or connection_params.get('db_name'))
             else:
                 return jsonify({'status': 'error', 'message': f'Unsupported database type: {db_type}'})
         

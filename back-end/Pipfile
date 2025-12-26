@@ -18,6 +18,8 @@ gunicorn = "<21.0.0,>=20.1.0"
 cerebras-cloud-sdk = "*"
 flask-session = "*"
 redis = "*"
+pyodbc = "*"
+oracledb = "*"
 
 [dev-packages]
 

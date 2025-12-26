@@ -1,7 +1,7 @@
 """
 Database Adapters
 
-Provides abstraction layer for different database types (MySQL, PostgreSQL, SQLite)
+Provides abstraction layer for different database types (MySQL, PostgreSQL, SQLite, SQL Server, Oracle)
 using the Adapter Pattern.
 """
 
@@ -9,12 +9,16 @@ from .base_adapter import BaseDatabaseAdapter
 from .mysql_adapter import MySQLAdapter
 from .postgresql_adapter import PostgreSQLAdapter
 from .sqlite_adapter import SQLiteAdapter
+from .sqlserver_adapter import SQLServerAdapter
+from .oracle_adapter import OracleAdapter
 
 __all__ = [
     'BaseDatabaseAdapter',
     'MySQLAdapter',
     'PostgreSQLAdapter',
     'SQLiteAdapter',
+    'SQLServerAdapter',
+    'OracleAdapter',
 ]
 
 
@@ -23,7 +27,7 @@ def get_adapter(db_type: str) -> BaseDatabaseAdapter:
     Factory function to get the appropriate database adapter.
 
     Args:
-        db_type: Database type ('mysql', 'postgresql', 'sqlite')
+        db_type: Database type ('mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle')
 
     Returns:
         Database adapter instance
@@ -35,6 +39,8 @@ def get_adapter(db_type: str) -> BaseDatabaseAdapter:
         'mysql': MySQLAdapter,
         'postgresql': PostgreSQLAdapter,
         'sqlite': SQLiteAdapter,
+        'sqlserver': SQLServerAdapter,
+        'oracle': OracleAdapter,
     }
 
     db_type = db_type.lower()
@@ -42,3 +48,4 @@ def get_adapter(db_type: str) -> BaseDatabaseAdapter:
         raise ValueError(f"Unsupported database type: {db_type}. Supported types: {', '.join(adapters.keys())}")
 
     return adapters[db_type]()
+

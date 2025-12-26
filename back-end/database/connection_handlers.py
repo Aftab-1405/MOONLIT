@@ -488,6 +488,246 @@ def _connect_remote_mysql(connection_string: str):
 
 
 # =============================================================================
+# SQL SERVER CONNECTIONS
+# =============================================================================
+
+def _connect_local_sqlserver(host: str, port: int, user: str, password: str, database: str = None):
+    """
+    Connect to a local SQL Server instance.
+    
+    Args:
+        host: SQL Server host (e.g., 'localhost')
+        port: SQL Server port (e.g., 1433)
+        user: SQL Server username
+        password: SQL Server password
+        database: Optional database name to select
+        
+    Returns:
+        JSON response with connection status and available databases
+    """
+    from database.session_utils import set_db_config_in_session, get_db_connection, clear_db_config_from_session
+    from database.operations import DatabaseOperations
+    from database.adapters import get_adapter
+    
+    _clear_cache()
+    
+    # Store config in session
+    set_db_config_in_session(host, int(port), user, password, database=database, db_type='sqlserver')
+    
+    try:
+        conn = get_db_connection()
+        adapter = get_adapter('sqlserver')
+        
+        if adapter.validate_connection(conn):
+            dbs_result = DatabaseOperations.get_databases()
+            
+            if dbs_result.get('status') == 'success':
+                # Sync context to Firestore for AI
+                _sync_connection_context('sqlserver', database or 'master', host, False)
+                
+                logger.info(f"User connected to SQL Server {host}:{port} with {len(dbs_result.get('databases', []))} databases")
+                return jsonify({
+                    'status': 'connected',
+                    'message': f'Connected to SQL Server at {host}:{port}',
+                    'schemas': dbs_result['databases'],
+                    'db_type': 'sqlserver'
+                })
+            
+            _sync_connection_context('sqlserver', database or 'master', host, False)
+            return jsonify({
+                'status': 'connected',
+                'message': 'Connected, but failed to fetch databases',
+                'schemas': [],
+                'db_type': 'sqlserver'
+            })
+        return jsonify({'status': 'error', 'message': 'Failed to connect to SQL Server.'})
+    except Exception as err:
+        logger.exception('Error connecting to local SQL Server')
+        clear_db_config_from_session()
+        return jsonify({'status': 'error', 'message': str(err)})
+
+
+def _connect_remote_sqlserver(connection_string: str):
+    """
+    Connect to a remote SQL Server database using connection string.
+    
+    Supports: Azure SQL, AWS RDS, Google Cloud SQL
+    
+    Args:
+        connection_string: ODBC connection string
+            (e.g., 'Driver={ODBC Driver 17};Server=xxx.database.windows.net;Database=db;UID=user;PWD=pass')
+        
+    Returns:
+        JSON response with connection status
+    """
+    from database.session_utils import (
+        set_connection_string_in_session, 
+        get_db_connection, 
+        get_db_cursor,
+        clear_db_config_from_session
+    )
+    from database.adapters import get_adapter
+    
+    _clear_cache()
+    
+    # Parse connection string for database name
+    import re
+    db_match = re.search(r'Database=([^;]+)', connection_string, re.IGNORECASE)
+    server_match = re.search(r'Server=([^;,]+)', connection_string, re.IGNORECASE)
+    
+    db_name = db_match.group(1) if db_match else 'remote_db'
+    host = server_match.group(1) if server_match else 'remote'
+    
+    # Store connection config in session
+    set_connection_string_in_session(connection_string, 'sqlserver', db_name)
+    
+    try:
+        conn = get_db_connection()
+        adapter = get_adapter('sqlserver')
+        
+        if adapter.validate_connection(conn):
+            logger.info(f"User connected to remote SQL Server: {db_name} at {host}")
+            
+            # Sync context to Firestore for AI
+            _sync_connection_context('sqlserver', db_name, host, True)
+            
+            return jsonify({
+                'status': 'connected',
+                'message': f'Connected to remote SQL Server database: {db_name}',
+                'schemas': [db_name],
+                'selectedDatabase': db_name,
+                'is_remote': True,
+                'db_type': 'sqlserver'
+            })
+        return jsonify({'status': 'error', 'message': 'Failed to connect to remote SQL Server database.'})
+    except Exception as err:
+        logger.exception('Error connecting to remote SQL Server')
+        clear_db_config_from_session()
+        return jsonify({'status': 'error', 'message': str(err)})
+
+
+# =============================================================================
+# ORACLE CONNECTIONS
+# =============================================================================
+
+def _connect_local_oracle(host: str, port: int, user: str, password: str, service_name: str = None):
+    """
+    Connect to a local Oracle instance.
+    
+    Args:
+        host: Oracle host (e.g., 'localhost')
+        port: Oracle port (e.g., 1521)
+        user: Oracle username
+        password: Oracle password
+        service_name: Oracle service name or SID (e.g., 'ORCL')
+        
+    Returns:
+        JSON response with connection status and available schemas
+    """
+    from database.session_utils import set_db_config_in_session, get_db_connection, clear_db_config_from_session
+    from database.operations import DatabaseOperations
+    from database.adapters import get_adapter
+    
+    _clear_cache()
+    
+    # Store config in session (service_name stored as database)
+    set_db_config_in_session(host, int(port), user, password, database=service_name, db_type='oracle')
+    
+    try:
+        conn = get_db_connection()
+        adapter = get_adapter('oracle')
+        
+        if adapter.validate_connection(conn):
+            dbs_result = DatabaseOperations.get_databases()
+            
+            if dbs_result.get('status') == 'success':
+                # Sync context to Firestore for AI
+                _sync_connection_context('oracle', user.upper(), host, False)
+                
+                logger.info(f"User connected to Oracle {host}:{port} with {len(dbs_result.get('databases', []))} schemas")
+                return jsonify({
+                    'status': 'connected',
+                    'message': f'Connected to Oracle at {host}:{port}',
+                    'schemas': dbs_result['databases'],
+                    'db_type': 'oracle'
+                })
+            
+            _sync_connection_context('oracle', user.upper(), host, False)
+            return jsonify({
+                'status': 'connected',
+                'message': 'Connected, but failed to fetch schemas',
+                'schemas': [],
+                'db_type': 'oracle'
+            })
+        return jsonify({'status': 'error', 'message': 'Failed to connect to Oracle.'})
+    except Exception as err:
+        logger.exception('Error connecting to local Oracle')
+        clear_db_config_from_session()
+        return jsonify({'status': 'error', 'message': str(err)})
+
+
+def _connect_remote_oracle(connection_string: str):
+    """
+    Connect to a remote Oracle database using Easy Connect string.
+    
+    Supports: AWS RDS Oracle, local Oracle with Easy Connect
+    Note: Oracle Cloud Autonomous DB with wallet is NOT supported.
+    
+    Args:
+        connection_string: Oracle Easy Connect string
+            (e.g., 'user/password@host:port/service_name')
+        
+    Returns:
+        JSON response with connection status
+    """
+    from database.session_utils import (
+        set_connection_string_in_session, 
+        get_db_connection, 
+        clear_db_config_from_session
+    )
+    from database.adapters import get_adapter
+    
+    _clear_cache()
+    
+    # Parse connection string for user and host
+    import re
+    user_match = re.search(r'^([^/]+)/', connection_string)
+    host_match = re.search(r'@([^:/]+)', connection_string)
+    service_match = re.search(r'/([^/]+)$', connection_string)
+    
+    user = user_match.group(1) if user_match else 'unknown'
+    host = host_match.group(1) if host_match else 'remote'
+    service_name = service_match.group(1) if service_match else 'remote_service'
+    
+    # Store connection config in session
+    set_connection_string_in_session(connection_string, 'oracle', user.upper())
+    
+    try:
+        conn = get_db_connection()
+        adapter = get_adapter('oracle')
+        
+        if adapter.validate_connection(conn):
+            logger.info(f"User connected to remote Oracle: {user}@{host}")
+            
+            # Sync context to Firestore for AI
+            _sync_connection_context('oracle', user.upper(), host, True)
+            
+            return jsonify({
+                'status': 'connected',
+                'message': f'Connected to remote Oracle database at {host}',
+                'schemas': [user.upper()],
+                'selectedDatabase': user.upper(),
+                'is_remote': True,
+                'db_type': 'oracle'
+            })
+        return jsonify({'status': 'error', 'message': 'Failed to connect to remote Oracle database.'})
+    except Exception as err:
+        logger.exception('Error connecting to remote Oracle')
+        clear_db_config_from_session()
+        return jsonify({'status': 'error', 'message': str(err)})
+
+
+# =============================================================================
 # DATABASE SELECTION (on existing connection)
 # =============================================================================
 

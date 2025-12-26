@@ -18,7 +18,7 @@ function CodeBlock({ children, className, onRunQuery }) {
   
   const language = className?.replace('language-', '') || '';
   const code = String(children).replace(/\n$/, '');
-  const isSQL = ['sql', 'mysql', 'postgresql', 'sqlite'].includes(language.toLowerCase());
+  const isSQL = ['sql', 'mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle', 'tsql', 'plsql'].includes(language.toLowerCase());
   const isMermaid = language.toLowerCase() === 'mermaid';
 
   // Render Mermaid diagrams with special component
