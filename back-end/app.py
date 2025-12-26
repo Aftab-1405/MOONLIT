@@ -84,7 +84,9 @@ def create_app():
     logger.info("✅ Application initialized successfully")
     return app
 
-# Create the app instance
+
+# Application instance - created at module level for WSGI servers (Gunicorn, uWSGI)
+# For testing, use create_app() directly to get isolated instances
 app = create_app()
 
 if __name__ == '__main__':
