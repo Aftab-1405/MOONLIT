@@ -14,6 +14,7 @@ import {
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
 import CableOutlinedIcon from '@mui/icons-material/CableOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
@@ -26,7 +27,9 @@ import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import { useTheme } from '../contexts/ThemeContext';
 
 function ChatInput({ 
-  onSend, 
+  onSend,
+  onStop,
+  isStreaming = false,
   disabled = false, 
   // Database/Schema props
   isConnected = false,
@@ -444,27 +447,32 @@ function ChatInput({
           }}
         />
 
-        {/* Send Button */}
-        <Tooltip title={hasText ? 'Send message' : 'Type a message'}>
+        {/* Send/Stop Button */}
+        <Tooltip title={isStreaming ? 'Stop generating' : (hasText ? 'Send message' : 'Type a message')}>
           <span>
             <IconButton
-              type="submit"
-              disabled={!hasText || disabled}
+              type={isStreaming ? 'button' : 'submit'}
+              onClick={isStreaming ? onStop : undefined}
+              disabled={!isStreaming && (!hasText || disabled)}
               sx={{
                 width: 36,
                 height: 36,
                 borderRadius: '50%',
-                backgroundColor: hasText 
-                  ? (isDarkMode ? '#ffffff' : '#000000')
+                backgroundColor: (hasText || isStreaming)
+                  ? (isStreaming 
+                      ? muiTheme.palette.error.main
+                      : (isDarkMode ? '#ffffff' : '#000000'))
                   : 'transparent',
-                color: hasText 
-                  ? (isDarkMode ? '#000000' : '#ffffff')
+                color: (hasText || isStreaming)
+                  ? (isStreaming ? '#ffffff' : (isDarkMode ? '#000000' : '#ffffff'))
                   : 'text.disabled',
                 transition: 'all 0.2s ease',
                 flexShrink: 0,
                 '&:hover': {
-                  backgroundColor: hasText 
-                    ? (isDarkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)')
+                  backgroundColor: (hasText || isStreaming)
+                    ? (isStreaming 
+                        ? muiTheme.palette.error.dark
+                        : (isDarkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.85)'))
                     : (isDarkMode ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)'),
                 },
                 '&.Mui-disabled': {
@@ -473,7 +481,11 @@ function ChatInput({
                 },
               }}
             >
-              <SendRoundedIcon sx={{ fontSize: 18, ml: 0.25 }} />
+              {isStreaming ? (
+                <StopRoundedIcon sx={{ fontSize: 18 }} />
+              ) : (
+                <SendRoundedIcon sx={{ fontSize: 18, ml: 0.25 }} />
+              )}
             </IconButton>
           </span>
         </Tooltip>

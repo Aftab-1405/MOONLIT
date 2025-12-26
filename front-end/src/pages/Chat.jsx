@@ -123,6 +123,7 @@ function Chat() {
   
   const messagesContainerRef = useRef(null);
   const queryResolverRef = useRef(null);
+  const abortControllerRef = useRef(null);  // For stopping stream
   
   // ===========================================================================
   // IDLE DETECTION - For Starfield Animation
@@ -437,6 +438,9 @@ function Chat() {
     const enableReasoning = settings.enableReasoning ?? true;
     const reasoningEffort = settings.reasoningEffort ?? 'medium';
 
+    // Create AbortController for this request
+    abortControllerRef.current = new AbortController();
+
     try {
       const response = await fetch('/pass_userinput_to_gemini', {
         method: 'POST',
@@ -447,6 +451,7 @@ function Chat() {
           enable_reasoning: enableReasoning,
           reasoning_effort: reasoningEffort,
         }),
+        signal: abortControllerRef.current.signal,  // Attach abort signal
       });
 
       const newConversationId = response.headers.get('X-Conversation-Id');
@@ -529,10 +534,39 @@ function Chat() {
 
       // Refresh conversations after streaming to get the real title from backend
       fetchConversations();
-    } catch {
+    } catch (error) {
+      // Handle abort separately - not an error
+      if (error.name === 'AbortError') {
+        // Mark message as stopped (not streaming)
+        setMessages((prev) => {
+          const updated = [...prev];
+          if (updated[updated.length - 1]?.sender === 'ai') {
+            updated[updated.length - 1] = { 
+              ...updated[updated.length - 1], 
+              isStreaming: false,
+              wasStopped: true
+            };
+          }
+          return updated;
+        });
+        return;
+      }
       setMessages((prev) => [...prev, { sender: 'ai', content: 'Sorry, I encountered an error. Please try again.' }]);
+    } finally {
+      abortControllerRef.current = null;
     }
   };
+
+  // ===========================================================================
+  // HANDLER: Stop Streaming
+  // ===========================================================================
+  // Aborts the current AI response stream when user clicks stop button.
+  
+  const handleStopStreaming = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  }, []);
 
   // ===========================================================================
   // HANDLER: Database Switch
@@ -780,7 +814,9 @@ function Chat() {
             {/* Input - centered with logo */}
             <Box sx={{ width: '100%', maxWidth: 760 }}>
               <ChatInput 
-                onSend={handleSendMessage} 
+                onSend={handleSendMessage}
+                onStop={handleStopStreaming}
+                isStreaming={isCurrentlyStreaming}
                 disabled={false}
                 isConnected={isDbConnected}
                 dbType={dbType}
@@ -812,7 +848,9 @@ function Chat() {
 
             {/* Input at bottom when there are messages */}
             <ChatInput 
-              onSend={handleSendMessage} 
+              onSend={handleSendMessage}
+              onStop={handleStopStreaming}
+              isStreaming={isCurrentlyStreaming}
               disabled={false}
               isConnected={isDbConnected}
               dbType={dbType}
