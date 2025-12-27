@@ -27,8 +27,9 @@ import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined';
 import PsychologyOutlinedIcon from '@mui/icons-material/PsychologyOutlined';
 import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
-import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
+import DataObjectOutlinedIcon from '@mui/icons-material/DataObjectOutlined';
 import { useTheme } from '../contexts/ThemeContext';
+import UserDBContextManagerForAI from './UserDBContextManagerForAI';
 
 // Tab Panel Component
 function TabPanel({ children, value, index, ...props }) {
@@ -156,6 +157,11 @@ function SettingsModal({ open, onClose }) {
             icon={<StorageOutlinedIcon sx={{ fontSize: 18 }} />} 
             iconPosition="start" 
             label="Database" 
+          />
+          <Tab 
+            icon={<DataObjectOutlinedIcon sx={{ fontSize: 18 }} />} 
+            iconPosition="start" 
+            label="AI Context" 
           />
         </Tabs>
       </Box>
@@ -378,6 +384,11 @@ function SettingsModal({ open, onClose }) {
               </Select>
             </FormControl>
           </SettingRow>
+        </TabPanel>
+
+        {/* === AI CONTEXT TAB === */}
+        <TabPanel value={activeTab} index={3}>
+          <UserDBContextManagerForAI />
         </TabPanel>
       </DialogContent>
 

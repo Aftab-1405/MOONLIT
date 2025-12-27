@@ -356,3 +356,105 @@ def get_user_settings():
         'status': 'success',
         'settings': prefs
     })
+
+
+# =============================================================================
+# USER CONTEXT MANAGEMENT ROUTES
+# =============================================================================
+
+@api_bp.route('/user/context', methods=['GET'])
+@login_required
+def get_user_context():
+    """
+    Get user's stored context data for UI display.
+    
+    Returns full schema data (tables, columns) and actual queries for granular control.
+    """
+    from services.context_service import ContextService
+    
+    # Pass full user dict so _normalize_user_id can extract email (backward compat)
+    user_id = session.get('user', 'anonymous')
+    
+    # Get full schema data (not just summary)
+    full_schemas = ContextService.get_all_cached_schemas(user_id)
+    queries = ContextService.get_recent_queries(user_id)
+    
+    # Transform schemas for UI (include tables and columns)
+    schemas_for_ui = []
+    for db_name, schema_data in full_schemas.items():
+        schemas_for_ui.append({
+            'database': db_name,
+            'tables': schema_data.get('tables', []),
+            'columns': schema_data.get('columns', {}),
+            'table_count': len(schema_data.get('tables', [])),
+            'cached_at': schema_data.get('cached_at')
+        })
+    
+    # Sort by cached_at descending (most recent first)
+    schemas_for_ui.sort(key=lambda x: x.get('cached_at') or '', reverse=True)
+    
+    return jsonify({
+        'status': 'success',
+        'schemas': schemas_for_ui,
+        'queries': queries  # Return actual queries, not just count
+    })
+
+
+@api_bp.route('/user/context/schema/<database>', methods=['DELETE'])
+@login_required
+def delete_schema_context(database):
+    """Delete cached schema for a specific database."""
+    from services.context_service import ContextService
+    
+    user_id = session.get('user', 'anonymous')
+    
+    try:
+        success = ContextService.invalidate_schema_cache(user_id, database)
+        if success:
+            logger.info(f"User {user_id} deleted schema context for {database}")
+            return jsonify({'status': 'success'})
+        return jsonify({'status': 'error', 'message': 'Schema not found'}), 404
+    except Exception as e:
+        logger.error(f"Error deleting schema context: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@api_bp.route('/user/context/schemas', methods=['DELETE'])
+@login_required
+def delete_all_schemas():
+    """Delete all cached schemas for user."""
+    from services.context_service import ContextService
+    
+    user_id = session.get('user', 'anonymous')
+    
+    try:
+        # Get all schemas and delete each
+        context = ContextService._get_context(user_id)
+        schemas = context.get('database_schemas', {})
+        
+        for db_name in list(schemas.keys()):
+            ContextService.invalidate_schema_cache(user_id, db_name)
+        
+        logger.info(f"User {user_id} cleared all schema context")
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Error clearing all schemas: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@api_bp.route('/user/context/queries', methods=['DELETE'])
+@login_required
+def delete_query_history():
+    """Clear query history for user."""
+    from services.context_service import ContextService
+    
+    user_id = session.get('user', 'anonymous')
+    
+    try:
+        ContextService.clear_query_history(user_id)
+        logger.info(f"User {user_id} cleared query history")
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Error clearing query history: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+

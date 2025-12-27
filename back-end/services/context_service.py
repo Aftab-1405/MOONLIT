@@ -437,13 +437,51 @@ class ContextService:
     
     @staticmethod
     def invalidate_schema_cache(user_id: str, database: str) -> bool:
-        """Invalidate schema cache for a database."""
+        """
+        Invalidate schema cache for a database.
+        
+        Uses Firestore's FieldValue.delete() with dot notation to properly
+        delete a nested field without affecting other schemas.
+        """
+        from firebase_admin import firestore
+        
+        try:
+            # Use dot notation to delete specific nested field
+            # This properly removes just the one database schema instead of 
+            # replacing the entire database_schemas object
+            ref = ContextService._get_context_ref(user_id)
+            ref.update({
+                f'database_schemas.{database}': firestore.DELETE_FIELD,
+                'updated_at': datetime.now()
+            })
+            logger.info(f"Invalidated schema cache for {database}")
+            return True
+        except Exception as e:
+            logger.error(f"Error invalidating schema cache: {e}")
+            return False
+    
+    @staticmethod
+    def get_schema_summary(user_id: str) -> List[Dict]:
+        """
+        Get summary of cached schemas for UI display.
+        
+        Returns list of: {database, table_count, cached_at}
+        Does NOT include full column data (too large for UI).
+        """
         context = ContextService._get_context(user_id)
         schemas = context.get('database_schemas', {})
-        if database in schemas:
-            del schemas[database]
-            return ContextService._update_context(user_id, {'database_schemas': schemas})
-        return True
+        
+        summary = []
+        for db_name, schema_data in schemas.items():
+            summary.append({
+                'database': db_name,
+                'table_count': len(schema_data.get('tables', [])),
+                'cached_at': schema_data.get('cached_at')
+            })
+        
+        # Sort by cached_at descending (most recent first)
+        summary.sort(key=lambda x: x.get('cached_at') or '', reverse=True)
+        return summary
     
     @staticmethod
     def get_all_cached_schemas(user_id: str) -> Dict:
