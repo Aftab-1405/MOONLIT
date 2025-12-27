@@ -1,6 +1,6 @@
 # Upstash Redis Integration
 
-Documentation for Upstash Redis usage in DB Genie backend.
+Documentation for Upstash Redis usage in Moonlit backend.
 
 ## Overview
 

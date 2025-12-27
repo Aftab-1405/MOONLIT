@@ -51,7 +51,7 @@ function Auth() {
   const theme = useTheme();
 
   useEffect(() => {
-    document.title = 'DB-Genie - Sign In';
+    document.title = 'Moonlit - Sign In';
   }, []);
   const {
     signInWithGoogle,
@@ -285,7 +285,7 @@ function Auth() {
               <Box
                 component="img"
                 src="/brand-logo.png"
-                alt="DB-Genie"
+                alt="Moonlit"
                 sx={{
                   width: { xs: 50, sm: 60 },
                   height: 'auto',
@@ -307,7 +307,7 @@ function Auth() {
                 >
                   {tabValue === 0 
                     ? 'Sign in to start querying with AI' 
-                    : 'Join DB-Genie and unlock your data'}
+                    : 'Join Moonlit and unlock your data'}
                 </Typography>
               </Box>
 

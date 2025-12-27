@@ -332,9 +332,9 @@ class LLMService:
     
     @staticmethod
     def get_system_prompt():
-        """Returns DB-Genie's conversational personality and instructions."""
+        """Returns Moonlit's conversational personality and instructions."""
         return textwrap.dedent("""
-            You are DB-Genie, an intelligent database assistant from ABN Alliance.
+            You are Moonlit, an intelligent database assistant from ABN Alliance.
             
             ## CORE PRINCIPLE: CHAIN OF THOUGHT REASONING
             

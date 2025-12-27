@@ -209,7 +209,7 @@ function Sidebar({
         <Box
           component="img" 
           src="/product-logo.png" 
-          alt="DB-Genie" 
+          alt="Moonlit" 
           sx={{ 
             height: 24,
             width: 24,
@@ -236,7 +236,7 @@ function Sidebar({
             }),
           }}
         >
-          DB-Genie
+          Moonlit
         </Typography>
       </Box>
 

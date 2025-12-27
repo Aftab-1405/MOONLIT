@@ -1,4 +1,4 @@
-# DB-Genie
+# Moonlit
 
 > **Web-based Agentic AI Platform** for autonomous database operations on local and remote relational databases.
 
@@ -11,7 +11,7 @@
 
 ## Overview
 
-DB-Genie is an **agentic AI platform** that empowers database engineers to work with relational databases through natural language. Unlike simple chatbots, DB-Genie operates as an **autonomous agent** that:
+Moonlit is an **agentic AI platform** that empowers database engineers to work with relational databases through natural language. Unlike simple chatbots, Moonlit operates as an **autonomous agent** that:
 
 1. **Reasons** about your request and database context
 2. **Plans** multi-step workflows to accomplish complex tasks
@@ -20,7 +20,7 @@ DB-Genie is an **agentic AI platform** that empowers database engineers to work 
 
 ### What Makes It Agentic?
 
-| Traditional Assistant | DB-Genie Agent |
+| Traditional Assistant | Moonlit Agent |
 |----------------------|----------------|
 | Single-turn responses | Multi-turn reasoning loops |
 | User drives every step | Agent autonomously orchestrates tools |
@@ -98,7 +98,7 @@ sequenceDiagram
 ## Architecture
 
 ```
-db-genie/
+moonlit/
 ├── back-end/               # Flask API server
 │   ├── api/                # REST routes and request schemas
 │   ├── auth/               # Firebase authentication
@@ -162,7 +162,7 @@ db-genie/
 
 ```bash
 git clone <repository-url>
-cd db-genie
+cd moonlit
 ```
 
 ### 2. Backend Setup

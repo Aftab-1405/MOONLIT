@@ -186,7 +186,7 @@ function Chat() {
   }, [conversationId]);
 
   useEffect(() => {
-    document.title = 'DB-Genie - Chat';
+    document.title = 'Moonlit - Chat';
   }, []);
 
   // =========================================================================
@@ -830,7 +830,7 @@ function Chat() {
               <Box
                 component="img"
                 src="/product-logo.png"
-                alt="DB-Genie"
+                alt="Moonlit"
                 sx={{ 
                   width: { xs: 36, sm: 42 }, 
                   height: { xs: 36, sm: 42 }, 
@@ -846,7 +846,7 @@ function Chat() {
                   letterSpacing: '-0.02em',
                 }}
               >
-                DB-Genie
+                Moonlit
               </Typography>
             </Box>
 

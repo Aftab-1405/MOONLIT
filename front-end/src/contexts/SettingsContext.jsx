@@ -28,7 +28,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 // CONSTANTS
 // =============================================================================
 
-const SETTINGS_KEY = 'db-genie-settings';
+const SETTINGS_KEY = 'moonlit-settings';
 
 // =============================================================================
 // DEFAULT SETTINGS

@@ -1,12 +1,12 @@
 # AI Agent Tool Architecture
 
-This document explains the DB-Genie AI agent architecture and provides a step-by-step guide for adding new tools.
+This document explains the Moonlit AI agent architecture and provides a step-by-step guide for adding new tools.
 
 ---
 
 ## Architecture Overview
 
-DB-Genie follows the industry-standard **LLM → Orchestration → Tools** pattern:
+Moonlit follows the industry-standard **LLM → Orchestration → Tools** pattern:
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐

@@ -1,6 +1,6 @@
 # Stream Abort Mechanism
 
-Technical documentation for DB-Genie's stream cancellation feature.
+Technical documentation for Moonlit's stream cancellation feature.
 
 ---
 

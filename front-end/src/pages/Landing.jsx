@@ -117,7 +117,7 @@ function Hero({ onGetStarted }) {
       <Box sx={{ position: 'absolute', inset: 0, background: `radial-gradient(ellipse 80% 50% at 50% -20%, ${alpha(theme.palette.info.main, 0.12)}, transparent)`, pointerEvents: 'none' }} />
       <Container maxWidth="md" sx={{ zIndex: 2, textAlign: 'center' }}>
         <Stack spacing={4} alignItems="center">
-          <Box component="img" src="/brand-logo.png" alt="DB-Genie logo" sx={{ width: { xs: 72, md: 100 }, animation: 'float 4s ease-in-out infinite', '@keyframes float': { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } } }} />
+          <Box component="img" src="/brand-logo.png" alt="Moonlit logo" sx={{ width: { xs: 72, md: 100 }, animation: 'float 4s ease-in-out infinite', '@keyframes float': { '0%,100%': { transform: 'translateY(0)' }, '50%': { transform: 'translateY(-8px)' } } }} />
           <Typography component="h1" variant="h1" sx={{ fontWeight: 800, fontSize: { xs: '2rem', md: '3.75rem' } }}>
             Your AI Database Agent
             <br />
@@ -235,7 +235,7 @@ function DemoSection() {
               From Question to <span style={{ color: theme.palette.secondary.main }}>Answer</span>
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mt: 1, maxWidth: 450, mx: 'auto' }}>
-              Watch how DB-Genie transforms natural language into SQL and returns live results.
+              Watch how Moonlit transforms natural language into SQL and returns live results.
             </Typography>
           </Box>
         </FadeInSection>
@@ -280,7 +280,7 @@ function DemoSection() {
                 color: 'text.secondary',
               }}
             >
-              db-genie.app/chat
+              moonlit.app/chat
             </Box>
           </Box>
           
@@ -300,7 +300,7 @@ function DemoSection() {
               backgroundColor: theme.palette.background.paper,
             }}
           >
-            <source src="/db-genie-demo.mp4" type="video/mp4" />
+            <source src="/moonlit-demo.mp4" type="video/mp4" />
             Your browser does not support the video tag.
           </Box>
           
@@ -552,8 +552,8 @@ function FinalCTA({ onGetStarted }) {
         <Container maxWidth="lg">
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={2} alignItems="center" justifyContent="space-between">
             <Stack direction="row" spacing={1} alignItems="center">
-              <Box component="img" src="/product-logo.png" alt="DB-Genie" sx={{ width: 24, height: 24 }} />
-              <Typography variant="subtitle2" fontWeight="bold">DB-Genie</Typography>
+              <Box component="img" src="/product-logo.png" alt="Moonlit" sx={{ width: 24, height: 24 }} />
+              <Typography variant="subtitle2" fontWeight="bold">Moonlit</Typography>
             </Stack>
             <Stack direction="row" spacing={3}>
               {['About', 'Docs', 'Privacy', 'Terms'].map((l) => (
@@ -572,7 +572,7 @@ function FinalCTA({ onGetStarted }) {
 export default function Landing() {
   const navigate = useNavigate();
 
-  useEffect(() => { document.title = 'DB-Genie - AI Database Assistant'; }, []);
+  useEffect(() => { document.title = 'Moonlit - AI Database Assistant'; }, []);
 
   const handleGetStarted = useCallback(() => navigate('/auth'), [navigate]);
 
