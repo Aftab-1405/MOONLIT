@@ -31,8 +31,8 @@ class DatabaseSecurity:
     DANGEROUS_KEYWORDS = frozenset({
         'DROP', 'CREATE', 'ALTER', 'TRUNCATE', 'GRANT', 'REVOKE',
         'EXEC', 'EXECUTE', 'UNION', 'SCRIPT', 'DECLARE',
-        'DESCRIBE', 'EXPLAIN', 'CALL', 'PROCEDURE', 'FUNCTION',
-        'INSERT', 'UPDATE', 'DELETE', 'INTO', 'VALUES', 'SET'  # Added DML operations
+        'CALL', 'PROCEDURE', 'FUNCTION',
+        'INSERT', 'UPDATE', 'DELETE', 'INTO', 'VALUES', 'SET'
     })
     
     # Query type detection patterns - Only SELECT and WITH(CTE) are allowed
