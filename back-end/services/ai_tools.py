@@ -485,7 +485,8 @@ class AIToolExecutor:
                     for table in tables:
                         try:
                             table_schema = DatabaseOperations.get_table_schema(table, database)
-                            columns[table] = [col.get('name', col.get('Field', str(col))) for col in table_schema]
+                            # get_table_schema returns tuples: (name, type, nullable, default, key)
+                            columns[table] = [col[0] for col in table_schema]
                         except Exception as e:
                             logger.warning(f"Could not get columns for table {table}: {e}")
                             columns[table] = []
@@ -611,12 +612,13 @@ class AIToolExecutor:
                 )
             else:
                 # Fallback to DatabaseOperations (session-based)
+                # get_table_schema returns tuples: (name, type, nullable, default, key)
                 schema = DatabaseOperations.get_table_schema(table_name, database)
                 columns = [
                     {
-                        "name": col.get('name', col.get('Field')),
-                        "type": col.get('type', col.get('Type')),
-                        "nullable": col.get('nullable', col.get('Null'))
+                        "name": col[0],
+                        "type": col[1] if len(col) > 1 else 'unknown',
+                        "nullable": col[2] == 'YES' if len(col) > 2 else True
                     }
                     for col in schema
                 ]

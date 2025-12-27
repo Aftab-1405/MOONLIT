@@ -242,9 +242,9 @@ def _process_table_info(table: str, db_name: str) -> str:
         
         result = f"Table {table}:\n"
         
-        # Add schema info
+        # get_table_schema returns tuples: (name, type, nullable, default, key)
         for column in schema:
-            result += f"  {column['name']} {column['type']}\n"
+            result += f"  {column[0]} {column[1]}\n"
         
         result += f"  count: {row_count}\n"
         

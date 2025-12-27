@@ -64,6 +64,7 @@ def _cache_schema_context(database: str, tables: list, db_type: str):
     Cache schema in Firestore for AI context.
     
     This is called after fetching schema to cache it for AI tools.
+    Uses adapter pattern with row[0] extraction (consistent with database_service.py).
     """
     try:
         user_id = session.get('user')
@@ -71,16 +72,22 @@ def _cache_schema_context(database: str, tables: list, db_type: str):
             return
         
         from services.context_service import ContextService
-        from database.operations import DatabaseOperations
+        from database.session_utils import get_db_cursor
+        from database.adapters import get_adapter
         
-        # Get columns for each table
+        adapter = get_adapter(db_type)
+        
+        # Get columns for each table using adapter pattern
         columns = {}
-        for table in tables[:20]:  # Limit to 20 tables to avoid timeout
-            try:
-                table_schema = DatabaseOperations.get_table_schema(table, database)
-                columns[table] = [col.get('name', col.get('Field', str(col))) for col in table_schema]
-            except Exception:
-                columns[table] = []
+        with get_db_cursor() as cursor:
+            for table in tables[:20]:  # Limit to 20 tables to avoid timeout
+                try:
+                    # Use adapter method for columns query (DBMS-agnostic)
+                    cols_query, cols_params = adapter.get_columns_for_table_cache(database, table)
+                    cursor.execute(cols_query, cols_params)
+                    columns[table] = [row[0] for row in cursor.fetchall()]
+                except Exception:
+                    columns[table] = []
         
         ContextService.cache_schema(user_id, database, tables, columns)
         logger.info(f"Cached schema for user {user_id}: {database} ({len(tables)} tables)")
