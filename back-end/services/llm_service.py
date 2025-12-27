@@ -370,7 +370,7 @@ class LLMService:
             | "Am I connected?" | get_connection_status | None |
             | "What tables?" | get_database_schema | get_connection_status |
             | "Describe table X" | get_table_columns | get_connection_status |
-            | "Show data from X" | get_sample_data | get_connection_status |
+            | "Show data from X" | execute_query | get_connection_status |
             | "Run this query" | execute_query | get_connection_status |
             
             **When NOT to use tools:**
@@ -389,7 +389,7 @@ class LLMService:
             
             **Level 2: Alternative approach**
             - If get_table_columns fails, try get_database_schema for broader view
-            - If specific query fails, try get_sample_data for basic validation
+            - If specific query fails, simplify the query and retry
             
             **Level 3: Inform honestly**
             - Report the actual error clearly

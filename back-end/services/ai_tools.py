@@ -180,28 +180,7 @@ _RAW_TOOL_DEFINITIONS = [
             "required": ["rationale"]
         }
     },
-    {
-        "name": "get_sample_data",
-        "description": "Get sample rows from a table to understand its data.",
-        "parameters": {
-            "type": "object",
-            "properties": {
-                "table_name": {
-                    "type": "string",
-                    "description": "Name of the table to sample."
-                },
-                "rows": {
-                    "type": "integer",
-                    "description": "Number of sample rows to return. Default is 5."
-                },
-                "rationale": {
-                    "type": "string",
-                    "description": "A natural, friendly sentence explaining the sampling. Example: 'I'll fetch a few rows from table Users to see the data structure...'"
-                }
-            },
-            "required": ["table_name", "rationale"]
-        }
-    }
+
 ]
 
 # Export tools in Cerebras format
@@ -284,10 +263,6 @@ class AIToolExecutor:
                 limit = parameters.get("limit", 5)
                 return AIToolExecutor._get_recent_queries(user_id, limit)
             
-            elif tool_name == "get_sample_data":
-                table_name = parameters.get("table_name")
-                rows = parameters.get("rows", 5)  # Match schema parameter name
-                return AIToolExecutor._get_sample_data(user_id, table_name, rows, db_config=db_config)
             
             else:
                 return {"error": f"Unknown tool: {tool_name}"}
@@ -811,41 +786,3 @@ class AIToolExecutor:
             "count": len(queries)
         }
     
-    @staticmethod
-    def _get_sample_data(user_id: str, table_name: str, rows: int = 5, 
-                          db_config: dict = None) -> Dict:
-        """Get sample data from a table."""
-        if not table_name:
-            return {"error": "Table name is required"}
-        
-        # Validate rows is a positive integer (security: prevent injection)
-        try:
-            rows = int(rows)
-            if rows < 1:
-                rows = 5
-            if rows > 100:
-                rows = 100  # Cap at 100 for sample data
-        except (ValueError, TypeError):
-            rows = 5
-        
-        # Validate table name to prevent SQL injection
-        from database.security import DatabaseSecurity
-        try:
-            validated_table = DatabaseSecurity.validate_table_name(table_name)
-        except ValueError as e:
-            return {"error": f"Invalid table name: {str(e)}"}
-        
-        # Build DB-specific query with safe row limit
-        db_type = db_config.get('db_type', 'postgresql') if db_config else 'postgresql'
-        
-        if db_type == 'oracle':
-            # Oracle 12c+ syntax
-            query = f"SELECT * FROM {validated_table} FETCH FIRST {rows} ROWS ONLY"
-        elif db_type == 'sqlserver':
-            # SQL Server syntax
-            query = f"SELECT TOP {rows} * FROM {validated_table}"
-        else:
-            # PostgreSQL, MySQL, SQLite use LIMIT
-            query = f"SELECT * FROM {validated_table} LIMIT {rows}"
-        
-        return AIToolExecutor._execute_query(user_id, query, rows, db_config=db_config)

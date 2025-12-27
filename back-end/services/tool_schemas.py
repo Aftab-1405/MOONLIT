@@ -113,18 +113,6 @@ class GetRecentQueriesArgs(BaseToolArgs):
     )
 
 
-class GetSampleDataArgs(BaseToolArgs):
-    """Arguments for get_sample_data tool."""
-    table_name: str = Field(
-        ...,
-        description="Name of the table to sample."
-    )
-    rows: Optional[int] = Field(
-        5,
-        description="Number of sample rows to return.",
-        ge=1,
-        le=100
-    )
 
 
 # Mapping of tool names to their argument schemas
@@ -135,7 +123,7 @@ TOOL_ARG_SCHEMAS = {
     "get_table_columns": GetTableColumnsArgs,
     "execute_query": ExecuteQueryArgs,
     "get_recent_queries": GetRecentQueriesArgs,
-    "get_sample_data": GetSampleDataArgs,
+
 }
 
 
@@ -197,12 +185,6 @@ class RecentQueriesResult(ToolResultBase):
     queries: List[str] = []  # Just the query strings
 
 
-class SampleDataResult(ToolResultBase):
-    """Structured result for sample data."""
-    table: Optional[str] = None
-    row_count: int = 0
-    columns: List[str] = []
-    preview: List[Dict[str, Any]] = []
 
 
 # =============================================================================
@@ -323,14 +305,6 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
                 queries=query_strings[:5]  # Limit for display
             ).model_dump()
         
-        elif tool_name == "get_sample_data":
-            data = raw_result.get('data', [])
-            return SampleDataResult(
-                table=raw_result.get('table'),
-                row_count=raw_result.get('row_count', len(data)),
-                columns=raw_result.get('columns', []),
-                preview=data[:5]  # First 5 rows
-            ).model_dump()
         
         else:
             # Unknown tool - return as-is with success flag
