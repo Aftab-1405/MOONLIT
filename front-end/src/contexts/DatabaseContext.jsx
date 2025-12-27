@@ -279,7 +279,7 @@ export function DatabaseProvider({ children }) {
     if (dbName === state.currentDatabase) return;
     
     try {
-      const endpoint = state.isRemote ? '/switch_remote_database' : '/connect_db';
+      const endpoint = state.isRemote ? '/api/switch_remote_database' : '/api/connect_db';
       const payload = state.isRemote ? { database: dbName } : { db_name: dbName };
       
       const response = await fetch(endpoint, {

@@ -1,4 +1,4 @@
-import { useState, memo } from 'react';
+import { useState, useEffect, memo } from 'react';
 import { 
   Box, 
   Typography, 
@@ -12,6 +12,11 @@ import {
   ListItemIcon, 
   Avatar,
   Drawer as MuiDrawer,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  Chip,
+  CircularProgress,
 } from '@mui/material';
 import { styled, useTheme, alpha } from '@mui/material/styles';
 
@@ -26,6 +31,9 @@ import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlin
 import KeyboardDoubleArrowLeftRoundedIcon from '@mui/icons-material/KeyboardDoubleArrowLeftRounded';
 import KeyboardDoubleArrowRightRoundedIcon from '@mui/icons-material/KeyboardDoubleArrowRightRounded';
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import CloseIcon from '@mui/icons-material/Close';
+import SchemaFlowDiagram from './SchemaFlowDiagram';
 
 // Sidebar widths
 const EXPANDED_WIDTH = 260;
@@ -127,10 +135,44 @@ function Sidebar({
     }
   };
 
+  // Schema mindmap state
+  const [mindmapOpen, setMindmapOpen] = useState(false);
+  const [schemaData, setSchemaData] = useState(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+
+  // Fetch schema when opening mindmap
+  const handleOpenMindmap = async () => {
+    if (!isConnected || !currentDatabase) return;
+    
+    setMindmapOpen(true);
+    setSchemaLoading(true);
+    
+    try {
+      const response = await fetch('/api/user/context', { credentials: 'include' });
+      const data = await response.json();
+      if (data.status === 'success') {
+        // Find schema for current database
+        const currentSchema = data.schemas?.find(s => s.database === currentDatabase);
+        setSchemaData(currentSchema || null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch schema:', err);
+    } finally {
+      setSchemaLoading(false);
+    }
+  };
+
   // Navigation items for Grok-style nav - Using distinct outlined icons
   const navItems = [
     { icon: <ChatBubbleOutlineRoundedIcon sx={{ fontSize: 20 }} />, label: 'New Chat', tooltip: 'New Chat', action: onNewChat },
     { icon: <StorageOutlinedIcon sx={{ fontSize: 20 }} />, label: 'Database', tooltip: isConnected ? currentDatabase : 'Connect Database', action: onOpenDbModal },
+    // Schema mindmap - only show when connected
+    ...(isConnected ? [{ 
+      icon: <AccountTreeOutlinedIcon sx={{ fontSize: 20 }} />, 
+      label: 'Mindmap', 
+      tooltip: 'View Database Mindmap', 
+      action: handleOpenMindmap 
+    }] : []),
     { icon: <HistoryOutlinedIcon sx={{ fontSize: 20 }} />, label: 'History', tooltip: 'History', isSection: !isCollapsed, action: isCollapsed ? handleHistoryClick : undefined },
   ];
 
@@ -672,6 +714,68 @@ function Sidebar({
           </IconButton>
         )}
       </Box>
+
+      {/* Schema Mindmap Dialog */}
+      <Dialog
+        open={mindmapOpen}
+        onClose={() => setMindmapOpen(false)}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            height: '80vh',
+            maxHeight: 700,
+          },
+        }}
+      >
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <AccountTreeOutlinedIcon color="primary" />
+            <Typography variant="h6" fontWeight={600}>
+              Schema Mindmap
+            </Typography>
+            {currentDatabase && (
+              <Chip
+                size="small"
+                icon={<StorageOutlinedIcon sx={{ fontSize: 14 }} />}
+                label={currentDatabase}
+                sx={{ ml: 1 }}
+              />
+            )}
+          </Box>
+          <IconButton
+            size="small"
+            onClick={() => setMindmapOpen(false)}
+            sx={{ color: 'text.secondary' }}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ p: 2 }}>
+          {schemaLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+              <CircularProgress />
+            </Box>
+          ) : schemaData ? (
+            <>
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+                Click on table nodes to expand/collapse columns. Use mouse to pan and scroll to zoom.
+              </Typography>
+              <SchemaFlowDiagram
+                database={schemaData.database}
+                tables={schemaData.tables || []}
+                columns={schemaData.columns || {}}
+              />
+            </>
+          ) : (
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+              <Typography color="text.secondary">
+                No schema data available. Connect to a database first.
+              </Typography>
+            </Box>
+          )}
+        </DialogContent>
+      </Dialog>
     </StyledDrawer>
   );
 }
