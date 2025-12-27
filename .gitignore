@@ -218,3 +218,9 @@ temp/
 *.tar.gz
 *.rar
 *.7z
+
+# ==========================================
+# INTERNAL DOCS (Not for GitHub)
+# ==========================================
+back-end/docs/
+front-end/docs/
