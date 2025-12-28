@@ -36,6 +36,17 @@ const fadeIn = keyframes`
 // Uses styled component with openedMixin/closedMixin for smooth transitions
 // Reference: https://mui.com/material-ui/react-drawer/#mini-variant-drawer
 
+// Shared glassmorphism styles for panel (aligned with Sidebar and Chat.jsx)
+const getGlassmorphismStyles = (theme, isDark) => ({
+  background: isDark 
+    ? alpha(theme.palette.background.paper, 0.05)
+    : alpha(theme.palette.background.paper, 0.8),
+  backdropFilter: 'blur(12px)',
+  WebkitBackdropFilter: 'blur(12px)',
+  borderLeft: '1px solid',
+  borderColor: alpha(theme.palette.divider, isDark ? 0.1 : 0.15),
+});
+
 const openedMixin = (theme, width, isDark) => ({
   width: width,
   transition: theme.transitions.create('width', {
@@ -43,14 +54,7 @@ const openedMixin = (theme, width, isDark) => ({
     duration: theme.transitions.duration.enteringScreen, // 225ms
   }),
   overflowX: 'hidden',
-  // Glassmorphism effect matching Sidebar
-  backgroundColor: isDark 
-    ? alpha('#0A0A0A', 0.75)
-    : alpha('#FFFFFF', 0.92),
-  backdropFilter: 'blur(16px)',
-  WebkitBackdropFilter: 'blur(16px)',
-  borderLeft: '1px solid',
-  borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
+  ...getGlassmorphismStyles(theme, isDark),
 });
 
 const closedMixin = (theme, isDark) => ({
@@ -60,14 +64,7 @@ const closedMixin = (theme, isDark) => ({
   }),
   overflowX: 'hidden',
   width: 0,
-  // Keep styles for smooth transition
-  backgroundColor: isDark 
-    ? alpha('#0A0A0A', 0.75)
-    : alpha('#FFFFFF', 0.92),
-  backdropFilter: 'blur(16px)',
-  WebkitBackdropFilter: 'blur(16px)',
-  borderLeft: '1px solid',
-  borderColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08),
+  ...getGlassmorphismStyles(theme, isDark),
 });
 
 // Styled Panel component following MUI Mini Variant pattern (matching Sidebar)
@@ -90,7 +87,7 @@ function SQLEditorCanvas({
   initialResults = null,
   isConnected = false,
   currentDatabase = null,
-  // New props for styled panel pattern (matching Sidebar)
+  // Panel control props
   isOpen = true,
   panelWidth = 450,
 }) {
@@ -106,6 +103,58 @@ function SQLEditorCanvas({
   const [activeTab, setActiveTab] = useState(0); // 0: Editor, 1: Results, 2: Chart
   const editorRef = useRef(null);
   const copyTimeoutRef = useRef(null);
+
+  // Reusable style helpers (DRY) - using theme tokens, no hardcoded colors
+  const textColor = theme.palette.text.primary;
+  
+  const iconButtonBaseStyles = {
+    width: 36,
+    height: 36,
+    color: 'text.secondary',
+    backgroundColor: alpha(textColor, isDark ? 0.05 : 0.04),
+    '&:hover': { 
+      backgroundColor: alpha(textColor, isDark ? 0.1 : 0.08),
+    },
+  };
+
+  // Reusable empty state component (DRY)
+  // eslint-disable-next-line no-unused-vars
+  const EmptyState = ({ icon: Icon, title, subtitle }) => (
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        color: 'text.secondary',
+        gap: 2,
+        animation: `${fadeIn} 0.3s ease-out`,
+      }}
+    >
+      <Box
+        sx={{
+          width: 72,
+          height: 72,
+          borderRadius: 3,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: alpha(textColor, 0.03),
+          border: '2px dashed',
+          borderColor: alpha(textColor, 0.1),
+        }}
+      >
+        <Icon sx={{ fontSize: 32, opacity: 0.3 }} />
+      </Box>
+      <Typography variant="body1" sx={{ opacity: 0.6, fontWeight: 500 }}>
+        {title}
+      </Typography>
+      <Typography variant="body2" sx={{ opacity: 0.4, textAlign: 'center', px: 4 }}>
+        {subtitle}
+      </Typography>
+    </Box>
+  );
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -330,40 +379,11 @@ function SQLEditorCanvas({
                 embedded
               />
             ) : (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%',
-                  color: 'text.secondary',
-                  gap: 2,
-                  animation: `${fadeIn} 0.3s ease-out`,
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 3,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.03),
-                    border: '2px dashed',
-                    borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
-                  }}
-                >
-                  <TableChartOutlinedIcon sx={{ fontSize: 32, opacity: 0.3 }} />
-                </Box>
-                <Typography variant="body1" sx={{ opacity: 0.6, fontWeight: 500 }}>
-                  No results yet
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.4, textAlign: 'center', px: 4 }}>
-                  Run a query to see results here
-                </Typography>
-              </Box>
+              <EmptyState 
+                icon={TableChartOutlinedIcon}
+                title="No results yet"
+                subtitle="Run a query to see results here"
+              />
             )}
           </Box>
         );
@@ -377,40 +397,11 @@ function SQLEditorCanvas({
                 embedded
               />
             ) : (
-              <Box
-                sx={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  height: '100%',
-                  color: 'text.secondary',
-                  gap: 2,
-                  animation: `${fadeIn} 0.3s ease-out`,
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 72,
-                    height: 72,
-                    borderRadius: 3,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: isDark ? alpha('#fff', 0.03) : alpha('#000', 0.03),
-                    border: '2px dashed',
-                    borderColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.1),
-                  }}
-                >
-                  <BarChartRoundedIcon sx={{ fontSize: 32, opacity: 0.3 }} />
-                </Box>
-                <Typography variant="body1" sx={{ opacity: 0.6, fontWeight: 500 }}>
-                  No data to visualize
-                </Typography>
-                <Typography variant="body2" sx={{ opacity: 0.4, textAlign: 'center', px: 4 }}>
-                  Run a query to create charts
-                </Typography>
-              </Box>
+              <EmptyState 
+                icon={BarChartRoundedIcon}
+                title="No data to visualize"
+                subtitle="Run a query to create charts"
+              />
             )}
           </Box>
         );
@@ -585,16 +576,16 @@ function SQLEditorCanvas({
           px: 2,
           py: 1.5,
           borderTop: '1px solid',
-          borderColor: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06),
-          backgroundColor: isDark 
-            ? alpha('#0A0A0A', 0.6)
-            : alpha('#FFFFFF', 0.7),
+          borderColor: alpha(theme.palette.divider, isDark ? 0.1 : 0.15),
+          background: isDark 
+            ? alpha(theme.palette.background.paper, 0.05)
+            : alpha(theme.palette.background.paper, 0.8),
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
           flexShrink: 0,
         }}
       >
-        {/* Run Button - Monochrome */}
+        {/* Run Button */}
         <Tooltip title={isRunning ? 'Running...' : 'Run Query (Ctrl+Enter)'}>
           <span>
             <IconButton
@@ -605,11 +596,11 @@ function SQLEditorCanvas({
                 width: 36,
                 height: 36,
                 color: isRunning ? 'text.secondary' : 'text.primary',
-                backgroundColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
+                backgroundColor: alpha(textColor, isDark ? 0.1 : 0.08),
                 border: '1px solid',
-                borderColor: isDark ? alpha('#fff', 0.15) : alpha('#000', 0.12),
+                borderColor: alpha(textColor, isDark ? 0.15 : 0.12),
                 '&:hover': { 
-                  backgroundColor: isDark ? alpha('#fff', 0.15) : alpha('#000', 0.12),
+                  backgroundColor: alpha(textColor, isDark ? 0.15 : 0.12),
                 },
                 '&.Mui-disabled': {
                   color: 'text.disabled',
@@ -627,9 +618,6 @@ function SQLEditorCanvas({
           </span>
         </Tooltip>
 
-        {/* Separator */}
-        <Box sx={{ width: 1, height: 24, backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08), mx: 0.5 }} />
-
         {/* Copy Button */}
         <Tooltip title={copied ? 'Copied!' : 'Copy query'}>
           <span>
@@ -638,13 +626,8 @@ function SQLEditorCanvas({
               onClick={handleCopy} 
               disabled={!query.trim()}
               sx={{ 
-                width: 36,
-                height: 36,
+                ...iconButtonBaseStyles,
                 color: copied ? 'text.primary' : 'text.secondary',
-                backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04),
-                '&:hover': { 
-                  backgroundColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
-                },
                 '&.Mui-disabled': {
                   color: 'text.disabled',
                 },
@@ -664,27 +647,11 @@ function SQLEditorCanvas({
           <IconButton 
             size="small" 
             onClick={handleClear} 
-            sx={{ 
-              width: 36,
-              height: 36,
-              color: 'text.secondary',
-              backgroundColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.04),
-              '&:hover': { 
-                backgroundColor: isDark ? alpha('#fff', 0.1) : alpha('#000', 0.08),
-              },
-            }}
+            sx={iconButtonBaseStyles}
           >
             <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Tooltip>
-
-        {/* Separator */}
-        <Box sx={{ width: 1, height: 24, backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.08), mx: 0.5 }} />
-
-        {/* Keyboard hint */}
-        <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.68rem', opacity: 0.7 }}>
-          Ctrl+Enter
-        </Typography>
       </Box>
     </StyledPanel>
   );
