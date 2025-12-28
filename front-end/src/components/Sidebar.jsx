@@ -138,8 +138,8 @@ function Sidebar({
     p: 1,
     color: 'text.secondary',
     '&:hover': {
-      backgroundColor: alpha(theme.palette.divider, 0.8),
-      color: 'text.primary',
+      backgroundColor: 'transparent',
+      color: 'text.secondary',
     },
   };
 
@@ -270,7 +270,7 @@ function Sidebar({
 
       {/* ===== NAVIGATION ITEMS ===== */}
       <Box sx={{ 
-        px: isCollapsed ? 0.75 : 1.5, 
+        px: isCollapsed ? 0 : 1.5, 
         py: 1, 
         transition: theme.transitions.create('padding', {
           easing: theme.transitions.easing.sharp,
@@ -304,6 +304,7 @@ function Sidebar({
                   display: 'flex',
                   alignItems: 'center',
                   gap: 1.5,
+                  width: '100%',
                   p: isCollapsed ? 1 : 1.25,
                   height: 40, // Fixed height for consistency
                   mb: 0.5,
@@ -312,10 +313,6 @@ function Sidebar({
                   justifyContent: isCollapsed ? 'center' : 'flex-start',
                   color: 'text.secondary',
                   transition: 'all 0.2s ease',
-                  '&:hover': {
-                    backgroundColor: alpha(theme.palette.text.primary, 0.06),
-                    color: 'text.primary',
-                  },
                   // Database connection indicator
                   ...(item.label === 'Database' && {
                     position: 'relative',
@@ -368,7 +365,7 @@ function Sidebar({
             flex: 1, 
             overflowY: 'auto',
             overflowX: 'hidden',
-            px: isCollapsed ? 0.5 : 1,
+            px: isCollapsed ? 0 : 1,
             py: 0.5,
             transition: theme.transitions.create('padding', {
               easing: theme.transitions.easing.sharp,
@@ -415,21 +412,19 @@ function Sidebar({
                   sx={{
                     display: 'flex',
                     alignItems: 'center',
+                    width: '100%',
                     p: isCollapsed ? 1 : 1.25,
                     mb: 0.25,
                     borderRadius: 1.5,
                     cursor: 'pointer',
                     justifyContent: isCollapsed ? 'center' : 'flex-start',
                     backgroundColor: conv.id === currentConversationId 
-                      ? alpha(theme.palette.text.primary, 0.08)
+                      ? alpha(
+                          isCollapsed ? theme.palette.primary.main : theme.palette.text.primary,
+                          isCollapsed ? 0.18 : 0.08
+                        )
                       : 'transparent',
                     transition: 'all 0.2s ease',
-                    '&:hover': {
-                      backgroundColor: conv.id === currentConversationId 
-                        ? alpha(theme.palette.text.primary, 0.1)
-                        : alpha(theme.palette.text.primary, 0.04),
-                      '& .delete-btn': { opacity: 1 }
-                    }
                   }}
                   onClick={() => onSelectConversation(conv.id)}
                 >
