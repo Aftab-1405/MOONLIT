@@ -281,17 +281,21 @@ function Auth() {
             }}
           >
             <Stack spacing={2} alignItems="center">
-              {/* Brand Logo */}
-              <Box
-                component="img"
-                src="/brand-logo.png"
-                alt="Moonlit"
+              {/* Brand Title */}
+              <Typography
+                component="span"
                 sx={{
-                  width: { xs: 50, sm: 60 },
-                  height: 'auto',
-                  filter: `drop-shadow(0 8px 16px ${alpha(theme.palette.info.main, 0.3)})`,
+                  fontSize: { xs: '2rem', sm: '2.5rem' },
+                  fontWeight: 800,
+                  background: `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`,
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  textShadow: `0 0 40px ${alpha(theme.palette.info.main, 0.4)}`,
                 }}
-              />
+              >
+                Moonlit
+              </Typography>
 
               {/* Title */}
               <Box textAlign="center">
