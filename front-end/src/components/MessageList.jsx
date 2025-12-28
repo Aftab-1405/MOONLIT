@@ -234,6 +234,135 @@ function useTypingAnimation(content, isStreaming, wordsPerSecond = 35) {
 }
 
 /**
+ * Strip JSON objects from text that the LLM may echo (tool args/results).
+ * Uses efficient bracket matching - O(n) single pass.
+ * Handles: leading JSON, trailing JSON, multiple embedded objects.
+ */
+function stripJsonFromText(text) {
+  if (!text || typeof text !== 'string') return text;
+  
+  let result = text;
+  let changed = true;
+  
+  // Iterate until no more JSON objects are found (handles multiple)
+  while (changed && result.length > 0) {
+    changed = false;
+    const trimmed = result.trim();
+    
+    // Check for leading JSON object
+    if (trimmed.startsWith('{')) {
+      const endIdx = findJsonObjectEnd(trimmed, 0);
+      if (endIdx !== -1) {
+        // Verify it's valid JSON
+        const jsonCandidate = trimmed.slice(0, endIdx + 1);
+        try {
+          JSON.parse(jsonCandidate);
+          // Valid JSON - remove it and continue
+          result = trimmed.slice(endIdx + 1).trim();
+          changed = true;
+          continue;
+        } catch {
+          // Not valid JSON, keep it
+        }
+      }
+    }
+    
+    // Check for trailing JSON object
+    const lastBrace = trimmed.lastIndexOf('}');
+    if (lastBrace !== -1) {
+      // Find matching opening brace by scanning backwards
+      const startIdx = findJsonObjectStart(trimmed, lastBrace);
+      if (startIdx !== -1 && startIdx > 0) {
+        const jsonCandidate = trimmed.slice(startIdx, lastBrace + 1);
+        try {
+          JSON.parse(jsonCandidate);
+          // Valid trailing JSON - remove it
+          result = trimmed.slice(0, startIdx).trim();
+          changed = true;
+        } catch {
+          // Not valid JSON, keep it
+        }
+      }
+    }
+  }
+  
+  return result;
+}
+
+/**
+ * Find the end index of a JSON object starting at startIdx.
+ * Uses bracket matching - handles nested objects and strings.
+ */
+function findJsonObjectEnd(text, startIdx) {
+  if (text[startIdx] !== '{') return -1;
+  
+  let depth = 0;
+  let inString = false;
+  let escapeNext = false;
+  
+  for (let i = startIdx; i < text.length; i++) {
+    const char = text[i];
+    
+    if (escapeNext) {
+      escapeNext = false;
+      continue;
+    }
+    
+    if (char === '\\' && inString) {
+      escapeNext = true;
+      continue;
+    }
+    
+    if (char === '"') {
+      inString = !inString;
+      continue;
+    }
+    
+    if (!inString) {
+      if (char === '{') depth++;
+      else if (char === '}') {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+  }
+  
+  return -1; // Unbalanced
+}
+
+/**
+ * Find the start index of a JSON object that ends at endIdx.
+ * Scans backwards to find matching opening brace.
+ */
+function findJsonObjectStart(text, endIdx) {
+  let depth = 0;
+  let inString = false;
+  
+  for (let i = endIdx; i >= 0; i--) {
+    const char = text[i];
+    
+    // Simple backwards scan - less precise with strings but works for validation
+    if (char === '"') {
+      // Check if escaped (look for odd number of preceding backslashes)
+      let backslashes = 0;
+      for (let j = i - 1; j >= 0 && text[j] === '\\'; j--) backslashes++;
+      if (backslashes % 2 === 0) inString = !inString;
+      continue;
+    }
+    
+    if (!inString) {
+      if (char === '}') depth++;
+      else if (char === '{') {
+        depth--;
+        if (depth === 0) return i;
+      }
+    }
+  }
+  
+  return -1;
+}
+
+/**
  * Parses message content into segments: 'text', 'thinking', 'tool'
  * Segments are returned in EXACT order for true inline rendering.
  */
@@ -261,13 +390,19 @@ function parseMessageSegments(text) {
     
     if (nextMarkerStart === -1) {
       const remainingText = text.slice(currentIndex);
-      if (remainingText) segments.push({ type: 'text', content: remainingText });
+      const cleanedText = stripJsonFromText(remainingText);
+      if (cleanedText) {
+        segments.push({ type: 'text', content: cleanedText });
+      }
       break;
     }
     
     if (nextMarkerStart > currentIndex) {
       const textContent = text.slice(currentIndex, nextMarkerStart);
-      if (textContent.trim()) segments.push({ type: 'text', content: textContent });
+      const cleanedText = stripJsonFromText(textContent);
+      if (cleanedText) {
+        segments.push({ type: 'text', content: cleanedText });
+      }
     }
     
     if (markerType === 'thinking') {
@@ -295,6 +430,12 @@ function parseMessageSegments(text) {
         break;
       }
       
+      // Safety: ensure forward progress even if no chunks/end were found
+      if (!isThinkingComplete && thinkingContent === '') {
+        const nextEnd = text.indexOf('[[THINKING:end]]', currentIndex);
+        currentIndex = nextEnd !== -1 ? nextEnd + '[[THINKING:end]]'.length : text.length;
+      }
+      
       segments.push({ type: 'thinking', content: thinkingContent, isComplete: isThinkingComplete });
     } else if (markerType === 'tool') {
       const parsed = parseToolMarker(text, nextMarkerStart);
@@ -302,7 +443,9 @@ function parseMessageSegments(text) {
         segments.push(parsed.segment);
         currentIndex = parsed.endIndex;
       } else {
-        currentIndex = nextMarkerStart + 1;
+        // If parsing fails, skip to the end of this marker to avoid leaking raw text
+        const failEnd = text.indexOf(']]', nextMarkerStart);
+        currentIndex = failEnd !== -1 ? failEnd + 2 : text.length;
       }
     }
   }
@@ -326,7 +469,7 @@ function parseToolMarker(text, markerStart) {
   if (text.slice(argsStart, argsStart + 4) === 'null') {
     argsEnd = argsStart + 3;
   } else if (text[argsStart] === '{') {
-    argsEnd = findMatchingBrace(text, argsStart);
+    argsEnd = findJsonObjectEnd(text, argsStart);
     if (argsEnd === -1) return null;
   } else {
     return null;
@@ -340,7 +483,7 @@ function parseToolMarker(text, markerStart) {
   if (text.slice(resultStart, resultStart + 4) === 'null') {
     resultEnd = resultStart + 3;
   } else if (text[resultStart] === '{') {
-    resultEnd = findMatchingBrace(text, resultStart);
+    resultEnd = findJsonObjectEnd(text, resultStart);
     if (resultEnd === -1) return null;
   } else {
     return null;
@@ -360,22 +503,6 @@ function parseToolMarker(text, markerStart) {
   };
 }
 
-function findMatchingBrace(text, startIndex) {
-  if (text[startIndex] !== '{') return -1;
-  let depth = 0, inString = false, escapeNext = false;
-  
-  for (let i = startIndex; i < text.length; i++) {
-    const char = text[i];
-    if (escapeNext) { escapeNext = false; continue; }
-    if (char === '\\' && inString) { escapeNext = true; continue; }
-    if (char === '"') { inString = !inString; continue; }
-    if (!inString) {
-      if (char === '{') depth++;
-      else if (char === '}' && --depth === 0) return i;
-    }
-  }
-  return -1;
-}
 
 /**
  * Filter redundant tools - only removes duplicate running/done pairs at the same position.

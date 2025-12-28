@@ -425,6 +425,7 @@ function Sidebar({
                         )
                       : 'transparent',
                     transition: 'all 0.2s ease',
+                    '&:hover .delete-btn': { opacity: 1 },
                   }}
                   onClick={() => onSelectConversation(conv.id)}
                 >
