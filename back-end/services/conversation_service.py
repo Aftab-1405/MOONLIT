@@ -109,6 +109,7 @@ class ConversationService:
                                     db_config: dict = None,
                                     enable_reasoning: bool = True,
                                     reasoning_effort: str = 'medium',
+                                    response_style: str = 'balanced',
                                     max_rows: int = None) -> Generator:
         """
         Create a generator for streaming AI responses WITH tool support.
@@ -129,6 +130,7 @@ class ConversationService:
             db_config: Database connection config for tool execution
             enable_reasoning: Whether to use reasoning (from user settings)
             reasoning_effort: 'low', 'medium', or 'high' (from user settings)
+            response_style: 'concise', 'balanced', or 'detailed' (from user settings)
             max_rows: Max rows to return from queries (None = use server config)
             
         Yields:
@@ -159,13 +161,14 @@ class ConversationService:
                 logger.debug(f"Loaded {len(history)} messages for context (from {len(messages)} total)")
             
             # Use LLM Service (generic) with tool support
-            # Pass reasoning settings and max_rows from user preferences
+            # Pass reasoning settings, response style, and max_rows from user preferences
             responses = LLMService.send_message_with_tools(
                 conversation_id, prompt, user_id, 
                 history=history, 
                 db_config=db_config,
                 enable_reasoning=enable_reasoning,
                 reasoning_effort=reasoning_effort,
+                response_style=response_style,
                 max_rows=max_rows
             )
             

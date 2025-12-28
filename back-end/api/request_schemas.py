@@ -19,6 +19,7 @@ class ChatRequest(BaseModel):
     conversation_id: Optional[str] = Field(None, max_length=100)
     enable_reasoning: bool = Field(default=True)
     reasoning_effort: Literal['low', 'medium', 'high'] = Field(default='medium')
+    response_style: Literal['concise', 'balanced', 'detailed'] = Field(default='balanced')
     max_rows: Optional[int] = Field(default=1000, ge=1, le=100000)  # None = no limit (use server config)
     
     @field_validator('prompt')

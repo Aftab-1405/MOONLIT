@@ -450,6 +450,7 @@ function Chat() {
     // Get reasoning settings from ThemeContext (not localStorage directly)
     const enableReasoning = settings.enableReasoning ?? true;
     const reasoningEffort = settings.reasoningEffort ?? 'medium';
+    const responseStyle = settings.responseStyle ?? 'balanced';
     // Get query settings to pass to AI tools
     const maxRows = settings.maxRows ?? 1000;
 
@@ -465,6 +466,7 @@ function Chat() {
           conversation_id: currentConversationId,
           enable_reasoning: enableReasoning,
           reasoning_effort: reasoningEffort,
+          response_style: responseStyle,
           max_rows: maxRows === 0 ? null : maxRows,  // null = no limit
         }),
         signal: abortControllerRef.current.signal,  // Attach abort signal

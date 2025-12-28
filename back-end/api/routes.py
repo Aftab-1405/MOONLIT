@@ -55,6 +55,7 @@ def pass_user_prompt_to_llm():
     prompt = data['prompt']
     enable_reasoning = data['enable_reasoning']
     reasoning_effort = data['reasoning_effort']
+    response_style = data['response_style']
     max_rows = data.get('max_rows')  # None = no limit (use server config)
     
     conversation_id = ConversationService.create_or_get_conversation_id(data.get('conversation_id'))
@@ -68,15 +69,16 @@ def pass_user_prompt_to_llm():
         db_config = None
         logger.debug(f'No db_config available: {e}')
     
-    logger.debug(f'Received prompt for conversation: {conversation_id}, reasoning={enable_reasoning}, max_rows={max_rows}')
+    logger.debug(f'Received prompt for conversation: {conversation_id}, reasoning={enable_reasoning}, style={response_style}, max_rows={max_rows}')
     
     try:
-        # Pass db_config, reasoning settings, and max_rows to the generator
+        # Pass db_config, reasoning settings, response style, and max_rows to the generator
         generator = ConversationService.create_streaming_generator(
             conversation_id, prompt, user_id, 
             db_config=db_config,
             enable_reasoning=enable_reasoning,
             reasoning_effort=reasoning_effort,
+            response_style=response_style,
             max_rows=max_rows
         )
         headers = ConversationService.get_streaming_headers(conversation_id)
