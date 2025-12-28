@@ -7,13 +7,84 @@ import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { InlineThinkingBlock, InlineToolBlock } from './AIResponseSteps';
 import MarkdownRenderer from './MarkdownRenderer';
 
-// Spinner animation for waiting state
+// Constants
+const COPY_FEEDBACK_DURATION = 2000; // ms to show "Copied!" feedback
+
+// Spinner animation for AI avatar waiting state
 const spin = keyframes`
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 `;
 
-// Animations now handled by MUI Fade component
+/**
+ * Reusable copy-to-clipboard hook with feedback state
+ * Handles timeout cleanup automatically
+ */
+function useCopyToClipboard() {
+  const [copied, setCopied] = useState(false);
+  const timeoutRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
+
+  const copyText = useCallback((text) => {
+    navigator.clipboard.writeText(text);
+    setCopied(true);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION);
+  }, []);
+
+  const copyRich = useCallback((htmlContent, plainText) => {
+    const setCopiedWithTimeout = () => {
+      setCopied(true);
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      timeoutRef.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION);
+    };
+
+    if (htmlContent && navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+      const textBlob = new Blob([plainText], { type: 'text/plain' });
+      navigator.clipboard.write([new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })])
+        .then(setCopiedWithTimeout)
+        .catch(() => {
+          navigator.clipboard.writeText(plainText);
+          setCopiedWithTimeout();
+        });
+    } else {
+      navigator.clipboard.writeText(plainText);
+      setCopiedWithTimeout();
+    }
+  }, []);
+
+  return { copied, copyText, copyRich };
+}
+
+/**
+ * Reusable copy button with feedback state (DRY)
+ */
+const CopyButton = memo(function CopyButton({ copied, onClick, className = 'copy-btn', sx = {} }) {
+  return (
+    <Tooltip title={copied ? 'Copied!' : 'Copy'}>
+      <IconButton 
+        className={className}
+        size="small" 
+        onClick={onClick} 
+        sx={{ 
+          opacity: 0, 
+          color: copied ? 'text.primary' : 'text.secondary', 
+          transition: 'opacity 0.2s', 
+          '&:hover': { color: 'primary.main' },
+          ...sx,
+        }}
+      >
+        {copied ? <CheckRoundedIcon sx={{ fontSize: 16 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />}
+      </IconButton>
+    </Tooltip>
+  );
+});
 
 /**
  * Hook for progressive word-by-word typing animation
@@ -42,6 +113,7 @@ function useTypingAnimation(content, isStreaming, wordsPerSecond = 35) {
   useEffect(() => {
     // If not streaming, show everything immediately
     if (!isStreaming) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: immediate reveal for non-streaming content
       setRevealedContent(content);
       revealedIndexRef.current = content.length;
       return;
@@ -153,6 +225,7 @@ function useTypingAnimation(content, isStreaming, wordsPerSecond = 35) {
   useEffect(() => {
     if (content.length < revealedIndexRef.current) {
       revealedIndexRef.current = 0;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reset animation state on content change
       setRevealedContent('');
     }
   }, [content]);
@@ -374,23 +447,10 @@ const TypingIndicator = memo(function TypingIndicator() {
 });
 
 const UserMessage = memo(function UserMessage({ message, userAvatar, userName }) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copyText } = useCopyToClipboard();
   const theme = useTheme();
-  const copyTimeoutRef = useRef(null);
 
-  // Cleanup timeout on unmount
-  useEffect(() => {
-    return () => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    };
-  }, []);
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(message);
-    setCopied(true);
-    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
-  }, [message]);
+  const handleCopy = useCallback(() => copyText(message), [copyText, message]);
 
   return (
     <Fade in timeout={300}>
@@ -405,11 +465,7 @@ const UserMessage = memo(function UserMessage({ message, userAvatar, userName })
               {message}
             </Typography>
           </Box>
-          <Tooltip title={copied ? 'Copied!' : 'Copy'}>
-            <IconButton className="copy-btn" size="small" onClick={handleCopy} sx={{ opacity: 0, alignSelf: 'center', color: copied ? 'text.primary' : 'text.secondary', transition: 'opacity 0.2s', '&:hover': { color: 'primary.main' } }}>
-              {copied ? <CheckRoundedIcon sx={{ fontSize: 16 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />}
-            </IconButton>
-          </Tooltip>
+          <CopyButton copied={copied} onClick={handleCopy} sx={{ alignSelf: 'center' }} />
         </Box>
       </Box>
     </Box>
@@ -418,21 +474,19 @@ const UserMessage = memo(function UserMessage({ message, userAvatar, userName })
 });
 
 const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor, isStreaming, isWaiting }) {
-  const [copied, setCopied] = useState(false);
+  const { copied, copyRich } = useCopyToClipboard();
   const theme = useTheme();
 
   const contentRef = useRef(null);
-  const copyTimeoutRef = useRef(null);
   const sqlEditorTimeoutRef = useRef(null);
 
   // Apply typing animation to raw message before parsing
   // This creates smooth reveal of all content (text, thinking, tools)
   const revealedMessage = useTypingAnimation(message, isStreaming, 35);
 
-  // Cleanup timeouts on unmount
+  // Cleanup timeout on unmount
   useEffect(() => {
     return () => {
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
       if (sqlEditorTimeoutRef.current) clearTimeout(sqlEditorTimeoutRef.current);
     };
   }, []);
@@ -527,28 +581,8 @@ const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor
     const htmlContent = container?.innerHTML;
     const cleanContent = getCleanContent();
     const plainTextContent = container?.innerText || cleanContent;
-
-    const setCopiedWithTimeout = () => {
-      setCopied(true);
-      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
-    };
-
-    // Prefer copying rendered HTML + plaintext; fallback to plaintext only
-    if (htmlContent && navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
-      const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
-      const textBlob = new Blob([plainTextContent], { type: 'text/plain' });
-      navigator.clipboard.write([new ClipboardItem({ 'text/html': htmlBlob, 'text/plain': textBlob })])
-        .then(setCopiedWithTimeout)
-        .catch(() => {
-          navigator.clipboard.writeText(plainTextContent);
-          setCopiedWithTimeout();
-        });
-    } else {
-      navigator.clipboard.writeText(plainTextContent);
-      setCopiedWithTimeout();
-    }
-  }, [getCleanContent]);
+    copyRich(htmlContent, plainTextContent);
+  }, [getCleanContent, copyRich]);
 
   return (
     <Fade in timeout={300}>
@@ -607,11 +641,7 @@ const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor
             ))}
           </Box>
         </Box>
-        <Tooltip title={copied ? 'Copied!' : 'Copy'}>
-          <IconButton className="copy-btn" size="small" onClick={handleCopy} sx={{ opacity: 0, alignSelf: 'flex-start', mt: 0.5, color: copied ? 'text.primary' : 'text.secondary', transition: 'opacity 0.2s', '&:hover': { color: 'primary.main' } }}>
-            {copied ? <CheckRoundedIcon sx={{ fontSize: 16 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />}
-          </IconButton>
-        </Tooltip>
+        <CopyButton copied={copied} onClick={handleCopy} sx={{ alignSelf: 'flex-start', mt: 0.5 }} />
       </Box>
     </Box>
     </Fade>
