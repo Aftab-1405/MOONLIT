@@ -92,6 +92,14 @@ function SettingsModal({ open, onClose }) {
   const { settings, updateSetting, resetSettings } = useTheme();
   const [activeTab, setActiveTab] = useState(0);
 
+  // Reusable style helper (DRY)
+  const toggleButtonGroupStyles = {
+    '& .MuiToggleButton-root': {
+      px: 1.5,
+      py: 0.5,
+      fontSize: '0.75rem',
+    },
+  };
 
   const handleTabChange = (event, newValue) => {
     setActiveTab(newValue);
@@ -178,12 +186,7 @@ function SettingsModal({ open, onClose }) {
               exclusive
               onChange={(e, value) => value && updateSetting('theme', value)}
               size="small"
-              sx={{
-                '& .MuiToggleButton-root': {
-                  px: 1.5,
-                  py: 0.5,
-                },
-              }}
+              sx={toggleButtonGroupStyles}
             >
               <ToggleButton value="light">
                 <LightModeRoundedIcon sx={{ fontSize: 18 }} />
@@ -230,13 +233,7 @@ function SettingsModal({ open, onClose }) {
                 exclusive
                 onChange={(e, v) => v && updateSetting('reasoningEffort', v)}
                 size="small"
-                sx={{
-                  '& .MuiToggleButton-root': {
-                    px: 1.5,
-                    py: 0.5,
-                    fontSize: '0.75rem',
-                  },
-                }}
+                sx={toggleButtonGroupStyles}
               >
                 <ToggleButton value="low">Low</ToggleButton>
                 <ToggleButton value="medium">Med</ToggleButton>
