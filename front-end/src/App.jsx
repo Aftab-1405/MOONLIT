@@ -3,22 +3,18 @@ import { Routes, Route } from 'react-router-dom';
 import PageLoader from './components/PageLoader';
 import ProtectedRoute from './guards/ProtectedRoute';
 
-// Minimum delay to show loader (prevents jarring instant-load on fast connections)
-const MIN_LOADER_DELAY = 3500; // ms
+// Direct imports for light pages (instant load)
+import Landing from './pages/Landing';
+import Auth from './pages/Auth';
 
-// Helper: adds minimum delay to lazy import for smooth UX
-const lazyWithDelay = (importFn) =>
-  lazy(() =>
-    Promise.all([
-      importFn(),
-      new Promise((resolve) => setTimeout(resolve, MIN_LOADER_DELAY)),
-    ]).then(([module]) => module)
-  );
-
-// Route-level lazy loading with minimum display time
-const Landing = lazyWithDelay(() => import('./pages/Landing'));
-const Auth = lazyWithDelay(() => import('./pages/Auth'));
-const Chat = lazyWithDelay(() => import('./pages/Chat'));
+// Lazy load Chat with minimum delay to show branding loader
+// 800ms ensures at least one breathing animation cycle completes
+const Chat = lazy(() => 
+  Promise.all([
+    import('./pages/Chat'),
+    new Promise(resolve => setTimeout(resolve, 800)),
+  ]).then(([module]) => module)
+);
 
 function App() {
   return (

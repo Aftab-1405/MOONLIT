@@ -54,7 +54,7 @@ function PageLoader() {
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
           filter: `drop-shadow(0 0 24px ${alpha(theme.palette.info.main, 0.3)})`,
-          animation: `${breathe} 1.8s ease-in-out infinite`,
+          animation: `${breathe} 0.8s ease-in-out infinite`,
         }}
       >
         Moonlit
