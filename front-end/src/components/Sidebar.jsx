@@ -1,4 +1,4 @@
-import { useState, memo } from 'react';
+import { useState, memo, useRef } from 'react';
 import { 
   Box, 
   Typography, 
@@ -45,14 +45,8 @@ const COLLAPSED_WIDTH = 56;
 // Uses styled component with openedMixin/closedMixin for smooth transitions
 // Reference: https://mui.com/material-ui/react-drawer/#mini-variant-drawer
 
-const openedMixin = (theme, isDarkMode) => ({
-  width: EXPANDED_WIDTH,
-  transition: theme.transitions.create('width', {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.enteringScreen, // 225ms
-  }),
-  overflowX: 'hidden',
-  // Glassmorphism effect
+// Shared glassmorphism styles for drawer
+const getGlassmorphismStyles = (theme, isDarkMode) => ({
   background: isDarkMode 
     ? alpha(theme.palette.background.paper, 0.05)
     : alpha(theme.palette.background.paper, 0.8),
@@ -62,6 +56,16 @@ const openedMixin = (theme, isDarkMode) => ({
   borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
 });
 
+const openedMixin = (theme, isDarkMode) => ({
+  width: EXPANDED_WIDTH,
+  transition: theme.transitions.create('width', {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.enteringScreen, // 225ms
+  }),
+  overflowX: 'hidden',
+  ...getGlassmorphismStyles(theme, isDarkMode),
+});
+
 const closedMixin = (theme, isDarkMode) => ({
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
@@ -69,14 +73,7 @@ const closedMixin = (theme, isDarkMode) => ({
   }),
   overflowX: 'hidden',
   width: COLLAPSED_WIDTH,
-  // Glassmorphism effect
-  background: isDarkMode 
-    ? alpha(theme.palette.background.paper, 0.05)
-    : alpha(theme.palette.background.paper, 0.8),
-  backdropFilter: 'blur(12px)',
-  WebkitBackdropFilter: 'blur(12px)',
-  borderRight: '1px solid',
-  borderColor: alpha(theme.palette.divider, isDarkMode ? 0.1 : 0.15),
+  ...getGlassmorphismStyles(theme, isDarkMode),
 });
 
 // Styled Drawer component following MUI Mini Variant pattern
@@ -120,6 +117,8 @@ function Sidebar({
   const isDarkMode = theme.palette.mode === 'dark';
   const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
   const [historyPopoverAnchor, setHistoryPopoverAnchor] = useState(null);
+  const profileButtonRef = useRef(null);
+  const historyButtonRef = useRef(null);
   const isPopoverOpen = Boolean(dbPopoverAnchor);
   const isHistoryPopoverOpen = Boolean(historyPopoverAnchor);
 
@@ -152,12 +151,16 @@ function Sidebar({
     ...getCollapseTransition(['opacity', 'visibility', 'width']),
   };
 
-  // Tooltip that only shows when sidebar is collapsed (DRY)
-  const CollapsedTooltip = ({ title, children }) => (
-    <Tooltip title={isCollapsed ? title : ''} placement="right" arrow>
-      {children}
-    </Tooltip>
-  );
+  // Delete button styles (DRY - used in main list and popover)
+  const deleteButtonStyles = {
+    padding: 0.5,
+    color: 'text.secondary',
+    transition: 'all 0.15s ease',
+    '&:hover': { 
+      color: 'error.main', 
+      backgroundColor: alpha(theme.palette.error.main, 0.1), 
+    }
+  };
 
   const handleDatabaseSelect = (dbName) => {
     setDbPopoverAnchor(null);
@@ -166,9 +169,9 @@ function Sidebar({
     }
   };
 
-  const handleHistoryClick = (event) => {
-    if (isCollapsed && conversations.length > 0) {
-      setHistoryPopoverAnchor(event.currentTarget);
+  const handleHistoryClick = () => {
+    if (isCollapsed && conversations.length > 0 && historyButtonRef.current) {
+      setHistoryPopoverAnchor(historyButtonRef.current);
     }
   };
 
@@ -297,8 +300,9 @@ function Sidebar({
               </Typography>
             )
           ) : (
-            <CollapsedTooltip key={index} title={item.tooltip}>
+            <Tooltip key={index} title={isCollapsed ? item.tooltip : ''} placement="right" arrow>
               <Box
+                ref={item.label === 'History' ? historyButtonRef : undefined}
                 onClick={item.action}
                 sx={{
                   display: 'flex',
@@ -344,7 +348,7 @@ function Sidebar({
                   {item.label}
                 </Typography>
               </Box>
-            </CollapsedTooltip>
+            </Tooltip>
           )
         ))}
       </Box>
@@ -407,7 +411,7 @@ function Sidebar({
               </Box>
             ) : (
             conversations.map((conv) => (
-              <CollapsedTooltip key={conv.id} title={conv.title || 'Conversation'}>
+              <Tooltip key={conv.id} title={isCollapsed ? (conv.title || 'Conversation') : ''} placement="right" arrow>
                 <Box
                   sx={{
                     display: 'flex',
@@ -470,22 +474,12 @@ function Sidebar({
                       e.stopPropagation();
                       onDeleteConversation(conv.id);
                     }}
-                    sx={{ 
-                      opacity: 0, 
-                      padding: 0.5,
-                      ml: 0.5,
-                      color: 'text.secondary',
-                      transition: 'all 0.15s ease',
-                      '&:hover': { 
-                        color: 'error.main', 
-                        backgroundColor: alpha(theme.palette.error.main, 0.1), 
-                      }
-                    }}
+                    sx={{ opacity: 0, ml: 0.5, ...deleteButtonStyles }}
                   >
                     <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
                   </IconButton>
                 </Box>
-              </CollapsedTooltip>
+              </Tooltip>
             ))
           )}
           </Box>
@@ -611,15 +605,7 @@ function Sidebar({
                     e.stopPropagation();
                     onDeleteConversation(conv.id);
                   }}
-                  sx={{ 
-                    opacity: 0.5,
-                    padding: 0.5,
-                    color: 'text.secondary',
-                    '&:hover': { 
-                      opacity: 1,
-                      color: 'error.main', 
-                    }
-                  }}
+                  sx={{ opacity: 0.5, '&:hover': { opacity: 1 }, ...deleteButtonStyles }}
                 >
                   <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />
                 </IconButton>
@@ -648,19 +634,24 @@ function Sidebar({
       >
         {/* Profile button */}
         <Box sx={{ display: 'flex', flexDirection: isCollapsed ? 'column' : 'row', alignItems: 'center', gap: isCollapsed ? 1 : 0.5 }}>
-          <CollapsedTooltip title={user?.displayName || 'Profile'}>
-            <IconButton onClick={onMenuOpen} size="small" sx={iconButtonStyles}>
+          <Tooltip title={isCollapsed ? (user?.displayName || 'Profile') : ''} placement="right" arrow>
+            <IconButton 
+              ref={profileButtonRef}
+              onClick={() => onMenuOpen({ currentTarget: profileButtonRef.current })} 
+              size="small" 
+              sx={iconButtonStyles}
+            >
               {user?.photoURL ? (
                 <Avatar src={user.photoURL} sx={{ width: 24, height: 24 }} />
               ) : (
                 <AccountCircleOutlinedIcon sx={{ fontSize: 24 }} />
               )}
             </IconButton>
-          </CollapsedTooltip>
+          </Tooltip>
         </Box>
 
         {/* Collapse/Expand toggle */}
-        <CollapsedTooltip title="Expand sidebar">
+        <Tooltip title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right" arrow>
           <IconButton onClick={onToggleCollapse} size="small" sx={iconButtonStyles}>
             {isCollapsed ? (
               <KeyboardDoubleArrowRightRoundedIcon sx={{ fontSize: 20 }} />
@@ -668,7 +659,7 @@ function Sidebar({
               <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
             )}
           </IconButton>
-        </CollapsedTooltip>
+        </Tooltip>
       </Box>
 
       {/* Schema Mindmap Dialog */}
