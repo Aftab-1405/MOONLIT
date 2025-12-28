@@ -7,9 +7,9 @@
 | Property | Value |
 |----------|-------|
 | **File Location** | `src/hooks/useLocalStorage.js` |
-| **Lines of Code** | 186 |
+| **Lines of Code** | 199 |
 | **Dependencies** | None (React only) |
-| **Integrated With** | `SettingsContext.jsx` |
+| **Integrated With** | `SettingsContext.jsx`, `DatabaseModal.jsx` |
 
 ---
 
@@ -56,7 +56,8 @@ const [value, setValue, removeValue] = useLocalStorage(key, initialValue);
 
 | Consumer | Key | Purpose |
 |----------|-----|---------|
-| `SettingsContext.jsx` | `db-genie-settings` | All user preferences |
+| `SettingsContext.jsx` | `moonlit-settings` | All user preferences |
+| `DatabaseModal.jsx` | `moonlit-saved-connection` | Remember connection details |
 
 ### Settings Synced Across Tabs
 

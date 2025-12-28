@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, memo } from 'react';
+import { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { useSettings } from '../contexts/SettingsContext';
+import { useLocalStorage } from '../hooks/useLocalStorage';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
@@ -42,12 +43,27 @@ const DB_TYPES = [
   { value: 'sqlite', label: 'SQLite', defaultPort: null, supportsConnectionString: false },
 ];
 
+// Reusable visibility toggle adornment for password fields (DRY)
+const VisibilityToggleAdornment = memo(function VisibilityToggleAdornment({ show, onToggle }) {
+  return (
+    <InputAdornment position="end">
+      <IconButton size="small" onClick={onToggle}>
+        {show ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+      </IconButton>
+    </InputAdornment>
+  );
+});
+
 function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase }) {
   const theme = useTheme();
   
-  // Get default DB type from SettingsContext
+  // Get settings from SettingsContext
   const { settings } = useSettings();
   const defaultDbType = settings.defaultDbType || 'postgresql';
+  const rememberConnection = settings.rememberConnection ?? false;
+  
+  // Saved connection using useLocalStorage hook (cross-tab sync, SSR-safe)
+  const [savedConnection, setSavedConnection] = useLocalStorage('moonlit-saved-connection', null);
   
   const [dbType, setDbType] = useState(defaultDbType);
   const [connectionMode, setConnectionMode] = useState('credentials');
@@ -70,8 +86,14 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   // Refs for timeout cleanup
   const timeoutRefs = useRef([]);
 
+  // Memoize current DB config to avoid repeated lookups (DRY)
+  const currentDbConfig = useMemo(
+    () => DB_TYPES.find(d => d.value === dbType) || DB_TYPES[1],
+    [dbType]
+  );
+  
   const isSQLite = dbType === 'sqlite';
-  const supportsConnectionString = DB_TYPES.find(d => d.value === dbType)?.supportsConnectionString;
+  const supportsConnectionString = currentDbConfig.supportsConnectionString;
 
   // Safe JSON parse with error handling
   const safeJsonParse = useCallback((text, fallback = null) => {
@@ -89,6 +111,24 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       timeoutRefs.current.forEach(clearTimeout);
     };
   }, []);
+
+  // Load saved connection on mount if rememberConnection is enabled
+  useEffect(() => {
+    if (rememberConnection && open && savedConnection) {
+      if (savedConnection.dbType) setDbType(savedConnection.dbType);
+      if (savedConnection.connectionMode) setConnectionMode(savedConnection.connectionMode);
+      if (savedConnection.formData) {
+        setFormData(prev => ({
+          ...prev,
+          host: savedConnection.formData.host || prev.host,
+          port: savedConnection.formData.port || prev.port,
+          user: savedConnection.formData.user || prev.user,
+          database: savedConnection.formData.database || prev.database,
+          // NOTE: Password is intentionally NOT saved for security
+        }));
+      }
+    }
+  }, [open, rememberConnection, savedConnection]);
 
   // Safe setTimeout that tracks refs
   const safeSetTimeout = useCallback((callback, delay) => {
@@ -128,12 +168,41 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       const dbConfig = DB_TYPES.find((d) => d.value === newType);
       setFormData((prev) => ({
         ...prev,
-        port: dbConfig.defaultPort?.toString() || '',
+        port: dbConfig?.defaultPort?.toString() || '',
       }));
       setError(null);
       setSuccess(null);
     }
   }, []);
+
+  // Shared toggle button styles (DRY)
+  const toggleButtonStyles = useMemo(() => ({
+    '& .MuiToggleButton-root': {
+      py: 1.5,
+      textTransform: 'none',
+      '&.Mui-selected': {
+        backgroundColor: alpha(theme.palette.text.primary, 0.05),
+        borderColor: 'text.primary',
+        color: 'text.primary',
+        '&:hover': {
+          backgroundColor: alpha(theme.palette.text.primary, 0.1),
+        },
+      },
+    },
+  }), [theme.palette.text.primary]);
+
+  const connectionModeToggleStyles = useMemo(() => ({
+    '& .MuiToggleButton-root': {
+      py: 0.75,
+      textTransform: 'none',
+      fontSize: '0.8rem',
+      '&.Mui-selected': {
+        backgroundColor: alpha(theme.palette.secondary.main, 0.15),
+        borderColor: 'secondary.main',
+        color: 'secondary.main',
+      },
+    },
+  }), [theme.palette.secondary.main]);
 
   const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
@@ -179,6 +248,22 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         setDatabases(data.schemas || []);
         setIsRemote(data.is_remote || false);
         onConnect?.({ ...data, db_type: dbType });
+        
+        // Save connection details if rememberConnection is enabled
+        if (rememberConnection) {
+          setSavedConnection({
+            dbType,
+            connectionMode,
+            formData: {
+              host: formData.host,
+              port: formData.port,
+              user: formData.user,
+              database: formData.database,
+              // NOTE: Password is intentionally NOT saved for security
+            },
+            // NOTE: Connection string is NOT saved (may contain password)
+          });
+        }
         
         if (data.is_remote && data.selectedDatabase) {
           try {
@@ -292,7 +377,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
         </IconButton>
       </DialogTitle>
 
-      <DialogContent>
+      <DialogContent sx={{ minHeight: 400 }}>
         {/* Connection Status Banner */}
         {isConnected && currentDatabase && (
           <Box
@@ -336,20 +421,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             exclusive
             onChange={handleDbTypeChange}
             fullWidth
-            sx={{
-              '& .MuiToggleButton-root': {
-                py: 1.5,
-                textTransform: 'none',
-                '&.Mui-selected': {
-                  backgroundColor: alpha(theme.palette.text.primary, 0.05),
-                  borderColor: 'text.primary',
-                  color: 'text.primary',
-                  '&:hover': {
-                    backgroundColor: alpha(theme.palette.text.primary, 0.1),
-                  },
-                },
-              },
-            }}
+            sx={toggleButtonStyles}
           >
             {DB_TYPES.map((db) => (
               <ToggleButton key={db.value} value={db.value}>
@@ -382,24 +454,13 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {supportsConnectionString && (
               <Box sx={{ mb: 1 }}>
-                <ToggleButtonGroup
+              <ToggleButtonGroup
                   value={connectionMode}
                   exclusive
                   onChange={(e, val) => val && setConnectionMode(val)}
                   size="small"
                   fullWidth
-                  sx={{
-                    '& .MuiToggleButton-root': {
-                      py: 0.75,
-                      textTransform: 'none',
-                      fontSize: '0.8rem',
-                      '&.Mui-selected': {
-                        backgroundColor: alpha(theme.palette.secondary.main, 0.15),
-                        borderColor: 'secondary.main',
-                        color: 'secondary.main',
-                      },
-                    },
-                  }}
+                  sx={connectionModeToggleStyles}
                 >
                   <ToggleButton value="credentials">
                     Local / Credentials
@@ -430,14 +491,10 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 rows={showConnectionString ? 2 : 1}
                 InputProps={{
                   endAdornment: (
-                    <InputAdornment position="end">
-                      <IconButton
-                        size="small"
-                        onClick={() => setShowConnectionString(!showConnectionString)}
-                      >
-                        {showConnectionString ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
-                      </IconButton>
-                    </InputAdornment>
+                    <VisibilityToggleAdornment 
+                      show={showConnectionString} 
+                      onToggle={() => setShowConnectionString(!showConnectionString)} 
+                    />
                   ),
                 }}
                 helperText="Paste your connection string from your database provider"
@@ -456,7 +513,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                   <TextField
                     name="port"
                     label="Port"
-                    placeholder={DB_TYPES.find((d) => d.value === dbType)?.defaultPort?.toString()}
+                    placeholder={currentDbConfig.defaultPort?.toString()}
                     value={formData.port}
                     onChange={handleInputChange}
                     sx={{ width: 120 }}
@@ -479,14 +536,10 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                   onChange={handleInputChange}
                   InputProps={{
                     endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          size="small"
-                          onClick={() => setShowPassword(!showPassword)}
-                        >
-                          {showPassword ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
-                        </IconButton>
-                      </InputAdornment>
+                      <VisibilityToggleAdornment 
+                        show={showPassword} 
+                        onToggle={() => setShowPassword(!showPassword)} 
+                      />
                     ),
                   }}
                 />

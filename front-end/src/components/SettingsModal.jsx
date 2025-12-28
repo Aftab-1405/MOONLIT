@@ -11,7 +11,6 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   Switch,
-  FormControlLabel,
   Select,
   MenuItem,
   FormControl,
