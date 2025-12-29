@@ -9,6 +9,9 @@
 import { Box, Typography, keyframes } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 
+// Helper function for moonlit gradient
+const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
+
 // Breathing animation
 const breathe = keyframes`
   0%, 100% {
@@ -49,11 +52,11 @@ function PageLoader() {
         sx={{
           fontSize: { xs: '2.5rem', md: '3.5rem' },
           fontWeight: 800,
-          background: `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`,
+          background: getMoonlitGradient(theme),
           backgroundClip: 'text',
           WebkitBackgroundClip: 'text',
           WebkitTextFillColor: 'transparent',
-          filter: `drop-shadow(0 0 24px ${alpha(theme.palette.info.main, 0.3)})`,
+          filter: `drop-shadow(0 0 24px ${alpha('#818CF8', 0.3)})`,
           animation: `${breathe} 0.8s ease-in-out infinite`,
         }}
       >

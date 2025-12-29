@@ -33,6 +33,9 @@ import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import { useAuth } from '../contexts/AuthContext';
 import StarfieldCanvas from '../components/StarfieldCanvas';
 
+// Helper function for moonlit gradient
+const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
+
 // Tab Panel component
 function TabPanel({ children, value, index }) {
   return (
@@ -287,7 +290,7 @@ function Auth() {
                 sx={{
                   fontSize: { xs: '2rem', sm: '2.5rem' },
                   fontWeight: 800,
-                  background: `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`,
+                  background: getMoonlitGradient(theme),
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',

@@ -12,6 +12,9 @@ import ShieldIcon from '@mui/icons-material/Shield';
 import InsightsIcon from '@mui/icons-material/Insights';
 import StarfieldCanvas from '../components/StarfieldCanvas';
 
+// Helper function for moonlit gradient
+const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
+
 // ---------- Shared Styles ----------
 const glassCard = (theme) => ({
   background: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.05 : 0.85),
@@ -71,7 +74,7 @@ function Hero({ onGetStarted }) {
             sx={{
               fontSize: { xs: '2.5rem', md: '3.5rem' },
               fontWeight: 800,
-              background: `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`,
+              background: getMoonlitGradient(theme),
               backgroundClip: 'text',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent',

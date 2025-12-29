@@ -55,6 +55,9 @@ import SQLEditorCanvas from '../components/SQLEditorCanvas';
 import ResizeHandle from '../components/ResizeHandle';
 import useIdleDetection from '../hooks/useIdleDetection';
 
+// Helper function for moonlit gradient
+const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
+
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
 const MIN_EDITOR_WIDTH = 320;
@@ -816,7 +819,7 @@ function Chat() {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: 2,
-                mb: 4,
+                mb: 2,
               }}
             >
               <Box
@@ -838,7 +841,23 @@ function Chat() {
                   letterSpacing: '-0.02em',
                 }}
               >
-                Moonlit
+                {user?.displayName ? (
+                  <>
+                    Welcome back,{' '}
+                    <Box
+                      component="span"
+                      sx={{
+                        background: theme.custom?.getNaturalMoonlitEffects?.()?.textGradient || getMoonlitGradient(theme),
+                        backgroundClip: 'text',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {user.displayName.split(' ')[0]}
+                    </Box>
+                  </>
+                ) : 'Moonlit'}
               </Typography>
             </Box>
 

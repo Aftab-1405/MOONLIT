@@ -38,6 +38,36 @@ const typography = {
 // 2. PALETTE DEFINITIONS
 // ============================================
 
+// MOONLIT GRADIENT - Single source of truth for the brand gradient
+const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
+
+// NATURAL MOONLIT EFFECT - Enhanced moonlight-inspired gradients and effects
+const getNaturalMoonlitEffects = (theme) => ({
+  // Primary moonlit gradient - cool blue to soft silver
+  gradient: `linear-gradient(135deg, #E0E7FF, #C7D2FE, #A5B4FC, #818CF8)`,
+
+  // Moonlit glow effect - soft ethereal glow
+  glow: `radial-gradient(ellipse at center, rgba(129, 140, 248, 0.15) 0%, rgba(99, 102, 241, 0.08) 40%, transparent 70%)`,
+
+  // Moonlight shadow effect - soft blue-tinted shadow
+  shadow: '0 8px 32px rgba(129, 140, 248, 0.12), 0 4px 16px rgba(99, 102, 241, 0.08)',
+
+  // Moonlit text gradient - more subtle and natural
+  textGradient: `linear-gradient(135deg, #6366F1, #818CF8, #A5B4FC)`,
+
+  // Moonlit ambient background - very subtle blue tint
+  ambient: `radial-gradient(ellipse at top right, rgba(129, 140, 248, 0.03) 0%, transparent 50%)`,
+
+  // Moonlit border - soft blue glow
+  border: '1px solid rgba(129, 140, 248, 0.2)',
+
+  // Moonlit hover state - gentle blue enhancement
+  hover: 'rgba(129, 140, 248, 0.05)',
+
+  // Moonlit focus state - soft blue ring
+  focus: '0 0 0 3px rgba(129, 140, 248, 0.1)',
+});
+
 const darkPalette = {
   mode: 'dark',
   primary: { main: '#F1F5F9', light: '#F8FAFC', dark: '#E2E8F0', contrastText: '#0F0F11' },
@@ -300,30 +330,40 @@ const getComponentOverrides = (mode) => {
   };
 };
 
-// ============================================
-// 4. THEME FACTORIES
-// ============================================
+    // ============================================
+    // 4. THEME FACTORIES
+    // ============================================
 
-export const createDarkTheme = () => {
-  const theme = createTheme({
-    breakpoints,
-    shape,
-    typography,
-    palette: darkPalette,
-    components: getComponentOverrides('dark'),
-  });
-  return responsiveFontSizes(theme);
-};
+    export const createDarkTheme = () => {
+      const theme = createTheme({
+        breakpoints,
+        shape,
+        typography,
+        palette: darkPalette,
+        components: getComponentOverrides('dark'),
+      });
+      // Add moonlit gradient and natural effects to theme for easy access
+      theme.custom = { 
+        getMoonlitGradient: () => getMoonlitGradient(theme),
+        getNaturalMoonlitEffects: () => getNaturalMoonlitEffects(theme),
+      };
+      return responsiveFontSizes(theme);
+    };
 
-export const createLightTheme = () => {
-  const theme = createTheme({
-    breakpoints,
-    shape,
-    typography,
-    palette: lightPalette,
-    components: getComponentOverrides('light'),
-  });
-  return responsiveFontSizes(theme);
-};
+    export const createLightTheme = () => {
+      const theme = createTheme({
+        breakpoints,
+        shape,
+        typography,
+        palette: lightPalette,
+        components: getComponentOverrides('light'),
+      });
+      // Add moonlit gradient and natural effects to theme for easy access
+      theme.custom = { 
+        getMoonlitGradient: () => getMoonlitGradient(theme),
+        getNaturalMoonlitEffects: () => getNaturalMoonlitEffects(theme),
+      };
+      return responsiveFontSizes(theme);
+    };
 
-export default createDarkTheme();
+    export default createDarkTheme();
