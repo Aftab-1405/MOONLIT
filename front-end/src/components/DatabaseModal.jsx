@@ -35,6 +35,15 @@ import {
   switchDatabase,
 } from '../api';
 
+// Form validation
+import {
+  useFormValidation,
+  credentialsSchema,
+  connectionStringSchema,
+  sqliteSchema,
+  dbFieldSchemas,
+} from '../validation';
+
 const DB_TYPES = [
   { value: 'mysql', label: 'MySQL', defaultPort: 3306, supportsConnectionString: true },
   { value: 'postgresql', label: 'PostgreSQL', defaultPort: 5432, supportsConnectionString: true },
@@ -82,6 +91,15 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   const [success, setSuccess] = useState(null);
   const [databases, setDatabases] = useState([]);
   const [isRemote, setIsRemote] = useState(false);
+
+  // Form validation
+  const {
+    errors: fieldErrors,
+    validateField,
+    validateForm,
+    clearError,
+    resetErrors,
+  } = useFormValidation(dbFieldSchemas);
 
   // Refs for timeout cleanup
   const timeoutRefs = useRef([]);
@@ -206,8 +224,9 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
   const handleInputChange = useCallback((e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    clearError(name);
     setError(null);
-  }, []);
+  }, [clearError]);
 
   const handleConnect = useCallback(async () => {
     setLoading(true);
@@ -218,13 +237,28 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       let payload;
       
       if (isSQLite) {
+        // Validate SQLite path
+        if (!validateForm(sqliteSchema, { database: formData.database })) {
+          setLoading(false);
+          return;
+        }
         payload = { db_type: dbType, db_name: formData.database };
       } else if (connectionMode === 'connection_string' && supportsConnectionString) {
+        // Validate connection string
+        if (!validateForm(connectionStringSchema, { connectionString })) {
+          setLoading(false);
+          return;
+        }
         payload = { 
           db_type: dbType, 
           connection_string: connectionString 
         };
       } else {
+        // Validate credentials
+        if (!validateForm(credentialsSchema, formData)) {
+          setLoading(false);
+          return;
+        }
         payload = {
           db_type: dbType,
           host: formData.host,
@@ -412,6 +446,9 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
             placeholder="/path/to/database.db"
             value={formData.database}
             onChange={handleInputChange}
+            onBlur={() => validateField('database', formData.database)}
+            error={!!fieldErrors.database}
+            helperText={fieldErrors.database}
             InputProps={{
               endAdornment: (
                 <InputAdornment position="end">
@@ -457,7 +494,9 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                 label="Connection String"
                 placeholder="postgresql://user:password@host/database?sslmode=require"
                 value={connectionString}
-                onChange={(e) => setConnectionString(e.target.value)}
+                onChange={(e) => { setConnectionString(e.target.value); clearError('connectionString'); }}
+                onBlur={() => validateField('connectionString', connectionString)}
+                error={!!fieldErrors.connectionString}
                 type={showConnectionString ? 'text' : 'password'}
                 multiline={showConnectionString}
                 rows={showConnectionString ? 2 : 1}
@@ -469,7 +508,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                     />
                   ),
                 }}
-                helperText="Paste your connection string from your database provider"
+                helperText={fieldErrors.connectionString || 'Paste your connection string from your database provider'}
               />
             ) : (
               <>
@@ -481,6 +520,9 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                     placeholder="localhost"
                     value={formData.host}
                     onChange={handleInputChange}
+                    onBlur={() => validateField('host', formData.host)}
+                    error={!!fieldErrors.host}
+                    helperText={fieldErrors.host}
                   />
                   <TextField
                     name="port"
@@ -488,7 +530,10 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                     placeholder={currentDbConfig.defaultPort?.toString()}
                     value={formData.port}
                     onChange={handleInputChange}
-                    sx={{ width: 120 }}
+                    onBlur={() => validateField('port', formData.port)}
+                    error={!!fieldErrors.port}
+                    helperText={fieldErrors.port}
+                    sx={{ width: 140 }}
                   />
                 </Box>
                 <TextField
@@ -498,6 +543,9 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                   placeholder="root"
                   value={formData.user}
                   onChange={handleInputChange}
+                  onBlur={() => validateField('user', formData.user)}
+                  error={!!fieldErrors.user}
+                  helperText={fieldErrors.user}
                 />
                 <TextField
                   fullWidth
@@ -506,6 +554,9 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
                   type={showPassword ? 'text' : 'password'}
                   value={formData.password}
                   onChange={handleInputChange}
+                  onBlur={() => validateField('password', formData.password)}
+                  error={!!fieldErrors.password}
+                  helperText={fieldErrors.password}
                   InputProps={{
                     endAdornment: (
                       <VisibilityToggleAdornment 

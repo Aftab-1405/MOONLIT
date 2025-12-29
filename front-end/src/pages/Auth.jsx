@@ -33,6 +33,15 @@ import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import { useAuth } from '../contexts/AuthContext';
 import StarfieldCanvas from '../components/StarfieldCanvas';
 
+// Form validation
+import {
+  useFormValidation,
+  signInSchema,
+  signUpSchema,
+  resetPasswordSchema,
+  authFieldSchemas,
+} from '../validation';
+
 // Helper function for moonlit gradient
 const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
 
@@ -65,7 +74,7 @@ function Auth() {
     isAuthenticated,
     loading,
     error,
-    clearError,
+    clearError: clearAuthError,
   } = useAuth();
 
   // Form state
@@ -84,6 +93,15 @@ function Auth() {
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
 
+  // Form validation
+  const {
+    errors: fieldErrors,
+    validateField,
+    validateForm,
+    clearError: clearFieldError,
+    resetErrors,
+  } = useFormValidation(authFieldSchemas);
+
   // Redirect if authenticated
   useEffect(() => {
     if (isAuthenticated) {
@@ -95,16 +113,17 @@ function Auth() {
   useEffect(() => {
     setFormError('');
     setSuccessMessage('');
-    clearError?.();
-  }, [tabValue, clearError]);
+    resetErrors();
+    clearAuthError?.();
+  }, [tabValue, clearAuthError, resetErrors]);
 
   // Handle Email Sign In
   const handleEmailSignIn = async (e) => {
     e.preventDefault();
     setFormError('');
     
-    if (!email || !password) {
-      setFormError('Please fill in all fields');
+    // Validate form
+    if (!validateForm(signInSchema, { email, password })) {
       return;
     }
 
@@ -124,18 +143,8 @@ function Auth() {
     e.preventDefault();
     setFormError('');
 
-    if (!email || !password || !confirmPassword) {
-      setFormError('Please fill in all fields');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setFormError('Passwords do not match');
-      return;
-    }
-
-    if (password.length < 6) {
-      setFormError('Password must be at least 6 characters');
+    // Validate form
+    if (!validateForm(signUpSchema, { email, password, confirmPassword, displayName })) {
       return;
     }
 
@@ -173,8 +182,8 @@ function Auth() {
 
   // Handle Password Reset
   const handlePasswordReset = async () => {
-    if (!resetEmail) {
-      setFormError('Please enter your email address');
+    // Validate email
+    if (!validateForm(resetPasswordSchema, { email: resetEmail })) {
       return;
     }
 
@@ -382,7 +391,10 @@ function Auth() {
                     type="email"
                     label="Email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => { setEmail(e.target.value); clearFieldError('email'); }}
+                    onBlur={() => validateField('email', email)}
+                    error={!!fieldErrors.email}
+                    helperText={fieldErrors.email}
                     size="small"
                     InputProps={{
                       startAdornment: (
@@ -397,7 +409,10 @@ function Auth() {
                     type={showPassword ? 'text' : 'password'}
                     label="Password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { setPassword(e.target.value); clearFieldError('password'); }}
+                    onBlur={() => validateField('password', password)}
+                    error={!!fieldErrors.password}
+                    helperText={fieldErrors.password}
                     size="small"
                     InputProps={{
                       startAdornment: (
@@ -481,7 +496,10 @@ function Auth() {
                     type="email"
                     label="Email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    onChange={(e) => { setEmail(e.target.value); clearFieldError('email'); }}
+                    onBlur={() => validateField('email', email)}
+                    error={!!fieldErrors.email}
+                    helperText={fieldErrors.email}
                     size="small"
                     InputProps={{
                       startAdornment: (
@@ -496,9 +514,11 @@ function Auth() {
                     type={showPassword ? 'text' : 'password'}
                     label="Password"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => { setPassword(e.target.value); clearFieldError('passwordSignUp'); }}
+                    onBlur={() => validateField('passwordSignUp', password)}
+                    error={!!fieldErrors.passwordSignUp}
+                    helperText={fieldErrors.passwordSignUp || 'At least 6 characters'}
                     size="small"
-                    helperText="At least 6 characters"
                     FormHelperTextProps={{ sx: { mt: 0.25 } }}
                     InputProps={{
                       startAdornment: (
@@ -524,7 +544,10 @@ function Auth() {
                     type={showPassword ? 'text' : 'password'}
                     label="Confirm Password"
                     value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    onChange={(e) => { setConfirmPassword(e.target.value); clearFieldError('confirmPassword'); }}
+                    onBlur={() => validateField('confirmPassword', confirmPassword)}
+                    error={!!fieldErrors.confirmPassword}
+                    helperText={fieldErrors.confirmPassword}
                     size="small"
                     InputProps={{
                       startAdornment: (
