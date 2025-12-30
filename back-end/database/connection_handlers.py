@@ -8,7 +8,6 @@ All methods accept db_config explicitly - no Flask dependencies.
 import re
 import logging
 from typing import Dict
-from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 

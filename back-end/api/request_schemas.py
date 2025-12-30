@@ -37,13 +37,15 @@ class ChatRequest(BaseModel):
 class ConnectDBRequest(BaseModel):
     """Schema for /connect_db"""
     db_type: Literal['mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle'] = Field(...)
-    database: Optional[str] = Field(None, max_length=255)
+    database: Optional[str] = Field(None, max_length=255, validation_alias='db_name')
     host: Optional[str] = Field(None, max_length=255)
     port: Optional[int] = Field(None, ge=1, le=65535)
-    username: Optional[str] = Field(None, max_length=255)
+    username: Optional[str] = Field(None, max_length=255, validation_alias='user')
     password: Optional[str] = Field(None)  # No max length for password
     is_remote: bool = Field(default=False)
     connection_string: Optional[str] = Field(None, max_length=2000)
+    
+    model_config = {"populate_by_name": True}
     
     @field_validator('database')
     @classmethod
@@ -72,10 +74,10 @@ class SwitchDatabaseRequest(BaseModel):
 
 class SelectSchemaRequest(BaseModel):
     """Schema for /select_schema"""
-    schema_name: str = Field(..., min_length=1, max_length=255, alias="schema")
-    
+    schema_name: str = Field(..., min_length=1, max_length=255, validation_alias="schema_id")
+
     model_config = {"populate_by_name": True}
-    
+
     @field_validator('schema_name')
     @classmethod
     def sanitize_schema(cls, v):

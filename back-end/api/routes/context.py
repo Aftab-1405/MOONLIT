@@ -12,6 +12,7 @@ from dependencies import (
     get_session_data,
     update_session_data,
 )
+from api.request_schemas import SaveUserSettingsRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["context"])
@@ -150,9 +151,9 @@ async def get_user_settings(
 @router.post('/user/settings')
 async def save_user_settings(
     request: Request,
-    data: dict,
+    data: SaveUserSettingsRequest,
     user: dict = Depends(get_current_user)
 ):
     """Save user settings to session."""
-    await update_session_data(request, data)
+    await update_session_data(request, data.model_dump(exclude_unset=True))
     return {'status': 'success'}

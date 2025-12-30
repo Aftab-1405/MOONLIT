@@ -5,7 +5,6 @@ Maintains the original API surface for existing consumers while delegating
 to the new focused classes.
 """
 
-from typing import List, Dict, Generator
 
 from .client import LLMClient
 from .prompt_builder import PromptBuilder

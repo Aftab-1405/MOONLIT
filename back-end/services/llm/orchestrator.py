@@ -6,7 +6,7 @@ Handles the multi-turn tool calling loop and final streaming response generation
 
 import json
 import logging
-from typing import Generator, List, Dict, Optional
+from typing import Generator
 
 from .client import LLMClient
 from .prompt_builder import PromptBuilder

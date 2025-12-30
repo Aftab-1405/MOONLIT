@@ -2,8 +2,7 @@
 
 import uuid
 import logging
-from fastapi import APIRouter, Request, Response, Depends, HTTPException, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Request, Response, HTTPException, status
 from pydantic import BaseModel
 from typing import Optional
 
@@ -12,7 +11,6 @@ from dependencies import (
     get_session_data,
     set_session_data,
     clear_session,
-    get_redis,
 )
 
 router = APIRouter(tags=["auth"])

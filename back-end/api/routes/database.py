@@ -15,7 +15,7 @@ from dependencies import (
 )
 from services.database_service import DatabaseService
 from database import connection_handlers
-from api.request_schemas import RunQueryRequest, SwitchDatabaseRequest
+from api.request_schemas import RunQueryRequest, SwitchDatabaseRequest, ConnectDBRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["database"])
@@ -28,22 +28,16 @@ router = APIRouter(tags=["database"])
 @router.post('/connect_db')
 async def connect_db(
     request: Request,
-    data: dict,
+    data: ConnectDBRequest,
     user: dict = Depends(get_current_user)
 ):
     """Connect to a database (local or remote)."""
     user_id = user.get('uid') or user
     
-    logger.info(f"Connect request data: {data}")
+    logger.info(f"Connect request data: {data.model_dump()}")
     
-    db_type = data.get('db_type')
-    if not db_type:
-        raise HTTPException(
-            status_code=400,
-            detail="'db_type' is required. Must be one of: mysql, postgresql, sqlite"
-        )
-    is_remote = data.get('is_remote', False)
-    connection_string = data.get('connection_string')
+    db_type = data.db_type
+    connection_string = data.connection_string
     
     # If connection_string is provided, use remote connection
     if connection_string:
@@ -65,11 +59,11 @@ async def connect_db(
             )
     else:
         # Local connection
-        host = data.get('host')
-        port = data.get('port')
-        username = data.get('username') or data.get('user')
-        password = data.get('password')
-        database = data.get('database') or data.get('db_name')
+        host = data.host
+        port = data.port
+        username = data.username
+        password = data.password
+        database = data.database
         
         if db_type == 'sqlite':
             result = await run_in_threadpool(

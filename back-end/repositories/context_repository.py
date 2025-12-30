@@ -7,7 +7,7 @@ Collection: user_context/{user_id}
 
 import logging
 from datetime import datetime
-from typing import Dict, Optional, Any
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 

@@ -5,9 +5,7 @@ Database connection orchestration and status management.
 No Flask dependencies.
 """
 
-import time
 import logging
-from typing import Optional, Dict
 
 logger = logging.getLogger(__name__)
 
