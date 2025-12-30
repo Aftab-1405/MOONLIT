@@ -38,6 +38,7 @@ import Editor from '@monaco-editor/react';
 
 // Centralized API layer
 import { getUserContext, del } from '../api';
+import { USER } from '../api/endpoints';
 
 /**
  * UserDBContextManagerForAI - Granular control over stored database context for AI
@@ -91,11 +92,11 @@ function UserDBContextManagerForAI() {
     try {
       let url;
       if (type === 'schema') {
-        url = `/api/user/context/schema/${encodeURIComponent(target)}`;
+        url = USER.CONTEXT_DELETE_SCHEMA(target);
       } else if (type === 'all-schemas') {
-        url = '/api/user/context/schemas';
+        url = USER.CONTEXT_DELETE_ALL_SCHEMAS;
       } else if (type === 'queries') {
-        url = '/api/user/context/queries';
+        url = USER.CONTEXT_DELETE_QUERIES;
       }
 
       const response = await fetch(url, {

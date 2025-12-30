@@ -111,7 +111,7 @@ def create_app() -> FastAPI:
     from api.routes import combined_router as api_router
     
     app.include_router(auth_router)
-    app.include_router(api_router, prefix="/api")
+    app.include_router(api_router, prefix="/api/v1")
     
     return app
 
