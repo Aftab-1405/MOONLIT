@@ -82,7 +82,7 @@ class ConversationService:
             Text chunks from AI response, tool status markers, or error messages
         """
         from services.firestore_service import FirestoreService
-        from services.llm_service import LLMService
+        from services.llm import LLMService
         
         prompt_stored = False
         response_stored = False
