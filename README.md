@@ -4,14 +4,14 @@
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
-![Flask](https://img.shields.io/badge/Flask-2.2+-green?logo=flask&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688?logo=fastapi&logoColor=white)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
 ---
 
 ## Overview
 
-Moonlit is an **agentic AI platform** that empowers database engineers to work with relational databases through natural language. Unlike simple chatbots, Moonlit operates as an **autonomous agent** that:
+Moonlit is an **agentic AI platform** that empowers database users to work with relational databases through natural language. Unlike simple chatbots, Moonlit operates as an **autonomous agent** that:
 
 1. **Reasons** about your request and database context
 2. **Plans** multi-step workflows to accomplish complex tasks
@@ -34,64 +34,7 @@ Moonlit is an **agentic AI platform** that empowers database engineers to work w
 - **Multi-Database Support** — PostgreSQL, MySQL, SQLite, Oracle, SQL Server (local & remote)
 - **Result Visualization** — Charts, diagrams, and formatted tables
 - **Conversation History** — Chat threads stored in Firestore, accessible across sessions
-
-### How It Works
-
-The agent orchestrates multi-turn LLM ↔ Tool interactions until the task is complete:
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant U as User
-    participant FE as Frontend
-    participant API as Flask API
-    participant LLM as Cerebras LLM
-    participant Tools as AI Tools
-    participant DB as Database
-
-    U->>FE: "Show me top 5% customers by avg orders"
-    FE->>API: POST /api/chat (message + history)
-    API->>LLM: System prompt + user message + tool definitions
-    
-    Note over LLM: Reasoning: Need schema first
-    LLM->>API: tool_call: get_connection_status
-    API->>Tools: Execute get_connection_status
-    Tools-->>API: {connected: true, db: "ecommerce", type: "postgresql"}
-    API-->>FE: [[TOOL:get_connection_status:done:...]]
-    API->>LLM: Tool result → context
-    
-    Note over LLM: Reasoning: Need table structure
-    LLM->>API: tool_call: get_table_schema(customers)
-    API->>Tools: Execute get_table_schema
-    Tools->>DB: Query information_schema
-    DB-->>Tools: Column definitions
-    Tools-->>API: {columns: [customer_id, name, ...]}
-    API-->>FE: [[TOOL:get_table_schema:done:...]]
-    API->>LLM: Tool result → context
-    
-    Note over LLM: Reasoning: Build SQL with NTILE()
-    LLM->>API: tool_call: execute_query(SQL)
-    API->>Tools: Execute query
-    Tools->>DB: SELECT with NTILE(20)...
-    DB-->>Tools: Result rows
-    Tools-->>API: {data: [...], row_count: 50}
-    API-->>FE: [[TOOL:execute_query:done:...]]
-    API->>LLM: Tool result (preview only)
-    
-    Note over LLM: All data gathered, generate response
-    LLM-->>API: Stream final response
-    API-->>FE: Stream chunks + [[THINKING:...]]
-    FE-->>U: Formatted response + data table + chart option
-```
-
-**Example Flow:**
-1. User asks for "top 5% customers by average orders"
-2. Agent checks connection → confirms PostgreSQL/ecommerce
-3. Agent inspects `customers` and `orders` tables for schema
-4. Agent crafts SQL using `NTILE(20)` for percentile calculation
-5. Agent executes query → returns top performers
-6. Agent streams natural language summary
-7. Frontend renders table + optional chart visualization
+- **Rate Limiting** — Per-user quotas and global API rate limiting
 
 ---
 
@@ -99,21 +42,25 @@ sequenceDiagram
 
 ```
 moonlit/
-├── back-end/               # Flask API server
-│   ├── api/                # REST routes and request schemas
-│   ├── auth/               # Firebase authentication
-│   ├── database/           # Connection management & adapters
-│   │   └── adapters/       # DBMS-specific adapters
-│   ├── services/           # Business logic (LLM, AI tools, Firestore)
-│   ├── app.py              # Application factory
-│   └── config.py           # Environment-based configuration
+├── back-end/                   # FastAPI server
+│   ├── api/                    # REST routes and request schemas
+│   │   └── routes/             # Domain-specific routers
+│   ├── auth/                   # Firebase authentication
+│   ├── database/               # Connection management & adapters
+│   │   └── adapters/           # DBMS-specific adapters
+│   ├── services/               # Business logic
+│   │   ├── llm/                # LLM orchestration & tools
+│   │   └── rate_limiting/      # Global LLM & per-user quota
+│   ├── main.py                 # Application entry point
+│   └── config.py               # Environment-based configuration
 │
-└── front-end/              # React SPA (Vite)
+└── front-end/                  # React SPA (Vite)
     └── src/
-        ├── components/     # UI components (Sidebar, ChatInput, etc.)
-        ├── contexts/       # React contexts (Auth, Database, Settings)
-        ├── pages/          # Route pages (Chat, Auth, Landing)
-        └── hooks/          # Custom React hooks
+        ├── api/                # Centralized API layer
+        ├── components/         # UI components
+        ├── contexts/           # React contexts (Auth, Database, Theme)
+        ├── pages/              # Route pages (Chat, Auth, Landing)
+        └── hooks/              # Custom React hooks
 ```
 
 ---
@@ -123,13 +70,14 @@ moonlit/
 ### Backend
 | Feature | Description |
 |---------|-------------|
+| **FastAPI** | Async Python framework with automatic OpenAPI docs |
 | **Multi-Database Support** | PostgreSQL, MySQL, SQLite, Oracle, SQL Server via adapter pattern |
 | **Connection Pooling** | Thread-safe singleton manager with automatic cleanup |
-| **LLM Integration** | Cerebras SDK with reasoning models and function calling |
+| **LLM Integration** | Cerebras SDK with multi-key load balancing |
 | **AI Tools** | Schema introspection, query execution, constraint analysis |
 | **Authentication** | Firebase Admin SDK with ID token verification |
-| **Session Storage** | Redis (Upstash) for production, in-memory for development |
-| **Rate Limiting** | Configurable via Flask-Limiter |
+| **Session Storage** | Redis (Upstash) for persistent sessions |
+| **Rate Limiting** | Two-layer: per-user quotas (Redis) + global LLM limiter |
 | **Query Security** | Read-only guard, result limits, timeout protection |
 
 ### Frontend
@@ -139,9 +87,9 @@ moonlit/
 | **Monaco Editor** | Full-featured SQL editor with syntax highlighting |
 | **Markdown Rendering** | AI responses with code blocks, tables, mermaid diagrams |
 | **Chart Visualization** | Chart.js integration for data visualization |
+| **Quota Display** | Real-time rate limit indicator with polling |
 | **Conversation History** | Persistent chat threads with Firestore |
 | **Starfield Animation** | Ambient background effect when user is idle |
-| **Connection Persistence** | Configurable auto-disconnect on tab close |
 | **Dark/Light Themes** | User-selectable appearance modes |
 
 ---
@@ -150,9 +98,9 @@ moonlit/
 
 - **Python 3.11+**
 - **Node.js 18+**
-- **Redis** (optional, for production sessions)
+- **Redis** (Upstash for production)
 - **Firebase Project** (for authentication)
-- **Cerebras API Key** (for LLM)
+- **Cerebras API Key(s)** (for LLM)
 
 ---
 
@@ -175,10 +123,10 @@ pip install pipenv
 pipenv install
 
 # Configure environment
-cp .env.example .env  # Create from template or manually
+cp .env.example .env  # Edit with your credentials
 
 # Run development server
-pipenv run python app.py
+pipenv run uvicorn main:app --host 0.0.0.0 --port 5000 --reload
 ```
 
 ### 3. Frontend Setup
@@ -197,23 +145,33 @@ npm run dev
 
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:5000
+- **API Docs**: http://localhost:5000/docs (development only)
 
 ---
 
 ## Configuration
 
-### Backend Environment Variables
+### Environment Variables
 
 Create a `.env` file in `back-end/`:
 
 ```env
 # Application
-FLASK_ENV=development
+APP_ENV=development  # development, staging, production, testing
 SECRET_KEY=your-secure-secret-key
 
-# LLM (Cerebras)
-LLM_API_KEY=your-cerebras-api-key
+# LLM (Cerebras) - Multi-key support
+LLM_API_KEYS=key1,key2  # Comma-separated for load balancing
 LLM_MODEL=gpt-oss-120b
+
+# Rate Limiting
+LLM_RATELIMIT_ENABLED=true
+LLM_MAX_RPM_PER_KEY=25
+LLM_MAX_CONCURRENT=5
+USER_QUOTA_ENABLED=true
+USER_QUOTA_PER_MINUTE=4
+USER_QUOTA_PER_HOUR=100
+USER_QUOTA_PER_DAY=500
 
 # Firebase Admin SDK
 FIREBASE_TYPE=service_account
@@ -222,19 +180,16 @@ FIREBASE_PRIVATE_KEY_ID=your-key-id
 FIREBASE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
 FIREBASE_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
 FIREBASE_CLIENT_ID=123456789
-FIREBASE_AUTH_URI=https://accounts.google.com/o/oauth2/auth
-FIREBASE_TOKEN_URI=https://oauth2.googleapis.com/token
 
 # Firebase Web SDK
 FIREBASE_WEB_API_KEY=your-web-api-key
 FIREBASE_AUTH_DOMAIN=your-project.firebaseapp.com
-FIREBASE_WEB_PROJECT_ID=your-project-id
 
-# Optional
+# Redis (Upstash)
+UPSTASH_REDIS_URL=redis://default:PASSWORD@HOST:6379
+
+# CORS
 CORS_ORIGINS=http://localhost:5173
-UPSTASH_REDIS_URL=redis://your-redis-url
-RATELIMIT_ENABLED=true
-RATELIMIT_DEFAULT=200 per day, 50 per hour
 ```
 
 ---
@@ -244,7 +199,6 @@ RATELIMIT_DEFAULT=200 per day, 50 per hour
 ### Authentication
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/auth` | Clear session |
 | POST | `/set_session` | Verify Firebase token, create session |
 | GET | `/check_session` | Check session status |
 | POST | `/logout` | Clear user session |
@@ -253,30 +207,49 @@ RATELIMIT_DEFAULT=200 per day, 50 per hour
 ### Database Operations
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/connect` | Connect to database |
-| POST | `/api/disconnect` | Disconnect from database |
-| GET | `/api/db-status` | Get connection status |
-| GET | `/api/heartbeat` | Health check for connection |
-| GET | `/api/databases` | List available databases |
-| POST | `/api/switch-database` | Switch to different database |
+| POST | `/api/v1/connect_db` | Connect to database |
+| POST | `/api/v1/disconnect_db` | Disconnect from database |
+| GET | `/api/v1/db_status` | Get connection status |
+| GET | `/api/v1/get_databases` | List available databases |
+| POST | `/api/v1/switch_remote_database` | Switch to different database |
 
-### Schema & Tables
+### Conversations
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/schemas` | List PostgreSQL schemas |
-| POST | `/api/select-schema` | Select a schema |
-| GET | `/api/tables` | List tables in database |
-| POST | `/api/table-schema` | Get table structure |
+| POST | `/api/v1/pass_user_prompt_to_llm` | Send message to AI (streaming) |
+| GET | `/api/v1/get_conversations` | Get user's conversations |
+| GET | `/api/v1/get_conversation/{id}` | Get specific conversation |
+| POST | `/api/v1/new_conversation` | Create new conversation |
+| DELETE | `/api/v1/delete_conversation/{id}` | Delete conversation |
 
-### Chat & Queries
+### Queries
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/api/chat` | Send message to AI (streaming) |
-| GET | `/api/conversations` | Get user's conversations |
-| GET | `/api/conversation/<id>` | Get specific conversation |
-| POST | `/api/new-conversation` | Create new conversation |
-| DELETE | `/api/conversation/<id>` | Delete conversation |
-| POST | `/api/run-sql` | Execute SQL query |
+| POST | `/api/v1/run_sql_query` | Execute SQL query |
+
+### Quota
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/quota/status` | Get user's rate limit status |
+
+---
+
+## Rate Limiting
+
+Moonlit implements a **two-layer rate limiting** strategy:
+
+### Layer 1: Per-User Quota (Redis)
+- Tracks individual user requests across minute/hour/day
+- Configurable limits (default: 4/min, 100/hr, 500/day)
+- Automatic TTL expiration
+
+### Layer 2: Global LLM Limiter (Memory)
+- Multi-key Cerebras API load balancing
+- Round-robin key selection
+- Per-key RPM tracking
+- Semaphore-based concurrency control
+
+See [RATE_LIMITING.md](back-end/docs/RATE_LIMITING.md) for details.
 
 ---
 
@@ -306,10 +279,13 @@ The LLM can invoke these tools during conversations:
 cd back-end
 
 # Run with hot reload
-pipenv run python app.py
+pipenv run uvicorn main:app --host 0.0.0.0 --port 5000 --reload
 
 # Lint code
 pipenv run ruff check .
+
+# Fix lint issues
+pipenv run ruff check . --fix
 ```
 
 ### Frontend
@@ -331,11 +307,11 @@ npm run build
 
 ## Production Deployment
 
-### Backend (Gunicorn)
+### Backend (Uvicorn)
 
 ```bash
 cd back-end
-pipenv run gunicorn app:app --bind 0.0.0.0:5000 --workers 4
+pipenv run uvicorn main:app --host 0.0.0.0 --port 5000 --workers 4
 ```
 
 ### Frontend (Vite Build)
@@ -346,23 +322,23 @@ npm run build
 # Deploy dist/ to static hosting (Vercel, Netlify, etc.)
 ```
 
-### Environment Requirements
+### Production Checklist
 
-- Set `FLASK_ENV=production`
+- Set `APP_ENV=production`
 - Use strong `SECRET_KEY` (32+ characters)
 - Configure `CORS_ORIGINS` explicitly
-- Enable `RATELIMIT_ENABLED=true`
-- Set `UPSTASH_REDIS_URL` for session storage
+- Enable rate limiting (`LLM_RATELIMIT_ENABLED=true`, `USER_QUOTA_ENABLED=true`)
+- Set `UPSTASH_REDIS_URL` for sessions and quota
 
 ---
 
 ## Security
 
-- **Read-only Query Guard**: Only SELECT statements allowed (AI & users); future RBAC planned
+- **Read-only Query Guard**: Only SELECT statements allowed
 - **Query Timeout**: Configurable execution limits
 - **Result Limits**: Prevents excessive data retrieval
 - **Firebase Token Verification**: Cryptographic auth validation
-- **Rate Limiting**: Protects against abuse
+- **Rate Limiting**: Per-user quotas + global API limits
 - **CORS**: Explicit origin allowlist in production
 
 ---
@@ -370,13 +346,13 @@ npm run build
 ## Tech Stack
 
 ### Backend
-- **Framework**: Flask 2.3.3
-- **LLM SDK**: Cerebras Cloud SDK 1.59.0
-- **Auth**: Firebase Admin SDK 6.9.0
+- **Framework**: FastAPI 0.115+
+- **LLM SDK**: Cerebras Cloud SDK 1.59+
+- **Auth**: Firebase Admin SDK 6.9+
 - **Databases**: psycopg2-binary, mysql-connector-python, sqlite3, oracledb, pyodbc
-- **Session**: Flask-Session 0.8.0 + Redis
-- **Rate Limiting**: Flask-Limiter 3.12
-- **WSGI Server**: Gunicorn 20.1.0
+- **Session/Quota**: Redis (Upstash) via redis-py
+- **Rate Limiting**: Custom (slowapi for HTTP, custom for LLM)
+- **ASGI Server**: Uvicorn
 
 ### Frontend
 - **Build Tool**: Vite 7
@@ -387,6 +363,13 @@ npm run build
 - **Charts**: Chart.js
 - **Auth**: Firebase SDK
 - **Markdown**: react-markdown + remark-gfm
+
+---
+
+## Documentation
+
+- [Rate Limiting Architecture](back-end/docs/RATE_LIMITING.md)
+- [Upstash Redis Integration](back-end/docs/upstash-redis-integration.md)
 
 ---
 
@@ -403,7 +386,7 @@ npm run build
 ## Acknowledgments
 
 - [Cerebras](https://cerebras.ai/) for LLM inference
-- [Flask](https://flask.palletsprojects.com/) for backend framework
+- [FastAPI](https://fastapi.tiangolo.com/) for backend framework
 - [Firebase](https://firebase.google.com/) for authentication & Firestore
-- [Upstash](https://upstash.com/) for serverless Redis session storage
+- [Upstash](https://upstash.com/) for serverless Redis
 - [Material UI](https://mui.com/) for React components
