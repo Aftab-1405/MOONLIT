@@ -19,25 +19,115 @@ class ConversationRepository:
     COLLECTION_NAME = 'conversations'
     
     @staticmethod
-    def _strip_markers(text: str) -> str:
+    def _strip_markers(text: str) -> tuple[str, str]:
         """
-        Strip streaming markers from message before storing.
+        Strip streaming markers from message before storing and extract thinking content.
+
+        THINKING markers are stripped (content extracted separately).
+        TOOL markers are PRESERVED in content for proper inline rendering on page load.
         
-        These markers ([[THINKING:...]], [[TOOL:...]]) are for real-time UI rendering.
-        Stored messages should contain only the clean content.
+        Returns:
+            tuple: (cleaned_text, thinking_content)
         """
         if not text:
-            return text
-        
-        # Strip thinking markers
+            return text, ''
+
+        thinking_content = ''
+
+        # Extract thinking content from chunks (handles complete markers)
+        thinking_chunks = re.findall(r'\[\[THINKING:chunk:(.*?)\]\]', text, re.DOTALL)
+        if thinking_chunks:
+            thinking_content = ''.join(thinking_chunks)
+
+        # Strip thinking markers (handles both complete and incomplete markers)
         text = re.sub(r'\[\[THINKING:start\]\]', '', text)
-        text = re.sub(r'\[\[THINKING:chunk:.*?\]\]', '', text)
+        text = re.sub(r'\[\[THINKING:chunk:.*?\]\]', '', text, flags=re.DOTALL)  # Complete markers
         text = re.sub(r'\[\[THINKING:end\]\]', '', text)
-        
-        # Strip tool markers (keep result data separate in 'tools' field)
-        text = re.sub(r'\[\[TOOL:[^\]]+\]\]', '', text)
-        
-        return text.strip()
+        # Clean up any remaining incomplete THINKING markers (without proper closing ]])
+        text = re.sub(r'\[\[THINKING:[^\]]*\]?$', '', text)  # Incomplete at end
+        text = re.sub(r'\[\[THINKING:[^\]]*\](?!\])', '', text)  # Single ] instead of ]]
+
+        # NOTE: Tool markers [[TOOL:...]] are intentionally KEPT in content
+        # This ensures tools render inline with text in correct order after page refresh,
+        # matching the streaming behavior. The frontend parseMessageSegments() handles them.
+
+        # Strip raw JSON objects that LLM might echo (tool arguments/results)
+        # Pattern: { ... } with proper bracket matching
+        text = ConversationRepository._strip_json_objects(text)
+
+        return text.strip(), thinking_content
+
+    @staticmethod
+    def _strip_json_objects(text: str) -> str:
+        """
+        Remove JSON objects that the LLM might echo in its response.
+        These are typically tool arguments or error responses that leak through.
+
+        Uses bracket matching to properly identify complete JSON objects.
+        PRESERVES JSON inside [[TOOL:...]] markers - those are needed for parsing.
+        """
+        if not text or '{' not in text:
+            return text
+
+        result = []
+        i = 0
+
+        while i < len(text):
+            # Check if we're inside a [[TOOL: marker - if so, preserve JSON
+            # Look backwards to see if we're inside a tool marker
+            preceding = text[max(0, i-100):i]  # Check up to 100 chars before
+            in_tool_marker = '[[TOOL:' in preceding and ']]' not in preceding[preceding.rfind('[[TOOL:'):]
+            
+            # Check if we're at the start of a potential JSON object
+            if text[i] == '{' and not in_tool_marker:
+                # Try to find the matching closing brace
+                depth = 1
+                j = i + 1
+                in_string = False
+                escape_next = False
+
+                while j < len(text) and depth > 0:
+                    if escape_next:
+                        escape_next = False
+                        j += 1
+                        continue
+
+                    char = text[j]
+
+                    if char == '\\' and in_string:
+                        escape_next = True
+                    elif char == '"':
+                        in_string = not in_string
+                    elif not in_string:
+                        if char == '{':
+                            depth += 1
+                        elif char == '}':
+                            depth -= 1
+
+                    j += 1
+
+                # If we found a complete JSON object, try to parse it
+                if depth == 0:
+                    json_candidate = text[i:j]
+                    try:
+                        import json
+                        json.loads(json_candidate)
+                        # Valid JSON - skip it (don't add to result)
+                        i = j
+                        continue
+                    except (json.JSONDecodeError, ValueError):
+                        # Not valid JSON - keep the character
+                        result.append(text[i])
+                        i += 1
+                else:
+                    # Incomplete JSON - keep the character
+                    result.append(text[i])
+                    i += 1
+            else:
+                result.append(text[i])
+                i += 1
+
+        return ''.join(result)
     
     @staticmethod
     def get(conversation_id: str) -> Optional[Dict]:
@@ -138,16 +228,24 @@ class ConversationRepository:
                     'messages': []
                 })
             
-            # Clean the message content for storage
-            clean_message = ConversationRepository._strip_markers(message) if sender == 'ai' else message
-            
+            # Clean the message content for storage and extract thinking
+            if sender == 'ai':
+                clean_message, thinking_content = ConversationRepository._strip_markers(message)
+            else:
+                clean_message = message
+                thinking_content = ''
+
             # Build the message object
             message_data = {
                 'sender': sender,
                 'content': clean_message,
                 'timestamp': datetime.now()
             }
-            
+
+            # Add thinking content if present (for AI messages with reasoning)
+            if thinking_content:
+                message_data['thinking'] = thinking_content
+
             # Add tools info if provided (for AI messages)
             if tools:
                 message_data['tools'] = tools
@@ -173,8 +271,8 @@ class ConversationRepository:
             True if deleted successfully
             
         Raises:
-            PermissionError: If user doesn't own the conversation
-            ValueError: If conversation not found
+            PermissionError: If the user doesn't own the conversation
+            ValueError: If conversation is not found
         """
         from services.firestore_service import FirestoreService
         

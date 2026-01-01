@@ -37,7 +37,7 @@ import ErrorRoundedIcon from '@mui/icons-material/ErrorRounded';
 import Editor from '@monaco-editor/react';
 
 // Centralized API layer
-import { getUserContext, del } from '../api';
+import { getUserContext } from '../api';
 import { USER } from '../api/endpoints';
 
 /**
@@ -78,7 +78,7 @@ function UserDBContextManagerForAI() {
       } else {
         setError(data.message || 'Failed to load context');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to connect to server');
     } finally {
       setLoading(false);
@@ -110,7 +110,7 @@ function UserDBContextManagerForAI() {
         const data = await response.json();
         setError(data.message || 'Delete failed');
       }
-    } catch (err) {
+    } catch {
       setError('Failed to delete');
     }
   };
@@ -251,7 +251,6 @@ function UserDBContextManagerForAI() {
                 size="small"
                 color="error"
                 onClick={() => openDeleteDialog('all-schemas')}
-                sx={{ fontSize: '0.7rem' }}
               >
                 Clear All
               </Button>
@@ -370,7 +369,6 @@ function UserDBContextManagerForAI() {
                 color="error"
                 startIcon={<DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />}
                 onClick={() => openDeleteDialog('queries')}
-                sx={{ fontSize: '0.7rem' }}
               >
                 Clear All
               </Button>
@@ -453,7 +451,7 @@ function UserDBContextManagerForAI() {
                             '& .MuiChip-icon': { color: 'inherit' },
                           }}
                         />
-                        <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                        <Typography variant="bodySmall" color="text.secondary">
                           {query.row_count} row{query.row_count !== 1 ? 's' : ''}
                         </Typography>
                         <Typography variant="caption" color="text.disabled">
@@ -564,7 +562,7 @@ function UserDBContextManagerForAI() {
           <Button onClick={() => setDeleteDialog({ open: false, type: null, target: null })} color="inherit">
             Cancel
           </Button>
-          <Button onClick={handleDelete} color="error" variant="contained">
+          <Button onClick={handleDelete} color="error" >
             Delete Anyway
           </Button>
         </DialogActions>

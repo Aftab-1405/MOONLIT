@@ -9,13 +9,13 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import Dagre from '@dagrejs/dagre';
-import { Box, Typography, useTheme } from '@mui/material';
+import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 
 /**
- * Custom Bezier Edge - Smooth curved connections like NotebookLM
+ * Custom Bezier Edge - Smooth curved connections
  */
 const CustomBezierEdge = ({
   id,
@@ -48,40 +48,46 @@ const CustomBezierEdge = ({
 };
 
 /**
- * NotebookLM-style pill node for database root
+ * Database root node - Mobile-first design
  */
 const DatabaseNode = memo(({ data }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   return (
     <Box
       sx={{
-        px: 2,
-        py: 1,
-        borderRadius: '20px',
-        backgroundColor: isDark ? '#2a2a2f' : '#e8e8ec',
+        // Mobile-first: larger tap targets on mobile
+        px: { xs: 2.5, sm: 2 },
+        py: { xs: 1.5, sm: 1 },
+        borderRadius: '24px',
+        backgroundColor: isDark 
+          ? alpha(theme.palette.primary.main, 0.15)
+          : alpha(theme.palette.primary.main, 0.1),
+        border: `2px solid ${alpha(theme.palette.primary.main, 0.3)}`,
         display: 'flex',
         alignItems: 'center',
         gap: 1,
-        minWidth: 100,
-        transition: 'all 0.15s ease',
+        minWidth: isMobile ? 120 : 100,
+        transition: 'all 0.2s ease',
+        boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, 0.2)}`,
       }}
     >
       <Typography
         variant="body2"
         sx={{
-          fontWeight: 500,
-          color: theme.palette.text.primary,
-          fontSize: '0.85rem',
+          fontWeight: 600,
+          color: theme.palette.primary.main,
+          fontSize: { xs: '0.95rem', sm: '0.85rem' },
         }}
       >
         {data.label}
       </Typography>
       <ChevronRightRoundedIcon
         sx={{
-          fontSize: 16,
-          color: theme.palette.text.secondary,
+          fontSize: { xs: 20, sm: 16 },
+          color: theme.palette.primary.main,
         }}
       />
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
@@ -91,28 +97,40 @@ const DatabaseNode = memo(({ data }) => {
 DatabaseNode.displayName = 'DatabaseNode';
 
 /**
- * NotebookLM-style pill node for tables (expandable)
+ * Table node - Mobile-first with larger touch targets
  */
 const TableNode = memo(({ data }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const hasColumns = data.columnCount > 0;
 
   return (
     <Box
       sx={{
-        px: 1.5,
-        py: 0.75,
-        borderRadius: '16px',
-        backgroundColor: isDark ? '#2a2a2f' : '#e8e8ec',
+        // Mobile-first: minimum 44px touch target
+        px: { xs: 2, sm: 1.5 },
+        py: { xs: 1.25, sm: 0.75 },
+        borderRadius: '20px',
+        backgroundColor: isDark 
+          ? alpha(theme.palette.text.primary, 0.08)
+          : alpha(theme.palette.text.primary, 0.06),
+        border: `1.5px solid ${alpha(theme.palette.divider, isDark ? 0.3 : 0.5)}`,
         display: 'flex',
         alignItems: 'center',
-        gap: 0.75,
-        minWidth: 80,
+        gap: { xs: 1, sm: 0.75 },
+        minWidth: isMobile ? 100 : 80,
+        minHeight: isMobile ? 44 : 32, // iOS touch target guideline
         cursor: hasColumns ? 'pointer' : 'default',
-        transition: 'all 0.15s ease',
+        transition: 'all 0.2s ease',
         '&:hover': hasColumns ? {
-          backgroundColor: isDark ? '#35353a' : '#dcdce0',
+          backgroundColor: isDark 
+            ? alpha(theme.palette.info.main, 0.15)
+            : alpha(theme.palette.info.main, 0.1),
+          borderColor: alpha(theme.palette.info.main, 0.5),
+        } : {},
+        '&:active': hasColumns ? {
+          transform: 'scale(0.97)',
         } : {},
       }}
       onClick={() => hasColumns && data.onToggle && data.onToggle(data.id)}
@@ -123,20 +141,42 @@ const TableNode = memo(({ data }) => {
         sx={{
           fontWeight: 500,
           color: theme.palette.text.primary,
-          fontSize: '0.8rem',
+          fontSize: { xs: '0.9rem', sm: '0.8rem' },
         }}
       >
         {data.label}
       </Typography>
       {hasColumns && (
-        <ChevronRightRoundedIcon
+        <Box
           sx={{
-            fontSize: 14,
-            color: theme.palette.text.secondary,
-            transform: data.expanded ? 'rotate(90deg)' : 'rotate(0deg)',
-            transition: 'transform 0.2s ease',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5,
+            ml: 'auto',
           }}
-        />
+        >
+          <Typography
+            variant="caption"
+            sx={{
+              color: theme.palette.text.secondary,
+              fontSize: { xs: '0.75rem', sm: '0.65rem' },
+              backgroundColor: alpha(theme.palette.text.primary, 0.08),
+              px: 0.75,
+              py: 0.25,
+              borderRadius: 1,
+            }}
+          >
+            {data.columnCount}
+          </Typography>
+          <ChevronRightRoundedIcon
+            sx={{
+              fontSize: { xs: 18, sm: 14 },
+              color: theme.palette.text.secondary,
+              transform: data.expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease',
+            }}
+          />
+        </Box>
       )}
       <Handle type="source" position={Position.Right} style={{ opacity: 0 }} />
     </Box>
@@ -145,31 +185,38 @@ const TableNode = memo(({ data }) => {
 TableNode.displayName = 'TableNode';
 
 /**
- * NotebookLM-style pill node for columns
+ * Column node - Mobile-first with readable text sizes
  */
 const ColumnNode = memo(({ data }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isPK = data.isPrimaryKey;
 
   return (
     <Box
       sx={{
-        px: 1.25,
-        py: 0.5,
-        borderRadius: '14px',
-        backgroundColor: isDark ? '#2a2a2f' : '#e8e8ec',
+        px: { xs: 1.5, sm: 1.25 },
+        py: { xs: 0.75, sm: 0.5 },
+        borderRadius: '16px',
+        backgroundColor: isPK 
+          ? alpha(theme.palette.warning.main, isDark ? 0.15 : 0.1)
+          : alpha(theme.palette.text.primary, 0.04),
+        border: `1px solid ${isPK 
+          ? alpha(theme.palette.warning.main, 0.3) 
+          : alpha(theme.palette.divider, 0.3)}`,
         display: 'flex',
         alignItems: 'center',
-        gap: 0.5,
-        minWidth: 60,
+        gap: { xs: 0.75, sm: 0.5 },
+        minWidth: isMobile ? 90 : 60,
+        minHeight: isMobile ? 36 : 28,
       }}
     >
       <Handle type="target" position={Position.Left} style={{ opacity: 0 }} />
       {isPK && (
         <KeyRoundedIcon
           sx={{
-            fontSize: 12,
+            fontSize: { xs: 14, sm: 12 },
             color: theme.palette.warning.main,
           }}
         />
@@ -179,7 +226,7 @@ const ColumnNode = memo(({ data }) => {
         sx={{
           color: isPK ? theme.palette.warning.main : theme.palette.text.primary,
           fontWeight: isPK ? 600 : 400,
-          fontSize: '0.75rem',
+          fontSize: { xs: '0.8rem', sm: '0.75rem' },
         }}
       >
         {data.label}
@@ -189,8 +236,9 @@ const ColumnNode = memo(({ data }) => {
           variant="caption"
           sx={{
             color: theme.palette.text.disabled,
-            fontSize: '0.65rem',
+            fontSize: { xs: '0.7rem', sm: '0.65rem' },
             ml: 'auto',
+            opacity: 0.7,
           }}
         >
           {data.type}
@@ -212,11 +260,16 @@ const edgeTypes = {
 };
 
 /**
- * Apply dagre layout with NotebookLM-style spacing
+ * Apply dagre layout with responsive spacing
  */
-const getLayoutedElements = (nodes, edges, direction = 'LR') => {
+const getLayoutedElements = (nodes, edges, direction = 'LR', isMobile = false) => {
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ rankdir: direction, nodesep: 30, ranksep: 100 });
+  // Mobile: more vertical spacing, less horizontal
+  g.setGraph({ 
+    rankdir: direction, 
+    nodesep: isMobile ? 20 : 30, 
+    ranksep: isMobile ? 60 : 100,
+  });
 
   nodes.forEach((node) => {
     g.setNode(node.id, { width: node.width || 120, height: node.height || 32 });
@@ -243,11 +296,12 @@ const getLayoutedElements = (nodes, edges, direction = 'LR') => {
 };
 
 /**
- * SchemaFlowDiagram - NotebookLM-style mindmap visualization
+ * SchemaFlowDiagram - Mobile-first mindmap visualization
  */
 function SchemaFlowDiagram({ database, tables, columns }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [expandedTables, setExpandedTables] = useState(new Set());
 
   const toggleTable = useCallback((tableId) => {
@@ -264,14 +318,24 @@ function SchemaFlowDiagram({ database, tables, columns }) {
 
   // Edge styling using theme colors
   const edgeStyle = useMemo(() => ({
-    stroke: isDark ? '#52525B' : '#94A3B8',
-    strokeWidth: 1.5,
-  }), [isDark]);
+    stroke: isDark 
+      ? alpha(theme.palette.text.secondary, 0.4) 
+      : alpha(theme.palette.text.secondary, 0.5),
+    strokeWidth: isMobile ? 2 : 1.5,
+  }), [isDark, isMobile, theme.palette.text.secondary]);
 
-  // Build nodes and edges
+  // Build nodes and edges with responsive sizing
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodes = [];
     const edges = [];
+
+    // Responsive node dimensions
+    const dbNodeWidth = isMobile ? 160 : 140;
+    const dbNodeHeight = isMobile ? 48 : 36;
+    const tableNodeWidth = isMobile ? 140 : 120;
+    const tableNodeHeight = isMobile ? 44 : 32;
+    const colNodeWidth = isMobile ? 130 : 110;
+    const colNodeHeight = isMobile ? 36 : 28;
 
     // Database root node
     nodes.push({
@@ -279,8 +343,8 @@ function SchemaFlowDiagram({ database, tables, columns }) {
       type: 'database',
       data: { label: database },
       position: { x: 0, y: 0 },
-      width: 140,
-      height: 36,
+      width: dbNodeWidth,
+      height: dbNodeHeight,
     });
 
     // Table nodes
@@ -300,8 +364,8 @@ function SchemaFlowDiagram({ database, tables, columns }) {
           onToggle: toggleTable,
         },
         position: { x: 0, y: 0 },
-        width: 120,
-        height: 32,
+        width: tableNodeWidth,
+        height: tableNodeHeight,
       });
 
       edges.push({
@@ -331,8 +395,8 @@ function SchemaFlowDiagram({ database, tables, columns }) {
               isPrimaryKey: isPK,
             },
             position: { x: 0, y: 0 },
-            width: 110,
-            height: 28,
+            width: colNodeWidth,
+            height: colNodeHeight,
           });
 
           edges.push({
@@ -340,7 +404,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
             source: tableId,
             target: columnId,
             type: 'custom',
-            style: { ...edgeStyle, strokeWidth: 1 },
+            style: { ...edgeStyle, strokeWidth: isMobile ? 1.5 : 1 },
             sourcePosition: Position.Right,
             targetPosition: Position.Left,
           });
@@ -348,9 +412,9 @@ function SchemaFlowDiagram({ database, tables, columns }) {
       }
     });
 
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges);
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, 'LR', isMobile);
     return { initialNodes: layoutedNodes, initialEdges: layoutedEdges };
-  }, [database, tables, columns, expandedTables, toggleTable, edgeStyle]);
+  }, [database, tables, columns, expandedTables, toggleTable, edgeStyle, isMobile]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
@@ -364,11 +428,15 @@ function SchemaFlowDiagram({ database, tables, columns }) {
     <Box
       sx={{
         width: '100%',
-        height: 500,
-        borderRadius: 2,
+        // Mobile-first: responsive height
+        height: { xs: 'calc(100vh - 140px)', sm: 400, md: 500 },
+        minHeight: { xs: 300, sm: 350 },
+        borderRadius: { xs: 0, sm: 2 },
         overflow: 'hidden',
-        border: `1px solid ${theme.palette.divider}`,
-        backgroundColor: isDark ? '#18181b' : '#fafafa',
+        border: { xs: 'none', sm: `1px solid ${theme.palette.divider}` },
+        backgroundColor: isDark 
+          ? alpha(theme.palette.background.paper, 0.5)
+          : theme.palette.background.paper,
       }}
     >
       <ReactFlow
@@ -379,22 +447,71 @@ function SchemaFlowDiagram({ database, tables, columns }) {
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
-        fitViewOptions={{ padding: 0.4 }}
-        minZoom={0.3}
+        fitViewOptions={{ padding: isMobile ? 0.2 : 0.4 }}
+        minZoom={0.2}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
+        // Better touch interaction on mobile
+        panOnScroll={!isMobile}
+        panOnDrag={true}
+        zoomOnScroll={!isMobile}
+        zoomOnPinch={true}
+        preventScrolling={true}
       >
         <Controls
           showInteractive={false}
+          position={isMobile ? 'bottom-right' : 'top-right'}
           style={{
-            backgroundColor: isDark ? '#27272a' : '#fff',
-            borderRadius: 8,
-            border: `1px solid ${theme.palette.divider}`,
+            display: 'flex',
+            flexDirection: 'row',
+            gap: '4px',
+            padding: '6px',
+            backgroundColor: isDark ? '#27272a' : '#ffffff',
+            borderRadius: '8px',
+            border: `1px solid ${isDark ? '#3f3f46' : '#e4e4e7'}`,
+            boxShadow: isDark 
+              ? '0 2px 8px rgba(0,0,0,0.3)' 
+              : '0 2px 8px rgba(0,0,0,0.1)',
+            ...(isMobile 
+              ? { bottom: '12px', right: '12px' }
+              : { top: '12px', right: '12px' }
+            ),
           }}
+          className="react-flow-controls-custom"
         />
       </ReactFlow>
+      {/* Custom CSS for ReactFlow Controls buttons */}
+      <style>{`
+        .react-flow-controls-custom button {
+          width: 24px !important;
+          height: 24px !important;
+          background-color: ${isDark ? '#3f3f46' : '#f4f4f5'} !important;
+          border: 1px solid ${isDark ? '#52525b' : '#d4d4d8'} !important;
+          border-radius: 6px !important;
+          color: ${isDark ? '#fafafa' : '#18181b'} !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          cursor: pointer !important;
+          transition: all 0.15s ease !important;
+          padding: 0 !important;
+        }
+        .react-flow-controls-custom button:hover {
+          background-color: ${isDark ? '#52525b' : '#e4e4e7'} !important;
+        }
+        .react-flow-controls-custom button svg {
+          fill: ${isDark ? '#fafafa' : '#18181b'} !important;
+          width: 14px !important;
+          height: 14px !important;
+        }
+        .react-flow-controls-custom button:disabled {
+          opacity: 0.4 !important;
+          cursor: not-allowed !important;
+        }
+      `}</style>
     </Box>
   );
 }
 
 export default memo(SchemaFlowDiagram);
+

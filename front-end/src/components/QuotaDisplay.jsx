@@ -132,7 +132,7 @@ function QuotaDisplay() {
         label={`${remaining}/${limit}`}
         size="small"
         color={statusColor}
-        variant="outlined"
+        
         sx={{
           height: 24,
           fontSize: '0.7rem',

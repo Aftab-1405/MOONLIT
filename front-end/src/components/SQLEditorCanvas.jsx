@@ -51,7 +51,7 @@ const getGlassmorphismStyles = (theme, isDark) => ({
 });
 
 const openedMixin = (theme, width, isDark) => ({
-  width: width,
+  width: typeof width === 'number' ? width : width, // Accept both number (px) and string (100%)
   transition: theme.transitions.create('width', {
     easing: theme.transitions.easing.sharp,
     duration: theme.transitions.duration.enteringScreen, // 225ms
@@ -93,6 +93,8 @@ function SQLEditorCanvas({
   // Panel control props
   isOpen = true,
   panelWidth = 450,
+  // Fullscreen mode for mobile - renders without panel styling
+  fullscreen = false,
 }) {
   const theme = useMuiTheme();
   const { settings } = useAppTheme();
@@ -109,16 +111,6 @@ function SQLEditorCanvas({
 
   // Reusable style helpers (DRY) - using theme tokens, no hardcoded colors
   const textColor = theme.palette.text.primary;
-  
-  const iconButtonBaseStyles = {
-    width: 36,
-    height: 36,
-    color: 'text.secondary',
-    backgroundColor: alpha(textColor, isDark ? 0.05 : 0.04),
-    '&:hover': { 
-      backgroundColor: alpha(textColor, isDark ? 0.1 : 0.08),
-    },
-  };
 
   // Reusable empty state component (DRY)
   // eslint-disable-next-line no-unused-vars
@@ -404,6 +396,188 @@ function SQLEditorCanvas({
     }
   };
 
+  // Fullscreen mode: simple Box container, no panel animations
+  if (fullscreen) {
+    return (
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+          width: '100%',
+          bgcolor: 'background.default',
+        }}
+      >
+        {/* Compact Header - Monochrome */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            px: 2,
+            py: 1.25,
+            borderBottom: '1px solid',
+            borderColor: isDark ? alpha('#fff', 0.06) : alpha('#000', 0.06),
+            backgroundColor: 'transparent',
+            flexShrink: 0,
+          }}
+        >
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box
+              sx={{
+                width: 32,
+                height: 32,
+                borderRadius: 2,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+                border: '1px solid',
+                borderColor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.1),
+              }}
+            >
+              <TerminalRoundedIcon sx={{ fontSize: 18, color: 'text.primary' }} />
+            </Box>
+            <Typography variant="subtitle2" fontWeight={600}>
+              SQL Editor
+            </Typography>
+            {currentDatabase && (
+              <Chip
+                size="small"
+                icon={<StorageRoundedIcon sx={{ fontSize: 12 }} />}
+                label={currentDatabase}
+                sx={{ 
+                  height: 22, 
+                  fontSize: '0.7rem',
+                  backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+                  color: 'text.primary',
+                  '& .MuiChip-icon': { ml: 0.5, color: 'inherit' },
+                }}
+              />
+            )}
+          </Box>
+          
+          <Tooltip title="Close">
+            <IconButton 
+              size="small" 
+              onClick={onClose}
+              sx={{ 
+                color: 'text.secondary',
+                '&:hover': { 
+                  backgroundColor: isDark ? alpha('#fff', 0.08) : alpha('#000', 0.06),
+                },
+              }}
+            >
+              <CloseRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+
+        {/* Centered Tab Bar */}
+        <Box
+          sx={{
+            display: 'flex',
+            justifyContent: 'center',
+            borderBottom: '1px solid',
+            borderColor: isDark ? alpha('#fff', 0.05) : alpha('#000', 0.05),
+            backgroundColor: 'transparent',
+            flexShrink: 0,
+          }}
+        >
+          <Tabs
+            value={activeTab}
+            onChange={handleTabChange}
+            centered
+            sx={{
+              minHeight: 44,
+              '& .MuiTabs-indicator': {
+                height: 2,
+                borderRadius: '2px 2px 0 0',
+                backgroundColor: isDark ? '#FFFFFF' : '#000000',
+              },
+              '& .MuiTab-root': {
+                minHeight: 44,
+                minWidth: 80,
+                px: 2,
+                py: 0,
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                textTransform: 'none',
+                color: 'text.secondary',
+                '&.Mui-selected': { color: 'text.primary' },
+              },
+            }}
+          >
+            <Tab icon={<TerminalRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Editor" />
+            <Tab icon={<TableChartOutlinedIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Results" />
+            <Tab icon={<BarChartRoundedIcon sx={{ fontSize: 16 }} />} iconPosition="start" label="Chart" disabled={!results} />
+          </Tabs>
+        </Box>
+
+        {/* Tab Content */}
+        <Box sx={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
+          {renderTabContent()}
+        </Box>
+
+        {/* Floating Action Bar */}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 1,
+            px: 2,
+            py: 1.5,
+            borderTop: '1px solid',
+            borderColor: alpha(theme.palette.divider, isDark ? 0.1 : 0.15),
+            flexShrink: 0,
+          }}
+        >
+          <Tooltip title={isRunning ? 'Running...' : 'Run Query'}>
+            <span>
+              <IconButton
+                size="small"
+                onClick={handleRunQuery}
+                disabled={isRunning || !query.trim()}
+                sx={{
+                  width: 36,
+                  height: 36,
+                  color: isRunning ? 'text.secondary' : 'text.primary',
+                  backgroundColor: alpha(textColor, isDark ? 0.1 : 0.08),
+                  border: '1px solid',
+                  borderColor: alpha(textColor, isDark ? 0.15 : 0.12),
+                  '&:hover': { 
+                    backgroundColor: alpha(textColor, isDark ? 0.15 : 0.12),
+                  },
+                  '&.Mui-disabled': {
+                    color: 'text.disabled',
+                    backgroundColor: 'transparent',
+                    borderColor: 'transparent',
+                  },
+                }}
+              >
+                {isRunning ? <CircularProgress size={18} color="inherit" /> : <PlayArrowRoundedIcon sx={{ fontSize: 20 }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title={copied ? 'Copied!' : 'Copy query'}>
+            <span>
+              <IconButton size="small" onClick={handleCopy} disabled={!query.trim()}>
+                {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Clear all">
+            <IconButton size="small" onClick={handleClear}>
+              <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+      </Box>
+    );
+  }
+
+  // Desktop: use StyledPanel with transitions
   return (
     <StyledPanel
       open={isOpen}
@@ -618,13 +792,6 @@ function SQLEditorCanvas({
               size="small" 
               onClick={handleCopy} 
               disabled={!query.trim()}
-              sx={{ 
-                ...iconButtonBaseStyles,
-                color: copied ? 'text.primary' : 'text.secondary',
-                '&.Mui-disabled': {
-                  color: 'text.disabled',
-                },
-              }}
             >
               {copied ? (
                 <CheckRoundedIcon sx={{ fontSize: 18 }} />
@@ -640,7 +807,7 @@ function SQLEditorCanvas({
           <IconButton 
             size="small" 
             onClick={handleClear} 
-            sx={iconButtonBaseStyles}
+           
           >
             <DeleteOutlineRoundedIcon sx={{ fontSize: 18 }} />
           </IconButton>

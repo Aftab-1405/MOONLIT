@@ -9,8 +9,7 @@
 import { Box, Typography, keyframes } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 
-// Helper function for moonlit gradient
-const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
+import { getMoonlitGradient } from '../theme';
 
 // Breathing animation
 const breathe = keyframes`

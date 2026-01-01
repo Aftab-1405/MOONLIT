@@ -193,6 +193,7 @@ const DatabaseContext = createContext(null);
  * 
  * @returns {Object} Database state and actions
  */
+// eslint-disable-next-line react-refresh/only-export-components -- Hook export alongside Provider is valid React pattern
 export function useDatabaseConnection() {
   const context = useContext(DatabaseContext);
   if (!context) {

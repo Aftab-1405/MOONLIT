@@ -377,18 +377,30 @@ function stripThinkingMarkers(text) {
 /**
  * Parses message content into segments: 'text', 'thinking', 'tool'
  * Segments are returned in EXACT order for true inline rendering.
+ *
+ * @param {string} text - The message content (may contain markers)
+ * @param {string} [thinkingField] - Optional thinking content from database (for loaded messages)
+ * @param {Array} [toolsField] - Unused, kept for API compatibility. Tools are parsed from content markers.
  */
-function parseMessageSegments(text) {
+function parseMessageSegments(text, thinkingField = null, toolsField = null) {
   const segments = [];
   let currentIndex = 0;
-  
+
+  // If we have a thinking field (from database), add it as the first segment
+  if (thinkingField && thinkingField.trim()) {
+    segments.push({ type: 'thinking', content: thinkingField, isComplete: true });
+  }
+
+  // NOTE: toolsField is no longer used here - tool markers are preserved in content
+  // and parsed inline below, ensuring correct order with text segments.
+
   while (currentIndex < text.length) {
     const toolStart = text.indexOf('[[TOOL:', currentIndex);
     const thinkingStart = text.indexOf('[[THINKING:start]]', currentIndex);
-    
+
     let nextMarkerStart = -1;
     let markerType = null;
-    
+
     if (toolStart !== -1 && thinkingStart !== -1) {
       nextMarkerStart = toolStart < thinkingStart ? toolStart : thinkingStart;
       markerType = toolStart < thinkingStart ? 'tool' : 'thinking';
@@ -399,7 +411,7 @@ function parseMessageSegments(text) {
       nextMarkerStart = thinkingStart;
       markerType = 'thinking';
     }
-    
+
     if (nextMarkerStart === -1) {
       const remainingText = text.slice(currentIndex);
       const cleanedText = stripThinkingMarkers(stripJsonFromText(remainingText));
@@ -408,7 +420,7 @@ function parseMessageSegments(text) {
       }
       break;
     }
-    
+
     if (nextMarkerStart > currentIndex) {
       const textContent = text.slice(currentIndex, nextMarkerStart);
       const cleanedText = stripThinkingMarkers(stripJsonFromText(textContent));
@@ -416,22 +428,22 @@ function parseMessageSegments(text) {
         segments.push({ type: 'text', content: cleanedText });
       }
     }
-    
+
     if (markerType === 'thinking') {
       currentIndex = nextMarkerStart + '[[THINKING:start]]'.length;
       let thinkingContent = '';
       let isThinkingComplete = false;
-      
+
       while (currentIndex < text.length) {
         const chunkStart = text.indexOf('[[THINKING:chunk:', currentIndex);
         const endStart = text.indexOf('[[THINKING:end]]', currentIndex);
-        
+
         if (endStart !== -1 && (chunkStart === -1 || endStart < chunkStart)) {
           isThinkingComplete = true;
           currentIndex = endStart + '[[THINKING:end]]'.length;
           break;
         }
-        
+
         if (chunkStart !== -1) {
           const chunkEnd = text.indexOf(']]', chunkStart);
           if (chunkEnd === -1) break;
@@ -441,14 +453,17 @@ function parseMessageSegments(text) {
         }
         break;
       }
-      
+
       // Safety: ensure forward progress even if no chunks/end were found
       if (!isThinkingComplete && thinkingContent === '') {
         const nextEnd = text.indexOf('[[THINKING:end]]', currentIndex);
         currentIndex = nextEnd !== -1 ? nextEnd + '[[THINKING:end]]'.length : text.length;
       }
-      
-      segments.push({ type: 'thinking', content: thinkingContent, isComplete: isThinkingComplete });
+
+      // Only add thinking segment if we didn't already add one from thinkingField
+      if (!thinkingField || thinkingField.trim() === '') {
+        segments.push({ type: 'thinking', content: thinkingContent, isComplete: isThinkingComplete });
+      }
     } else if (markerType === 'tool') {
       const parsed = parseToolMarker(text, nextMarkerStart);
       if (parsed) {
@@ -461,7 +476,7 @@ function parseMessageSegments(text) {
       }
     }
   }
-  
+
   return segments;
 }
 
@@ -612,7 +627,7 @@ const UserMessage = memo(function UserMessage({ message, userAvatar, userName })
   );
 });
 
-const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor, isStreaming, isWaiting }) {
+const AIMessage = memo(function AIMessage({ message, thinking, tools, onRunQuery, onOpenSqlEditor, isStreaming, isWaiting }) {
   const { copied, copyRich } = useCopyToClipboard();
   const theme = useTheme();
 
@@ -637,7 +652,8 @@ const AIMessage = memo(function AIMessage({ message, onRunQuery, onOpenSqlEditor
     .replace(/\[\[TOOL:[^\]]*\]\]/g, ''), [message]);
 
   // Parse the REVEALED content (not full message) for progressive appearance
-  const segments = useMemo(() => filterRedundantTools(parseMessageSegments(revealedMessage)), [revealedMessage]);
+  // Pass the thinking field from database (if available) to include thinking in loaded messages
+  const segments = useMemo(() => filterRedundantTools(parseMessageSegments(revealedMessage, thinking, tools)), [revealedMessage, thinking, tools]);
   const textOnlySegments = useMemo(
     () => segments.filter((segment) => segment.type === 'text' && segment.content.trim()),
     [segments]
@@ -793,7 +809,7 @@ function MessageList({ messages = [], user, onRunQuery, onOpenSqlEditor }) {
       {messages.map((msg, index) => (
         msg.sender === 'user'
           ? <UserMessage key={index} message={msg.content} userAvatar={user?.photoURL} userName={user?.displayName} />
-          : <AIMessage key={index} message={msg.content} onRunQuery={onRunQuery} onOpenSqlEditor={onOpenSqlEditor} isStreaming={msg.isStreaming} isWaiting={msg.isWaiting} />
+          : <AIMessage key={index} message={msg.content} thinking={msg.thinking} tools={msg.tools} onRunQuery={onRunQuery} onOpenSqlEditor={onOpenSqlEditor} isStreaming={msg.isStreaming} isWaiting={msg.isWaiting} />
       ))}
     </Box>
   );

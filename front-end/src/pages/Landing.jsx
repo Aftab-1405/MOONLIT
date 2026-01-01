@@ -11,9 +11,7 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import ShieldIcon from '@mui/icons-material/Shield';
 import InsightsIcon from '@mui/icons-material/Insights';
 import StarfieldCanvas from '../components/StarfieldCanvas';
-
-// Helper function for moonlit gradient
-const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
+import { getMoonlitGradient } from '../theme';
 
 // ---------- Shared Styles ----------
 const glassCard = (theme) => ({
@@ -94,7 +92,7 @@ function Hero({ onGetStarted }) {
           </Typography>
 
           {/* Subtitle */}
-          <Typography color="text.secondary" sx={{ maxWidth: 600, fontSize: { xs: '0.95rem', md: '1.05rem' } }}>
+          <Typography variant="bodyLarge" color="text.secondary" sx={{ maxWidth: 600 }}>
             Whether you're a seasoned DBA or exploring data for the first time — connect to any major database and let AI handle the SQL. Ask questions in plain English, get instant results.
           </Typography>
 
@@ -102,7 +100,7 @@ function Hero({ onGetStarted }) {
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
             <Button 
               aria-label="Get started" 
-              variant="contained" 
+              color="success" 
               size="large" 
               onClick={onGetStarted} 
               endIcon={<ArrowForwardRoundedIcon />} 
@@ -121,7 +119,6 @@ function Hero({ onGetStarted }) {
             </Button>
             <Button 
               aria-label="Watch demo" 
-              variant="outlined" 
               size="large" 
               startIcon={<PlayCircleOutlinedIcon />} 
               onClick={() => document.getElementById('demo-section')?.scrollIntoView({ behavior: 'smooth' })}
@@ -149,8 +146,8 @@ function Hero({ onGetStarted }) {
               { value: 'Read-Only', label: 'Safe Mode' },
             ].map((s) => (
               <Box key={s.label} textAlign="center">
-                <Typography variant="h5" color="info.main" fontWeight="bold" sx={{ fontSize: { xs: '1.25rem', md: '1.5rem' } }}>{s.value}</Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ fontSize: { xs: '0.7rem', md: '0.75rem' } }}>{s.label}</Typography>
+                <Typography variant="h5" color="info.main" fontWeight="bold">{s.value}</Typography>
+                <Typography variant="labelMedium" color="text.secondary">{s.label}</Typography>
               </Box>
             ))}
           </Stack>
@@ -173,13 +170,13 @@ function ValueGrid() {
     <Section sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.info.main, 0.03)} 50%, transparent)`, py: { xs: 4, md: 6 } }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={3}>
-          <Typography variant="overline" color="info.main" fontWeight="bold" sx={{ fontSize: '0.7rem' }}>Why Moonlit</Typography>
+          <Typography variant="labelMedium" color="info.main" fontWeight="bold" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em' }}>Why Moonlit</Typography>
           <Typography variant="h3" fontWeight="bold" sx={{ fontSize: { xs: '1.5rem', md: '2rem' }, mt: 0.5 }}>
             Built for <span style={{ color: theme.palette.info.main }}>Everyone.</span>
           </Typography>
         </Box>
         <Grid container spacing={2} justifyContent="center">
-          {values.map((v, i) => (
+          {values.map((v) => (
             <Grid item xs={12} sm={4} key={v.title}>
               <Box sx={{ ...glassCard(theme), p: 2.5, textAlign: 'center' }}>
                 <Box
@@ -202,10 +199,10 @@ function ValueGrid() {
                 >
                   <v.Icon sx={{ fontSize: 20, color: theme.palette.info.main }} />
                 </Box>
-                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1, fontSize: '1rem' }}>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
                   {v.title}
                 </Typography>
-                <Typography color="text.secondary" variant="body2" sx={{ lineHeight: 1.5, fontSize: '0.8rem' }}>
+                <Typography variant="bodySmall" color="text.secondary" sx={{ lineHeight: 1.5 }}>
                   {v.desc}
                 </Typography>
               </Box>
@@ -226,11 +223,11 @@ function DemoSection() {
     <Section id="demo-section" sx={{ background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.info.main, 0.02)} 50%, transparent)`, py: { xs: 4, md: 6 } }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={2.5}>
-          <Typography variant="overline" color="info.main" fontWeight="bold" sx={{ fontSize: '0.7rem' }}>See It In Action</Typography>
+          <Typography variant="labelMedium" color="info.main" fontWeight="bold" sx={{ textTransform: 'uppercase', letterSpacing: '0.1em' }}>See It In Action</Typography>
           <Typography variant="h4" fontWeight="bold" sx={{ fontSize: { xs: '1.35rem', md: '1.75rem' }, mt: 0.5 }}>
             From Question to <span style={{ color: theme.palette.info.main }}>Answer</span>
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5, maxWidth: 450, mx: 'auto', fontSize: '0.85rem' }}>
+          <Typography variant="bodyMedium" color="text.secondary" sx={{ mt: 0.5, maxWidth: 450, mx: 'auto' }}>
             See how anyone can query databases without writing a single line of SQL.
           </Typography>
         </Box>
@@ -352,10 +349,10 @@ function StepsGrid() {
                   {s.num}
                 </Typography>
                 <Box sx={{ position: 'relative', zIndex: 1 }}>
-                  <Typography variant="h6" fontWeight={700} sx={{ mb: 1.5, fontSize: '1.15rem' }}>
+                  <Typography variant="h6" fontWeight={700} sx={{ mb: 1.5 }}>
                     {s.title}
                   </Typography>
-                  <Typography color="text.secondary" variant="body2" sx={{ lineHeight: 1.7, fontSize: '0.85rem' }}>
+                  <Typography variant="bodyMedium" color="text.secondary" sx={{ lineHeight: 1.7 }}>
                     {s.desc}
                   </Typography>
                 </Box>
@@ -388,7 +385,7 @@ function SupportedDatabases() {
           <Typography variant="h3" fontWeight="bold" sx={{ fontSize: { xs: '1.75rem', md: '2.5rem' } }}>
             Your Database, <span style={{ color: theme.palette.info.main }}>Your Way</span>
           </Typography>
-          <Typography color="text.secondary" sx={{ mt: 2, maxWidth: 600, mx: 'auto', fontSize: '0.95rem' }}>
+          <Typography variant="bodyLarge" color="text.secondary" sx={{ mt: 2, maxWidth: 600, mx: 'auto' }}>
             From local development to production cloud — connect to any major relational database with one unified interface.
           </Typography>
         </Box>
@@ -456,11 +453,11 @@ function SupportedDatabases() {
                     mb: 1.5,
                   }}
                 >
-                  <Typography sx={{ fontWeight: 800, fontSize: '0.95rem', color: db.color }}>
+                  <Typography variant="bodyLarge" sx={{ fontWeight: 800, color: db.color }}>
                     {db.name.slice(0, 2).toUpperCase()}
                   </Typography>
                 </Box>
-                <Typography variant="h6" fontWeight={700} sx={{ mb: 1, fontSize: '1rem' }}>
+                <Typography variant="h6" fontWeight={700} sx={{ mb: 1 }}>
                   {db.name}
                 </Typography>
                 <Stack direction="row" spacing={0.5} flexWrap="wrap" justifyContent="center" gap={0.5}>
@@ -475,7 +472,7 @@ function SupportedDatabases() {
                         border: `1px solid ${alpha(db.color, 0.15)}`,
                       }}
                     >
-                      <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.65rem' }}>
+                      <Typography variant="labelSmall" sx={{ color: 'text.secondary' }}>
                         {provider}
                       </Typography>
                     </Box>
@@ -505,11 +502,11 @@ function FinalCTA({ onGetStarted }) {
           <Typography variant="h2" fontWeight="bold" sx={{ fontSize: { xs: '1.75rem', md: '2.5rem' } }}>
             Your Data. Your Questions. Instant Answers.
           </Typography>
-          <Typography color="text.secondary" sx={{ maxWidth: 520, fontSize: '0.95rem' }}>
+          <Typography variant="bodyLarge" color="text.secondary" sx={{ maxWidth: 520 }}>
             Whether you're debugging a query or exploring data for the first time — Moonlit meets you where you are.
           </Typography>
           <Button 
-            variant="contained" 
+            color="success" 
             size="large" 
             onClick={onGetStarted} 
             sx={{ 

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useRef, memo, useCallback } from 'react';
+import { useState, useMemo, useRef, memo, useCallback } from 'react';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -55,8 +55,8 @@ ChartJS.register(
 
 function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewModeChange }) {
   const [chartType, setChartType] = useState('bar');
-  const [labelColumn, setLabelColumn] = useState('');
-  const [valueColumn, setValueColumn] = useState('');
+  const [labelColumnOverride, setLabelColumn] = useState(null);
+  const [valueColumnOverride, setValueColumn] = useState(null);
   const [fullscreen, setFullscreen] = useState(false);
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -98,15 +98,9 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
     return { numericColumns: numeric, stringColumns: strings };
   }, [columns, result]);
 
-  // Auto-select columns when data changes
-  useEffect(() => {
-    if (stringColumns.length && !labelColumn) {
-      setLabelColumn(stringColumns[0]);
-    }
-    if (numericColumns.length && !valueColumn) {
-      setValueColumn(numericColumns[0]);
-    }
-  }, [stringColumns, numericColumns, labelColumn, valueColumn]);
+  // Derive actual column values from override or first available
+  const labelColumn = labelColumnOverride || stringColumns[0] || '';
+  const valueColumn = valueColumnOverride || numericColumns[0] || '';
 
   // Chart configuration
   const chartData = useMemo(() => {

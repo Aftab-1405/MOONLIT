@@ -20,6 +20,7 @@ const isMobileDevice = () => {
 
 const AuthContext = createContext(null);
 
+// eslint-disable-next-line react-refresh/only-export-components -- Hook export alongside Provider is valid React pattern
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

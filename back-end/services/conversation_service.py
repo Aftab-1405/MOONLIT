@@ -118,21 +118,47 @@ class ConversationService:
             )
             
             for chunk in responses:
-                # Tool status markers
+                # Tool status markers - extract full data for persistence
                 if chunk.startswith('[[TOOL:'):
-                    match = re.match(r'\[\[TOOL:(\w+):(running|done):.*?\]\]', chunk)
-                    if match:
-                        tool_name, status = match.groups()
+                    # Full pattern: [[TOOL:name:status:args:result]]
+                    # Args and result are JSON objects or 'null'
+                    full_match = re.match(
+                        r'\[\[TOOL:(\w+):(running|done):((?:\{.*?\}|null)):((?:\{.*?\}|null))\]\]',
+                        chunk,
+                        re.DOTALL
+                    )
+                    if full_match:
+                        tool_name, status, args_str, result_str = full_match.groups()
+                        
                         if status == 'running':
-                            tools_used.append({'name': tool_name, 'status': 'running'})
+                            # Track running tool with placeholder for args (result comes later)
+                            tools_used.append({
+                                'name': tool_name,
+                                'status': 'running',
+                                'args': args_str,
+                                'result': result_str
+                            })
                             if not prompt_stored:
                                 ConversationRepository.store_message(conversation_id, 'user', prompt, user_id)
                                 prompt_stored = True
                         elif status == 'done':
+                            # Update existing tool entry with 'done' status and full result
+                            updated = False
                             for tool in tools_used:
                                 if tool['name'] == tool_name and tool['status'] == 'running':
                                     tool['status'] = 'done'
+                                    tool['args'] = args_str  # May have more complete args now
+                                    tool['result'] = result_str
+                                    updated = True
                                     break
+                            # If no running entry found, add as new (edge case)
+                            if not updated:
+                                tools_used.append({
+                                    'name': tool_name,
+                                    'status': 'done',
+                                    'args': args_str,
+                                    'result': result_str
+                                })
                     
                     full_response_content.append(chunk)
                     yield chunk

@@ -209,7 +209,7 @@ function ChatInput({
                 label={currentDatabase}
                 onClick={(e) => setDbAnchor(e.currentTarget)}
                 size="small"
-                variant="outlined"
+                
                 sx={toolbarChipStyles}
               />
             </Tooltip>
@@ -223,7 +223,7 @@ function ChatInput({
                 label={currentSchema}
                 onClick={(e) => setSchemaAnchor(e.currentTarget)}
                 size="small"
-                variant="outlined"
+                
                 sx={toolbarChipStyles}
               />
             </Tooltip>
@@ -237,7 +237,7 @@ function ChatInput({
                 label="SQL Editor"
                 onClick={() => onOpenSqlEditor()}
                 size="small"
-                variant="outlined"
+                
                 sx={toolbarChipStyles}
               />
             </Tooltip>
@@ -348,23 +348,17 @@ function ChatInput({
               size="small"
               onClick={toggleReasoning}
               sx={{
-                color: reasoningEnabled ? theme.palette.info.main : 'text.secondary',  // Blue when enabled
-                opacity: reasoningEnabled ? 1 : 0.5,
+                color: reasoningEnabled ? theme.palette.info.main : 'text.secondary',
+                borderColor: reasoningEnabled ? alpha(theme.palette.info.main, 0.5) : undefined,
                 width: 32,
                 height: 32,
-                backgroundColor: reasoningEnabled 
-                  ? alpha(theme.palette.info.main, isDarkMode ? 0.15 : 0.1)
-                  : 'transparent',
-                border: '1px solid',
-                borderColor: reasoningEnabled 
-                  ? alpha(theme.palette.info.main, 0.3)
-                  : 'transparent',
                 transition: 'all 0.2s ease',
                 '&:hover': {
-                  opacity: 1,
+                  color: reasoningEnabled ? theme.palette.info.dark : theme.palette.text.primary,
                   backgroundColor: reasoningEnabled 
-                    ? alpha(theme.palette.info.main, isDarkMode ? 0.2 : 0.15)
-                    : alpha(theme.palette.text.primary, 0.06),
+                    ? alpha(theme.palette.info.main, isDarkMode ? 0.15 : 0.1) 
+                    : undefined,
+                  borderColor: reasoningEnabled ? theme.palette.info.main : undefined,
                 }
               }}
             >
@@ -420,27 +414,29 @@ function ChatInput({
               sx={{
                 width: 36,
                 height: 36,
-                borderRadius: '50%',
-                backgroundColor: (hasText || isStreaming)
-                  ? (isStreaming 
-                      ? theme.palette.error.main
-                      : (isDarkMode ? '#ffffff' : '#000000'))
-                  : 'transparent',
+                
                 color: (hasText || isStreaming)
-                  ? (isStreaming ? '#ffffff' : (isDarkMode ? '#000000' : '#ffffff'))
+                  ? (isStreaming ? theme.palette.error.main : theme.palette.text.primary)
                   : 'text.disabled',
+                
+                borderColor: (hasText || isStreaming)
+                  ? (isStreaming ? alpha(theme.palette.error.main, 0.5) : alpha(theme.palette.text.primary, 0.5))
+                  : undefined,
+                
                 transition: 'all 0.2s ease',
                 flexShrink: 0,
+                
                 '&:hover': {
                   backgroundColor: (hasText || isStreaming)
                     ? (isStreaming 
-                        ? theme.palette.error.dark
-                        : alpha(theme.palette.text.primary, 0.9))
-                    : alpha(theme.palette.text.primary, 0.06),
-                },
-                '&.Mui-disabled': {
-                  backgroundColor: 'transparent',
-                  color: 'text.disabled',
+                        ? alpha(theme.palette.error.main, 0.1)
+                        : alpha(theme.palette.text.primary, 0.1))
+                    : undefined,
+                  borderColor: (hasText || isStreaming)
+                    ? (isStreaming 
+                        ? theme.palette.error.main 
+                        : theme.palette.text.primary)
+                    : undefined,
                 },
               }}
             >
@@ -475,7 +471,7 @@ function ChatInput({
             label={chip.label}
             onClick={chip.action}
             size="small"
-            variant="outlined"
+            
             sx={{
               borderRadius: '16px',
               borderColor: alpha(theme.palette.text.primary, 0.12),

@@ -194,7 +194,7 @@ function MermaidDiagram({ code }) {
             mermaid
           </Typography>
           <Tooltip title={copied ? 'Copied!' : 'Copy'}>
-            <IconButton size="small" onClick={handleCopy} sx={{ color: copied ? 'success.main' : 'text.secondary' }}>
+            <IconButton size="small" onClick={handleCopy}>
               {copied ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
             </IconButton>
           </Tooltip>
@@ -255,7 +255,7 @@ function MermaidDiagram({ code }) {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             {/* Zoom controls */}
             <Tooltip title="Zoom out">
-              <IconButton size="small" onClick={handleZoomOut} disabled={zoom <= 25} sx={{ color: 'text.secondary' }}>
+              <IconButton size="small" onClick={handleZoomOut} disabled={zoom <= 25}>
                 <ZoomOutRoundedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
@@ -281,13 +281,13 @@ function MermaidDiagram({ code }) {
             </Typography>
             
             <Tooltip title="Zoom in">
-              <IconButton size="small" onClick={handleZoomIn} disabled={zoom >= 300} sx={{ color: 'text.secondary' }}>
+              <IconButton size="small" onClick={handleZoomIn} disabled={zoom >= 300}>
                 <ZoomInRoundedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
             
             <Tooltip title="Reset zoom">
-              <IconButton size="small" onClick={handleResetZoom} sx={{ color: 'text.secondary' }}>
+              <IconButton size="small" onClick={handleResetZoom}>
                 <RestartAltRoundedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </Tooltip>
@@ -296,21 +296,21 @@ function MermaidDiagram({ code }) {
 
             {/* Action buttons */}
             <Tooltip title={copied ? 'Copied!' : 'Copy code'}>
-              <IconButton size="small" onClick={handleCopy} sx={{ color: copied ? 'success.main' : 'text.secondary' }}>
+              <IconButton size="small" onClick={handleCopy}>
                 {copied ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
               </IconButton>
             </Tooltip>
             
             <Tooltip title="Download SVG">
               <span>
-                <IconButton size="small" onClick={handleDownload} disabled={!svg} sx={{ color: svg ? 'text.secondary' : 'text.disabled' }}>
+                <IconButton size="small" onClick={handleDownload} disabled={!svg}>
                   <FileDownloadOutlinedIcon sx={{ fontSize: 14 }} />
                 </IconButton>
               </span>
             </Tooltip>
             
             <Tooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-              <IconButton size="small" onClick={toggleFullscreen} sx={{ color: 'text.secondary' }}>
+              <IconButton size="small" onClick={toggleFullscreen}>
                 {fullscreen ? <FullscreenExitRoundedIcon sx={{ fontSize: 16 }} /> : <FullscreenRoundedIcon sx={{ fontSize: 16 }} />}
               </IconButton>
             </Tooltip>

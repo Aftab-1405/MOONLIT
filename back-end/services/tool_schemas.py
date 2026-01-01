@@ -194,14 +194,17 @@ class TableColumnsResult(ToolResultBase):
 
 
 class QueryResult(ToolResultBase):
-    """Structured result for query execution."""
+    """Structured result for query execution.
+    
+    Note: Full data is NOT stored here. Results auto-populate SQLEditorCanvas
+    during streaming. Only summary info is persisted to reduce DB storage.
+    """
     row_count: int = 0              # Actual rows returned (after truncation)
     total_rows: int = 0             # Total rows in DB before truncation
     column_count: int = 0
     columns: List[str] = []
     truncated: bool = False
     preview: List[Dict[str, Any]] = []  # First 5 rows for LLM context (token-efficient)
-    data: List[Dict[str, Any]] = []  # Full data for frontend SQL Editor display
 
 
 class RecentQueriesResult(ToolResultBase):
@@ -319,13 +322,11 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             ).model_dump()
         
         elif tool_name == "execute_query":
-            # Full data embedded in result - no cache needed
-            # LLM only sees preview (via result_summary in llm_service)
-            # Frontend parses full data directly from tool result
+            # Only summary info stored - full data goes to SQLEditorCanvas during stream
             data = raw_result.get('data', [])
             columns = raw_result.get('columns', [])
             row_count = raw_result.get('row_count', len(data))
-            total_rows = raw_result.get('total_rows', row_count)  # Fallback to row_count if not present
+            total_rows = raw_result.get('total_rows', row_count)
             
             return QueryResult(
                 row_count=row_count,
@@ -333,8 +334,7 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
                 column_count=len(columns),
                 columns=columns,
                 truncated=raw_result.get('truncated', False),
-                preview=data[:5],  # 5 rows for LLM context summary
-                data=data  # Full data for frontend SQL Editor
+                preview=data[:5]  # 5 rows for LLM context summary
             ).model_dump()
         
         elif tool_name == "get_recent_queries":

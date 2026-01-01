@@ -40,7 +40,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
   const [viewMode, setViewMode] = useState('table');
   const [searchQuery, setSearchQuery] = useState('');
   const [cellCopied, setCellCopied] = useState(null); // Track which cell was copied
-  const [columnWidths, setColumnWidths] = useState({});
+  const [columnWidthOverrides, setColumnWidths] = useState({});
   const [resizing, setResizing] = useState(null);
   
   const copyTimeoutRef = useRef(null);
@@ -64,16 +64,14 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     };
   }, []);
 
-  // Initialize column widths
-  useEffect(() => {
-    if (columns.length && Object.keys(columnWidths).length === 0) {
-      const initialWidths = {};
-      columns.forEach(col => {
-        initialWidths[col] = 150; // Default width
-      });
-      setColumnWidths(initialWidths);
-    }
-  }, [columns, columnWidths]);
+  // Derive column widths - override or default 150
+  const columnWidths = useMemo(() => {
+    const widths = {};
+    columns.forEach(col => {
+      widths[col] = columnWidthOverrides[col] || 150;
+    });
+    return widths;
+  }, [columns, columnWidthOverrides]);
 
   // Filter data based on search
   const filteredData = useMemo(() => {
@@ -551,12 +549,16 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
         sx={{
           '& .MuiSnackbarContent-root': {
             minWidth: 'auto',
+            width: 'fit-content',
             py: 0.5,
             px: 2,
             fontSize: '0.8rem',
             backgroundColor: isDark ? alpha('#fff', 0.12) : alpha('#000', 0.8),
             color: isDark ? 'text.primary' : '#fff',
           },
+          '& .MuiSnackbarContent-message': {
+            flexGrow: 0,
+          }
         }}
       />
     </Box>

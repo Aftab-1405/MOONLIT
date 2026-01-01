@@ -39,6 +39,7 @@ const ThemeContext = createContext(null);
  * 
  * @returns {Object} Theme state including settings, updateSetting, etc.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- Hook export alongside Provider is valid React pattern
 export const useTheme = () => {
   const context = useContext(ThemeContext);
   if (!context) {

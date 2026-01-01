@@ -12,7 +12,7 @@ function StarfieldCanvas({ active = false }) {
   const canvasRef = useRef(null);
   const animationRef = useRef(null);
   const starsRef = useRef([]);
-  const dustRef = useRef(null);  // DISABLED - circular blobs
+  // dustRef removed - circular blobs disabled
   const nebulasRef = useRef([]);  // Re-enabled
   const meteorsRef = useRef([]);
   const cometsRef = useRef([]);
@@ -143,18 +143,7 @@ function StarfieldCanvas({ active = false }) {
       return stars;
     };
 
-    const initDust = (w, h) => {
-      const dust = [], count = Math.floor((w * h) / 50000);
-      for (let i = 0; i < count; i++) {
-        dust.push({
-          x: Math.random() * w, y: Math.random() * h,
-          size: 15 + Math.random() * 40,
-          opacity: 0.008 + Math.random() * 0.015,
-          vx: (Math.random() - 0.5) * 0.03, vy: (Math.random() - 0.5) * 0.03,
-        });
-      }
-      return dust;
-    };
+    // initDust removed - circular blobs disabled
 
     const nebulaColors = [
       { r: 80, g: 60, b: 140 }, { r: 50, g: 80, b: 120 },

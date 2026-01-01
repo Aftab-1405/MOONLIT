@@ -86,6 +86,7 @@ const SettingsContext = createContext(null);
  * 
  * @returns {Object} Settings state and actions
  */
+// eslint-disable-next-line react-refresh/only-export-components -- Hook export alongside Provider is valid React pattern
 export function useSettings() {
   const context = useContext(SettingsContext);
   if (!context) {

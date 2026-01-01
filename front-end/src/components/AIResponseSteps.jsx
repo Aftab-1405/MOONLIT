@@ -14,7 +14,6 @@ import ViewColumnRoundedIcon from '@mui/icons-material/ViewColumnRounded';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import ErrorRoundedIcon from '@mui/icons-material/ErrorRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
-import OpenInNewRoundedIcon from '@mui/icons-material/OpenInNewRounded';
 import Editor from '@monaco-editor/react';
 
 // Animations
@@ -130,12 +129,12 @@ export const InlineThinkingBlock = memo(({ content, isActive, isFirst = false })
           }}
         />
         <BubbleChartRoundedIcon sx={{ fontSize: 15, color: iconColor }} />
-        <Typography component="span" sx={{ fontSize: '0.8rem', fontWeight: 500, color: uiColors.text }}>
+        <Typography variant="bodySmall" component="span" sx={{ fontWeight: 500, color: uiColors.text }}>
           {isActive ? 'Thinking' : 'Thought process'}
         </Typography>
         {isActive && <AnimatedDots />}
         {!expanded && content && (
-          <Typography component="span" sx={{ fontSize: '0.7rem', color: 'text.secondary', ml: 0.5 }}>
+          <Typography variant="labelMedium" component="span" sx={{ color: 'text.secondary', ml: 0.5 }}>
             ({content.length} chars)
           </Typography>
         )}
@@ -265,12 +264,12 @@ export const InlineToolBlock = memo(({ tool, isFirst = false, onOpenSqlEditor })
           )}
         </Box>
         <Icon sx={{ fontSize: 14, color: uiColors.text }} />
-        <Typography component="span" sx={{ fontSize: '0.8rem', fontWeight: 500, color: uiColors.text }}>
+        <Typography variant="bodySmall" component="span" sx={{ fontWeight: 500, color: uiColors.text }}>
           {displayName}
         </Typography>
         {isRunning && <AnimatedDots />}
         {!isRunning && !expanded && parsedResult && (
-          <Typography component="span" sx={{ fontSize: '0.7rem', color: 'text.secondary', ml: 0.25 }}>
+          <Typography variant="labelMedium" component="span" sx={{ color: 'text.secondary', ml: 0.25 }}>
             • {getResultSummary(tool.name, parsedResult)}
           </Typography>
         )}
@@ -281,7 +280,7 @@ export const InlineToolBlock = memo(({ tool, isFirst = false, onOpenSqlEditor })
           <Box sx={{ p: 1.25, borderRadius: 1.5, backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.03 : 0.02) }}>
             {parsedArgs?.query && (
               <Box sx={{ mb: 1 }}>
-                <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
+                <Typography variant="labelSmall" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
                   Query
                 </Typography>
                 <Box
@@ -329,7 +328,7 @@ export const InlineToolBlock = memo(({ tool, isFirst = false, onOpenSqlEditor })
 
             {filteredParams.length > 0 && (
               <Box sx={{ mb: 1 }}>
-                <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
+                <Typography variant="labelSmall" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
                   Parameters
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
@@ -357,55 +356,9 @@ export const InlineToolBlock = memo(({ tool, isFirst = false, onOpenSqlEditor })
 
             {parsedResult && !isRunning && (
               <Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 0.5 }}>
-                  <Typography sx={{ fontSize: '0.65rem', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                    Result
-                  </Typography>
-                  {tool.name === 'execute_query' && !isError && parsedResult?.success !== false && onOpenSqlEditor && (
-                    <Box
-                      component="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const query = parsedArgs?.query || '';
-                        const results = {
-                          columns: parsedResult?.columns || [],
-                          result: parsedResult?.data || [],
-                          row_count: parsedResult?.row_count || 0,
-                          truncated: parsedResult?.truncated || false,
-                        };
-                        onOpenSqlEditor(query, results);
-                      }}
-                      sx={{
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: 0.625,
-                        px: 1.25,
-                        py: 0.5,
-                        border: `1px solid ${alpha(theme.palette.primary.main, isDark ? 0.3 : 0.25)}`,
-                        borderRadius: 1.5,
-                        backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.12 : 0.08),
-                        color: 'primary.main',
-                        fontSize: '0.7rem',
-                        fontWeight: 600,
-                        letterSpacing: 0.2,
-                        cursor: 'pointer',
-                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                        '&:hover': {
-                          backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.2 : 0.14),
-                          borderColor: alpha(theme.palette.primary.main, isDark ? 0.45 : 0.35),
-                          transform: 'translateY(-1px)',
-                          boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, isDark ? 0.25 : 0.15)}`,
-                        },
-                        '&:active': {
-                          transform: 'translateY(0px)',
-                        },
-                      }}
-                    >
-                      <OpenInNewRoundedIcon sx={{ fontSize: 13 }} />
-                      Open in Editor
-                    </Box>
-                  )}
-                </Box>
+                <Typography variant="labelSmall" sx={{ color: 'text.secondary', textTransform: 'uppercase', letterSpacing: 0.5, mb: 0.5 }}>
+                  Result
+                </Typography>
                 <Typography sx={{ fontSize: '0.75rem', color: isError ? 'error.main' : 'text.primary' }}>
                   {getDetailedResult(tool.name, parsedResult)}
                 </Typography>

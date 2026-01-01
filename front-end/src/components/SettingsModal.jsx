@@ -19,6 +19,7 @@ import {
   Chip,
 } from '@mui/material';
 import { alpha, useTheme as useMuiTheme } from '@mui/material/styles';
+import { useMediaQuery } from '@mui/material';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
@@ -55,8 +56,11 @@ function SettingRow({ label, description, children, quickAccess = false }) {
         display: 'flex', 
         alignItems: 'center', 
         justifyContent: 'space-between',
-        py: 1.5,
+        py: 2,
         gap: 2,
+        borderBottom: 1,
+        borderColor: 'divider',
+        '&:last-of-type': { borderBottom: 0 },
       }}
     >
       <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -94,6 +98,7 @@ function SettingsModal({ open, onClose }) {
   const { settings, updateSetting, resetSettings } = useAppTheme();
   const [activeTab, setActiveTab] = useState(0);
   const theme = useMuiTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   // Reusable style helper (DRY)
   const toggleButtonGroupStyles = {
@@ -112,14 +117,16 @@ function SettingsModal({ open, onClose }) {
     <Dialog
       open={open}
       onClose={onClose}
+      fullScreen={isMobile}
       maxWidth="sm"
       fullWidth
       PaperProps={{
         sx: {
-          borderRadius: 3,
+          borderRadius: isMobile ? 0 : 3,
           backgroundImage: 'none',
           backgroundColor: theme.palette.background.paper,
-          minHeight: 480,
+          height: isMobile ? '100%' : 600,
+          maxHeight: isMobile ? '100%' : 600,
         },
       }}
     >
@@ -140,18 +147,23 @@ function SettingsModal({ open, onClose }) {
         </IconButton>
       </DialogTitle>
 
-      {/* Tabs */}
-      <Box sx={{ px: 3, borderBottom: 1, borderColor: 'divider' }}>
+      {/* Tabs - Scrollable on mobile for 4 tabs */}
+      <Box sx={{ px: { xs: 1, sm: 3 }, borderBottom: 1, borderColor: 'divider' }}>
         <Tabs 
           value={activeTab} 
           onChange={handleTabChange}
+          variant="scrollable"
+          scrollButtons="auto"
+          allowScrollButtonsMobile
           sx={{
             minHeight: 44,
             '& .MuiTab-root': {
               minHeight: 44,
+              minWidth: 'auto',
+              px: { xs: 1.5, sm: 2 },
               textTransform: 'none',
               fontWeight: 500,
-              fontSize: '0.875rem',
+              fontSize: { xs: '0.75rem', sm: '0.875rem' },
             },
           }}
         >
@@ -390,18 +402,16 @@ function SettingsModal({ open, onClose }) {
         </TabPanel>
       </DialogContent>
 
-      <DialogActions sx={{ px: 3, pb: 3, justifyContent: 'space-between' }}>
+      <DialogActions sx={{ px: 3, py: 2, justifyContent: 'space-between', borderTop: 1, borderColor: 'divider' }}>
         <Button
           startIcon={<RestartAltRoundedIcon />}
           onClick={resetSettings}
           color="inherit"
-          size="small"
-          variant="outlined"
-          sx={{ color: 'text.secondary', borderColor: 'divider' }}
+
         >
           Reset
         </Button>
-        <Button variant="outlined" color="primary" onClick={onClose} sx={{ borderWidth: 1.25 }}>
+        <Button  color="primary" onClick={onClose}>
           Done
         </Button>
       </DialogActions>

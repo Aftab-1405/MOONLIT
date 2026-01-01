@@ -65,6 +65,7 @@ export function useIdleDetection(timeout = 12000) {
     });
 
     // Start initial timer
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Timer initialization is valid effect setup
     resetTimer();
 
     // Cleanup

@@ -41,9 +41,7 @@ import {
   resetPasswordSchema,
   authFieldSchemas,
 } from '../validation';
-
-// Helper function for moonlit gradient
-const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
+import { getMoonlitGradient } from '../theme';
 
 // Tab Panel component
 function TabPanel({ children, value, index }) {
@@ -458,7 +456,7 @@ function Auth() {
                   <Button
                     fullWidth
                     type="submit"
-                    variant="contained"
+                    
                     disabled={formLoading}
                     sx={{
                       py: 1,
@@ -562,7 +560,7 @@ function Auth() {
                   <Button
                     fullWidth
                     type="submit"
-                    variant="contained"
+                    
                     disabled={formLoading}
                     sx={{
                       py: 1,
@@ -595,7 +593,7 @@ function Auth() {
               >
                 <Button
                   fullWidth
-                  variant="outlined"
+                  
                   startIcon={<GoogleIcon sx={{ fontSize: 18 }} />}
                   onClick={handleGoogleSignIn}
                   sx={{
@@ -612,7 +610,7 @@ function Auth() {
                 </Button>
                 <Button
                   fullWidth
-                  variant="outlined"
+                  
                   startIcon={<GitHubIcon sx={{ fontSize: 18 }} />}
                   onClick={handleGitHubSignIn}
                   sx={{
@@ -631,7 +629,7 @@ function Auth() {
 
               {/* Back to Home */}
               <Button
-                variant="text"
+                
                 startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 16 }} />}
                 onClick={() => navigate('/')}
                 sx={{
@@ -698,7 +696,7 @@ function Auth() {
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button size="small" onClick={() => setForgotDialogOpen(false)}>Cancel</Button>
           <Button
-            variant="contained"
+            
             size="small"
             onClick={handlePasswordReset}
             disabled={resetLoading}

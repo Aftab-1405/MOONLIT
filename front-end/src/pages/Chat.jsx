@@ -17,21 +17,21 @@
  * @module Chat
  */
 
-import { 
-  Box, 
-  Typography, 
+import {
+  Box,
+  Typography,
   IconButton,
-  Drawer, 
-  AppBar, 
+  AppBar,
   Toolbar,
   Menu,
   MenuItem,
   Divider,
   ListItemIcon,
   Snackbar,
-  Alert,
   Dialog,
   Grow,
+  Slide,
+  Fade,
 } from '@mui/material';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
@@ -65,9 +65,7 @@ import {
   sendMessage,
   runQuery,
 } from '../api';
-
-// Helper function for moonlit gradient
-const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
+import { getMoonlitGradient } from '../theme';
 
 const DRAWER_WIDTH = 260;
 const COLLAPSED_WIDTH = 56;
@@ -181,14 +179,14 @@ function Chat() {
   // Only fetch conversations here.
   
   // Note: fetchConversations is stable (useCallback with []) so empty deps is correct
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   useEffect(() => {
     fetchConversations();
   }, []);
 
   // Handle URL changes
   // Note: Dependencies intentionally excluded to prevent infinite loops
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   useEffect(() => {
     if (conversationId) {
       if (conversationId !== currentConversationId) {
@@ -312,6 +310,7 @@ function Chat() {
         const formattedMessages = (data.conversation.messages || []).map((msg) => ({
           sender: msg.sender,
           content: msg.content,
+          thinking: msg.thinking || undefined,
           tools: msg.tools || undefined,
         }));
         setMessages(formattedMessages);
@@ -697,6 +696,9 @@ function Chat() {
             <MenuOutlinedIcon sx={{ color: 'text.secondary' }} />
           </IconButton>
           
+          {/* Center: Quota Display for mobile */}
+          <QuotaDisplay />
+          
           {/* Right side: New Chat button */}
           <IconButton 
             onClick={handleNewChat}
@@ -727,55 +729,19 @@ function Chat() {
         <MenuItem onClick={handleLogout}><ListItemIcon><LogoutOutlinedIcon fontSize="small" /></ListItemIcon>Sign out</MenuItem>
       </Menu>
 
-      {/* Mobile Drawer */}
-      <Drawer
-        variant="temporary"
-        open={mobileOpen}
-        onClose={handleDrawerToggle}
-        ModalProps={{ keepMounted: true }}
-        sx={{
-          display: { xs: 'block', md: 'none' },
-          '& .MuiDrawer-paper': { 
-            width: DRAWER_WIDTH,
-            height: '100%',
-            ...glassmorphismStyles,
-            borderRight: '1px solid', 
-          },
-        }}
-      >
-        <Sidebar
-          {...commonSidebarProps}
-          onNewChat={() => { setMobileOpen(false); navigate('/chat'); }}
-          onSelectConversation={(id) => { setMobileOpen(false); navigate(`/chat/${id}`); }}
-          onOpenDbModal={() => { setMobileOpen(false); setDbModalOpen(true); }}
-          isCollapsed={false}
-          onToggleCollapse={handleDrawerToggle}
-          onOpenSettings={() => { setMobileOpen(false); setSettingsOpen(true); }}
-          onMenuOpen={(e) => { setMobileOpen(false); handleMenuOpen(e); }}
-        />
-      </Drawer>
-
-      {/* Desktop Sidebar - Always visible, collapsible */}
-      {/* StyledDrawer handles its own width transitions via openedMixin/closedMixin */}
-      <Box
-        sx={{
-          display: { xs: 'none', md: 'flex' },
-          flexShrink: 0,
-          position: 'relative',
-          zIndex: 1,
-        }}
-      >
-        <Sidebar
-          {...commonSidebarProps}
-          onNewChat={() => navigate('/chat')}
-          onSelectConversation={(id) => navigate(`/chat/${id}`)}
-          onOpenDbModal={() => setDbModalOpen(true)}
-          isCollapsed={sidebarCollapsed}
-          onToggleCollapse={handleSidebarToggle}
-          onOpenSettings={() => setSettingsOpen(true)}
-          onMenuOpen={handleMenuOpen}
-        />
-      </Box>
+      {/* Unified Sidebar - handles mobile/desktop internally */}
+      <Sidebar
+        {...commonSidebarProps}
+        onNewChat={() => { setMobileOpen(false); navigate('/chat'); }}
+        onSelectConversation={(id) => { setMobileOpen(false); navigate(`/chat/${id}`); }}
+        onOpenDbModal={() => { setMobileOpen(false); setDbModalOpen(true); }}
+        isCollapsed={sidebarCollapsed}
+        onToggleCollapse={handleSidebarToggle}
+        onOpenSettings={() => { setMobileOpen(false); setSettingsOpen(true); }}
+        onMenuOpen={(e) => { setMobileOpen(false); handleMenuOpen(e); }}
+        mobileOpen={mobileOpen}
+        onMobileClose={handleDrawerToggle}
+      />
 
       {/* Main Content */}
       <Box
@@ -816,7 +782,7 @@ function Chat() {
           <QuotaDisplay />
         </Box>
         {/* Empty state: Center logo + input together like Grok */}
-        {messages.length === 0 ? (
+        <Fade in={messages.length === 0} timeout={300} unmountOnExit>
           <Box
             sx={{
               flex: 1,
@@ -825,28 +791,12 @@ function Chat() {
               alignItems: 'center',
               justifyContent: 'center',
               px: 3,
+              position: 'absolute',
+              inset: 0,
             }}
           >
-            {/* Logo */}
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 2,
-                mb: 2,
-              }}
-            >
-              <Box
-                component="img"
-                src="/product-logo.png"
-                alt="Moonlit"
-                sx={{ 
-                  width: { xs: 36, sm: 42 }, 
-                  height: { xs: 36, sm: 42 }, 
-                  opacity: 0.95,
-                }}
-              />
+            {/* Welcome Text */}
+            <Box sx={{ textAlign: 'center', mb: 2 }}>
               <Typography 
                 variant="h3" 
                 sx={{ 
@@ -858,7 +808,7 @@ function Chat() {
               >
                 {user?.displayName ? (
                   <>
-                    Welcome back,{' '}
+                    Moonlit welcomes,{' '}
                     <Box
                       component="span"
                       sx={{
@@ -891,8 +841,11 @@ function Chat() {
               />
             </Box>
           </Box>
-        ) : (
-          <>
+        </Fade>
+        
+        {/* Messages state */}
+        <Fade in={messages.length > 0} timeout={300} unmountOnExit style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
             {/* Messages Container */}
             <Box 
               ref={messagesContainerRef}
@@ -919,11 +872,11 @@ function Chat() {
               showSuggestions={false}
               onOpenSqlEditor={handleOpenSqlEditor}
             />
-          </>
-        )}
+          </Box>
+        </Fade>
       </Box>
 
-      {/* SQL Editor Panel - Uses StyledPanel internally (matching Sidebar pattern) */}
+      {/* SQL Editor Panel - Desktop: Side panel with resize */}
       {/* Component manages its own width transitions via openedMixin/closedMixin */}
       <Box
         sx={{
@@ -944,6 +897,32 @@ function Chat() {
         />
       </Box>
 
+      {/* SQL Editor Mobile - Simple overlay for phones/tablets */}
+      <Slide direction="up" in={sqlEditorOpen} mountOnEnter unmountOnExit>
+        <Box
+          sx={{
+            display: { xs: 'flex', md: 'none' },
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 1300,
+            flexDirection: 'column',
+            bgcolor: 'background.default',
+          }}
+        >
+          <SQLEditorCanvas
+            onClose={() => setSqlEditorOpen(false)}
+            initialQuery={sqlEditorQuery}
+            initialResults={sqlEditorResults}
+            isConnected={isDbConnected}
+            currentDatabase={currentDatabase}
+            fullscreen
+          />
+        </Box>
+      </Slide>
+
       {/* Modals */}
       <DatabaseModal open={dbModalOpen} onClose={() => setDbModalOpen(false)} onConnect={handleDbConnect} isConnected={isDbConnected} currentDatabase={currentDatabase} />
       
@@ -952,9 +931,41 @@ function Chat() {
         autoHideDuration={4000}
         onClose={() => setSnackbar({ ...snackbar, open: false })}
         anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-      >
-        <Alert onClose={() => setSnackbar({ ...snackbar, open: false })} severity={snackbar.severity} variant="filled">{snackbar.message}</Alert>
-      </Snackbar>
+        message={snackbar.message}
+        ContentProps={{
+          sx: {
+            backgroundColor: isDarkMode ? alpha(theme.palette.background.paper, 0.95) : theme.palette.background.paper,
+            color:
+              snackbar.severity === 'success' ? theme.palette.success.main :
+              snackbar.severity === 'error' ? theme.palette.error.main :
+              snackbar.severity === 'warning' ? theme.palette.warning.main :
+              theme.palette.info.main,
+            fontWeight: 500,
+            fontSize: '0.875rem',
+            borderRadius: '6px',
+            border: `1.5px solid ${
+              snackbar.severity === 'success' ? theme.palette.success.main :
+              snackbar.severity === 'error' ? theme.palette.error.main :
+              snackbar.severity === 'warning' ? theme.palette.warning.main :
+              theme.palette.info.main
+            }`,
+            boxShadow: isDarkMode
+              ? `0 4px 12px ${alpha(theme.palette.common.black, 0.4)}`
+              : `0 4px 12px ${alpha(
+                  snackbar.severity === 'success' ? theme.palette.success.main :
+                  snackbar.severity === 'error' ? theme.palette.error.main :
+                  snackbar.severity === 'warning' ? theme.palette.warning.main :
+                  theme.palette.info.main,
+                  0.15
+                )}`,
+            padding: '10px 16px',
+            minWidth: 'auto !important', // Override MUI default 288px
+            '& .MuiSnackbarContent-message': {
+              padding: 0,
+            },
+          }
+        }}
+      />
       
       {/* SQL Results Modal */}
       <Dialog
@@ -962,13 +973,22 @@ function Chat() {
         onClose={() => setQueryResults(null)}
         maxWidth="xl"
         fullWidth
+        fullScreen={false}
         TransitionComponent={Grow}
+        sx={{
+          // Fullscreen on mobile only
+          '& .MuiDialog-paper': {
+            margin: { xs: 0, sm: 2 },
+            width: { xs: '100%', sm: 'calc(100% - 32px)' },
+            height: { xs: '100%', sm: 'auto' },
+            maxHeight: { xs: '100%', sm: '85vh' },
+            borderRadius: { xs: 0, sm: 2 },
+          },
+        }}
         PaperProps={{
           sx: {
             bgcolor: 'background.paper',
             backgroundImage: 'none',
-            maxHeight: '85vh',
-            borderRadius: 2,
           }
         }}
       >

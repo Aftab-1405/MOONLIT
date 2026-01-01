@@ -19,6 +19,7 @@ const breakpoints = {
 
 const typography = {
   fontFamily: '"Inter", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+  // Standard MUI variants
   h1: { fontWeight: 700, fontSize: '3rem', lineHeight: 1.1, letterSpacing: '-0.025em' },
   h2: { fontWeight: 600, fontSize: '2.25rem', lineHeight: 1.2, letterSpacing: '-0.02em' },
   h3: { fontWeight: 600, fontSize: '1.75rem', lineHeight: 1.3, letterSpacing: '-0.015em' },
@@ -32,6 +33,13 @@ const typography = {
   caption: { fontSize: '0.75rem', lineHeight: 1.4, letterSpacing: '0.02em' },
   overline: { fontSize: '0.625rem', fontWeight: 600, lineHeight: 1.5, letterSpacing: '0.1em', textTransform: 'uppercase' },
   button: { textTransform: 'none', fontWeight: 500, fontSize: '0.875rem' },
+  // Custom variants for granular control
+  // Use: variant="labelSmall" in <Typography>
+  labelSmall: { fontSize: '0.65rem', fontWeight: 500, lineHeight: 1.4, letterSpacing: '0.02em' },  // 10.4px - Chip labels, tiny badges
+  labelMedium: { fontSize: '0.7rem', fontWeight: 500, lineHeight: 1.4, letterSpacing: '0.01em' }, // 11.2px - Small labels, hints
+  bodySmall: { fontSize: '0.8rem', lineHeight: 1.5 },   // 12.8px - Compact UI, menus
+  bodyMedium: { fontSize: '0.85rem', lineHeight: 1.5 }, // 13.6px - Between body2 and body1
+  bodyLarge: { fontSize: '0.95rem', lineHeight: 1.6 },  // 15.2px - Slightly smaller than body1
 };
 
 // ============================================
@@ -39,10 +47,10 @@ const typography = {
 // ============================================
 
 // MOONLIT GRADIENT - Single source of truth for the brand gradient
-const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
+export const getMoonlitGradient = (theme) => `linear-gradient(135deg, ${theme.palette.info.main}, ${theme.palette.primary.main})`;
 
 // NATURAL MOONLIT EFFECT - Enhanced moonlight-inspired gradients and effects
-const getNaturalMoonlitEffects = (theme) => ({
+const getNaturalMoonlitEffects = () => ({
   // Primary moonlit gradient - cool blue to soft silver
   gradient: `linear-gradient(135deg, #E0E7FF, #C7D2FE, #A5B4FC, #818CF8)`,
 
@@ -129,7 +137,6 @@ const lightPalette = {
 const getComponentOverrides = (mode) => {
   const isDark = mode === 'dark';
   const borderColor = isDark ? '#1F1F1F' : '#E8DFD3';
-  const paperBg = isDark ? '#0A0A0A' : '#FFFEFA';
 
   return {
     MuiCssBaseline: {
@@ -156,7 +163,10 @@ const getComponentOverrides = (mode) => {
     },
     MuiButtonBase: { defaultProps: { disableRipple: true } },
     MuiButton: {
-      defaultProps: { disableElevation: true },
+      defaultProps: { 
+        disableElevation: true,
+        variant: 'outlined',  // Single consistent button style
+      },
       styleOverrides: {
         root: {
           borderRadius: 10,
@@ -164,32 +174,44 @@ const getComponentOverrides = (mode) => {
           fontWeight: 600,
           textTransform: 'none',
           transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-          // Better letter spacing for readability
           letterSpacing: '0.01em',
-        },
-        contained: {
-          boxShadow: 'none',
-          '&:hover': {
-            boxShadow: isDark ? '0 0 0 1px #333' : '0 2px 4px 0 rgba(0,0,0,0.08)',
-            transform: 'translateY(-1px)',
-          },
-          // Subtle background variation for light theme
-          ...(mode === 'light' && {
-            background: 'linear-gradient(135deg, #FFFEFA 0%, #FFF8F3 100%)',
-          }),
-        },
-        outlined: {
+          borderWidth: '1.5px',
           borderColor: borderColor,
-          borderWidth: '1.5px', // Slightly thicker for better visibility
           '&:hover': {
             backgroundColor: isDark ? alpha('#FFFFFF', 0.05) : alpha('#2D2A26', 0.03),
             borderColor: isDark ? '#FFFFFF' : '#2D2A26',
+            transform: 'translateY(-1px)',
           },
         },
-        text: {
+        sizeSmall: {
+          padding: '6px 16px',
+          fontSize: '0.8125rem',
+        },
+        sizeLarge: {
+          padding: '14px 28px',
+          fontSize: '0.9375rem',
+        },
+      },
+    },
+    MuiIconButton: {
+      defaultProps: {
+        color: 'default',
+      },
+      styleOverrides: {
+        root: {
+          borderRadius: 10,
+          border: `1.5px solid ${isDark ? '#333333' : '#D0C8BE'}`,
+          transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
           '&:hover': {
-            backgroundColor: isDark ? alpha('#FFFFFF', 0.05) : alpha('#2D2A26', 0.04),
+            backgroundColor: isDark ? alpha('#FFFFFF', 0.05) : alpha('#2D2A26', 0.03),
+            borderColor: isDark ? '#555555' : '#A69585',
           },
+        },
+        sizeSmall: {
+          padding: 6,
+        },
+        sizeMedium: {
+          padding: 8,
         },
       },
     },

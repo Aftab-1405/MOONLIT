@@ -12,11 +12,13 @@ import {
   ListItemIcon, 
   Avatar,
   Drawer as MuiDrawer,
+  SwipeableDrawer,
   Dialog,
   DialogTitle,
   DialogContent,
   Chip,
   CircularProgress,
+  useMediaQuery,
 } from '@mui/material';
 import { styled, useTheme, alpha } from '@mui/material/styles';
 
@@ -109,15 +111,19 @@ function Sidebar({
   availableDatabases = [],
   onOpenDbModal,
   onDatabaseSwitch,
-  // Collapse control
+  // Collapse control (desktop only)
   isCollapsed = false,
   onToggleCollapse,
   // Profile
   user = null,
   onMenuOpen,
+  // Mobile drawer control
+  mobileOpen = false,
+  onMobileClose,
 }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
   const [historyPopoverAnchor, setHistoryPopoverAnchor] = useState(null);
   const profileButtonRef = useRef(null);
@@ -134,16 +140,6 @@ function Sidebar({
         : theme.transitions.duration.enteringScreen,
     }),
   });
-
-  // Common icon button styles
-  const iconButtonStyles = {
-    p: 1,
-    color: theme.palette.text.secondary,
-    '&:hover': {
-      backgroundColor: theme.palette.action.hover,
-      color: theme.palette.text.primary,
-    },
-  };
 
   // Common styles for elements that hide when collapsed
   const collapsedHiddenStyles = {
@@ -218,31 +214,28 @@ function Sidebar({
     { icon: <HistoryOutlinedIcon sx={{ fontSize: 20 }} />, label: 'History', tooltip: 'History', isSection: !isCollapsed, action: isCollapsed ? handleHistoryClick : undefined },
   ];
 
-  return (
-    <StyledDrawer 
-      variant="permanent"
-      open={!isCollapsed}
-      isDarkMode={isDarkMode}
-      PaperProps={{
-        sx: {
-          position: 'relative', // Important: keeps it in flow, not fixed
-          height: '100%',
-          minHeight: '100%', // Ensure full height in temporary drawer context
-          display: 'flex',
-          flexDirection: 'column',
-        }
-      }}
-    >
+  // Shared content styles for both wrapper modes
+  const contentContainerStyles = {
+    position: 'relative',
+    height: '100%',
+    minHeight: '100%',
+    display: 'flex',
+    flexDirection: 'column',
+  };
+
+  // Content that goes inside the wrapper (shared by both modes)
+  const sidebarContent = (
+    <>
       {/* ===== TOP: Logo Area (No toggle on click) ===== */}
       <Box 
         sx={{ 
-          p: isCollapsed ? 1.5 : 2,
+          p: isCollapsed ? 0 : 2,
+          py: isCollapsed ? 1.5 : 2,
           display: 'flex',
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'flex-start',
-          gap: 1.5,
+          gap: isCollapsed ? 0 : 1.5,
           minHeight: 56,
-          // Use MUI standard transition timing
           transition: theme.transitions.create(['padding', 'justify-content'], {
             easing: theme.transitions.easing.sharp,
             duration: theme.transitions.duration.enteringScreen,
@@ -275,6 +268,9 @@ function Sidebar({
 
       {/* ===== NAVIGATION ITEMS ===== */}
       <Box sx={{ 
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: isCollapsed ? 'center' : 'stretch',
         px: isCollapsed ? 0 : 1.5, 
         py: 1, 
         transition: theme.transitions.create('padding', {
@@ -303,56 +299,80 @@ function Sidebar({
             )
           ) : (
             <Tooltip key={index} title={isCollapsed ? item.tooltip : ''} placement="right" arrow>
-              <Box
-                ref={item.label === 'History' ? historyButtonRef : undefined}
-                onClick={item.action}
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1.5,
-                  width: '100%',
-                  p: isCollapsed ? 1 : 1.25,
-                  mb: 0.25,
-                  borderRadius: 1.5,
-                  cursor: 'pointer',
-                  justifyContent: isCollapsed ? 'center' : 'flex-start',
-                  color: theme.palette.text.secondary,
-                  transition: 'all 0.2s ease',
-                  '&:hover': {
-                    backgroundColor: theme.palette.action.hover,
-                    color: theme.palette.text.primary,
-                  },
-                  // Database connection indicator
-                  ...(item.label === 'Database' && {
-                    position: 'relative',
-                    '&::after': isConnected ? {
-                      content: '""',
-                      position: 'absolute',
-                      top: isCollapsed ? 8 : 10,
-                      right: isCollapsed ? 8 : 'auto',
-                      left: isCollapsed ? 'auto' : 28,
-                      width: 6,
-                      height: 6,
-                      borderRadius: '50%',
-                      backgroundColor: theme.palette.success.main,
-                    } : {},
-                  }),
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
-                  {item.icon}
-                </Box>
-                <Typography 
-                  variant="body2" 
-                  sx={{ 
-                    fontWeight: 450,
-                    whiteSpace: 'nowrap',
-                    ...collapsedHiddenStyles,
+              {isCollapsed ? (
+                // Collapsed: Use IconButton for proper theme styling
+                <IconButton
+                  ref={item.label === 'History' ? historyButtonRef : undefined}
+                  onClick={item.action}
+                  size="small"
+                  sx={{
+                    mb: 0.5,
+                    ...(item.label === 'Database' && isConnected && {
+                      position: 'relative',
+                      '&::after': {
+                        content: '""',
+                        position: 'absolute',
+                        top: 6,
+                        right: 6,
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        backgroundColor: theme.palette.success.main,
+                      },
+                    }),
                   }}
                 >
-                  {item.label}
-                </Typography>
-              </Box>
+                  {item.icon}
+                </IconButton>
+              ) : (
+                // Expanded: Use Box for full row with label
+                <Box
+                  ref={item.label === 'History' ? historyButtonRef : undefined}
+                  onClick={item.action}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1.5,
+                    width: '100%',
+                    p: 1.25,
+                    mb: 0.25,
+                    borderRadius: 1.5,
+                    cursor: 'pointer',
+                    color: theme.palette.text.secondary,
+                    transition: 'all 0.2s ease',
+                    '&:hover': {
+                      backgroundColor: theme.palette.action.hover,
+                      color: theme.palette.text.primary,
+                    },
+                    ...(item.label === 'Database' && isConnected && {
+                      position: 'relative',
+                      '&::after': {
+                        content: '""',
+                        position: 'absolute',
+                        top: 10,
+                        left: 28,
+                        width: 6,
+                        height: 6,
+                        borderRadius: '50%',
+                        backgroundColor: theme.palette.success.main,
+                      },
+                    }),
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 20, height: 20 }}>
+                    {item.icon}
+                  </Box>
+                  <Typography 
+                    variant="body2" 
+                    sx={{ 
+                      fontWeight: 450,
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {item.label}
+                  </Typography>
+                </Box>
+              )}
             </Tooltip>
           )
         ))}
@@ -640,7 +660,7 @@ function Sidebar({
             ref={profileButtonRef}
             onClick={() => onMenuOpen({ currentTarget: profileButtonRef.current })} 
             size="small" 
-            sx={iconButtonStyles}
+           
           >
             {user?.photoURL ? (
               <Avatar src={user.photoURL} sx={{ width: 24, height: 24 }} />
@@ -650,10 +670,12 @@ function Sidebar({
           </IconButton>
         </Tooltip>
 
-        {/* Collapse/Expand toggle */}
-        <Tooltip title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right" arrow>
-          <IconButton onClick={onToggleCollapse} size="small" sx={iconButtonStyles}>
-            {isCollapsed ? (
+        {/* Collapse/Expand toggle - On mobile: close drawer, On desktop: collapse/expand */}
+        <Tooltip title={isMobile ? 'Close sidebar' : (isCollapsed ? 'Expand sidebar' : '')} placement="right" arrow>
+          <IconButton onClick={isMobile ? onMobileClose : onToggleCollapse} size="small">
+            {isMobile ? (
+              <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
+            ) : isCollapsed ? (
               <KeyboardDoubleArrowRightRoundedIcon sx={{ fontSize: 20 }} />
             ) : (
               <KeyboardDoubleArrowLeftRoundedIcon sx={{ fontSize: 20 }} />
@@ -668,10 +690,20 @@ function Sidebar({
         onClose={() => setMindmapOpen(false)}
         maxWidth="lg"
         fullWidth
+        sx={{
+          // Fullscreen on mobile only
+          '& .MuiDialog-paper': {
+            margin: { xs: 0, sm: 2 },
+            width: { xs: '100%', sm: 'calc(100% - 32px)' },
+            height: { xs: '100%', sm: '80vh' },
+            maxHeight: { xs: '100%', sm: 700 },
+            borderRadius: { xs: 0, sm: 2 },
+          },
+        }}
         PaperProps={{
           sx: {
-            height: '80vh',
-            maxHeight: 700,
+            bgcolor: 'background.paper',
+            backgroundImage: 'none',
           },
         }}
       >
@@ -686,7 +718,7 @@ function Sidebar({
                 size="small"
                 icon={<StorageOutlinedIcon sx={{ fontSize: 14 }} />}
                 label={currentDatabase}
-                sx={{ ml: 1 }}
+                sx={{ ml: 1, display: { xs: 'none', sm: 'flex' } }}
               />
             )}
           </Box>
@@ -698,14 +730,14 @@ function Sidebar({
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ p: 2 }}>
+        <DialogContent sx={{ p: { xs: 1, sm: 2 } }}>
           {schemaLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: { xs: 300, sm: 400 } }}>
               <CircularProgress />
             </Box>
           ) : schemaData ? (
             <>
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, mb: 1.5 }}>
                 Click on table nodes to expand/collapse columns. Use mouse to pan and scroll to zoom.
               </Typography>
               <SchemaFlowDiagram
@@ -715,7 +747,7 @@ function Sidebar({
               />
             </>
           ) : (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: 400 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: { xs: 300, sm: 400 } }}>
               <Typography color={theme.palette.text.secondary}>
                 No schema data available. Connect to a database first.
               </Typography>
@@ -723,6 +755,47 @@ function Sidebar({
           )}
         </DialogContent>
       </Dialog>
+    </>
+  );
+
+  // Mobile: SwipeableDrawer (temporary)
+  if (isMobile) {
+    return (
+      <SwipeableDrawer
+        variant="temporary"
+        open={mobileOpen}
+        onClose={onMobileClose}
+        onOpen={() => {}} // Required for SwipeableDrawer but controlled externally
+        disableSwipeToOpen
+        ModalProps={{ keepMounted: true }}
+        sx={{
+          '& .MuiDrawer-paper': {
+            width: EXPANDED_WIDTH,
+            height: '100%',
+            ...getGlassmorphismStyles(theme, isDarkMode),
+            borderRight: '1px solid',
+            borderColor: theme.palette.divider,
+          },
+        }}
+      >
+        <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+          {sidebarContent}
+        </Box>
+      </SwipeableDrawer>
+    );
+  }
+
+  // Desktop: StyledDrawer (permanent)
+  return (
+    <StyledDrawer 
+      variant="permanent"
+      open={!isCollapsed}
+      isDarkMode={isDarkMode}
+      PaperProps={{
+        sx: contentContainerStyles
+      }}
+    >
+      {sidebarContent}
     </StyledDrawer>
   );
 }
