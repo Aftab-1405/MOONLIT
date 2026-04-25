@@ -17,6 +17,7 @@ import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import { TOUCH_DEVICE_QUERY } from '../../styles/mediaQueries';
+import { getAppPopoverPaperSx } from '../AppPopover';
 
 export const ConversationItem = memo(function ConversationItem({
   conv,
@@ -152,19 +153,40 @@ export const ConversationItem = memo(function ConversationItem({
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{
           paper: {
-            sx: {
-              minWidth: 140,
-              borderRadius: '10px',
-              mt: 0.5,
-            },
+            sx: getAppPopoverPaperSx(theme, isDark, {
+              borderRadius: '12px',
+              minWidth: 160,
+              mt: 0.75,
+              p: 0.5,
+            }),
+          },
+          list: {
+            sx: { py: 0 },
           },
         }}
       >
         <MenuItem
           onClick={handleDeleteFromMenu}
-          sx={{ fontSize: '0.84rem', gap: 1, color: theme.palette.error.main }}
+          sx={{
+            fontSize: '0.84rem',
+            gap: 1,
+            px: 1,
+            py: 0.85,
+            borderRadius: '8px',
+            color: theme.palette.error.main,
+            transition: theme.transitions.create(['background-color', 'color'], {
+              duration: theme.transitions.duration.shortest,
+            }),
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.error.main, isDark ? 0.12 : 0.08),
+              color: theme.palette.error.main,
+            },
+            '&:focus-visible': {
+              backgroundColor: alpha(theme.palette.error.main, isDark ? 0.16 : 0.1),
+            },
+          }}
         >
-          <ListItemIcon sx={{ minWidth: 'auto' }}>
+          <ListItemIcon sx={{ minWidth: 'auto', color: 'inherit' }}>
             <DeleteOutlineRoundedIcon sx={{ fontSize: 16, color: 'inherit' }} />
           </ListItemIcon>
           Delete

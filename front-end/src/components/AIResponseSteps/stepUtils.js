@@ -59,12 +59,13 @@ export function getDetailedResult(name, result) {
     },
     get_database_schema: () => {
       const count = result.table_count ?? result.tables?.length ?? 0;
-      const tables = result.tables?.slice(0, 5).join(', ') || '';
-      return `Retrieved ${count} tables${tables ? `: ${tables}${count > 5 ? '...' : ''}` : ''}`;
+      const database = result.database ? ` from ${result.database}` : '';
+      return `Retrieved ${count} table${count !== 1 ? 's' : ''}${database}`;
     },
     get_table_columns: () => {
       const count = result.column_count ?? result.columns?.length ?? 0;
-      return `Table has ${count} columns`;
+      const table = result.table ? ` in ${result.table}` : '';
+      return `Retrieved ${count} column${count !== 1 ? 's' : ''}${table}`;
     },
     execute_query: () => {
       const rowCount = result.row_count ?? 0;
@@ -76,11 +77,15 @@ export function getDetailedResult(name, result) {
       return msg;
     },
     get_table_indexes: () => `Found ${result.count ?? result.indexes?.length ?? 0} indexes`,
-    get_foreign_keys: () => `Found ${result.count ?? result.foreign_keys?.length ?? 0} foreign key relationships`,
+    get_foreign_keys: () => {
+      const count = result.count ?? result.foreign_keys?.length ?? 0;
+      const table = result.table ? ` for ${result.table}` : '';
+      return `Found ${count} foreign key relationship${count !== 1 ? 's' : ''}${table}`;
+    },
     web_search: () => {
       const count = result.count ?? result.results?.length ?? 0;
       const query = result.query ? ` for "${result.query}"` : '';
-      return `Found ${count} result${count !== 1 ? 's' : ''}${query}`;
+      return `Found ${count} cited source${count !== 1 ? 's' : ''}${query}`;
     },
   };
 
@@ -125,22 +130,32 @@ export function normalizeSteps(steps) {
 export function buildStepsSummary(normalizedSteps) {
   if (normalizedSteps.length === 0) return '';
 
+  const activeTool = normalizedSteps.find((s) => s.type === 'tool' && s.isRunning);
+  if (activeTool) return activeTool.actionText;
+
+  const activeThinking = normalizedSteps.find((s) => s.type === 'thinking' && !s.isComplete);
+  if (activeThinking) return 'Thinking…';
+
   const completedTools = normalizedSteps.filter((s) => s.type === 'tool' && !s.isRunning);
   const thinkingSteps = normalizedSteps.filter((s) => s.type === 'thinking');
-  const isAnyActive =
-    normalizedSteps.some((s) => s.type === 'tool' && s.isRunning) ||
-    thinkingSteps.some((s) => !s.isComplete);
 
   if (completedTools.length === 0) {
-    if (isAnyActive) return 'Processing...';
     if (thinkingSteps.length > 0) return 'Reasoned through the request';
-    return 'Processing...';
+    return 'Processing…';
   }
 
   const actions = completedTools.map((s) => s.actionText);
   if (actions.length === 1) return actions[0];
   if (actions.length === 2) return actions.join(', ');
   return `${actions.slice(0, 2).join(', ')}, and more`;
+}
+
+export function isAnyStepActive(normalizedSteps) {
+  return normalizedSteps.some(
+    (s) =>
+      (s.type === 'tool' && s.isRunning) ||
+      (s.type === 'thinking' && !s.isComplete)
+  );
 }
 
 export function getCurrentStepIndex(normalizedSteps) {

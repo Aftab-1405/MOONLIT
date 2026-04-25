@@ -70,4 +70,12 @@ class ToolExecutor:
                 ),
             }
 
+        if tool_name == "get_database_schema":
+            structured.pop("columns", None)
+            tables = structured.get("tables", [])
+            if len(tables) > 25:
+                structured["tables"] = tables[:25]
+                structured["tables_truncated_for_llm"] = True
+                structured["displayed_table_count_for_llm"] = 25
+
         return json.dumps(structured)

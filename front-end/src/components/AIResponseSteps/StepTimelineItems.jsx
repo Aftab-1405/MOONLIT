@@ -8,7 +8,7 @@ import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlin
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
 import { registerMonacoThemes, getMonacoThemeName, TRANSITIONS } from '../../theme';
-import { getDetailedResult } from './stepUtils';
+import { DetailLabel, ToolResultDetails } from './ToolResultDetails';
 import { slideIn, TIMELINE_LINE_X } from './timelineShared';
 
 const Editor = lazy(() => import('@monaco-editor/react'));
@@ -59,23 +59,25 @@ const getTimelineNodeSx = ({
   color,
   isCurrent = false,
   shadowColor,
-  shadowAlphaDark = 0.12,
-  shadowAlphaLight = 0.16,
+  shadowAlphaDark = 0.14,
+  shadowAlphaLight = 0.18,
   animation,
 }) => ({
   position: 'absolute',
   left: TIMELINE_LINE_X,
   top: '50%',
   transform: 'translate(-50%, -50%)',
-  fontSize: { xs: 15, sm: 17 },
+  fontSize: { xs: 14, sm: 16 },
   zIndex: 1,
   backgroundColor: 'background.paper',
   borderRadius: '50%',
   color,
+  padding: '1px',
   boxShadow:
     isCurrent && shadowColor
-      ? `0 0 0 4px ${alpha(shadowColor, isDark ? shadowAlphaDark : shadowAlphaLight)}`
-      : 'none',
+      ? `0 0 0 3px ${alpha(shadowColor, isDark ? shadowAlphaDark : shadowAlphaLight)}, 0 0 0 1px ${alpha(shadowColor, isDark ? 0.3 : 0.25)}`
+      : `0 0 0 1px ${alpha(color, isDark ? 0.18 : 0.16)}`,
+  transition: 'box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
   ...(animation ? { animation } : {}),
 });
 
@@ -113,14 +115,21 @@ export const ThinkingStep = memo(function ThinkingStep({ content = '', isComplet
                 lineHeight: { xs: 1.6, sm: 1.75 },
                 letterSpacing: '0.008em',
                 mt: 0.25,
-                px: { xs: 1, sm: 1.25 },
-                py: { xs: 0.75, sm: 1 },
-                borderRadius: '0 6px 6px 0',
+                px: { xs: 1.25, sm: 1.5 },
+                py: { xs: 0.85, sm: 1.1 },
+                borderRadius: '2px 8px 8px 2px',
                 borderLeft: '2px solid',
-                borderColor: alpha(theme.palette.text.secondary, isDark ? 0.18 : 0.14),
+                borderColor: alpha(theme.palette.info.main, isDark ? 0.32 : 0.26),
                 bgcolor: isDark
-                  ? alpha(theme.palette.text.primary, 0.025)
-                  : alpha(theme.palette.text.primary, 0.02),
+                  ? alpha(theme.palette.info.main, 0.04)
+                  : alpha(theme.palette.info.main, 0.03),
+                transition: TRANSITIONS.default,
+                '&:hover': {
+                  borderColor: alpha(theme.palette.info.main, isDark ? 0.45 : 0.38),
+                  bgcolor: isDark
+                    ? alpha(theme.palette.info.main, 0.06)
+                    : alpha(theme.palette.info.main, 0.045),
+                },
               }}
             >
               <MarkdownRenderer content={showMore || !isLong ? displayContent : displayContent + '\u2026'} />
@@ -267,55 +276,37 @@ export const ToolStep = memo(function ToolStep({
             className="step-arrow"
             sx={{
               fontSize: { xs: 14, sm: 16 },
-              color: alpha(theme.palette.text.secondary, 0.35),
+              color: alpha(theme.palette.text.secondary, 0.4),
               transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition: TRANSITIONS.default,
+              transition: 'transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s',
               ml: 'auto',
             }}
           />
         )}
       </ButtonBase>
       {hasDetails && (
-        <Collapse in={expanded} timeout={200} unmountOnExit>
+        <Collapse in={expanded} timeout={220} unmountOnExit>
           <Box
             sx={{
-              mt: 0.75,
-              p: { xs: 1, sm: 1.5 },
-              borderRadius: { xs: '8px', sm: '10px' },
-              bgcolor: isDark ? alpha(theme.palette.background.elevated, 0.6) : alpha(theme.palette.background.elevated, 0.8),
+              mt: 1,
+              p: { xs: 1.1, sm: 1.35 },
+              borderRadius: '10px',
               border: '1px solid',
-              borderColor: theme.palette.border.subtle,
+              borderColor: alpha(theme.palette.border.subtle, isDark ? 0.9 : 1),
+              bgcolor: isDark
+                ? alpha(theme.palette.background.elevated, 0.42)
+                : alpha(theme.palette.background.elevated, 0.65),
               backgroundImage: isDark
-                ? `linear-gradient(180deg, ${alpha(theme.palette.text.primary, 0.02)}, transparent)`
-                : `linear-gradient(180deg, ${alpha(theme.palette.text.primary, 0.015)}, transparent)`,
+                ? `linear-gradient(180deg, ${alpha(theme.palette.text.primary, 0.022)}, transparent 60%)`
+                : `linear-gradient(180deg, ${alpha(theme.palette.text.primary, 0.012)}, transparent 60%)`,
+              boxShadow: isDark
+                ? `inset 0 1px 0 ${alpha(theme.palette.text.primary, 0.03)}`
+                : `inset 0 1px 0 ${alpha(theme.palette.text.primary, 0.02)}`,
             }}
           >
             {parsedArgs?.query && (
               <Box sx={{ mb: parsedResult && !isRunning ? 1.5 : 0 }}>
-                <Typography
-                  component="span"
-                  sx={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    px: 0.75,
-                    py: 0.2,
-                    mb: 0.75,
-                    borderRadius: '5px',
-                    bgcolor: isDark
-                      ? alpha(theme.palette.text.primary, 0.07)
-                      : alpha(theme.palette.text.primary, 0.05),
-                    border: '1px solid',
-                    borderColor: theme.palette.border.subtle,
-                    fontFamily: theme.typography.fontFamilyMono,
-                    ...theme.typography.uiMonoLabel,
-                    fontWeight: 600,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    color: theme.palette.text?.hint,
-                  }}
-                >
-                  Query
-                </Typography>
+                <DetailLabel>Query</DetailLabel>
                 <Box
                   sx={{
                     borderRadius: '8px',
@@ -342,40 +333,13 @@ export const ToolStep = memo(function ToolStep({
             )}
             {parsedResult && !isRunning && (
               <Box>
-                <Typography
-                  component="span"
-                  sx={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    px: 0.75,
-                    py: 0.2,
-                    mb: 0.5,
-                    borderRadius: '5px',
-                    bgcolor: isDark
-                      ? alpha(theme.palette.text.primary, 0.07)
-                      : alpha(theme.palette.text.primary, 0.05),
-                    border: '1px solid',
-                    borderColor: theme.palette.border.subtle,
-                    fontFamily: theme.typography.fontFamilyMono,
-                    ...theme.typography.uiMonoLabel,
-                    fontWeight: 600,
-                    letterSpacing: '0.06em',
-                    textTransform: 'uppercase',
-                    color: theme.palette.text?.hint,
-                  }}
-                >
-                  Result
-                </Typography>
-                <Typography
-                  sx={{
-                    color: isError ? alpha(theme.palette.error.main, 0.85) : alpha(theme.palette.text.secondary, 0.75),
-                    ...theme.typography.uiBodySm,
-                    fontFamily: theme.typography.fontFamily,
-                    lineHeight: 1.6,
-                  }}
-                >
-                  {getDetailedResult(stepName, parsedResult)}
-                </Typography>
+                <DetailLabel>Result</DetailLabel>
+                <ToolResultDetails
+                  stepName={stepName}
+                  result={parsedResult}
+                  args={parsedArgs}
+                  isError={isError}
+                />
               </Box>
             )}
           </Box>
@@ -410,20 +374,21 @@ export const DoneIndicator = memo(function DoneIndicator() {
           display: 'inline-flex',
           alignItems: 'center',
           gap: 0.5,
-          px: 1,
-          py: 0.3,
-          borderRadius: '6px',
-          bgcolor: alpha(theme.palette.success.main, isDark ? 0.08 : 0.07),
+          px: 1.1,
+          py: 0.35,
+          borderRadius: '999px',
+          bgcolor: alpha(theme.palette.success.main, isDark ? 0.1 : 0.08),
           border: '1px solid',
-          borderColor: alpha(theme.palette.success.main, isDark ? 0.18 : 0.14),
+          borderColor: alpha(theme.palette.success.main, isDark ? 0.22 : 0.18),
         }}
       >
         <Typography
           sx={{
-            color: alpha(theme.palette.success.main, isDark ? 0.75 : 0.68),
+            color: alpha(theme.palette.success.main, isDark ? 0.82 : 0.72),
             ...theme.typography.uiCaptionSm,
             fontFamily: theme.typography.fontFamily,
-            fontWeight: 500,
+            fontWeight: 600,
+            letterSpacing: '0.02em',
           }}
         >
           Done

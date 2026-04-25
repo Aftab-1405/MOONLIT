@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback, memo } from 'react';
 import { Box, Typography, Collapse, useTheme, ButtonBase, useMediaQuery } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { alpha, keyframes } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { TRANSITIONS } from '../../theme';
 import {
@@ -14,14 +14,19 @@ import {
   buildStepsSummary,
   getCurrentStepIndex,
   areAllStepsComplete,
+  isAnyStepActive,
 } from './stepUtils';
 
+const shimmer = keyframes`
+  0%   { background-position: -200% 0; }
+  100% { background-position:  200% 0; }
+`;
+
 export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming }) {
-  const [expanded, setExpanded] = useState(() => !!isStreaming);
+  const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isDark = theme.palette.mode === 'dark';
-  const effectiveExpanded = isStreaming || expanded;
 
   const normalizedSteps = useMemo(() => normalizeSteps(steps), [steps]);
   const summaryText = useMemo(() => buildStepsSummary(normalizedSteps), [normalizedSteps]);
@@ -30,13 +35,16 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
     () => areAllStepsComplete(normalizedSteps, isStreaming),
     [normalizedSteps, isStreaming]
   );
+  const isLive = isStreaming && isAnyStepActive(normalizedSteps);
 
   const handleToggle = useCallback(() => {
-    if (isStreaming) return;
     setExpanded((prev) => !prev);
-  }, [isStreaming]);
+  }, []);
 
   if (normalizedSteps.length === 0) return null;
+
+  const shimmerBase = alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62);
+  const shimmerHighlight = alpha(theme.palette.text.primary, isDark ? 0.95 : 0.88);
 
   return (
     <Box
@@ -49,6 +57,8 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
     >
       <ButtonBase
         onClick={handleToggle}
+        aria-expanded={expanded}
+        aria-label={expanded ? 'Collapse reasoning steps' : 'Expand reasoning steps'}
         sx={{
           width: '100%',
           display: 'flex',
@@ -57,16 +67,22 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
           gap: { xs: 0.75, sm: 1 },
           py: { xs: 0.35, sm: 0.5 },
           minHeight: 44,
+          minWidth: 0,
           px: 0,
           borderRadius: 0,
           bgcolor: 'transparent',
           textAlign: 'left',
           transition: TRANSITIONS.default,
           '&:hover .summary-text': {
-            color: alpha(theme.palette.text.primary, isDark ? 0.9 : 0.8),
+            color: alpha(theme.palette.text.primary, isDark ? 0.92 : 0.82),
           },
           '&:hover .summary-arrow': {
-            color: alpha(theme.palette.text.secondary, 0.6),
+            color: alpha(theme.palette.text.secondary, 0.7),
+          },
+          '&:focus-visible': {
+            outline: `1.5px solid ${alpha(theme.palette.primary.main, 0.55)}`,
+            outlineOffset: '2px',
+            borderRadius: '4px',
           },
         }}
         disableRipple
@@ -74,7 +90,7 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
         <Typography
           className="summary-text"
           sx={{
-            color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
+            color: shimmerBase,
             ...theme.typography.uiBodySm,
             fontFamily: theme.typography.fontFamily,
             fontWeight: 500,
@@ -85,6 +101,15 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
             overflowWrap: 'anywhere',
             lineHeight: 1.35,
             transition: TRANSITIONS.default,
+            ...(isLive && {
+              backgroundImage: `linear-gradient(90deg, ${shimmerBase} 0%, ${shimmerBase} 35%, ${shimmerHighlight} 50%, ${shimmerBase} 65%, ${shimmerBase} 100%)`,
+              backgroundSize: '200% 100%',
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              color: 'transparent',
+              animation: `${shimmer} 2.6s linear infinite`,
+            }),
           }}
         >
           {summaryText}
@@ -100,15 +125,17 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
             borderRadius: '9px',
             bgcolor: alpha(theme.palette.text.secondary, isDark ? 0.1 : 0.08),
             flexShrink: 0,
+            transition: TRANSITIONS.default,
           }}
         >
           <Typography
             sx={{
-              color: alpha(theme.palette.text.secondary, isDark ? 0.6 : 0.55),
+              color: alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.6),
               fontSize: '10px',
               fontWeight: 600,
               lineHeight: 1,
               fontFamily: theme.typography.fontFamilyMono,
+              fontVariantNumeric: 'tabular-nums',
             }}
           >
             {normalizedSteps.length}
@@ -122,14 +149,14 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
             mt: '1px',
             flexShrink: 0,
             ml: 0.5,
-            color: alpha(theme.palette.text.secondary, 0.35),
-            transform: effectiveExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: TRANSITIONS.default,
+            color: alpha(theme.palette.text.secondary, 0.4),
+            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s',
           }}
         />
       </ButtonBase>
 
-      <Collapse in={effectiveExpanded} timeout={200}>
+      <Collapse in={expanded} timeout={220} unmountOnExit>
         <Box
           sx={{
             pt: 0.5,

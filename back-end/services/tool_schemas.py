@@ -172,7 +172,9 @@ class SchemaResult(ToolResultBase):
 
     database: Optional[str] = None
     table_count: int = 0
-    tables: List[str] = []
+    tables: List[str] = Field(default_factory=list)
+    columns: Dict[str, List[Any]] = Field(default_factory=dict)
+    source: Optional[str] = None
 
 
 class TableColumnsResult(ToolResultBase):
@@ -180,7 +182,8 @@ class TableColumnsResult(ToolResultBase):
 
     table: Optional[str] = None
     column_count: int = 0
-    columns: List[str] = []
+    columns: List[Any] = Field(default_factory=list)
+    source: Optional[str] = None
 
 
 class QueryResult(ToolResultBase):
@@ -288,20 +291,18 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             return SchemaResult(
                 database=raw_result.get("database"),
                 table_count=len(tables),
-                tables=tables[:10] if len(tables) > 10 else tables,  # Limit for display
+                tables=tables,
+                columns=raw_result.get("columns", {}),
+                source=raw_result.get("source"),
             ).model_dump()
 
         elif tool_name == "get_table_columns":
             cols = raw_result.get("columns", [])
-            # Handle both list of strings and list of dicts
-            if cols and isinstance(cols[0], dict):
-                col_names = [c.get("name", str(c)) for c in cols]
-            else:
-                col_names = cols
             return TableColumnsResult(
                 table=raw_result.get("table"),
-                column_count=len(col_names),
-                columns=col_names,
+                column_count=len(cols),
+                columns=cols,
+                source=raw_result.get("source"),
             ).model_dump()
 
         elif tool_name == "execute_query":
