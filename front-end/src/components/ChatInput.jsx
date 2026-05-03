@@ -25,7 +25,12 @@ import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import { getSchemas, selectSchema } from '../api';
 import { HOVER_CAPABLE_QUERY } from '../styles/mediaQueries';
 import logger from '../utils/logger';
-import { getToolbarChipSx, UI_LAYOUT } from '../styles/shared';
+import {
+  getPopoverSectionLabelSx,
+  getSelectableMenuItemSx,
+  getToolbarChipSx,
+  UI_LAYOUT,
+} from '../styles/shared';
 
 
 function ChatInput({
@@ -242,7 +247,7 @@ function ChatInput({
         width={220}
         paperSx={{ mt: -1 }}
       >
-        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+        <Typography sx={getPopoverSectionLabelSx(theme)}>
           Switch Database
         </Typography>
         <Box sx={{ maxHeight: 280, overflowY: 'auto', mt: 0.5 }}>
@@ -255,26 +260,12 @@ function ChatInput({
                 aria-checked={isActive}
                 key={db}
                 onClick={() => handleDatabaseChange(db)}
-                sx={{
-                  borderRadius: '8px',
-                  px: 1,
-                  py: 0.875,
-                  minHeight: 32,
-                  cursor: 'pointer',
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) auto',
-                  gap: 1,
-                  alignItems: 'center',
-                  userSelect: 'none',
-                  transition: 'background-color 120ms',
-                  backgroundColor: isActive ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.08) : 'transparent',
-                  '&:hover': { backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
-                }}
+                sx={getSelectableMenuItemSx(theme, { isActive })}
               >
-                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'text.primary' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
                   {db}
                 </Typography>
-                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />}
+                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
               </Box>
             );
           })}
@@ -289,7 +280,7 @@ function ChatInput({
         width={200}
         paperSx={{ mt: -1 }}
       >
-        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+        <Typography sx={getPopoverSectionLabelSx(theme)}>
           PostgreSQL Schema
         </Typography>
         <Box sx={{ maxHeight: 260, overflowY: 'auto', mt: 0.5 }}>
@@ -302,26 +293,12 @@ function ChatInput({
                 aria-checked={isActive}
                 key={schema}
                 onClick={() => handleSchemaChange(schema)}
-                sx={{
-                  borderRadius: '8px',
-                  px: 1,
-                  py: 0.875,
-                  minHeight: 32,
-                  cursor: 'pointer',
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) auto',
-                  gap: 1,
-                  alignItems: 'center',
-                  userSelect: 'none',
-                  transition: 'background-color 120ms',
-                  backgroundColor: isActive ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.08) : 'transparent',
-                  '&:hover': { backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
-                }}
+                sx={getSelectableMenuItemSx(theme, { isActive })}
               >
-                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'text.primary' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
                   {schema}
                 </Typography>
-                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />}
+                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
               </Box>
             );
           })}
@@ -350,7 +327,7 @@ function ChatInput({
                 {sectionIndex > 0 && (
                   <Box sx={{ height: '0.5px', backgroundColor: alpha(theme.palette.text.primary, 0.07), my: 0.75, mx: 0.5 }} />
                 )}
-                <Typography sx={{ px: 1, pt: 0.75, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+                <Typography sx={getPopoverSectionLabelSx(theme, { pt: 0.75 })}>
                 {section.label}
               </Typography>
           {section.models.map((model) => {
@@ -362,24 +339,10 @@ function ChatInput({
                       aria-checked={isActive}
                       key={`${section.name}-${model}`}
                       onClick={() => handleLlmSelection(section.name, model)}
-                      sx={{
-                        borderRadius: '8px',
-                        px: 1,
-                        py: 0.875,
-                        minHeight: 32,
-                        cursor: 'pointer',
-                        display: 'grid',
-                        gridTemplateColumns: 'minmax(0, 1fr) auto',
-                        gap: 1,
-                        alignItems: 'center',
-                        userSelect: 'none',
-                        transition: 'background-color 120ms',
-                        backgroundColor: isActive ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.08) : 'transparent',
-                        '&:hover': { backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
-                      }}
+                      sx={getSelectableMenuItemSx(theme, { isActive })}
                     >
                       <Box>
-                        <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                        <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
                           {model}
                         </Typography>
                         {model === section.defaultModel && (
@@ -389,7 +352,7 @@ function ChatInput({
                         )}
                       </Box>
                       {isActive && (
-                        <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />
+                        <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />
                       )}
                     </Box>
                   );

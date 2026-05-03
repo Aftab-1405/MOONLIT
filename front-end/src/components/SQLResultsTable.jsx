@@ -392,13 +392,9 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 onClick={handleCopyAsCSV}
                 aria-label="Copy as CSV"
                 sx={{
-                  width: 32,
-                  height: 32,
+                  ...getCompactActionSx(theme, { size: 32 }),
                   color: copied ? 'text.primary' : 'text.secondary',
                   borderRadius: 1.5,
-                  opacity: 0.65,
-                  transition: 'opacity 0.15s ease',
-                  '&:hover': { opacity: 1, backgroundColor: 'transparent' },
                 }}
               >
                 {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
@@ -410,13 +406,9 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                 onClick={handleDownloadCSV}
                 aria-label="Download CSV"
                 sx={{
-                  width: 32,
-                  height: 32,
+                  ...getCompactActionSx(theme, { size: 32 }),
                   color: 'text.secondary',
                   borderRadius: 1.5,
-                  opacity: 0.65,
-                  transition: 'opacity 0.15s ease',
-                  '&:hover': { opacity: 1, backgroundColor: 'transparent' },
                 }}
               >
                 <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
@@ -631,7 +623,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                     onMouseDown={(e) => handleResizeStart(e, column)}
                     sx={[
                       resizeHandleBaseSx,
-                      resizing === column ? { backgroundColor: 'primary.main' } : null,
+                      resizing === column ? { backgroundColor: alpha(theme.palette.text.secondary, 0.35) } : null,
                     ]}
                   />
                 </TableCell>

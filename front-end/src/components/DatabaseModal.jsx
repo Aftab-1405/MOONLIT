@@ -137,7 +137,7 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
               borderRadius: 2,
               border: '1px solid',
               borderColor: isSelected ? 'primary.main' : 'divider',
-              backgroundColor: isSelected ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
+              backgroundColor: isSelected ? alpha(theme.palette.text.primary, 0.06) : 'transparent',
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.6 : 1,
               transition: 'all 0.15s ease',
@@ -146,8 +146,8 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
               alignItems: 'center',
               gap: 1.5,
               '&:hover': !loading ? {
-                borderColor: isSelected ? 'primary.main' : alpha(theme.palette.text.primary, 0.2),
-                backgroundColor: isSelected ? alpha(theme.palette.primary.main, 0.12) : alpha(theme.palette.text.primary, 0.04),
+                borderColor: alpha(theme.palette.text.primary, 0.2),
+                backgroundColor: alpha(theme.palette.text.primary, 0.04),
               } : undefined,
             }}
           >

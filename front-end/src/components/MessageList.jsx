@@ -12,7 +12,7 @@ import {
   HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY,
 } from '../styles/mediaQueries';
-import { UI_LAYOUT } from '../styles/shared';
+import { getGhostIconButtonSx, UI_LAYOUT } from '../styles/shared';
 
 const COPY_FEEDBACK_DURATION = 2000;
 
@@ -110,6 +110,8 @@ function useCopyToClipboard() {
 }
 
 const CopyButton = memo(function CopyButton({ copied, onClick, className = 'message-action-btn', sx = {}, 'data-testid': dataTestId }) {
+  const theme = useTheme();
+
   return (
     <Tooltip title={copied ? 'Copied!' : 'Copy'}>
       <IconButton
@@ -119,14 +121,11 @@ const CopyButton = memo(function CopyButton({ copied, onClick, className = 'mess
         size="small"
         onClick={onClick}
         sx={{
-          width: 32,
-          height: 32,
-          color: copied ? 'text.primary' : 'text.secondary',
-          opacity: 0.65,
-          transition: 'opacity 0.15s ease',
-          [HOVER_CAPABLE_QUERY]: {
-            '&:hover': { opacity: 1, backgroundColor: 'transparent' },
-          },
+          ...getGhostIconButtonSx(theme, {
+            size: 32,
+            active: copied,
+            activeColor: 'text.primary',
+          }),
           ...sx,
         }}
       >
@@ -204,7 +203,6 @@ function parseJSON(value) {
 
 const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery, onOpenSqlEditor }) {
   const { copied, copyRich } = useCopyToClipboard();
-  const theme = useTheme();
   const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
   const contentRef = useRef(null);
   const sqlEditorTimeoutRef = useRef(null);

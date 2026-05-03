@@ -61,6 +61,10 @@ const getStepTypeScale = (theme) => {
   };
 };
 
+// Shared neutral border color used throughout
+const borderColor = (theme) =>
+  alpha(theme.palette.text.secondary, theme.palette.mode === 'dark' ? 0.1 : 0.08);
+
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
 const getColumnName = (column) => {
@@ -104,6 +108,8 @@ const resolveColumnsForTable = (columnsByTable, table) => {
     ? columnsByTable[matchingKey]
     : null;
 };
+
+// ─── Shared primitives ────────────────────────────────────────────────────────
 
 export const DetailLabel = ({ children }) => {
   const theme = useTheme();
@@ -228,7 +234,9 @@ const ColumnList = ({ columns, limit }) => {
 };
 
 const ToolMetaGrid = ({ items }) => {
-  const visibleItems = items.filter((item) => item.value !== undefined && item.value !== null && item.value !== '');
+  const visibleItems = items.filter(
+    (item) => item.value !== undefined && item.value !== null && item.value !== ''
+  );
   if (visibleItems.length === 0) return null;
 
   return (
@@ -240,12 +248,15 @@ const ToolMetaGrid = ({ items }) => {
   );
 };
 
+// ─── Schema result ────────────────────────────────────────────────────────────
+
 const SchemaResultDetails = ({ result }) => {
   const [expandedTables, setExpandedTables] = useState(() => new Set());
   const theme = useTheme();
   const type = getStepTypeScale(theme);
   const tables = toArray(result.tables);
-  const columnsByTable = result.columns && typeof result.columns === 'object' ? result.columns : null;
+  const columnsByTable =
+    result.columns && typeof result.columns === 'object' ? result.columns : null;
   const hasColumnPayload = Boolean(columnsByTable);
 
   const toggleTable = (table) => {
@@ -270,7 +281,7 @@ const SchemaResultDetails = ({ result }) => {
       {tables.length === 0 ? (
         <EmptyResult>No tables returned.</EmptyResult>
       ) : (
-        <Box sx={{ display: 'grid', gap: 0.25 }}>
+        <Box sx={{ display: 'grid', gap: 0 }}>
           {tables.map((table) => {
             const columns = resolveColumnsForTable(columnsByTable, table);
             const isExpanded = expandedTables.has(table);
@@ -281,10 +292,8 @@ const SchemaResultDetails = ({ result }) => {
               <Box
                 key={table}
                 sx={{
-                  borderRadius: '8px',
-                  overflow: 'clip',
                   borderTop: '1px solid',
-                  borderColor: alpha(theme.palette.border.subtle, theme.palette.mode === 'dark' ? 0.55 : 0.7),
+                  borderColor: borderColor(theme),
                   '&:first-of-type': { borderTop: 'none' },
                 }}
               >
@@ -295,26 +304,48 @@ const SchemaResultDetails = ({ result }) => {
                     width: '100%',
                     display: 'block',
                     textAlign: 'left',
-                    px: { xs: 0.6, sm: 0.75 },
-                    py: { xs: 0.7, sm: 0.85 },
+                    px: { xs: 0.5, sm: 0.75 },
+                    py: { xs: 0.65, sm: 0.8 },
                     cursor: columns?.length ? 'pointer' : 'default',
+                    bgcolor: 'transparent',
                     transition: TRANSITIONS.default,
                     '&:hover': columns?.length
-                      ? { bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.035 : 0.025) }
+                      ? {
+                          bgcolor: alpha(
+                            theme.palette.text.primary,
+                            theme.palette.mode === 'dark' ? 0.03 : 0.02
+                          ),
+                        }
                       : {},
                   }}
                   disableRipple
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1.2 }}>
-                    <Typography sx={{ ...type.primaryMono, minWidth: 0, overflowWrap: 'anywhere' }}>
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      justifyContent: 'space-between',
+                      gap: 1.2,
+                    }}
+                  >
+                    <Typography
+                      sx={{ ...type.primaryMono, minWidth: 0, overflowWrap: 'anywhere' }}
+                    >
                       {table}
                     </Typography>
-                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, flexShrink: 0 }}>
+                    <Box
+                      sx={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 0.4,
+                        flexShrink: 0,
+                      }}
+                    >
                       <Typography sx={type.metaLabel}>{columnCountLabel}</Typography>
                       {columns?.length > 0 && (
                         <KeyboardArrowDownIcon
                           sx={{
-                            fontSize: 15,
+                            fontSize: 14,
                             color: alpha(theme.palette.text.secondary, 0.35),
                             transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                             transition: TRANSITIONS.default,
@@ -324,18 +355,24 @@ const SchemaResultDetails = ({ result }) => {
                     </Box>
                   </Box>
                   {columns?.length > 0 && !isExpanded && (
-                    <Box sx={{ mt: 0.45 }}>
+                    <Box sx={{ mt: 0.4 }}>
                       <ColumnList columns={columns} limit={5} />
                     </Box>
                   )}
                 </ButtonBase>
                 <Collapse in={isExpanded} timeout={200} unmountOnExit>
-                  <Box sx={{ px: { xs: 0.6, sm: 0.75 }, pb: { xs: 0.75, sm: 0.9 }, pt: 0.15 }}>
+                  <Box
+                    sx={{
+                      px: { xs: 0.5, sm: 0.75 },
+                      pb: { xs: 0.7, sm: 0.85 },
+                      pt: 0.1,
+                    }}
+                  >
                     <ColumnList columns={columns} />
                   </Box>
                 </Collapse>
                 {!hasColumnPayload && (
-                  <Typography sx={{ px: 0.25, pb: 0.65, ...type.metaLabel }}>
+                  <Typography sx={{ px: 0.25, pb: 0.6, ...type.metaLabel }}>
                     Column details were not included in this schema response.
                   </Typography>
                 )}
@@ -347,6 +384,8 @@ const SchemaResultDetails = ({ result }) => {
     </Box>
   );
 };
+
+// ─── Table columns result ─────────────────────────────────────────────────────
 
 const TableColumnsResultDetails = ({ result, args }) => (
   <Box>
@@ -361,6 +400,8 @@ const TableColumnsResultDetails = ({ result, args }) => (
     <ColumnList columns={result.columns} />
   </Box>
 );
+
+// ─── Foreign keys result ──────────────────────────────────────────────────────
 
 const ForeignKeysResultDetails = ({ result, args }) => {
   const theme = useTheme();
@@ -379,7 +420,7 @@ const ForeignKeysResultDetails = ({ result, args }) => {
       {rows.length === 0 ? (
         <EmptyResult>No foreign key relationships returned.</EmptyResult>
       ) : (
-        <Box sx={{ display: 'grid', gap: 0.75 }}>
+        <Box sx={{ display: 'grid', gap: 0 }}>
           {rows.map((fk, index) => (
             <Box
               key={`${fk.table_name}-${fk.column_name}-${fk.referenced_table}-${fk.referenced_column}-${index}`}
@@ -387,25 +428,20 @@ const ForeignKeysResultDetails = ({ result, args }) => {
                 display: 'grid',
                 gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto minmax(0, 1fr)' },
                 alignItems: 'center',
-                gap: { xs: 0.5, sm: 1 },
-                px: 1.1,
-                py: 0.9,
-                borderRadius: '8px',
-                border: '1px solid',
-                borderColor: alpha(theme.palette.border.subtle, theme.palette.mode === 'dark' ? 0.85 : 1),
-                bgcolor: alpha(theme.palette.background.default, theme.palette.mode === 'dark' ? 0.35 : 0.55),
-                transition: TRANSITIONS.default,
-                '&:hover': {
-                  borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.14 : 0.1),
-                  bgcolor: alpha(theme.palette.background.default, theme.palette.mode === 'dark' ? 0.5 : 0.75),
-                },
+                gap: { xs: 0.4, sm: 1 },
+                px: 0.5,
+                py: { xs: 0.65, sm: 0.8 },
+                borderTop: '1px solid',
+                borderColor: borderColor(theme),
+                bgcolor: 'transparent',
+                '&:first-of-type': { borderTop: 'none' },
               }}
             >
               <Typography sx={{ ...type.primaryMono, overflowWrap: 'anywhere' }}>
                 {fk.table_name}.{fk.column_name}
               </Typography>
               <Typography sx={{ ...type.metaLabel, textAlign: { xs: 'left', sm: 'center' } }}>
-                references
+                →
               </Typography>
               <Typography sx={{ ...type.primaryMono, overflowWrap: 'anywhere' }}>
                 {fk.referenced_table}.{fk.referenced_column}
@@ -418,8 +454,11 @@ const ForeignKeysResultDetails = ({ result, args }) => {
   );
 };
 
+// ─── Web search result ────────────────────────────────────────────────────────
+
 const WebSearchResultDetails = ({ result, args }) => {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const type = getStepTypeScale(theme);
   const rows = toArray(result.results);
   const query = result.query || args?.query;
@@ -436,45 +475,44 @@ const WebSearchResultDetails = ({ result, args }) => {
       {rows.length === 0 ? (
         <EmptyResult>No citations returned.</EmptyResult>
       ) : (
-        <Box sx={{ display: 'grid', gap: 0.85 }}>
+        <Box sx={{ display: 'grid', gap: 0 }}>
           {rows.map((item, index) => {
             const normalizedContent = normalizeCitationMarkdown(item.content);
             return (
               <Box
                 key={`${item.url}-${index}`}
                 sx={{
-                  p: 1.15,
-                  borderRadius: '8px',
-                  border: '1px solid',
-                  borderColor: alpha(theme.palette.border.subtle, theme.palette.mode === 'dark' ? 0.85 : 1),
-                  bgcolor: alpha(theme.palette.background.default, theme.palette.mode === 'dark' ? 0.35 : 0.55),
-                  transition: TRANSITIONS.default,
-                  '&:hover': {
-                    borderColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.32 : 0.26),
-                    bgcolor: alpha(theme.palette.background.default, theme.palette.mode === 'dark' ? 0.5 : 0.75),
-                  },
+                  py: { xs: 0.85, sm: 1 },
+                  px: 0,
+                  borderTop: '1px solid',
+                  borderColor: borderColor(theme),
+                  bgcolor: 'transparent',
+                  '&:first-of-type': { borderTop: 'none' },
                 }}
               >
+                {/* Title link */}
                 <Link
                   href={item.url}
                   target="_blank"
                   rel="noreferrer"
                   sx={{
-                    color: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.86 : 0.82),
+                    color: alpha(theme.palette.text.primary, isDark ? 0.82 : 0.76),
                     ...theme.typography.uiBodySm,
                     fontWeight: theme.typography.fontWeightMedium,
-                    textDecoration: 'underline',
-                    textDecorationColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.32 : 0.28),
-                    textUnderlineOffset: '3px',
+                    textDecoration: 'none',
                     overflowWrap: 'anywhere',
+                    transition: TRANSITIONS.default,
                     '&:hover': {
-                      color: theme.palette.primary.main,
-                      textDecorationColor: alpha(theme.palette.primary.main, 0.75),
+                      color: theme.palette.text.primary,
+                      textDecoration: 'underline',
+                      textUnderlineOffset: '3px',
                     },
                   }}
                 >
                   {index + 1}. {item.title || item.url || 'Untitled source'}
                 </Link>
+
+                {/* URL */}
                 {item.url && (
                   <Link
                     href={item.url}
@@ -482,13 +520,13 @@ const WebSearchResultDetails = ({ result, args }) => {
                     rel="noreferrer"
                     sx={{
                       display: 'block',
-                      mt: 0.25,
+                      mt: 0.2,
                       ...type.mutedMono,
-                      color: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.58 : 0.52),
                       textDecoration: 'none',
                       overflowWrap: 'anywhere',
+                      transition: TRANSITIONS.default,
                       '&:hover': {
-                        color: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.82 : 0.74),
+                        color: alpha(theme.palette.text.secondary, isDark ? 0.75 : 0.65),
                         textDecoration: 'underline',
                         textUnderlineOffset: '2px',
                       },
@@ -497,33 +535,34 @@ const WebSearchResultDetails = ({ result, args }) => {
                     {item.url}
                   </Link>
                 )}
+
+                {/* Snippet content */}
                 {normalizedContent && (
                   <Box
                     sx={{
-                      mt: 0.65,
+                      mt: 0.6,
                       ...type.body,
-                      lineHeight: 1.55,
-                      '& p': { mt: 0, mb: 0.75 },
+                      lineHeight: 1.6,
+                      '& p': { mt: 0, mb: 0.65 },
                       '& p:last-child': { mb: 0 },
                       '& strong': {
-                        color: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.82 : 0.76),
+                        color: alpha(theme.palette.text.primary, isDark ? 0.82 : 0.76),
                         fontWeight: theme.typography.fontWeightMedium,
                       },
                       '& h1, & h2, & h3, & h4, & h5, & h6': {
-                        mt: 0.75,
-                        mb: 0.35,
-                        color: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.82 : 0.76),
+                        mt: 0.65,
+                        mb: 0.3,
+                        color: alpha(theme.palette.text.primary, isDark ? 0.82 : 0.76),
                         ...theme.typography.uiBodySm,
                         fontWeight: theme.typography.fontWeightMedium,
                       },
                       '& a': {
-                        color: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.86 : 0.82),
-                        textDecorationColor: alpha(theme.palette.primary.main, 0.32),
+                        color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
+                        textDecorationColor: alpha(theme.palette.text.secondary, 0.3),
                         textUnderlineOffset: '3px',
                       },
                       '& a:hover': {
-                        color: theme.palette.primary.main,
-                        textDecorationColor: alpha(theme.palette.primary.main, 0.75),
+                        color: alpha(theme.palette.text.primary, isDark ? 0.85 : 0.78),
                       },
                     }}
                   >
@@ -538,6 +577,8 @@ const WebSearchResultDetails = ({ result, args }) => {
     </Box>
   );
 };
+
+// ─── Generic result ───────────────────────────────────────────────────────────
 
 const GenericResultDetails = ({ stepName, result, isError }) => {
   const theme = useTheme();
@@ -555,8 +596,11 @@ const GenericResultDetails = ({ stepName, result, isError }) => {
   );
 };
 
+// ─── Entry point ──────────────────────────────────────────────────────────────
+
 export function ToolResultDetails({ stepName, result, args, isError }) {
-  if (isError) return <GenericResultDetails stepName={stepName} result={result} isError={isError} />;
+  if (isError)
+    return <GenericResultDetails stepName={stepName} result={result} isError={isError} />;
 
   switch (stepName) {
     case 'get_database_schema':
@@ -571,4 +615,3 @@ export function ToolResultDetails({ stepName, result, args, isError }) {
       return <GenericResultDetails stepName={stepName} result={result} isError={isError} />;
   }
 }
-

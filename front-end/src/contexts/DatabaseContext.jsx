@@ -32,6 +32,7 @@
 
 import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
 import logger from '../utils/logger';
+import { useAuth } from './AuthContext';
 import {
   getDbStatus,
   disconnectDb,
@@ -187,8 +188,11 @@ export function useDatabaseConnection() {
  */
 export function DatabaseProvider({ children }) {
   const [state, dispatch] = useReducer(databaseReducer, initialState);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     const checkDbStatus = async () => {
       try {
         const sessionInstanceId = getSessionInstanceId();
@@ -203,7 +207,7 @@ export function DatabaseProvider({ children }) {
     };
 
     checkDbStatus();
-  }, []);
+  }, [isAuthenticated]);
 
   const connect = useCallback((connectionData) => {
     dispatch({

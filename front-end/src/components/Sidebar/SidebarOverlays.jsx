@@ -3,6 +3,7 @@ import {
   Box,
   Typography,
   IconButton,
+  TextField,
   List,
   Dialog,
   DialogContent,
@@ -21,6 +22,8 @@ import {
   getDialogPaperSx,
   getDialogHeaderSx,
   getCompactActionSx,
+  getPopoverSectionLabelSx,
+  getSelectableMenuItemSx,
   DIALOG_VIEWPORT_SUPPORT_QUERY,
 } from '../../styles/shared';
 
@@ -33,6 +36,11 @@ function SidebarOverlays({
   currentDatabase,
   handleDatabaseSelect,
   handleOpenNewConnection,
+  isSearchPopoverOpen,
+  searchPopoverAnchor,
+  handleCloseSearchPopover,
+  searchQuery,
+  setSearchQuery,
   isHistoryPopoverOpen,
   historyPopoverAnchor,
   handleCloseHistoryPopover,
@@ -45,6 +53,12 @@ function SidebarOverlays({
   schemaLoading,
   schemaData,
 }) {
+  const normalizedSearchQuery = searchQuery.trim().toLowerCase();
+  const searchedConversations = normalizedSearchQuery
+    ? conversations.filter((conv) =>
+        (conv.title || 'New Conversation').toLowerCase().includes(normalizedSearchQuery))
+    : conversations;
+
   return (
     <>
       <AppPopover
@@ -56,7 +70,7 @@ function SidebarOverlays({
         width={220}
         paperSx={{ mt: 1 }}
       >
-        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+        <Typography sx={getPopoverSectionLabelSx(theme)}>
           Switch Database
         </Typography>
         <Box sx={{ maxHeight: 280, overflowY: 'auto', mt: 0.5 }}>
@@ -69,26 +83,12 @@ function SidebarOverlays({
                 aria-checked={isActive}
                 key={db}
                 onClick={() => handleDatabaseSelect(db)}
-                sx={{
-                  borderRadius: '8px',
-                  px: 1,
-                  py: 0.875,
-                  minHeight: 32,
-                  cursor: 'pointer',
-                  display: 'grid',
-                  gridTemplateColumns: 'minmax(0, 1fr) auto',
-                  gap: 1,
-                  alignItems: 'center',
-                  userSelect: 'none',
-                  transition: 'background-color 120ms',
-                  backgroundColor: isActive ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.08) : 'transparent',
-                  '&:hover': { backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
-                }}
+                sx={getSelectableMenuItemSx(theme, { isActive })}
               >
-                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
                   {db}
                 </Typography>
-                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />}
+                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
               </Box>
             );
           })}
@@ -98,24 +98,72 @@ function SidebarOverlays({
           component="div"
           role="menuitem"
           onClick={handleOpenNewConnection}
-          sx={{
-            borderRadius: '8px',
-            px: 1,
-            py: 0.875,
-            minHeight: 32,
-            cursor: 'pointer',
-            display: 'flex',
-            gap: 1,
-            alignItems: 'center',
-            userSelect: 'none',
-            transition: 'background-color 120ms',
-            '&:hover': { backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.07 : 0.05) },
-          }}
+          sx={getSelectableMenuItemSx(theme, { columns: 'auto minmax(0, 1fr)' })}
         >
           <AddCircleOutlineRoundedIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
           <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4 }}>
             New Connection
           </Typography>
+        </Box>
+      </AppPopover>
+
+      <AppPopover
+        open={isSearchPopoverOpen}
+        anchorEl={searchPopoverAnchor}
+        onClose={handleCloseSearchPopover}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'left' }}
+        paperSx={{ mt: 1, p: 0.75 }}
+        width={280}
+      >
+        <TextField
+          autoFocus
+          fullWidth
+          value={searchQuery}
+          onChange={(event) => setSearchQuery(event.target.value)}
+          placeholder="Search chats"
+          size="small"
+          variant="standard"
+          InputProps={{ disableUnderline: true }}
+          sx={{
+            px: 1,
+            py: 0.75,
+            mb: 0.5,
+            borderRadius: '10px',
+            backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.055 : 0.045),
+            '& .MuiInputBase-input': {
+              fontSize: '0.88rem',
+              lineHeight: 1.4,
+              color: 'text.primary',
+              '&::placeholder': {
+                color: 'text.secondary',
+                opacity: 0.75,
+              },
+            },
+          }}
+        />
+        <Box sx={{ maxHeight: 360, overflowY: 'auto', mt: 0.25 }}>
+          {searchedConversations.length === 0 ? (
+            <Box sx={{ px: 1, py: 1.5 }}>
+              <Typography sx={{ fontSize: '0.875rem', color: 'text.secondary', lineHeight: 1.4 }}>
+                {conversations.length === 0 ? 'No conversations yet' : 'No matching chats'}
+              </Typography>
+            </Box>
+          ) : (
+            <List disablePadding>
+              {searchedConversations.map((conv) => (
+                <HistoryPopoverItem
+                  key={conv.id}
+                  conv={conv}
+                  isActive={conv.id === currentConversationId}
+                  onSelect={onSelectConversation}
+                  onDelete={onDeleteConversation}
+                  onClosePopover={handleCloseSearchPopover}
+                  theme={theme}
+                />
+              ))}
+            </List>
+          )}
         </Box>
       </AppPopover>
 
@@ -128,7 +176,7 @@ function SidebarOverlays({
         paperSx={{ ml: 1 }}
         width={240}
       >
-        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+        <Typography sx={getPopoverSectionLabelSx(theme)}>
           Conversation History
         </Typography>
         <Box sx={{ maxHeight: 360, overflowY: 'auto', mt: 0.5 }}>
@@ -164,9 +212,6 @@ function SidebarOverlays({
           sx: {
             ...getDialogPaperSx(theme, { isMobile: true }),
             backgroundColor: theme.palette.background.paper,
-            backgroundImage: theme.palette.mode === 'dark'
-              ? `linear-gradient(160deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, transparent 40%)`
-              : `linear-gradient(160deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, transparent 40%)`,
             [DIALOG_VIEWPORT_SUPPORT_QUERY]: { height: '100dvh', maxHeight: '100dvh', minHeight: '100dvh' },
           },
         }}
@@ -174,9 +219,6 @@ function SidebarOverlays({
         {/* Header */}
         <Box sx={{
           ...getDialogHeaderSx(),
-          backgroundImage: theme.palette.mode === 'dark'
-            ? `linear-gradient(90deg, ${alpha(theme.palette.primary.main, 0.1)} 0%, transparent 60%)`
-            : `linear-gradient(90deg, ${alpha(theme.palette.primary.main, 0.07)} 0%, transparent 60%)`,
         }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
             <Box sx={{
@@ -186,10 +228,10 @@ function SidebarOverlays({
               width: 36,
               height: 36,
               borderRadius: '10px',
-              backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.15 : 0.1),
+              backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
               flexShrink: 0,
             }}>
-              <StreamOutlinedIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+              <StreamOutlinedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
             </Box>
             <Box sx={{ minWidth: 0 }}>
               <Typography variant="h6" fontWeight={600} sx={{ lineHeight: 1.3 }}>

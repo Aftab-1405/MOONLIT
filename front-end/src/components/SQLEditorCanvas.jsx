@@ -25,7 +25,7 @@ import SQLResultsTable from './SQLResultsTable';
 import ChartVisualization from './ChartVisualization';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 import { TRANSITIONS } from '../styles/themeEffects';
-import { getGlassmorphismStyles, UI_LAYOUT } from '../styles/shared';
+import { getGhostIconButtonSx, getGlassmorphismStyles, UI_LAYOUT } from '../styles/shared';
 import { runQuery } from '../api';
 
 const fadeIn = keyframes`
@@ -376,20 +376,13 @@ function SQLEditorCanvas({
   }), [artifactBorder, footerBarBg, isCompactMobile, isDark, theme.palette.common.black, theme.palette.common.white]);
 
   const toolbarGhostStyles = useMemo(() => ({
-    width: 42,
-    height: 42,
-    borderRadius: '13px',
-    color: 'text.secondary',
-    bgcolor: 'transparent',
+    ...getGhostIconButtonSx(theme, { size: 42, radius: '13px' }),
     border: 'none',
-    opacity: 0.65,
-    transition: 'opacity 0.15s ease',
-    '&:hover': { opacity: 1, backgroundColor: 'transparent' },
     '&.Mui-disabled': {
       color: 'text.disabled',
       bgcolor: 'transparent',
     },
-  }), []);
+  }), [theme]);
 
   /** Fills canvas body; overflow stays inside table/chart (not this wrapper). */
   const artifactTabPaneStyles = useMemo(() => ({
@@ -400,8 +393,7 @@ function SQLEditorCanvas({
     flexDirection: 'column',
     overflow: 'hidden',
     bgcolor: artifactChromeBg,
-    backgroundImage: `radial-gradient(ellipse 100% 60% at 50% 0%, ${alpha(theme.palette.primary.main, isDark ? 0.06 : 0.045)} 0%, transparent 52%)`,
-  }), [artifactChromeBg, isDark, theme.palette.primary.main]);
+  }), [artifactChromeBg]);
 
   const centeredEmptyWrapStyles = useMemo(() => ({
     flex: 1,
@@ -426,7 +418,6 @@ function SQLEditorCanvas({
         display: 'flex',
         flexDirection: 'column',
         bgcolor: artifactChromeBg,
-        backgroundImage: `radial-gradient(ellipse 110% 70% at 50% -15%, ${alpha(theme.palette.primary.main, isDark ? 0.08 : 0.055)} 0%, transparent 50%)`,
       }}
     >
       {error && (
@@ -490,7 +481,7 @@ function SQLEditorCanvas({
             title="No results yet"
             subtitle="Run a query to see results here"
             textColor={textColor}
-            accent={theme.palette.primary.main}
+            accent={theme.palette.text.secondary}
           />
         </Box>
       )}
@@ -608,7 +599,7 @@ function SQLEditorCanvas({
                   },
                   bgcolor: selected ? alpha(theme.palette.background.paper, isDark ? 0.97 : 1) : 'transparent',
                   boxShadow: selected
-                    ? `0 0 0 1px ${alpha(theme.palette.primary.main, isDark ? 0.3 : 0.18)}, 0 1px 4px ${alpha(theme.palette.common.black, isDark ? 0.45 : 0.08)}`
+                    ? `0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.14 : 0.1)}, 0 1px 4px ${alpha(theme.palette.common.black, isDark ? 0.45 : 0.08)}`
                     : 'none',
                   '&:hover': {
                     color: 'text.primary',
@@ -617,7 +608,7 @@ function SQLEditorCanvas({
                       : alpha(theme.palette.text.primary, 0.06),
                   },
                   '&:focus-visible': {
-                    outline: `2px solid ${alpha(theme.palette.primary.main, 0.45)}`,
+                    outline: `2px solid ${alpha(theme.palette.text.secondary, 0.4)}`,
                     outlineOffset: 1,
                   },
                   '&.Mui-disabled': { opacity: 0.3 },
@@ -692,8 +683,7 @@ function SQLEditorCanvas({
             boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.2 : 0.04)}`,
             transition: TRANSITIONS.default,
             '&:hover': {
-              borderColor: alpha(theme.palette.primary.main, isDark ? 0.4 : 0.28),
-              boxShadow: `0 2px 10px ${alpha(theme.palette.primary.main, isDark ? 0.18 : 0.12)}`,
+              borderColor: alpha(theme.palette.text.secondary, isDark ? 0.22 : 0.18),
             },
           }}
         >
@@ -728,13 +718,9 @@ function SQLEditorCanvas({
             aria-haspopup="true"
             aria-expanded={Boolean(copyMenuAnchor)}
             sx={{
-              width: 32,
+              ...getGhostIconButtonSx(theme, { size: 32, radius: 0 }),
               height: '100%',
-              borderRadius: 0,
               bgcolor: headerActionBg,
-              color: 'text.secondary',
-              opacity: 0.65,
-              transition: 'opacity 0.15s ease',
               '&:hover': { opacity: 1, bgcolor: headerActionBg },
             }}
           >
@@ -786,15 +772,10 @@ function SQLEditorCanvas({
             onClick={onClose}
             aria-label="Close SQL editor"
             sx={{
-              width: 34,
-              height: 34,
+              ...getGhostIconButtonSx(theme, { size: 34, radius: '10px' }),
               ml: 0.5,
-              borderRadius: '10px',
-              color: 'text.secondary',
               border: '1px solid',
               borderColor: 'transparent',
-              opacity: 0.65,
-              transition: 'opacity 0.15s ease',
               '&:hover': {
                 opacity: 1,
                 backgroundColor: 'transparent',
@@ -853,7 +834,6 @@ function SQLEditorCanvas({
           },
           width: '100%',
           bgcolor: 'background.default',
-          backgroundImage: `radial-gradient(ellipse 90% 45% at 50% 0%, ${alpha(theme.palette.primary.main, isDark ? 0.07 : 0.04)} 0%, transparent 55%)`,
         }}
       >
         {unifiedHeader}

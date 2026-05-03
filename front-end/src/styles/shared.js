@@ -123,6 +123,125 @@ export const getToolbarChipSx = (
     : {}),
 });
 
+export const getPrimaryActionButtonSx = (theme, {
+  minHeight,
+  borderRadius = 1.5,
+} = {}) => {
+  const isDark = theme.palette.mode === 'dark';
+  const brand = theme.palette.primary.main;
+  const brandLight = theme.palette.primary.light;
+  const accent = theme.palette.secondary.main;
+
+  return {
+    py: { xs: 1, sm: 1.125 },
+    minHeight,
+    borderRadius,
+    fontWeight: 600,
+    backgroundImage: `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`,
+    backgroundColor: 'transparent',
+    color: '#fff',
+    border: 'none',
+    boxShadow: `0 4px 20px ${alpha(brand, isDark ? 0.45 : 0.35)}`,
+    transition: theme.transitions.create(
+      ['filter', 'transform', 'box-shadow'],
+      { duration: 200 },
+    ),
+    [HOVER_CAPABLE_QUERY]: {
+      '&:hover': {
+        filter: 'brightness(1.12)',
+        transform: 'translateY(-1px)',
+        boxShadow: `0 6px 24px ${alpha(brand, isDark ? 0.55 : 0.45)}`,
+      },
+    },
+    '&:active': { transform: 'scale(0.98)', boxShadow: 'none' },
+    '&.Mui-disabled': {
+      backgroundImage: 'none',
+      backgroundColor: alpha(theme.palette.text.primary, 0.3),
+      color: alpha('#fff', 0.6),
+      boxShadow: 'none',
+    },
+  };
+};
+
+export const getGhostIconButtonSx = (
+  theme,
+  {
+    size = 32,
+    radius = 1.5,
+    color = 'text.secondary',
+    active = false,
+    activeColor = 'text.primary',
+    disabledColor = 'text.disabled',
+  } = {},
+) => ({
+  width: size,
+  height: size,
+  minWidth: size,
+  minHeight: size,
+  flexShrink: 0,
+  borderRadius: radius,
+  color: active ? activeColor : color,
+  backgroundColor: 'transparent',
+  opacity: active ? 1 : 0.65,
+  transition: 'opacity 0.15s ease, background-color 0.15s ease, color 0.15s ease',
+  [HOVER_CAPABLE_QUERY]: {
+    '&:hover': {
+      opacity: 1,
+      backgroundColor: 'transparent',
+    },
+  },
+  '&.Mui-disabled': {
+    color: disabledColor,
+    backgroundColor: 'transparent',
+    opacity: 0.38,
+  },
+});
+
+export const getPopoverSectionLabelSx = (theme, { pt = 0.5 } = {}) => ({
+  px: 1,
+  pt,
+  pb: 0.25,
+  ...theme.typography.uiMonoLabel,
+  color: 'text.disabled',
+  display: 'block',
+  lineHeight: 1,
+});
+
+export const getSelectableMenuItemSx = (
+  theme,
+  {
+    isActive = false,
+    minHeight = 32,
+    columns = 'minmax(0, 1fr) auto',
+    gap = 1,
+  } = {},
+) => {
+  const isDark = theme.palette.mode === 'dark';
+  const activeBg = alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07);
+  const hoverBg = alpha(theme.palette.text.primary, isDark ? 0.07 : 0.05);
+  const activeHoverBg = alpha(theme.palette.text.primary, isDark ? 0.13 : 0.09);
+
+  return {
+    borderRadius: '8px',
+    px: 1,
+    py: 0.875,
+    minHeight,
+    cursor: 'pointer',
+    display: 'grid',
+    gridTemplateColumns: columns,
+    gap,
+    alignItems: 'center',
+    userSelect: 'none',
+    transition: 'background-color 120ms',
+    backgroundColor: isActive ? activeBg : 'transparent',
+    [HOVER_CAPABLE_QUERY]: {
+      '&:hover': {
+        backgroundColor: isActive ? activeHoverBg : hoverBg,
+      },
+    },
+  };
+};
+
 export const getDialogPaperSx = (
   theme,
   {

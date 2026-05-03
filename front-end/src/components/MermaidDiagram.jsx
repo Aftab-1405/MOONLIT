@@ -9,6 +9,7 @@ import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import { getMermaidThemeConfig } from '../theme';
 import logger from '../utils/logger';
+import { getGhostIconButtonSx } from '../styles/shared';
 
 function MermaidDiagram({ code }) {
   const theme = useTheme();
@@ -227,10 +228,9 @@ function MermaidDiagram({ code }) {
           border: '1px solid',
           borderColor: theme.palette.border.subtle,
           borderRadius: { xs: '8px', sm: '10px' },
-          transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
+          transition: 'border-color 0.18s ease',
           '&:hover': {
-            borderColor: alpha(theme.palette.primary.main, isDark ? 0.35 : 0.3),
-            boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, isDark ? 0.1 : 0.07)}`,
+            borderColor: alpha(theme.palette.text.secondary, isDark ? 0.18 : 0.14),
           },
         }}
       >
@@ -247,7 +247,7 @@ function MermaidDiagram({ code }) {
             mermaid
           </Typography>
           <Tooltip title={copied ? 'Copied!' : 'Copy'}>
-            <IconButton size="small" onClick={handleCopy} sx={{ width: 30, height: 30, borderRadius: '6px', color: copied ? theme.palette.success.main : theme.palette.text.secondary, opacity: 0.65, transition: 'opacity 0.15s ease', '&:hover': { opacity: 1, backgroundColor: 'transparent' } }}>
+            <IconButton size="small" onClick={handleCopy} sx={getGhostIconButtonSx(theme, { size: 30, radius: '6px', active: copied, activeColor: theme.palette.success.main })}>
               {copied ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
             </IconButton>
           </Tooltip>
@@ -284,21 +284,21 @@ function MermaidDiagram({ code }) {
         </Typography>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           <Tooltip title={copied ? 'Copied!' : 'Copy code'}>
-            <IconButton size="small" onClick={handleCopy} sx={{ width: 30, height: 30, borderRadius: '6px', color: copied ? theme.palette.success.main : theme.palette.text.secondary, opacity: 0.65, transition: 'opacity 0.15s ease', '&:hover': { opacity: 1, backgroundColor: 'transparent' } }}>
+            <IconButton size="small" onClick={handleCopy} sx={getGhostIconButtonSx(theme, { size: 30, radius: '6px', active: copied, activeColor: theme.palette.success.main })}>
               {copied ? <CheckRoundedIcon sx={{ fontSize: 14 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />}
             </IconButton>
           </Tooltip>
 
           <Tooltip title="Download SVG">
             <span>
-              <IconButton size="small" onClick={handleDownload} disabled={!svg} sx={{ width: 30, height: 30, borderRadius: '6px', color: theme.palette.text.secondary, opacity: 0.65, transition: 'opacity 0.15s ease', '&:hover': { opacity: 1, backgroundColor: 'transparent' } }}>
+              <IconButton size="small" onClick={handleDownload} disabled={!svg} sx={getGhostIconButtonSx(theme, { size: 30, radius: '6px' })}>
                 <FileDownloadOutlinedIcon sx={{ fontSize: 14 }} />
               </IconButton>
             </span>
           </Tooltip>
 
           <Tooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-            <IconButton size="small" onClick={toggleFullscreen} sx={{ width: 30, height: 30, borderRadius: '6px', color: theme.palette.text.secondary, opacity: 0.65, transition: 'opacity 0.15s ease', '&:hover': { opacity: 1, backgroundColor: 'transparent' } }}>
+            <IconButton size="small" onClick={toggleFullscreen} sx={getGhostIconButtonSx(theme, { size: 30, radius: '6px' })}>
               {fullscreen ? <FullscreenExitRoundedIcon sx={{ fontSize: 16 }} /> : <FullscreenRoundedIcon sx={{ fontSize: 16 }} />}
             </IconButton>
           </Tooltip>
@@ -332,7 +332,7 @@ function MermaidDiagram({ code }) {
           </Box>
         ) : loading ? (
           <Box sx={{ textAlign: 'center', cursor: 'default' }}>
-            <CircularProgress size={24} sx={{ color: 'primary.main' }} />
+            <CircularProgress size={24} sx={{ color: 'text.secondary' }} />
             <Typography
               variant="caption"
               sx={{
@@ -419,10 +419,9 @@ function MermaidDiagram({ code }) {
         borderRadius: { xs: '8px', sm: '10px' },
         display: 'flex',
         flexDirection: 'column',
-        transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
+        transition: 'border-color 0.18s ease',
         '&:hover': {
-          borderColor: alpha(theme.palette.primary.main, isDark ? 0.35 : 0.3),
-          boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, isDark ? 0.1 : 0.07)}`,
+          borderColor: alpha(theme.palette.text.secondary, isDark ? 0.18 : 0.14),
         },
       }}
     >

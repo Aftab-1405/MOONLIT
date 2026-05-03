@@ -208,18 +208,7 @@ function Chat() {
           }}
         >
           <StarfieldCanvas active={starfieldActive} intensity={idleAnimationIntensity} />
-          <Box
-            aria-hidden
-            sx={{
-              pointerEvents: 'none',
-              position: 'absolute',
-              inset: 0,
-              zIndex: 0,
-              opacity: theme.palette.mode === 'dark' ? 0.22 : 0.35,
-              backgroundImage: `linear-gradient(to right, ${alpha(theme.palette.divider, 0.45)} 1px, transparent 1px), linear-gradient(to bottom, ${alpha(theme.palette.divider, 0.45)} 1px, transparent 1px)`,
-              backgroundSize: '32px 32px',
-            }}
-          />
+
           {isNarrowLayout && (
             <IconButton
               size="small"
@@ -259,6 +248,7 @@ function Chat() {
               visible={showWelcomeState}
               user={user}
               chatInputProps={chatInputSharedProps}
+              starfieldFocus={showWelcomeState && starfieldActive}
             />
 
             <Fade in={showConversationPanel} timeout={300} unmountOnExit>

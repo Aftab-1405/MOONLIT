@@ -44,6 +44,7 @@ import {
   authFieldSchemas,
 } from '../validation';
 import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
+import { getPrimaryActionButtonSx } from '../styles/shared';
 import logger from '../utils/logger';
 
 // ─── Keyframes ────────────────────────────────────────────────────────────────
@@ -69,43 +70,6 @@ const AUTH_KEYFRAMES = (
     }}
   />
 );
-
-// ─── Shared submit button sx ──────────────────────────────────────────────────
-const getSubmitButtonSx = (theme) => {
-  const isDark = theme.palette.mode === 'dark';
-  const brand = theme.palette.primary.main;
-  const brandLight = theme.palette.primary.light;
-  const accent = theme.palette.secondary.main;
-  const brandGradient = `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`;
-  return {
-    py: { xs: 1, sm: 1.125 },
-    borderRadius: 1.5,
-    fontWeight: 600,
-    backgroundImage: brandGradient,
-    backgroundColor: 'transparent',
-    color: '#fff',
-    border: 'none',
-    boxShadow: `0 4px 20px ${alpha(brand, isDark ? 0.45 : 0.35)}`,
-    transition: theme.transitions.create(
-      ['filter', 'transform', 'box-shadow'],
-      { duration: 200 }
-    ),
-    '@media (hover: hover)': {
-      '&:hover': {
-        filter: 'brightness(1.12)',
-        transform: 'translateY(-1px)',
-        boxShadow: `0 6px 24px ${alpha(brand, isDark ? 0.55 : 0.45)}`,
-      },
-    },
-    '&:active': { transform: 'scale(0.98)', boxShadow: 'none' },
-    '&.Mui-disabled': {
-      backgroundImage: 'none',
-      backgroundColor: alpha(theme.palette.text.primary, 0.3),
-      color: alpha('#fff', 0.6),
-      boxShadow: 'none',
-    },
-  };
-};
 
 // ─── SQL→NL Decorative Mockup ─────────────────────────────────────────────────
 function QueryMockup({ isDark }) {
@@ -1057,7 +1021,7 @@ function Auth() {
                       </Link>
                     </Box>
 
-                    <Button fullWidth type="submit" disabled={formLoading} sx={getSubmitButtonSx(theme)}>
+                    <Button fullWidth type="submit" disabled={formLoading} sx={getPrimaryActionButtonSx(theme)}>
                       {formLoading ? <CircularProgress size={18} color="inherit" /> : 'Sign In'}
                     </Button>
                   </Stack>
@@ -1172,7 +1136,7 @@ function Auth() {
                       }}
                     />
 
-                    <Button fullWidth type="submit" disabled={formLoading} sx={getSubmitButtonSx(theme)}>
+                    <Button fullWidth type="submit" disabled={formLoading} sx={getPrimaryActionButtonSx(theme)}>
                       {formLoading ? <CircularProgress size={18} color="inherit" /> : 'Create Account'}
                     </Button>
                   </Stack>
@@ -1193,14 +1157,14 @@ function Auth() {
 
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ width: '100%' }}>
                   {[
-                    { label: 'Google', Icon: GoogleIcon, handler: handleGoogleSignIn },
-                    { label: 'GitHub', Icon: GitHubIcon, handler: handleGitHubSignIn },
-                  ].map(({ label, Icon, handler }) => (
+                    { label: 'Google', icon: <GoogleIcon sx={{ fontSize: 17 }} />, handler: handleGoogleSignIn },
+                    { label: 'GitHub', icon: <GitHubIcon sx={{ fontSize: 17 }} />, handler: handleGitHubSignIn },
+                  ].map(({ label, icon, handler }) => (
                     <Button
                       key={label}
                       fullWidth
                       variant="outlined"
-                      startIcon={<Icon sx={{ fontSize: 17 }} />}
+                      startIcon={icon}
                       onClick={handler}
                       sx={{
                         py: 0.8,
@@ -1342,7 +1306,7 @@ function Auth() {
             size="small"
             onClick={handlePasswordReset}
             disabled={resetLoading}
-            sx={{ ...getSubmitButtonSx(theme), py: 0.625, px: 2 }}
+            sx={{ ...getPrimaryActionButtonSx(theme), py: 0.625, px: 2 }}
           >
             {resetLoading ? <CircularProgress size={14} color="inherit" /> : 'Send Reset Link'}
           </Button>

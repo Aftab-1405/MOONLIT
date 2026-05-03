@@ -10,6 +10,7 @@ import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import MermaidDiagram from './MermaidDiagram';
+import { getGhostIconButtonSx } from '../styles/shared';
 
 const SQL_LANGUAGES = new Set([
   'sql', 'mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle', 'tsql', 'plsql'
@@ -72,10 +73,9 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
     borderColor: theme.palette.border.subtle,
     minWidth: 0, // CRITICAL: Prevents flexbox overflow issues during streaming
     width: '100%',
-    transition: 'border-color 0.18s ease, box-shadow 0.18s ease',
+    transition: 'border-color 0.18s ease',
     '&:hover': {
-      borderColor: alpha(theme.palette.primary.main, isDarkMode ? 0.35 : 0.3),
-      boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, isDarkMode ? 0.1 : 0.07)}`,
+      borderColor: alpha(theme.palette.text.secondary, isDarkMode ? 0.18 : 0.14),
     },
   }), [theme, codeBg, isDarkMode]);
 
@@ -118,17 +118,7 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
               size="small"
               onClick={() => setWrapLongLines((v) => !v)}
               sx={{
-                width: 30,
-                height: 30,
-                borderRadius: '6px',
-                color: wrapLongLines ? theme.palette.primary.main : theme.palette.text.secondary,
-                bgcolor: wrapLongLines ? alpha(theme.palette.primary.main, isDarkMode ? 0.12 : 0.08) : 'transparent',
-                opacity: 0.65,
-                transition: 'opacity 0.15s ease',
-                '&:hover': {
-                  opacity: 1,
-                  backgroundColor: wrapLongLines ? alpha(theme.palette.primary.main, isDarkMode ? 0.12 : 0.08) : 'transparent',
-                },
+                ...getGhostIconButtonSx(theme, { size: 30, radius: '6px', active: wrapLongLines }),
               }}
             >
               <WrapTextRoundedIcon sx={{ fontSize: 14 }} />
@@ -142,13 +132,13 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
                   onClick={handleRun}
                   disabled={isRunning}
                   sx={{
-                    width: 30,
-                    height: 30,
+                    ...getGhostIconButtonSx(theme, {
+                      size: 30,
+                      radius: '6px',
+                      color: theme.palette.success.main,
+                      disabledColor: 'text.disabled',
+                    }),
                     color: isRunning ? 'text.disabled' : theme.palette.success.main,
-                    borderRadius: '6px',
-                    opacity: 0.65,
-                    transition: 'opacity 0.15s ease',
-                    '&:hover': { opacity: 1, backgroundColor: 'transparent' },
                   }}
                 >
                   {isRunning
@@ -163,13 +153,13 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
               size="small"
               onClick={handleCopy}
               sx={{
-                width: 30,
-                height: 30,
-                borderRadius: '6px',
+                ...getGhostIconButtonSx(theme, {
+                  size: 30,
+                  radius: '6px',
+                  active: copied,
+                  activeColor: theme.palette.success.main,
+                }),
                 color: copied ? theme.palette.success.main : theme.palette.text.secondary,
-                opacity: 0.65,
-                transition: 'opacity 0.15s ease',
-                '&:hover': { opacity: 1, backgroundColor: 'transparent' },
               }}
             >
               {copied
@@ -227,7 +217,9 @@ const InlineCode = memo(function InlineCode({ children, theme }) {
         borderColor: theme.palette.code.border,
         fontWeight: 500,
         wordBreak: 'break-word', // CRITICAL: Prevents inline code from causing horizontal overflow
-        color: '#00BFFF',
+        color: theme.palette.mode === 'dark'
+          ? alpha(theme.palette.text.primary, 0.88)
+          : alpha(theme.palette.text.primary, 0.82),
       }}
     >
       {children}
@@ -260,7 +252,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
     },
     pre: ({ children }) => <>{children}</>,
     table: ({ children }) => (
-      <Box sx={{ overflowX: 'auto', my: 2, borderRadius: '12px', border: '1px solid', borderColor: theme.palette.border.subtle, transition: 'border-color 0.18s ease, box-shadow 0.18s ease', '&:hover': { borderColor: alpha(theme.palette.primary.main, isDarkMode ? 0.35 : 0.3), boxShadow: `0 0 0 1px ${alpha(theme.palette.primary.main, isDarkMode ? 0.1 : 0.07)}` } }}>
+      <Box sx={{ overflowX: 'auto', my: 2, borderRadius: '12px', border: '1px solid', borderColor: theme.palette.border.subtle, transition: 'border-color 0.18s ease', '&:hover': { borderColor: alpha(theme.palette.text.secondary, isDarkMode ? 0.18 : 0.14) } }}>
         <Box component="table" sx={{ minWidth: 'max-content', width: '100%', borderCollapse: 'collapse' }}>
           {children}
         </Box>

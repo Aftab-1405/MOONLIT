@@ -112,7 +112,7 @@ export function useChatPageController() {
     connectionPersistenceMinutes: settings.connectionPersistence ?? 0,
   });
 
-  const isIdle = useIdleDetection(8000);
+  const isIdle = useIdleDetection(30000);
   const idleAnimationEnabled = settings.idleAnimation ?? true;
   const idleAnimationIntensity = settings.idleAnimationIntensity ?? 'medium';
   const starfieldActive = isDarkMode && idleAnimationEnabled && isIdle;

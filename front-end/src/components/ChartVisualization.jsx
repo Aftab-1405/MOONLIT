@@ -38,6 +38,11 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
+import {
+  getGhostIconButtonSx,
+  getPopoverSectionLabelSx,
+  getSelectableMenuItemSx,
+} from '../styles/shared';
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -264,7 +269,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
                   transition: 'border-color 0.12s, background-color 0.12s',
                   '&:hover': { borderColor: theme.palette.border.hover, bgcolor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06) },
-                  '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 1 },
+                  '&:focus-visible': { outline: `2px solid ${alpha(theme.palette.text.secondary, 0.4)}`, outlineOffset: 1 },
                 }}
               >
                 <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Label</Typography>
@@ -284,7 +289,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
                   transition: 'border-color 0.12s, background-color 0.12s',
                   '&:hover': { borderColor: theme.palette.border.hover, bgcolor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06) },
-                  '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 1 },
+                  '&:focus-visible': { outline: `2px solid ${alpha(theme.palette.text.secondary, 0.4)}`, outlineOffset: 1 },
                 }}
               >
                 <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Value</Typography>
@@ -298,15 +303,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   size="small"
                   onClick={handleDownload}
                   aria-label="Download chart as PNG"
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    color: 'text.secondary',
-                    borderRadius: 1.5,
-                    opacity: 0.65,
-                    transition: 'opacity 0.15s ease',
-                    '&:hover': { opacity: 1, backgroundColor: 'transparent' },
-                  }}
+                  sx={getGhostIconButtonSx(theme, { size: 32 })}
                 >
                   <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
                 </IconButton>
@@ -316,15 +313,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   size="small"
                   onClick={() => setFullscreen(!fullscreen)}
                   aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    color: 'text.secondary',
-                    borderRadius: 1.5,
-                    opacity: 0.65,
-                    transition: 'opacity 0.15s ease',
-                    '&:hover': { opacity: 1, backgroundColor: 'transparent' },
-                  }}
+                  sx={getGhostIconButtonSx(theme, { size: 32 })}
                 >
                   {fullscreen ? (
                     <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
@@ -359,13 +348,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   <IconButton
                     size="small"
                     onClick={() => onViewModeChange('table')}
-                    sx={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 1.5,
-                      color: 'text.secondary',
-                      '&:hover': { backgroundColor: theme.palette.action.hover },
-                    }}
+                    sx={getGhostIconButtonSx(theme, { size: 36 })}
                   >
                     <ArrowBackIcon sx={{ fontSize: 20 }} />
                   </IconButton>
@@ -385,11 +368,11 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
                   transition: 'border-color 0.12s, background-color 0.12s',
                   '&:hover': { borderColor: theme.palette.border.hover, bgcolor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06) },
-                  '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 1 },
+                  '&:focus-visible': { outline: `2px solid ${alpha(theme.palette.text.secondary, 0.4)}`, outlineOffset: 1 },
                 }}
               >
-                <Typography component="span" sx={{ fontSize: '0.635rem', fontWeight: 600, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Label</Typography>
-                <Typography component="span" noWrap sx={{ fontSize: '0.8125rem', color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{labelColumn || '—'}</Typography>
+                <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, fontWeight: 600, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Label</Typography>
+                <Typography component="span" noWrap sx={{ ...theme.typography.uiCaptionMd, color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{labelColumn || '—'}</Typography>
                 <KeyboardArrowDownRoundedIcon sx={{ fontSize: 13, color: 'text.disabled', flexShrink: 0 }} />
               </Box>
               <Box
@@ -405,11 +388,11 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
                   transition: 'border-color 0.12s, background-color 0.12s',
                   '&:hover': { borderColor: theme.palette.border.hover, bgcolor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06) },
-                  '&:focus-visible': { outline: `2px solid ${theme.palette.primary.main}`, outlineOffset: 1 },
+                  '&:focus-visible': { outline: `2px solid ${alpha(theme.palette.text.secondary, 0.4)}`, outlineOffset: 1 },
                 }}
               >
-                <Typography component="span" sx={{ fontSize: '0.635rem', fontWeight: 600, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Value</Typography>
-                <Typography component="span" noWrap sx={{ fontSize: '0.8125rem', color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{valueColumn || '—'}</Typography>
+                <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, fontWeight: 600, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Value</Typography>
+                <Typography component="span" noWrap sx={{ ...theme.typography.uiCaptionMd, color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{valueColumn || '—'}</Typography>
                 <KeyboardArrowDownRoundedIcon sx={{ fontSize: 13, color: 'text.disabled', flexShrink: 0 }} />
               </Box>
             </Box>
@@ -419,15 +402,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                 <IconButton
                   size="small"
                   onClick={handleDownload}
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 1.5,
-                    color: 'text.secondary',
-                    opacity: 0.65,
-                    transition: 'opacity 0.15s ease',
-                    '&:hover': { opacity: 1, backgroundColor: 'transparent' },
-                  }}
+                  sx={getGhostIconButtonSx(theme, { size: 36 })}
                 >
                   <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
                 </IconButton>
@@ -437,13 +412,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                   <IconButton
                     size="small"
                     onClick={onClose}
-                    sx={{
-                      width: 36,
-                      height: 36,
-                      borderRadius: 1.5,
-                      color: 'text.secondary',
-                      '&:hover': { backgroundColor: theme.palette.action.hover },
-                    }}
+                    sx={getGhostIconButtonSx(theme, { size: 36 })}
                   >
                     <CloseRoundedIcon sx={{ fontSize: 18 }} />
                   </IconButton>
@@ -581,7 +550,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         width={180}
         paperSx={{ mt: 0.5 }}
       >
-        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+        <Typography sx={getPopoverSectionLabelSx(theme)}>
           Label Column
         </Typography>
         <Box sx={{ maxHeight: 220, overflowY: 'auto', mt: 0.5 }}>
@@ -594,19 +563,12 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                 aria-selected={isActive}
                 key={col}
                 onClick={() => { setLabelColumn(col); setLabelAnchorEl(null); }}
-                sx={{
-                  borderRadius: '8px', px: 1, py: 0.875, minHeight: 32,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center',
-                  justifyContent: 'space-between', gap: 1, userSelect: 'none',
-                  transition: 'background-color 120ms',
-                  backgroundColor: isActive ? alpha(theme.palette.primary.main, isDark ? 0.12 : 0.08) : 'transparent',
-                  '&:hover': { backgroundColor: alpha(theme.palette.primary.main, isDark ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
-                }}
+                sx={getSelectableMenuItemSx(theme, { isActive, columns: 'minmax(0, 1fr) auto' })}
               >
-                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
                   {col}
                 </Typography>
-                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />}
+                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
               </Box>
             );
           })}
@@ -621,7 +583,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         width={180}
         paperSx={{ mt: 0.5 }}
       >
-        <Typography sx={{ px: 1, pt: 0.5, pb: 0.25, fontSize: '0.635rem', fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'text.disabled', display: 'block', lineHeight: 1 }}>
+        <Typography sx={getPopoverSectionLabelSx(theme)}>
           Value Column
         </Typography>
         <Box sx={{ maxHeight: 220, overflowY: 'auto', mt: 0.5 }}>
@@ -634,19 +596,12 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                 aria-selected={isActive}
                 key={col}
                 onClick={() => { setValueColumn(col); setValueAnchorEl(null); }}
-                sx={{
-                  borderRadius: '8px', px: 1, py: 0.875, minHeight: 32,
-                  cursor: 'pointer', display: 'flex', alignItems: 'center',
-                  justifyContent: 'space-between', gap: 1, userSelect: 'none',
-                  transition: 'background-color 120ms',
-                  backgroundColor: isActive ? alpha(theme.palette.primary.main, isDark ? 0.12 : 0.08) : 'transparent',
-                  '&:hover': { backgroundColor: alpha(theme.palette.primary.main, isDark ? (isActive ? 0.16 : 0.07) : (isActive ? 0.11 : 0.05)) },
-                }}
+                sx={getSelectableMenuItemSx(theme, { isActive, columns: 'minmax(0, 1fr) auto' })}
               >
-                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'primary.main' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
                   {col}
                 </Typography>
-                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'primary.main', flexShrink: 0 }} />}
+                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
               </Box>
             );
           })}

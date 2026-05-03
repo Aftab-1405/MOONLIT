@@ -94,15 +94,15 @@ const palette = {
     default: alpha(H.border200, 0.14),
     subtle:  alpha(H.border200, 0.08),
     hover:   alpha(H.border200, 0.22),
-    focus:   H.brand000,
+    focus:   alpha(H.text000, 0.35),
   },
 
   action: {
     hover:              alpha(H.text000, 0.06),
-    selected:           alpha(H.brand000, 0.1),
+    selected:           alpha(H.text000, 0.08),
     disabled:           alpha(H.text000, 0.28),
     disabledBackground: alpha(H.text000, 0.1),
-    focus:              alpha(H.brand000, 0.14),
+    focus:              alpha(H.text000, 0.1),
     active:             alpha(H.text000, 0.76),
   },
 
@@ -198,7 +198,7 @@ const typography = {
 
 // ─── Component overrides ──────────────────────────────────────────────────────
 
-const focusRing = `0 0 0 3px ${alpha(H.brand000, 0.22)}`;
+const focusRing = `0 0 0 3px ${alpha(H.text000, 0.1)}`;
 const surfaceGradient = `linear-gradient(180deg, ${alpha('#ffffff', 0.025)}, transparent)`;
 
 const components = {
@@ -406,7 +406,7 @@ const components = {
         backgroundImage: surfaceGradient,
         transition: TRANSITIONS.smooth,
         '&:hover': {
-          borderColor: alpha(H.brand000, 0.25),
+          borderColor: alpha(H.border200, 0.18),
           boxShadow: `0 12px 28px -16px ${alpha('#000000', 0.45)}`,
         },
       },
@@ -429,7 +429,7 @@ const components = {
           '&:hover fieldset': { borderColor: alpha(H.border200, 0.2) },
           '&.Mui-focused': { boxShadow: focusRing },
           '&.Mui-focused fieldset': {
-            borderColor: H.brand000,
+            borderColor: alpha(H.border200, 0.35),
             borderWidth: 1.5,
           },
         },
@@ -557,9 +557,9 @@ const components = {
         [MOBILE_SM_QUERY]: { minHeight: 44 },
         '&:hover': { backgroundColor: alpha(H.text000, 0.06) },
         '&.Mui-selected': {
-          backgroundColor: alpha(H.brand000, 0.1),
+          backgroundColor: alpha(H.text000, 0.08),
           fontWeight: 600,
-          '&:hover': { backgroundColor: alpha(H.brand000, 0.12) },
+          '&:hover': { backgroundColor: alpha(H.text000, 0.11) },
         },
       },
     },
@@ -759,8 +759,8 @@ const components = {
         transition: TRANSITIONS.default,
         '&:hover': { backgroundColor: alpha(H.text000, 0.06) },
         '&.Mui-selected': {
-          backgroundColor: alpha(H.brand000, 0.1),
-          '&:hover': { backgroundColor: alpha(H.brand000, 0.12) },
+          backgroundColor: alpha(H.text000, 0.08),
+          '&:hover': { backgroundColor: alpha(H.text000, 0.11) },
         },
       },
     },
@@ -775,8 +775,8 @@ const components = {
         '&:hover': { backgroundColor: alpha(H.text000, 0.06) },
         '&.Mui-selected': {
           color: H.text000,
-          backgroundColor: alpha(H.brand000, 0.1),
-          '&:hover': { backgroundColor: alpha(H.brand000, 0.12) },
+          backgroundColor: alpha(H.text000, 0.08),
+          '&:hover': { backgroundColor: alpha(H.text000, 0.11) },
         },
       },
     },

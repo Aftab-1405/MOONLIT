@@ -43,18 +43,19 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
 
   if (normalizedSteps.length === 0) return null;
 
-  const shimmerBase = alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62);
-  const shimmerHighlight = alpha(theme.palette.text.primary, isDark ? 0.95 : 0.88);
+  const shimmerBase = alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.55);
+  const shimmerHighlight = alpha(theme.palette.text.primary, isDark ? 0.92 : 0.85);
 
   return (
     <Box
       sx={{
         width: '100%',
         textAlign: 'left',
-        mb: 2,
+        mb: 1.5,
         animation: `${slideIn} 0.3s cubic-bezier(0.4, 0, 0.2, 1)`,
       }}
     >
+      {/* Toggle row */}
       <ButtonBase
         onClick={handleToggle}
         aria-expanded={expanded}
@@ -62,77 +63,68 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
         sx={{
           width: '100%',
           display: 'flex',
-          alignItems: 'flex-start',
+          alignItems: 'center',
           justifyContent: 'space-between',
           gap: { xs: 0.75, sm: 1 },
-          py: { xs: 0.35, sm: 0.5 },
-          minHeight: 44,
-          minWidth: 0,
           px: 0,
+          py: { xs: 0.4, sm: 0.5 },
+          minHeight: 36,
+          minWidth: 0,
           borderRadius: 0,
           bgcolor: 'transparent',
           textAlign: 'left',
           transition: TRANSITIONS.default,
           '&:hover .summary-text': {
-            color: alpha(theme.palette.text.primary, isDark ? 0.92 : 0.82),
+            color: alpha(theme.palette.text.primary, isDark ? 0.88 : 0.78),
           },
           '&:hover .summary-arrow': {
-            color: alpha(theme.palette.text.secondary, 0.7),
+            color: alpha(theme.palette.text.secondary, 0.65),
           },
           '&:focus-visible': {
-            outline: `1.5px solid ${alpha(theme.palette.primary.main, 0.55)}`,
+            outline: `1.5px solid ${alpha(theme.palette.primary.main, 0.45)}`,
             outlineOffset: '2px',
             borderRadius: '4px',
           },
         }}
         disableRipple
       >
-        <Typography
-          className="summary-text"
-          sx={{
-            color: shimmerBase,
-            ...theme.typography.uiBodySm,
-            fontFamily: theme.typography.fontFamily,
-            fontWeight: 500,
-            flex: 1,
-            minWidth: 0,
-            textAlign: 'left',
-            whiteSpace: 'normal',
-            overflowWrap: 'anywhere',
-            lineHeight: 1.35,
-            transition: TRANSITIONS.default,
-            ...(isLive && {
-              backgroundImage: `linear-gradient(90deg, ${shimmerBase} 0%, ${shimmerBase} 35%, ${shimmerHighlight} 50%, ${shimmerBase} 65%, ${shimmerBase} 100%)`,
-              backgroundSize: '200% 100%',
-              backgroundClip: 'text',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-              color: 'transparent',
-              animation: `${shimmer} 2.6s linear infinite`,
-            }),
-          }}
-        >
-          {summaryText}
-        </Typography>
-        <Box
-          sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minWidth: 18,
-            height: 18,
-            px: 0.5,
-            borderRadius: '9px',
-            bgcolor: alpha(theme.palette.text.secondary, isDark ? 0.1 : 0.08),
-            flexShrink: 0,
-            transition: TRANSITIONS.default,
-          }}
-        >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.875, flex: 1, minWidth: 0 }}>
+          <Typography
+            className="summary-text"
+            sx={{
+              color: shimmerBase,
+              ...theme.typography.uiBodySm,
+              fontFamily: theme.typography.fontFamily,
+              fontWeight: 500,
+              flex: 1,
+              minWidth: 0,
+              textAlign: 'left',
+              whiteSpace: 'normal',
+              overflowWrap: 'anywhere',
+              lineHeight: 1.4,
+              transition: TRANSITIONS.default,
+              ...(isLive && {
+                backgroundImage: `linear-gradient(90deg, ${shimmerBase} 0%, ${shimmerBase} 30%, ${shimmerHighlight} 50%, ${shimmerBase} 70%, ${shimmerBase} 100%)`,
+                backgroundSize: '200% 100%',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                color: 'transparent',
+                animation: `${shimmer} 2.4s linear infinite`,
+              }),
+            }}
+          >
+            {summaryText}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
+          {/* Step count */}
           <Typography
             sx={{
-              color: alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.6),
-              fontSize: '10px',
-              fontWeight: 600,
+              color: alpha(theme.palette.text.secondary, isDark ? 0.45 : 0.38),
+              fontSize: '11px',
+              fontWeight: 500,
               lineHeight: 1,
               fontFamily: theme.typography.fontFamilyMono,
               fontVariantNumeric: 'tabular-nums',
@@ -140,22 +132,21 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
           >
             {normalizedSteps.length}
           </Typography>
+
+          <KeyboardArrowDownIcon
+            className="summary-arrow"
+            sx={{
+              fontSize: { xs: 15, sm: 16 },
+              flexShrink: 0,
+              color: alpha(theme.palette.text.secondary, isDark ? 0.38 : 0.32),
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s',
+            }}
+          />
         </Box>
-        <KeyboardArrowDownIcon
-          className="summary-arrow"
-          sx={{
-            fontSize: { xs: 16, sm: 18 },
-            alignSelf: 'flex-start',
-            mt: '1px',
-            flexShrink: 0,
-            ml: 0.5,
-            color: alpha(theme.palette.text.secondary, 0.4),
-            transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s',
-          }}
-        />
       </ButtonBase>
 
+      {/* Expanded content */}
       <Collapse in={expanded} timeout={220} unmountOnExit>
         <Box
           sx={{
@@ -168,12 +159,17 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
               top: 8,
               bottom: 8,
               width: '1px',
-              background: `linear-gradient(180deg, transparent, ${alpha(theme.palette.border.subtle, isDark ? 0.95 : 1)} 10%, ${alpha(theme.palette.border.subtle, isDark ? 0.95 : 1)} 85%, transparent)`,
+              background: `linear-gradient(180deg,
+                transparent,
+                ${alpha(theme.palette.text.secondary, isDark ? 0.14 : 0.1)} 12%,
+                ${alpha(theme.palette.text.secondary, isDark ? 0.14 : 0.1)} 85%,
+                transparent
+              )`,
             },
           }}
         >
           {normalizedSteps.map((step, idx) => {
-            const animDelay = Math.min(idx * 55, 220);
+            const animDelay = Math.min(idx * 50, 200);
             if (step.type === 'thinking') {
               return (
                 <ThinkingStep
@@ -185,7 +181,6 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
                 />
               );
             }
-
             if (step.type === 'tool') {
               return (
                 <ToolStep
@@ -202,7 +197,6 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
                 />
               );
             }
-
             return null;
           })}
           {isAllComplete && <DoneIndicator />}

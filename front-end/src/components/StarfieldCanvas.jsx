@@ -28,54 +28,62 @@ const hexToRgb = (hex) => {
 };
 
 const CONFIG = {
+  // Drift speeds tuned for a "barely moving" deep-sky feel — distant layers nearly static,
+  // nearer layers create just-perceptible parallax. ~5× slower than a screensaver-style field.
   layers: [
-    { count: 0.00016, sizeRange: [0.2, 0.5], opacityRange: [0.14, 0.28], speed: 1.8, twinkle: 0.1 },
-    { count: 0.0001, sizeRange: [0.5, 0.85], opacityRange: [0.24, 0.42], speed: 4, twinkle: 0.2 },
-    { count: 0.00005, sizeRange: [0.85, 1.3], opacityRange: [0.36, 0.58], speed: 7.5, twinkle: 0.28 },
-    { count: 0.00002, sizeRange: [1.2, 2.0], opacityRange: [0.5, 0.76], speed: 12, twinkle: 0.36 },
+    { count: 0.00016, sizeRange: [0.2, 0.5],  opacityRange: [0.05, 0.12], speed: 0.35, twinkle: 0.06 },
+    { count: 0.00010, sizeRange: [0.5, 0.85], opacityRange: [0.10, 0.20], speed: 0.85, twinkle: 0.12 },
+    { count: 0.00005, sizeRange: [0.85, 1.2], opacityRange: [0.16, 0.28], speed: 1.6,  twinkle: 0.18 },
+    { count: 0.00002, sizeRange: [1.0, 1.55], opacityRange: [0.22, 0.38], speed: 2.6,  twinkle: 0.22 },
   ],
   clusters: { count: 5, starsPerCluster: [12, 22], radius: [80, 160] },
-  nebulas: { count: 4, pulseSpeed: 0.08 },
-  meteors: { poolSize: 8, minDelay: 3500, maxDelay: 9000 },
-  ambientGlow: { enabled: true, intensity: 0.09 },
+  nebulas: { count: 4, pulseSpeed: 0.04 },
+  meteors: { poolSize: 6, minDelay: 9000, maxDelay: 22000 },
+  ambientGlow: { enabled: true, intensity: 0.028 },
   maxDPR: 1.5,
-  frameSkipThreshold: 0.02,
+  // Tiny threshold so we start rendering almost immediately; the visual fade is owned
+  // by both the JS lerp (slow curve) and a CSS opacity transition on the wrapper.
+  frameSkipThreshold: 0.004,
   targetFps: 60,
+  fadeLerp: 0.022,
 };
 
 const COLORS = {
+  // Heavily desaturated palette — neutral whites and near-neutral charcoals so the
+  // field reads as ambient texture in dark mode rather than a colored "effect" layer.
+  // Off-white tones, never pure white — keeps stars sitting inside the dark surround
+  // rather than punching through it.
   stars: [
-    // Cool white-silver (O/A class — majority)
-    [195, 195, 200],
-    [215, 215, 220],
-    [235, 235, 240],
-    [248, 248, 252],
-    // Selene blue-white (B class)
-    [170, 185, 240],
-    [190, 202, 245],
-    [155, 168, 230],
-    // Ice blue
-    [180, 218, 255],
-    [200, 228, 250],
-    // Warm amber-gold (K class — rare warmth for depth)
-    [255, 218, 175],
-    [240, 200, 160],
+    [196, 196, 200],
+    [206, 206, 210],
+    [214, 214, 218],
+    [222, 222, 226],
+    [228, 228, 232],
+    // Faint cool whites — minimal blue tint
+    [198, 202, 212],
+    [208, 212, 220],
+    [192, 198, 210],
+    // Faint warm whites — minimal amber tint
+    [212, 208, 200],
+    [204, 200, 194],
   ],
+  // Kept *darker* than the theme bg so nebulas can only ever subtract luminance,
+  // never add it. The Selene tint is the one exception — used at near-invisible alpha.
   nebulas: [
-    { r: 12, g: 12, b: 22,  name: 'voidBlack' },
-    { r: 22, g: 18, b: 48,  name: 'deepPurple' },
-    { r: 12, g: 25, b: 55,  name: 'deepBlue' },
-    { r: 18, g: 38, b: 48,  name: 'deepTeal' },
-    { r: 45, g: 50, b: 115, name: 'seleneDeep' },
+    { r: 4,  g: 4,  b: 6,   name: 'voidBlack' },
+    { r: 5,  g: 5,  b: 8,   name: 'deepCharcoal' },
+    { r: 4,  g: 5,  b: 10,  name: 'deepInk' },
+    { r: 6,  g: 7,  b: 9,   name: 'deepSlate' },
+    { r: 18, g: 20, b: 38,  name: 'seleneDeep' },
   ],
   meteor: {
-    head: [238, 242, 255],
-    trail: [175, 175, 180],
+    head:  [205, 208, 215],
+    trail: [135, 138, 145],
   },
   glow: {
-    inner: [180, 195, 250],
-    mid:   [130, 150, 225],
-    outer: [90, 110, 195],
+    inner: [170, 175, 188],
+    mid:   [120, 126, 145],
+    outer: [80, 88, 110],
   },
 };
 
@@ -103,6 +111,12 @@ class StarField {
       const centerY = rand(height * 0.1, height * 0.9);
       const radius = rand(...CONFIG.clusters.radius);
       const starCount = randInt(...CONFIG.clusters.starsPerCluster);
+      // Cluster shares one drift vector so stars travel as a body and the cluster
+      // identity holds over time instead of dispersing within seconds.
+      const clusterAngle = Math.PI * 0.82 + (Math.random() - 0.5) * 0.25;
+      const clusterSpeed = 0.6 + Math.random() * 0.5;
+      const clusterVx = Math.cos(clusterAngle) * clusterSpeed;
+      const clusterVy = Math.sin(clusterAngle) * clusterSpeed;
 
       for (let i = 0; i < starCount; i++) {
         const angle = Math.random() * TWO_PI;
@@ -111,13 +125,15 @@ class StarField {
         const y = centerY + Math.sin(angle) * dist;
 
         if (x > 0 && x < width && y > 0 && y < height) {
-          const layer = CONFIG.layers[randInt(1, 2)];
-          this.stars.push({
-            ...this.createStar(width, height, layer, randInt(1, 2)),
-            x,
-            y,
-            isCluster: true,
-          });
+          const layerIndex = randInt(1, 2);
+          const layer = CONFIG.layers[layerIndex];
+          const star = this.createStar(width, height, layer, layerIndex);
+          star.x = x;
+          star.y = y;
+          star.vx = clusterVx;
+          star.vy = clusterVy;
+          star.isCluster = true;
+          this.stars.push(star);
         }
       }
     }
@@ -143,12 +159,14 @@ class StarField {
       vx: Math.cos(angle) * speed,
       vy: Math.sin(angle) * speed,
       twinklePhase: Math.random() * TWO_PI,
-      twinkleSpeed: 0.5 + Math.random() * 1.0,
+      // Slower twinkle cadence — real atmospheric scintillation is irregular and unhurried,
+      // not a buzzing oscillation. Roughly halves the perceived "blink" rate.
+      twinkleSpeed: 0.25 + Math.random() * 0.55,
       twinkleIntensity: layer.twinkle,
       shimmerPhase: Math.random() * TWO_PI,
-      shimmerSpeed: 0.18 + Math.random() * 0.4,
+      shimmerSpeed: 0.08 + Math.random() * 0.22,
       layer: layerIndex,
-      glowSize: size * 3.5,
+      glowSize: size * 2.8,
     };
   }
 
@@ -186,18 +204,21 @@ class NebulaSystem {
       this.nebulas.push({
         x: rand(0, width),
         y: rand(0, height),
-        radiusX: rand(300, 550),
-        radiusY: rand(220, 420),
+        radiusX: rand(320, 580),
+        radiusY: rand(240, 440),
         rotation: rand(0, Math.PI),
-        rotationSpeed: (Math.random() - 0.5) * 0.012,
+        rotationSpeed: (Math.random() - 0.5) * 0.005,
         color,
-        baseOpacity: isSelene ? rand(0.18, 0.3) : rand(0.12, 0.22),
-        vx: (Math.random() - 0.5) * 0.14,
-        vy: (Math.random() - 0.5) * 0.14,
+        isSelene,
+        // Whisper-level alpha. Selene is the only one that ever adds *any* luminance,
+        // and it does so at near the JND threshold so it reads as a tint, not a cloud.
+        baseOpacity: isSelene ? rand(0.05, 0.08) : rand(0.18, 0.28),
+        vx: (Math.random() - 0.5) * 0.06,
+        vy: (Math.random() - 0.5) * 0.06,
         pulsePhase: Math.random() * TWO_PI,
-        pulseSpeed: CONFIG.nebulas.pulseSpeed + Math.random() * 0.025,
+        pulseSpeed: CONFIG.nebulas.pulseSpeed + Math.random() * 0.012,
         distortPhase: Math.random() * TWO_PI,
-        distortSpeed: 0.018 + Math.random() * 0.012,
+        distortSpeed: 0.008 + Math.random() * 0.006,
       });
     }
   }
@@ -221,11 +242,15 @@ class NebulaSystem {
   render(ctx, globalOpacity) {
     ctx.save();
     for (const n of this.nebulas) {
-      const pulse = 0.75 + 0.25 * Math.sin(n.pulsePhase);
-      const distort = 1 + 0.12 * Math.sin(n.distortPhase);
+      // Tighter breathe range — atmosphere, not a heartbeat.
+      const pulse = 0.88 + 0.12 * Math.sin(n.pulsePhase);
+      const distort = 1 + 0.05 * Math.sin(n.distortPhase);
       const opacity = n.baseOpacity * pulse * globalOpacity;
 
       ctx.save();
+      // Dark fillers use 'darken' so they only ever deepen the bg. Selene uses
+      // normal compositing because it's intentionally a brand-tint *addition*.
+      ctx.globalCompositeOperation = n.isSelene ? 'source-over' : 'darken';
       ctx.translate(n.x, n.y);
       ctx.rotate(n.rotation);
       ctx.scale(distort, 1 / distort);
@@ -280,7 +305,7 @@ class MeteorPool {
     let meteor = this.pool.pop();
     if (!meteor) meteor = this.createMeteor();
 
-    const speed = rand(800, 1100);
+    const speed = rand(520, 760);
     const angle = Math.PI / 4 + (Math.random() - 0.5) * 0.2;
 
     meteor.x = rand(-width * 0.1, width * 0.75);
@@ -290,9 +315,9 @@ class MeteorPool {
     meteor.vx = Math.cos(angle) * speed * 0.36;
     meteor.vy = Math.sin(angle) * speed;
     meteor.speed = speed;
-    meteor.length = rand(140, 220);
+    meteor.length = rand(120, 190);
     meteor.life = 1.0;
-    meteor.decay = rand(0.35, 0.55);
+    meteor.decay = rand(0.45, 0.65);
     meteor.active = true;
 
     meteor.particles = [];
@@ -363,34 +388,34 @@ class MeteorPool {
       const tailY = m.y - m.vy * invSpeed * m.length * m.life;
 
       const gradient = ctx.createLinearGradient(tailX, tailY, m.x, m.y);
-      gradient.addColorStop(0, `rgba(${tr},${tg},${tb},0)`);
-      gradient.addColorStop(0.2, `rgba(${tr},${tg},${tb},${opacity * 0.08})`);
-      gradient.addColorStop(0.5, `rgba(${hr},${hg},${hb},${opacity * 0.35})`);
-      gradient.addColorStop(0.75, `rgba(${hr},${hg},${hb},${opacity * 0.65})`);
-      gradient.addColorStop(1, `rgba(${hr},${hg},${hb},${opacity * 0.9})`);
+      gradient.addColorStop(0,    `rgba(${tr},${tg},${tb},0)`);
+      gradient.addColorStop(0.25, `rgba(${tr},${tg},${tb},${opacity * 0.05})`);
+      gradient.addColorStop(0.55, `rgba(${hr},${hg},${hb},${opacity * 0.22})`);
+      gradient.addColorStop(0.8,  `rgba(${hr},${hg},${hb},${opacity * 0.45})`);
+      gradient.addColorStop(1,    `rgba(${hr},${hg},${hb},${opacity * 0.65})`);
 
       ctx.beginPath();
       ctx.moveTo(tailX, tailY);
       ctx.lineTo(m.x, m.y);
       ctx.strokeStyle = gradient;
-      ctx.lineWidth = 1.5 + opacity * 1.5;
+      ctx.lineWidth = 1.1 + opacity * 1.0;
       ctx.lineCap = 'round';
       ctx.stroke();
 
-      ctx.globalAlpha = opacity * 0.95;
+      ctx.globalAlpha = opacity * 0.7;
       ctx.fillStyle = `rgb(${hr},${hg},${hb})`;
       ctx.beginPath();
-      ctx.arc(m.x, m.y, 1.8 + opacity * 0.8, 0, TWO_PI);
+      ctx.arc(m.x, m.y, 1.3 + opacity * 0.55, 0, TWO_PI);
       ctx.fill();
 
-      ctx.globalAlpha = opacity * 0.25;
+      ctx.globalAlpha = opacity * 0.14;
       ctx.beginPath();
-      ctx.arc(m.x, m.y, 4 + opacity * 1.5, 0, TWO_PI);
+      ctx.arc(m.x, m.y, 3.2 + opacity * 1.0, 0, TWO_PI);
       ctx.fill();
 
       for (const p of m.particles) {
         if (p.life > 0) {
-          const pOpacity = p.life * p.life * opacity * 0.55;
+          const pOpacity = p.life * p.life * opacity * 0.32;
           ctx.globalAlpha = pOpacity;
           ctx.beginPath();
           ctx.arc(p.x, p.y, p.size * p.life, 0, TWO_PI);
@@ -440,8 +465,10 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
 
       if (opacity < 0.02) continue;
 
+      // Subtle luminance breathe instead of a chromatic shift — keeps the palette stable
+      // and avoids the "rainbow noise" feel of high-amplitude per-channel jitter.
       const shimmer = Math.sin(star.shimmerPhase);
-      const shimmerAmt = shimmer * 12;
+      const shimmerAmt = shimmer * 4;
       const r = clamp(Math.round(star.color[0] + shimmerAmt), 0, 255);
       const g = clamp(Math.round(star.color[1] + shimmerAmt), 0, 255);
       const b = clamp(Math.round(star.color[2] + shimmerAmt), 0, 255);
@@ -452,8 +479,8 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
       ctx.arc(star.x, star.y, star.size, 0, TWO_PI);
       ctx.fill();
 
-      if (star.layer >= 2 && opacity > 0.22) {
-        ctx.globalAlpha = opacity * 0.14;
+      if (star.layer >= 2 && opacity > 0.26) {
+        ctx.globalAlpha = opacity * 0.08;
         ctx.beginPath();
         ctx.arc(star.x, star.y, star.glowSize, 0, TWO_PI);
         ctx.fill();
@@ -519,23 +546,26 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
         theme.palette.background.default ||
         (theme.palette.mode === 'dark' ? theme.palette.common.black : theme.palette.common.white);
       const base = hexToRgb(baseColor);
+      // Keep the canvas as a transparent atmospheric layer over the page surface.
+      // The page background remains the source of truth, which prevents a separate
+      // "space panel" from appearing during idle/theme transitions.
       const bright = {
-        r: clamp(base.r + 8, 0, 255),
-        g: clamp(base.g + 8, 0, 255),
-        b: clamp(base.b + 12, 0, 255),
+        r: clamp(base.r + 4, 0, 255),
+        g: clamp(base.g + 4, 0, 255),
+        b: clamp(base.b + 6, 0, 255),
       };
       const dim = {
-        r: clamp(base.r - 8, 0, 255),
-        g: clamp(base.g - 8, 0, 255),
-        b: clamp(base.b - 5, 0, 255),
+        r: clamp(base.r - 5, 0, 255),
+        g: clamp(base.g - 5, 0, 255),
+        b: clamp(base.b - 4, 0, 255),
       };
 
       const bg = state.bgCtx;
       bg.clearRect(0, 0, state.width, state.height);
       const grad = bg.createRadialGradient(state.width * 0.12, state.height * 0.18, 0, state.width * 0.12, state.height * 0.18, Math.max(state.width, state.height) * 0.92);
-      grad.addColorStop(0, `rgb(${bright.r},${bright.g},${bright.b})`);
-      grad.addColorStop(0.55, `rgb(${base.r},${base.g},${base.b})`);
-      grad.addColorStop(1, `rgb(${dim.r},${dim.g},${dim.b})`);
+      grad.addColorStop(0, `rgba(${bright.r},${bright.g},${bright.b},0.12)`);
+      grad.addColorStop(0.5, `rgba(${base.r},${base.g},${base.b},0.03)`);
+      grad.addColorStop(1, `rgba(${dim.r},${dim.g},${dim.b},0.09)`);
       bg.fillStyle = grad;
       bg.fillRect(0, 0, state.width, state.height);
 
@@ -548,7 +578,7 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
         Math.max(state.width, state.height) * 0.72
       );
       vignette.addColorStop(0, 'rgba(0,0,0,0)');
-      vignette.addColorStop(1, 'rgba(0,0,0,0.52)');
+      vignette.addColorStop(1, 'rgba(0,0,0,0.16)');
       bg.fillStyle = vignette;
       bg.fillRect(0, 0, state.width, state.height);
 
@@ -558,8 +588,8 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
         state.width * 0.52, state.height * -0.05, 0,
         state.width * 0.52, state.height * -0.05, state.height * 0.55
       );
-      moonBloom.addColorStop(0,    `rgba(${brand.r},${brand.g},${brand.b},0.12)`);
-      moonBloom.addColorStop(0.45, `rgba(${brand.r},${brand.g},${brand.b},0.05)`);
+      moonBloom.addColorStop(0,    `rgba(${brand.r},${brand.g},${brand.b},0.028)`);
+      moonBloom.addColorStop(0.45, `rgba(${brand.r},${brand.g},${brand.b},0.012)`);
       moonBloom.addColorStop(1,    `rgba(${brand.r},${brand.g},${brand.b},0)`);
       bg.fillStyle = moonBloom;
       bg.fillRect(0, 0, state.width, state.height);
@@ -604,8 +634,8 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
       state.lastFrameTime = timestamp;
 
       const opacityDiff = state.targetOpacity - state.opacity;
-      if (Math.abs(opacityDiff) > 0.003) {
-        state.opacity += opacityDiff * 0.055;
+      if (Math.abs(opacityDiff) > 0.0015) {
+        state.opacity += opacityDiff * CONFIG.fadeLerp;
       } else {
         state.opacity = state.targetOpacity;
       }
@@ -620,12 +650,15 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
 
       ctx.clearRect(0, 0, width, height);
       if (state.bgCanvas) {
-        ctx.globalAlpha = 1;
+        // Fade bg with the rest of the scene — keeps everything emerging together
+        // instead of the gradient popping in while stars/nebulas crossfade.
+        ctx.globalAlpha = clamp(baseOpacity, 0, 1);
         ctx.drawImage(state.bgCanvas, 0, 0, width, height);
+        ctx.globalAlpha = 1;
       }
       if (state.noisePattern) {
         ctx.save();
-        const noiseBase = state.reduceMotion ? 0.045 : 0.09;
+        const noiseBase = state.reduceMotion ? 0.03 : 0.055;
         const dprFactor = state.dpr >= 1.25 ? 0.7 : 1;
         ctx.globalAlpha = noiseBase * dprFactor * globalOpacity;
         ctx.fillStyle = state.noisePattern;
@@ -698,6 +731,11 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
         zIndex: 0,
         pointerEvents: 'none',
         overflow: 'hidden',
+        opacity: active ? 1 : 0,
+        // GPU-composited fade — the second, smoother layer on top of the JS lerp.
+        // Long ease so the field "emerges" rather than appearing.
+        transition: 'opacity 1.1s cubic-bezier(0.25, 0.1, 0.25, 1)',
+        willChange: 'opacity',
       }}
     >
       <Box

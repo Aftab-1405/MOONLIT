@@ -17,8 +17,8 @@ export function getAppPopoverPaperSx(theme, isDark, overrides = {}) {
     borderRadius: '16px',
     border: `1px solid ${
       isDark
-        ? alpha(theme.palette.primary.main, 0.28)
-        : alpha(theme.palette.primary.main, 0.2)
+        ? alpha(theme.palette.text.primary, 0.12)
+        : alpha(theme.palette.text.primary, 0.09)
     }`,
     backgroundColor: isDark
       ? alpha(theme.palette.background.elevated, 0.94)

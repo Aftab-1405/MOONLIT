@@ -29,8 +29,8 @@ const hslToHex = (h, s, l) => {
 /** Pre-computed hex values — light theme */
 export const LIGHT = {
   // Backgrounds (lighter → darker)
-  bg000:      hslToHex(0,   0,    100),    // #ffffff  — pure white
-  bg100:      hslToHex(48,  12,   98.2),   // #fbfbfa  — barely-warm white (paper)
+  bg000:      hslToHex(48,  8,    99.1),   // #fdfdfd  — soft warm white
+  bg100:      hslToHex(48,  10,   98.8),   // #fcfcfc  — near-white paper
   bg200:      hslToHex(48,  10,   95.8),   // #f5f5f4  — soft neutral (sunken / input)
   bg300:      hslToHex(48,  9,    92.5),   // #eeeeed  — light neutral (hover bg)
   bg400:      hslToHex(48,  8,    88.8),   // #e3e3e2  — mid neutral (strongest surface)
@@ -67,7 +67,7 @@ export const LIGHT = {
 /** Pre-computed hex values — dark theme */
 export const DARK = {
   // Backgrounds (lighter → darker)
-  bg000:      hslToHex(60,  2.1,  18.4),   // #2f2e2d  — dark base (default)
+  bg000:      hslToHex(60,  2.1,  15.6),   // #292927  — dark base (default)
   bg100:      hslToHex(60,  2.7,  14.5),   // #252524  — darkest (paper)
   bg200:      hslToHex(30,  3.3,  11.8),   // #1f1e1c  — very dark (sunken / input)
   bg300:      hslToHex(60,  2.6,  7.6),    // #141413  — near black
