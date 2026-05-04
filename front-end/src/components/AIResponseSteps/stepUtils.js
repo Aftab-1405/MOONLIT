@@ -87,6 +87,13 @@ export function getDetailedResult(name, result) {
       const query = result.query ? ` for "${result.query}"` : '';
       return `Found ${count} cited source${count !== 1 ? 's' : ''}${query}`;
     },
+    open_sql_editor: () => 'UI action completed: SQL editor opened',
+    write_sql_editor_query: () => 'UI action completed: query prepared',
+    open_database_modal: () => 'UI action completed: database modal opened',
+    open_settings_modal: () => 'UI action completed: settings opened',
+    navigate_new_chat: () => result.requiresConfirmation
+      ? 'UI action awaiting confirmation: new chat'
+      : 'UI action completed: new chat opened',
   };
 
   return details[name]?.() || 'Completed successfully';

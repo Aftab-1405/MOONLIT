@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Typography,
@@ -100,9 +100,21 @@ function SectionTitle({ children, visible = true }) {
   );
 }
 
-function SettingsModal({ open, onClose }) {
+function SettingsModal({ open, onClose, initialSection = null }) {
   const { settings, updateSetting, resetSettings } = useAppTheme();
   const [activeSection, setActiveSection] = useState('appearance');
+
+  useEffect(() => {
+    if (open && initialSection) {
+      const isValid = SECTIONS.some((s) => s.id === initialSection);
+      if (isValid) {
+        setActiveSection(initialSection);
+      } else {
+        // Invalid section — fall back to default
+        setActiveSection('appearance');
+      }
+    }
+  }, [open, initialSection]);
   const [mobileNavAnchor, setMobileNavAnchor] = useState(null);
   const theme = useMuiTheme();
   const isDark = theme.palette.mode === 'dark';

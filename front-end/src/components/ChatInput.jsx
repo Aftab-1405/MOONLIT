@@ -498,6 +498,7 @@ function ChatInput({
               alignItems: 'flex-start',
             },
           }}
+          inputProps={{ 'data-ui-target': 'chat_input' }}
           sx={{
             '& .MuiInputBase-root': { p: 0 },
             '& .MuiInputBase-input': {

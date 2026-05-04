@@ -5,6 +5,8 @@ Event types:
   token          – LLM content token
   tool_start     – tool invocation begun
   tool_end       – tool invocation finished (includes UI result)
+  ui_action      – guided frontend action for the browser UI
+  agent_interrupt – graph paused for human input; resume with /resume_agent
   thinking_token – reasoning/chain-of-thought token
   error          – recoverable error message
   done           – stream complete
@@ -43,3 +45,14 @@ def sse_error(message: str) -> str:
 
 def sse_done() -> str:
     return sse_encode({"type": "done"})
+
+
+def sse_ui_action(action: str, payload: dict | None = None) -> str:
+    """Encode a ui_action SSE event.
+
+    The emitted event shape is:
+        { "type": "ui_action", "action": "<action_name>", "payload": <payload> }
+
+    ``payload`` is serialised to ``null`` when ``None`` is passed.
+    """
+    return sse_encode({"type": "ui_action", "action": action, "payload": payload})

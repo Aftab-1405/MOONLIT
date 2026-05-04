@@ -1,3 +1,5 @@
+import { UI_ACTIONS } from './uiActions';
+
 export const TOOL_ACTIONS = {
   get_connection_status: { running: 'Checking connection status', done: 'Checked connection status' },
   get_database_list: { running: 'Listing available databases', done: 'Listed available databases' },
@@ -7,4 +9,10 @@ export const TOOL_ACTIONS = {
   get_table_indexes: { running: 'Fetching indexes', done: 'Fetched indexes' },
   get_foreign_keys: { running: 'Fetching foreign keys', done: 'Fetched foreign keys' },
   web_search: { running: 'Searching the web', done: 'Searched the web' },
+  ...Object.fromEntries(
+    Object.entries(UI_ACTIONS).map(([name, config]) => [
+      name,
+      { running: config.running, done: config.done },
+    ])
+  ),
 };

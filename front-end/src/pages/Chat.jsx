@@ -7,6 +7,7 @@ import {
   MenuItem,
   Snackbar,
   Dialog,
+  Button,
   Grow,
   Slide,
   Fade,
@@ -28,7 +29,108 @@ import ResizeHandle from '../components/ResizeHandle';
 import WelcomeScreen from '../components/WelcomeScreen';
 import StarfieldCanvas from '../components/StarfieldCanvas';
 import { useChatPageController } from '../hooks/chat-page/useChatPageController';
-import { getScrollbarStyles, getDialogPaperSx, DIALOG_VIEWPORT_SUPPORT_QUERY } from '../styles/shared';
+import {
+  getScrollbarStyles,
+  getDialogPaperSx,
+  DIALOG_VIEWPORT_SUPPORT_QUERY,
+  UI_LAYOUT,
+} from '../styles/shared';
+
+function GuidedConfirmationPrompt({
+  open,
+  title,
+  message,
+  confirmText,
+  cancelText,
+  onCancel,
+  onConfirm,
+  theme,
+}) {
+  return (
+    <Fade in={open} timeout={180} unmountOnExit>
+      <Box
+        role="status"
+        aria-live="polite"
+        sx={{
+          width: '100%',
+          maxWidth: UI_LAYOUT.chatInputMaxWidth,
+          mx: 'auto',
+          mb: 1,
+          boxSizing: 'border-box',
+        }}
+      >
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto' },
+            alignItems: 'center',
+            gap: { xs: 1, sm: 1.5 },
+            borderRadius: '10px',
+            border: '1px solid',
+            borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.1),
+            bgcolor: alpha(theme.palette.background.elevated, theme.palette.mode === 'dark' ? 0.96 : 0.98),
+            boxShadow: `0 10px 28px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.24 : 0.08)}`,
+            px: { xs: 1.25, sm: 1.5 },
+            py: { xs: 1, sm: 1.1 },
+          }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              sx={{
+                ...theme.typography.uiBodySm,
+                color: 'text.primary',
+                fontWeight: 600,
+                lineHeight: 1.35,
+              }}
+            >
+              {title || 'Confirm action'}
+            </Typography>
+            {message ? (
+              <Typography
+                sx={{
+                  mt: 0.25,
+                  ...theme.typography.uiCaptionMd,
+                  color: 'text.secondary',
+                  lineHeight: 1.45,
+                  overflowWrap: 'anywhere',
+                }}
+              >
+                {message}
+              </Typography>
+            ) : null}
+          </Box>
+          <Box
+            sx={{
+              display: 'flex',
+              justifyContent: { xs: 'flex-end', sm: 'flex-start' },
+              gap: 0.75,
+              flexWrap: 'wrap',
+            }}
+          >
+            <Button
+              size="small"
+              variant="text"
+              color="inherit"
+              onClick={onCancel}
+              sx={{ minHeight: 34, color: 'text.secondary' }}
+            >
+              {cancelText || 'Not now'}
+            </Button>
+            <Button
+              size="small"
+              variant="outlined"
+              color="primary"
+              onClick={onConfirm}
+              sx={{ minHeight: 34, borderRadius: '8px' }}
+            >
+              {confirmText || 'Confirm'}
+            </Button>
+          </Box>
+        </Box>
+      </Box>
+    </Fade>
+  );
+}
 
 function Chat() {
   const {
@@ -78,6 +180,11 @@ function Chat() {
     handleCloseSettings,
     confirmDialog,
     handleConfirmDialogClose,
+    guidedConfirmDialog,
+    handleGuidedCancel,
+    handleGuidedConfirm,
+    dbModalInitialType,
+    settingsInitialSection,
     starfieldActive,
     idleAnimationIntensity,
   } = useChatPageController();
@@ -136,6 +243,7 @@ function Chat() {
         </Box>
         <MenuItem
           onClick={handleOpenSettings}
+          data-ui-target="settings_button"
           sx={{
             borderRadius: '8px',
             px: 1,
@@ -283,6 +391,16 @@ function Chat() {
                     pb: 'max(env(safe-area-inset-bottom), 8px)',
                   }}
                 >
+                  <GuidedConfirmationPrompt
+                    open={guidedConfirmDialog.open}
+                    title={guidedConfirmDialog.title}
+                    message={guidedConfirmDialog.message}
+                    confirmText={guidedConfirmDialog.confirmText}
+                    cancelText={guidedConfirmDialog.cancelText}
+                    onCancel={handleGuidedCancel}
+                    onConfirm={handleGuidedConfirm}
+                    theme={theme}
+                  />
                   <ChatInput
                     {...chatInputSharedProps}
                     showSuggestions={false}
@@ -295,6 +413,7 @@ function Chat() {
         {!isNarrowLayout && (
           <Box
             component="section"
+            data-ui-target="sql_editor"
             sx={{
               display: 'flex',
               flexShrink: 0,
@@ -350,6 +469,7 @@ function Chat() {
         onConnect={handleDbConnect}
         isConnected={isDbConnected}
         currentDatabase={currentDatabase}
+        initialDbType={dbModalInitialType}
       />
 
       <Snackbar
@@ -359,6 +479,12 @@ function Chat() {
         anchorOrigin={snackbarAnchorOrigin}
         message={snackbar.message}
         ContentProps={snackbarContentProps}
+        sx={{
+          maxWidth: 'min(420px, calc(100vw - 32px))',
+          '& .MuiSnackbarContent-root': {
+            width: '100%',
+          },
+        }}
       />
       <Dialog
         open={Boolean(queryResults)}
@@ -378,7 +504,7 @@ function Chat() {
       >
         {queryResults && <SQLResultsTable data={queryResults} onClose={handleCloseQueryResults} />}
       </Dialog>
-      <SettingsModal open={settingsOpen} onClose={handleCloseSettings} />
+      <SettingsModal open={settingsOpen} onClose={handleCloseSettings} initialSection={settingsInitialSection} />
       <ConfirmDialog
         open={confirmDialog.open}
         onClose={handleConfirmDialogClose}

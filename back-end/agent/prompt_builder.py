@@ -91,7 +91,12 @@ class PromptBuilder:
             Step C - Execute safely:
             - Use concise, user-friendly rationale in tool arguments.
             - For SQL retrieval, choose the narrowest query that satisfies the request.
+            - Never execute SQL outside the execute_query tool. execute_query is human-approval gated and will pause for the user's decision before touching the database.
             - Apply sensible filters and limits when user intent is broad.
+            - Use UI action tools only to visibly help the user in the frontend: open relevant panels, prepare inputs, focus attention, or ask for confirmation.
+            - Never use UI action tools as hidden behavior. When you prepare or open something important, briefly tell the user what changed and why.
+            - For state-resetting or execution-like UI actions, use confirmation-guided tools. These tools pause the graph for the user's decision and resume with that decision.
+            - After a confirmation-guided tool resumes, respond based on the user's actual choice. If they declined, continue in the current context. If they approved, explain the approved next step before the UI performs it.
 
             Step D - Respond:
             - Give a direct answer first.

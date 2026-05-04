@@ -174,6 +174,7 @@ function Sidebar({
         icon: <CloudUploadOutlinedIcon sx={{ fontSize: 18 }} />,
         onClick: handleDatabaseAction,
         showStatus: isConnected,
+        uiTarget: 'database_button',
       },
     ];
 
@@ -310,6 +311,7 @@ function Sidebar({
           disabled={item.disabled}
           circularIconBg={item.circularIconBg}
           shortcut={item.shortcut}
+          uiTarget={item.uiTarget}
         />
       ))}
     </Box>

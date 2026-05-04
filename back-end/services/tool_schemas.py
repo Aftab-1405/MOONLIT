@@ -12,10 +12,20 @@ Benefits:
 - Better error messages when validation fails
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 
+SUPPORTED_UI_ACTIONS = {
+    "open_sql_editor",
+    "write_sql_editor_query",
+    "open_database_modal",
+    "open_settings_modal",
+    "navigate_new_chat",
+}
+
+SUPPORTED_DB_TYPES = {"mysql", "postgresql", "sqlserver", "oracle"}
+SUPPORTED_SETTINGS_SECTIONS = {"appearance", "ai", "database", "context"}
 # =============================================================================
 # TOOL ARGUMENT SCHEMAS (Input validation)
 # =============================================================================
@@ -124,6 +134,81 @@ class GetForeignKeysArgs(BaseToolArgs):
     )
 
 
+class OpenSqlEditorArgs(BaseToolArgs):
+    """Arguments for open_sql_editor tool."""
+
+    query: Optional[str] = Field(None, description="SQL query to pre-populate in the editor.")
+
+    @field_validator("query")
+    @classmethod
+    def normalize_optional_query(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        query = v.strip()
+        return query or None
+
+
+class WriteSqlEditorQueryArgs(BaseToolArgs):
+    """Arguments for write_sql_editor_query tool."""
+
+    query: str = Field(..., min_length=1, description="Complete SQL query to write into the editor.")
+
+    @field_validator("query")
+    @classmethod
+    def validate_query_not_blank(cls, v: str) -> str:
+        query = v.strip()
+        if not query:
+            raise ValueError("query must not be blank")
+        return query
+
+
+class OpenDatabaseModalArgs(BaseToolArgs):
+    """Arguments for open_database_modal tool."""
+
+    db_type: Optional[str] = Field(None, description="Database type to pre-select (e.g. 'postgresql').")
+
+    @field_validator("db_type")
+    @classmethod
+    def validate_db_type(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        db_type = v.strip().lower()
+        if not db_type:
+            return None
+        if db_type not in SUPPORTED_DB_TYPES:
+            raise ValueError(
+                f"db_type must be one of: {', '.join(sorted(SUPPORTED_DB_TYPES))}"
+            )
+        return db_type
+
+
+class OpenSettingsModalArgs(BaseToolArgs):
+    """Arguments for open_settings_modal tool."""
+
+    section: Optional[str] = Field(None, description="Settings section to navigate to on open.")
+
+    @field_validator("section")
+    @classmethod
+    def validate_section(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return None
+        section = v.strip().lower()
+        if not section:
+            return None
+        if section not in SUPPORTED_SETTINGS_SECTIONS:
+            raise ValueError(
+                "section must be one of: "
+                f"{', '.join(sorted(SUPPORTED_SETTINGS_SECTIONS))}"
+            )
+        return section
+
+
+class NavigateNewChatArgs(BaseToolArgs):
+    """Arguments for navigate_new_chat tool."""
+
+    pass  # Only requires rationale
+
+
 # Mapping of tool names to their argument schemas
 TOOL_ARG_SCHEMAS = {
     "get_connection_status": GetConnectionStatusArgs,
@@ -133,6 +218,11 @@ TOOL_ARG_SCHEMAS = {
     "execute_query": ExecuteQueryArgs,
     "get_table_indexes": GetTableIndexesArgs,
     "get_foreign_keys": GetForeignKeysArgs,
+    "open_sql_editor": OpenSqlEditorArgs,
+    "write_sql_editor_query": WriteSqlEditorQueryArgs,
+    "open_database_modal": OpenDatabaseModalArgs,
+    "open_settings_modal": OpenSettingsModalArgs,
+    "navigate_new_chat": NavigateNewChatArgs,
 }
 
 
@@ -220,6 +310,13 @@ class ForeignKeysResult(ToolResultBase):
     table: Optional[str] = None
     count: int = 0
     foreign_keys: List[Dict[str, Any]] = []
+
+
+class UiActionResult(ToolResultBase):
+    """Structured result for UI action tools."""
+
+    action: str
+    requiresConfirmation: bool = False
 
 
 # =============================================================================
@@ -345,6 +442,19 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             return ForeignKeysResult(
                 table=raw_result.get("table"), count=len(fks), foreign_keys=fks
             ).model_dump()
+
+        elif tool_name in SUPPORTED_UI_ACTIONS:
+            structured = UiActionResult(
+                action=tool_name,
+                requiresConfirmation=bool(
+                    raw_result.get("requiresConfirmation", False)
+                ),
+            ).model_dump()
+            # Preserve the compact legacy shape unless confirmation metadata matters.
+            if not structured["requiresConfirmation"]:
+                structured.pop("requiresConfirmation", None)
+            structured.pop("error", None)
+            return structured
 
         else:
             # Unknown tool - return as-is with success flag

@@ -5,7 +5,7 @@ Pydantic models for validating incoming API requests.
 Provides type safety, automatic validation, and clear error messages.
 """
 
-from typing import Optional, Literal
+from typing import Any, Optional, Literal
 from pydantic import BaseModel, Field, field_validator
 
 
@@ -36,6 +36,44 @@ class ChatRequest(BaseModel):
         if not v or not v.strip():
             raise ValueError("Prompt cannot be empty")
         return v.strip()
+
+    @field_validator("provider")
+    @classmethod
+    def sanitize_provider(cls, v):
+        if v is None:
+            return None
+        provider = v.strip().lower()
+        return provider or None
+
+    @field_validator("model")
+    @classmethod
+    def sanitize_model(cls, v):
+        if v is None:
+            return None
+        model = v.strip()
+        return model or None
+
+
+class AgentResumeRequest(BaseModel):
+    """Schema for resuming a paused LangGraph conversation."""
+
+    conversation_id: str = Field(..., min_length=1, max_length=100)
+    resume: dict[str, Any] = Field(...)
+    enable_reasoning: bool = Field(default=True)
+    reasoning_effort: Literal["low", "medium", "high"] = Field(default="medium")
+    response_style: Literal["concise", "balanced", "detailed"] = Field(
+        default="balanced"
+    )
+    max_rows: Optional[int] = Field(default=1000, ge=1, le=100000)
+    provider: Optional[str] = Field(default=None, max_length=50)
+    model: Optional[str] = Field(default=None, max_length=150)
+
+    @field_validator("resume")
+    @classmethod
+    def resume_not_empty(cls, v):
+        if not isinstance(v, dict) or not v:
+            raise ValueError("Resume payload cannot be empty")
+        return v
 
     @field_validator("provider")
     @classmethod

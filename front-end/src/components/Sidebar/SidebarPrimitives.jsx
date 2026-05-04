@@ -165,6 +165,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   disabled = false,
   circularIconBg = false,
   shortcut,
+  uiTarget,
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -184,6 +185,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
         onClick={disabled ? undefined : onClick}
         disabled={disabled}
         aria-label={label}
+        data-ui-target={uiTarget}
         sx={{
           ...buildSidebarNavRowSx(theme, { isActive, disabled }),
           '&:hover:not(:disabled) .shortcut-hint': { opacity: 1 },

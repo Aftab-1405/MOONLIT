@@ -13,6 +13,7 @@ import logging
 from typing import AsyncGenerator, Optional
 
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langgraph.types import Command
 from fastapi.concurrency import run_in_threadpool
 
 from .checkpointing import get_checkpointer
@@ -30,7 +31,7 @@ MAX_AGENT_STEPS = 25
 
 async def stream_conversation(
     conversation_id: str,
-    message: str,
+    message: str | None,
     user_id: str,
     *,
     db_config: Optional[dict] = None,
@@ -41,6 +42,7 @@ async def stream_conversation(
     model: Optional[str] = None,
     enable_reasoning: bool = True,
     reasoning_effort: str = "medium",
+    resume: Optional[dict] = None,
 ) -> AsyncGenerator[str, None]:
     """
     Stream a full agent turn as SSE-encoded JSON events.
@@ -49,6 +51,8 @@ async def stream_conversation(
     Event types: ``token``, ``tool_start``, ``tool_end``,
     ``thinking_token``, ``error``, ``done``.
     """
+    last_completed_tool: dict | None = None
+
     try:
         selected_model = model or get_default_model(provider)
         chat_model = get_chat_model(
@@ -85,7 +89,10 @@ async def stream_conversation(
             "recursion_limit": MAX_AGENT_STEPS,
         }
 
-        if not await _has_checkpoint(checkpointer, conversation_id):
+        graph_input = None
+        if resume is not None:
+            graph_input = Command(resume=resume)
+        elif not await _has_checkpoint(checkpointer, conversation_id):
             history = await _load_firestore_history(conversation_id)
             initial_messages = history + [HumanMessage(content=message)]
             if history:
@@ -94,13 +101,15 @@ async def stream_conversation(
                     len(history),
                     conversation_id,
                 )
+            graph_input = {"messages": initial_messages}
         else:
             initial_messages = [HumanMessage(content=message)]
+            graph_input = {"messages": initial_messages}
 
         async for part in agent.astream(
-            {"messages": initial_messages},
+            graph_input,
             config=config,
-            stream_mode=["messages", "custom"],
+            stream_mode=["messages", "custom", "updates"],
             version="v2",
             durability="async",
         ):
@@ -133,11 +142,35 @@ async def stream_conversation(
                     yield sse_encode({"type": "token", "content": content})
 
             elif part["type"] == "custom":
-                yield sse_encode(part["data"])
+                custom_event = part["data"]
+                if isinstance(custom_event, dict) and custom_event.get("type") == "tool_end":
+                    result = custom_event.get("result")
+                    if isinstance(result, dict) and result.get("success", True):
+                        last_completed_tool = custom_event
+                yield sse_encode(custom_event)
+
+            elif part["type"] == "updates":
+                interrupt_event = _extract_interrupt_event(part.get("data"))
+                if interrupt_event:
+                    yield sse_encode(interrupt_event)
 
         yield sse_done()
 
     except Exception as e:
+        if _is_rate_limit_error(str(e)) and _can_complete_from_tool(last_completed_tool):
+            logger.warning(
+                "Model rate limit after successful %s; completing stream from tool result.",
+                last_completed_tool.get("name"),
+            )
+            yield sse_encode(
+                {
+                    "type": "token",
+                    "content": _tool_completion_fallback(last_completed_tool),
+                }
+            )
+            yield sse_done()
+            return
+
         logger.error("Agent stream error: %s", e, exc_info=True)
         yield sse_error(_friendly_error(str(e)))
         yield sse_done()
@@ -197,3 +230,56 @@ def _friendly_error(raw: str) -> str:
     if "connection" in lower:
         return "Unable to connect to AI service. Check your internet connection."
     return "Something went wrong. Please try again."
+
+
+def _is_rate_limit_error(raw: str) -> bool:
+    lower = raw.lower()
+    return "429" in lower or "rate_limit" in lower or "too_many_requests" in lower
+
+
+def _can_complete_from_tool(tool_event: dict | None) -> bool:
+    if not isinstance(tool_event, dict):
+        return False
+    return tool_event.get("type") == "tool_end" and tool_event.get("name") == "execute_query"
+
+
+def _tool_completion_fallback(tool_event: dict) -> str:
+    result = tool_event.get("result") if isinstance(tool_event, dict) else {}
+    if not isinstance(result, dict):
+        return "Query executed successfully. The results are open in the SQL workspace."
+
+    row_count = result.get("row_count")
+    total_rows = result.get("total_rows")
+    truncated = result.get("truncated")
+
+    if row_count is not None and total_rows not in (None, row_count):
+        suffix = " The result was truncated for display." if truncated else ""
+        return (
+            f"Query executed successfully. The SQL workspace shows {row_count} rows "
+            f"out of {total_rows} total.{suffix}"
+        )
+    if row_count is not None:
+        return f"Query executed successfully. The SQL workspace shows {row_count} rows."
+    return "Query executed successfully. The results are open in the SQL workspace."
+
+
+def _extract_interrupt_event(data) -> dict | None:
+    """Convert LangGraph ``__interrupt__`` updates into an SSE-safe event."""
+    if not isinstance(data, dict) or "__interrupt__" not in data:
+        return None
+
+    interrupts = data.get("__interrupt__") or []
+    if not interrupts:
+        return None
+
+    first = interrupts[0]
+    payload = getattr(first, "value", first)
+    interrupt_id = getattr(first, "id", None)
+    if not isinstance(payload, dict):
+        payload = {"message": str(payload)}
+
+    return {
+        "type": "agent_interrupt",
+        "id": interrupt_id,
+        "payload": payload,
+    }

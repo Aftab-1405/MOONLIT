@@ -170,7 +170,7 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
   );
 });
 
-function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase }) {
+function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase, initialDbType = null }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { settings } = useSettings();
@@ -214,6 +214,20 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase 
       }
     }
   }, [open, rememberConnection, savedConnection]);
+
+  useEffect(() => {
+    if (open && initialDbType) {
+      const isValid = DB_TYPES.some((db) => db.value === initialDbType);
+      if (isValid) {
+        setDbType(initialDbType);
+        // Also update the port to match the new db type
+        const dbConfig = DB_TYPES.find((db) => db.value === initialDbType);
+        if (dbConfig?.defaultPort) {
+          setFormData((prev) => ({ ...prev, port: dbConfig.defaultPort.toString() }));
+        }
+      }
+    }
+  }, [open, initialDbType]);
 
   const fetchDatabases = useCallback(async () => {
     try {

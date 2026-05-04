@@ -8,6 +8,7 @@
  *   token          – LLM content token
  *   tool_start     – tool invocation begun
  *   tool_end       – tool invocation finished (includes UI result)
+ *   ui_action      – guided frontend action for the browser UI
  *   thinking_token – reasoning / chain-of-thought token
  *   error          – recoverable error message
  *   done           – stream complete
@@ -26,7 +27,6 @@
 export async function parseSSEStream(reader, decoder, onEvent) {
   let buffer = '';
 
-  // eslint-disable-next-line no-constant-condition
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;

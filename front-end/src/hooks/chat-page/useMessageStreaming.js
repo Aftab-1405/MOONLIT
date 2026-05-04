@@ -1,14 +1,14 @@
 /**
  * useMessageStreaming Hook
  *
- * Handles sending messages and streaming AI responses via SSE events.
- * Manages abort controller for cancellation support.
+ * Handles sending messages, resuming LangGraph interrupts, and streaming AI
+ * responses via SSE events.
  *
  * @module hooks/useMessageStreaming
  */
 
 import { useCallback, useRef } from 'react';
-import { sendMessage } from '../../api';
+import { resumeAgent, sendMessage } from '../../api';
 import logger from '../../utils/logger';
 import { parseSSEStream } from '../../utils/streamParser';
 import {
@@ -20,9 +20,6 @@ import {
 
 const UPDATE_THROTTLE_MS = 16;
 
-/**
- * Get user-friendly error message based on error type
- */
 function getErrorMessage(error) {
   if (!navigator.onLine) {
     return "You appear to be offline. Please check your internet connection and try again.";
@@ -80,9 +77,6 @@ function upsertAssistantMessage(prevMessages, assistantId, messageData, status) 
   return updated;
 }
 
-/**
- * Hook for message streaming functionality
- */
 export function useMessageStreaming({
   currentConversationId,
   setCurrentConversationId,
@@ -92,8 +86,150 @@ export function useMessageStreaming({
   fetchConversations,
   registerStreamingConversation,
   settings,
+  dispatchUiAction = () => {},
+  onAgentInterrupt = () => {},
+  getMessages = () => [],
 }) {
   const abortControllerRef = useRef(null);
+
+  const streamAssistantResponse = useCallback(async ({
+    response,
+    assistantMessageId,
+    promptForNewConversation,
+    baseMessageData = null,
+  }) => {
+    const newConversationId = response.headers.get('X-Conversation-Id');
+    if (newConversationId && !currentConversationId) {
+      registerStreamingConversation?.(newConversationId);
+      setCurrentConversationId(newConversationId);
+      navigate(`/chat/${newConversationId}`, { replace: true });
+
+      const tempTitle = promptForNewConversation.substring(0, 50)
+        + (promptForNewConversation.length > 50 ? '...' : '');
+      setConversations((prev) => [
+        { id: newConversationId, title: tempTitle, created_at: new Date().toISOString() },
+        ...prev,
+      ]);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    const contentParts = [];
+    const toolSteps = [];
+    let thinkingContent = '';
+    let lastUpdateTime = 0;
+    let interruptedWithoutAssistantContent = false;
+
+    const buildMessageData = (isDone = false) => {
+      const steps = [];
+      if (thinkingContent) {
+        steps.push({ type: 'thinking', content: thinkingContent, isComplete: isDone });
+      }
+      toolSteps.forEach((tool, index) => {
+        steps.push({
+          type: 'tool',
+          id: `tool-${tool.name}-${index}`,
+          name: tool.name,
+          status: tool.status,
+          args: tool.args,
+          result: tool.result,
+        });
+      });
+      const streamedText = contentParts.join('');
+      const baseText = baseMessageData?.text || '';
+      const baseSteps = Array.isArray(baseMessageData?.steps) ? baseMessageData.steps : [];
+      return { text: `${baseText}${streamedText}`, steps: [...baseSteps, ...steps] };
+    };
+
+    const throttledUpdate = (status) => {
+      const now = Date.now();
+      if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
+        setMessages((prev) =>
+          upsertAssistantMessage(prev, assistantMessageId, buildMessageData(), status)
+        );
+        lastUpdateTime = now;
+      }
+    };
+
+    await parseSSEStream(reader, decoder, (event) => {
+      switch (event.type) {
+        case 'token':
+          contentParts.push(event.content);
+          throttledUpdate(MESSAGE_STATUS.STREAMING);
+          break;
+
+        case 'tool_start':
+          toolSteps.push({
+            name: event.name,
+            status: 'running',
+            args: event.args,
+            result: null,
+          });
+          throttledUpdate(MESSAGE_STATUS.STREAMING);
+          break;
+
+        case 'tool_end': {
+          const step = toolSteps.find(
+            (s) => s.name === event.name && s.status === 'running'
+          );
+          if (step) {
+            step.status = 'done';
+            step.args = event.args;
+            step.result = event.result;
+          }
+          throttledUpdate(MESSAGE_STATUS.STREAMING);
+          break;
+        }
+
+        case 'thinking_token':
+          thinkingContent += event.content;
+          throttledUpdate(MESSAGE_STATUS.STREAMING);
+          break;
+
+        case 'agent_interrupt':
+          interruptedWithoutAssistantContent = true;
+          onAgentInterrupt(event, assistantMessageId);
+          throttledUpdate(MESSAGE_STATUS.WAITING);
+          break;
+
+        case 'error':
+          contentParts.push(`\n\n**Error**: ${event.message}`);
+          throttledUpdate(MESSAGE_STATUS.ERROR);
+          break;
+
+        case 'ui_action':
+          dispatchUiAction(event);
+          break;
+
+        default:
+          break;
+      }
+    });
+
+    if (
+      interruptedWithoutAssistantContent
+      && contentParts.length === 0
+      && toolSteps.length === 0
+      && !thinkingContent
+    ) {
+      setMessages((prev) => prev.filter((message) => message.id !== assistantMessageId));
+    } else {
+      setMessages((prev) =>
+        upsertAssistantMessage(prev, assistantMessageId, buildMessageData(true), MESSAGE_STATUS.DONE)
+      );
+    }
+    fetchConversations(undefined, { showLoading: false });
+  }, [
+    currentConversationId,
+    dispatchUiAction,
+    fetchConversations,
+    navigate,
+    onAgentInterrupt,
+    registerStreamingConversation,
+    setConversations,
+    setCurrentConversationId,
+    setMessages,
+  ]);
 
   const handleSendMessage = useCallback(async (message, overrides = null) => {
     const prompt = message.trim();
@@ -132,121 +268,19 @@ export function useMessageStreaming({
         model,
       }, abortControllerRef.current.signal);
 
-      const newConversationId = response.headers.get('X-Conversation-Id');
-      if (newConversationId && !currentConversationId) {
-        registerStreamingConversation?.(newConversationId);
-        setCurrentConversationId(newConversationId);
-        navigate(`/chat/${newConversationId}`, { replace: true });
-
-        const tempTitle = prompt.substring(0, 50) + (prompt.length > 50 ? '...' : '');
-        setConversations((prev) => [
-          { id: newConversationId, title: tempTitle, created_at: new Date().toISOString() },
-          ...prev,
-        ]);
-      }
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-
-      // Accumulate structured data from SSE events
-      const contentParts = [];
-      const toolSteps = [];
-      let thinkingContent = '';
-      let lastUpdateTime = 0;
-
-      const buildMessageData = (isDone = false) => {
-        const steps = [];
-        if (thinkingContent) {
-          steps.push({ type: 'thinking', content: thinkingContent, isComplete: isDone });
-        }
-        toolSteps.forEach((tool, index) => {
-          steps.push({
-            type: 'tool',
-            id: `tool-${tool.name}-${index}`,
-            name: tool.name,
-            status: tool.status,
-            args: tool.args,
-            result: tool.result,
-          });
-        });
-        return { text: contentParts.join(''), steps };
-      };
-
-      const throttledUpdate = (status) => {
-        const now = Date.now();
-        if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-          setMessages((prev) =>
-            upsertAssistantMessage(prev, assistantMessageId, buildMessageData(), status)
-          );
-          lastUpdateTime = now;
-        }
-      };
-
-      await parseSSEStream(reader, decoder, (event) => {
-        switch (event.type) {
-          case 'token':
-            contentParts.push(event.content);
-            throttledUpdate(MESSAGE_STATUS.STREAMING);
-            break;
-
-          case 'tool_start':
-            toolSteps.push({
-              name: event.name,
-              status: 'running',
-              args: event.args,
-              result: null,
-            });
-            throttledUpdate(MESSAGE_STATUS.STREAMING);
-            break;
-
-          case 'tool_end': {
-            const step = toolSteps.find(
-              (s) => s.name === event.name && s.status === 'running'
-            );
-            if (step) {
-              step.status = 'done';
-              step.args = event.args;
-              step.result = event.result;
-            }
-            throttledUpdate(MESSAGE_STATUS.STREAMING);
-            break;
-          }
-
-          case 'thinking_token':
-            thinkingContent += event.content;
-            throttledUpdate(MESSAGE_STATUS.STREAMING);
-            break;
-
-          case 'error':
-            contentParts.push(`\n\n⚠️ **Error**: ${event.message}`);
-            throttledUpdate(MESSAGE_STATUS.ERROR);
-            break;
-
-          case 'done':
-            // Mark thinking as complete
-            // Final update handled below
-            break;
-
-          default:
-            break;
-        }
+      await streamAssistantResponse({
+        response,
+        assistantMessageId,
+        promptForNewConversation: prompt,
       });
-
-      // Final update — ensure the last state is flushed with thinking marked complete
-      setMessages((prev) =>
-        upsertAssistantMessage(prev, assistantMessageId, buildMessageData(true), MESSAGE_STATUS.DONE)
-      );
-
-      fetchConversations(undefined, { showLoading: false });
     } catch (error) {
       if (error.name === 'AbortError') {
         setMessages((prev) => {
           const existingAssistant = prev.find((msg) => msg.id === assistantMessageId);
-          const currentText = existingAssistant?.text || '';
           return upsertAssistantMessage(
             prev,
             assistantMessageId,
-            { text: currentText, steps: existingAssistant?.steps || [] },
+            { text: existingAssistant?.text || '', steps: existingAssistant?.steps || [] },
             MESSAGE_STATUS.STOPPED,
           );
         });
@@ -254,7 +288,6 @@ export function useMessageStreaming({
       }
       logger.error('Message streaming error:', error);
       const errorMessage = getErrorMessage(error);
-
       setMessages((prev) => {
         const existingAssistant = prev.find((msg) => msg.id === assistantMessageId);
         const currentText = existingAssistant?.text
@@ -270,16 +303,81 @@ export function useMessageStreaming({
     } finally {
       abortControllerRef.current = null;
     }
-  }, [
-    currentConversationId,
-    settings,
-    navigate,
-    fetchConversations,
-    registerStreamingConversation,
-    setMessages,
-    setConversations,
-    setCurrentConversationId,
-  ]);
+  }, [currentConversationId, settings, setMessages, streamAssistantResponse]);
+
+  const handleResumeAgent = useCallback(async (resumePayload, overrides = null) => {
+    if (!currentConversationId || !resumePayload) return;
+
+    const assistantMessageId = overrides?.assistantMessageId || createMessageId('assistant');
+    const existingMessage = overrides?.assistantMessageId
+      ? getMessages().find((message) => message.id === overrides.assistantMessageId)
+      : null;
+    const baseMessageData = existingMessage
+      ? { text: existingMessage.text || '', steps: existingMessage.steps || [] }
+      : null;
+
+    setMessages((prev) => {
+      if (existingMessage) {
+        return prev.map((message) => (
+          message.id === assistantMessageId
+            ? { ...message, status: MESSAGE_STATUS.WAITING }
+            : message
+        ));
+      }
+      return [
+        ...prev,
+        createAssistantMessage({
+          id: assistantMessageId,
+          textOverride: '',
+          stepsOverride: [],
+          status: MESSAGE_STATUS.WAITING,
+        }),
+      ];
+    });
+
+    const enableReasoning = settings.enableReasoning ?? true;
+    const reasoningEffort = settings.reasoningEffort ?? 'medium';
+    const responseStyle = settings.responseStyle ?? 'balanced';
+    const maxRows = settings.maxRows ?? 1000;
+    const provider = overrides?.provider ?? settings.llmProvider ?? null;
+    const model = overrides?.model ?? settings.llmModel ?? null;
+
+    abortControllerRef.current = new AbortController();
+
+    try {
+      const response = await resumeAgent({
+        conversationId: currentConversationId,
+        resume: resumePayload,
+        enableReasoning,
+        reasoningEffort,
+        responseStyle,
+        maxRows,
+        provider,
+        model,
+      }, abortControllerRef.current.signal);
+
+      await streamAssistantResponse({
+        response,
+        assistantMessageId,
+        promptForNewConversation: '',
+        baseMessageData,
+      });
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      logger.error('Agent resume streaming error:', error);
+      const errorMessage = getErrorMessage(error);
+      setMessages((prev) =>
+        upsertAssistantMessage(
+          prev,
+          assistantMessageId,
+          { text: errorMessage, steps: [] },
+          MESSAGE_STATUS.ERROR,
+        )
+      );
+    } finally {
+      abortControllerRef.current = null;
+    }
+  }, [currentConversationId, getMessages, settings, setMessages, streamAssistantResponse]);
 
   const handleStopStreaming = useCallback(() => {
     if (abortControllerRef.current) {
@@ -289,6 +387,7 @@ export function useMessageStreaming({
 
   return {
     handleSendMessage,
+    handleResumeAgent,
     handleStopStreaming,
   };
 }

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
 import { useDatabaseConnection } from '../../contexts/DatabaseContext';
@@ -12,12 +12,25 @@ import { useSqlEditorPanel } from './useSqlEditorPanel';
 import { useResponsive } from './useResponsive';
 import { useChatPageLlmSelection } from './useChatPageLlmSelection';
 import { useChatPageSessionLifecycle } from './useChatPageSessionLifecycle';
+import { useUiActionDispatcher } from './useUiActionDispatcher';
 import { isMessageActive } from '../../utils/chatMessages';
 import { UI_LAYOUT } from '../../styles/shared';
 import { useLocalStorage } from '../../hooks';
 
 const DRAWER_WIDTH = UI_LAYOUT.sidebarExpandedWidth;
 const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth;
+const SNACKBAR_MESSAGE_LIMIT = 120;
+
+function getCompactSnackbarMessage(message, fallback = 'Guidance available') {
+  const text = String(message || '').replace(/\s+/g, ' ').trim();
+  if (!text) return fallback;
+  if (text.length <= SNACKBAR_MESSAGE_LIMIT) return text;
+  const sentenceEnd = text.search(/[.!?]\s/);
+  if (sentenceEnd > 24 && sentenceEnd <= SNACKBAR_MESSAGE_LIMIT) {
+    return text.slice(0, sentenceEnd + 1);
+  }
+  return `${text.slice(0, SNACKBAR_MESSAGE_LIMIT - 1).trim()}…`;
+}
 
 export function useChatPageController() {
   const theme = useMuiTheme();
@@ -67,7 +80,20 @@ export function useChatPageController() {
   const [anchorEl, setAnchorEl] = useState(null);
   const [dbModalOpen, setDbModalOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [dbModalInitialType, setDbModalInitialType] = useState(null);
+  const [settingsInitialSection, setSettingsInitialSection] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [guidedConfirmDialog, setGuidedConfirmDialog] = useState({
+    open: false,
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    cancelText: 'Not now',
+    onCancel: null,
+    onConfirm: null,
+  });
+  const resumeAgentRef = useRef(null);
+  const messagesRef = useRef(messages);
 
   const llmSelection = useChatPageLlmSelection({ settings, updateSetting, updateSettings });
   const {
@@ -79,7 +105,11 @@ export function useChatPageController() {
   } = llmSelection;
 
   const showSnackbar = useCallback((message, severity = 'info') => {
-    setSnackbar({ open: true, message, severity });
+    setSnackbar({
+      open: true,
+      message: getCompactSnackbarMessage(message),
+      severity,
+    });
   }, []);
   const {
     queryResults,
@@ -93,8 +123,115 @@ export function useChatPageController() {
     setDbModalOpen,
     showSnackbar,
   });
+
+  const handleSidebarNewChat = useCallback(() => {
+    setMobileOpen(false);
+    navigate('/chat');
+  }, [navigate]);
+
+  const isCurrentlyStreaming = useMemo(() => {
+    if (messages.length === 0) return false;
+    const lastMessage = messages[messages.length - 1];
+    return lastMessage?.role === 'assistant' && isMessageActive(lastMessage);
+  }, [messages]);
+
+  const closeGuidedConfirmDialog = useCallback(() => {
+    setGuidedConfirmDialog({
+      open: false,
+      title: '',
+      message: '',
+      confirmText: 'Confirm',
+      cancelText: 'Not now',
+      onCancel: null,
+      onConfirm: null,
+    });
+  }, []);
+
+  const handleGuidedCancel = useCallback(async () => {
+    const action = guidedConfirmDialog.onCancel;
+    closeGuidedConfirmDialog();
+    await action?.();
+  }, [closeGuidedConfirmDialog, guidedConfirmDialog.onCancel]);
+
+  const handleGuidedConfirm = useCallback(async () => {
+    const action = guidedConfirmDialog.onConfirm;
+    closeGuidedConfirmDialog();
+    await action?.();
+  }, [closeGuidedConfirmDialog, guidedConfirmDialog.onConfirm]);
+
+  const dispatchUiAction = useUiActionDispatcher({
+    open_sql_editor: (payload) => handleOpenSqlEditor(payload?.query || ''),
+    write_sql_editor_query: (payload) => {
+      if (!payload?.query) return;
+      handleOpenSqlEditor(payload.query);
+    },
+    open_database_modal: (payload) => {
+      setDbModalOpen(true);
+      if (payload?.db_type) setDbModalInitialType(payload.db_type);
+    },
+    open_settings_modal: (payload) => {
+      setSettingsOpen(true);
+      if (payload?.section) setSettingsInitialSection(payload.section);
+    },
+    navigate_new_chat: (payload) => {
+      setGuidedConfirmDialog({
+        open: true,
+        title: payload?.title || 'Start a new chat?',
+        message: payload?.message || 'This will leave the current conversation.',
+        confirmText: payload?.confirmText || 'New Chat',
+        cancelText: payload?.cancelText || 'Not now',
+        onCancel: () => showSnackbar('Action cancelled.', 'info'),
+        onConfirm: () => showSnackbar('Please wait for the agent to resume.', 'info'),
+      });
+    },
+    complete_navigate_new_chat: (payload) => {
+      window.setTimeout(() => {
+        handleSidebarNewChat();
+      }, Number(payload?.delayMs) || 900);
+    },
+    onInvalidAction: ({ reason }) => {
+      if (reason) showSnackbar(reason, 'warning');
+    },
+  });
+
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
+  const handleAgentInterrupt = useCallback((event, assistantMessageId = null) => {
+    const payload = event?.payload || {};
+    const action = payload.action || payload.sourceTool;
+    const resumeWith = (approved) => {
+      const resumePayload = {
+        approved,
+        action,
+        interrupt_id: event?.id || null,
+      };
+      resumeAgentRef.current?.(resumePayload, {
+        provider: selectedProvider || null,
+        model: selectedModel || null,
+        assistantMessageId,
+      });
+    };
+
+    if (action === 'execute_query' && payload.query) {
+      handleOpenSqlEditor(payload.query);
+    }
+
+    setGuidedConfirmDialog({
+      open: true,
+      title: payload.title || 'Confirm action',
+      message: payload.message || 'Please confirm before I continue.',
+      confirmText: payload.confirmText || 'Confirm',
+      cancelText: payload.cancelText || 'Not now',
+      onCancel: () => resumeWith(false),
+      onConfirm: () => resumeWith(true),
+    });
+  }, [handleOpenSqlEditor, selectedModel, selectedProvider]);
+
   const {
     handleSendMessage,
+    handleResumeAgent,
     handleStopStreaming,
   } = useMessageStreaming({
     currentConversationId,
@@ -105,7 +242,13 @@ export function useChatPageController() {
     fetchConversations,
     registerStreamingConversation,
     settings,
+    dispatchUiAction,
+    onAgentInterrupt: handleAgentInterrupt,
+    getMessages: () => messagesRef.current,
   });
+  useEffect(() => {
+    resumeAgentRef.current = handleResumeAgent;
+  }, [handleResumeAgent]);
 
   useChatPageSessionLifecycle({
     isDbConnected,
@@ -117,11 +260,6 @@ export function useChatPageController() {
   const idleAnimationIntensity = settings.idleAnimationIntensity ?? 'medium';
   const starfieldActive = isDarkMode && idleAnimationEnabled && isIdle;
 
-  const isCurrentlyStreaming = useMemo(() => {
-    if (messages.length === 0) return false;
-    const lastMessage = messages[messages.length - 1];
-    return lastMessage?.role === 'assistant' && isMessageActive(lastMessage);
-  }, [messages]);
   const showWelcomeState = messages.length === 0 && !isConversationLoading;
   const showConversationPanel = messages.length > 0 || isConversationLoading;
 
@@ -137,20 +275,37 @@ export function useChatPageController() {
       snackbar.severity === 'error' ? theme.palette.error.main :
         snackbar.severity === 'warning' ? theme.palette.warning.main :
           theme.palette.info.main;
+    const surfaceColor = alpha(theme.palette.background.elevated, isDarkMode ? 0.96 : 0.98);
+    const borderBase = alpha(theme.palette.text.primary, isDarkMode ? 0.12 : 0.1);
 
     return {
       sx: {
-        backgroundColor: alpha(theme.palette.background.elevated, isDarkMode ? 0.95 : 0.98),
-        color: severityColor,
+        width: '100%',
+        maxWidth: 'min(420px, calc(100vw - 32px))',
+        alignItems: 'flex-start',
+        backgroundColor: surfaceColor,
+        color: theme.palette.text.primary,
         fontWeight: 500,
-        borderRadius: '6px',
-        border: `1.5px solid ${severityColor}`,
+        borderRadius: '8px',
+        border: `1px solid ${borderBase}`,
+        borderLeft: `3px solid ${severityColor}`,
         boxShadow: isDarkMode
-          ? `0 4px 12px ${alpha(theme.palette.text.primary, 0.25)}`
+          ? `0 12px 30px ${alpha(theme.palette.common.black, 0.28)}`
           : `0 4px 12px ${alpha(severityColor, 0.15)}`,
-        padding: theme.spacing(1.25, 2),
+        padding: theme.spacing(1.1, 1.5),
         minWidth: 'auto !important',
-        '& .MuiSnackbarContent-message': { padding: 0 },
+        '& .MuiSnackbarContent-message': {
+          padding: 0,
+          minWidth: 0,
+          ...theme.typography.uiBodySm,
+          lineHeight: 1.45,
+          whiteSpace: 'normal',
+          overflowWrap: 'anywhere',
+          display: '-webkit-box',
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+        },
       },
     };
   }, [isDarkMode, theme, snackbar.severity]);
@@ -186,7 +341,7 @@ export function useChatPageController() {
 
   const handleSidebarToggle = useCallback(() => {
     setSidebarOpen((prev) => !prev);
-  }, []);
+  }, [setSidebarOpen]);
   const handleMenuOpen = useCallback((e) => {
     setAnchorEl(e.currentTarget);
   }, []);
@@ -272,10 +427,6 @@ export function useChatPageController() {
     handleDatabaseSwitch,
     user,
   ]);
-  const handleSidebarNewChat = useCallback(() => {
-    setMobileOpen(false);
-    navigate('/chat');
-  }, [navigate]);
   const handleSidebarSelectConversation = useCallback((id) => {
     setMobileOpen(false);
     navigate(`/chat/${id}`);
@@ -339,5 +490,11 @@ export function useChatPageController() {
     handleCloseSettings,
     confirmDialog,
     handleConfirmDialogClose,
+    guidedConfirmDialog,
+    closeGuidedConfirmDialog,
+    handleGuidedCancel,
+    handleGuidedConfirm,
+    dbModalInitialType,
+    settingsInitialSection,
   };
 }

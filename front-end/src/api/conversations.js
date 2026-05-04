@@ -84,3 +84,38 @@ export async function sendMessage({
     { signal }
   );
 }
+
+/**
+ * Resume a LangGraph conversation that paused for human input.
+ *
+ * @param {Object} params - Resume parameters
+ * @param {string} params.conversationId - Conversation ID/thread ID to resume
+ * @param {Object} params.resume - JSON-serializable resume payload
+ * @param {AbortSignal} [signal] - Optional abort signal for cancellation
+ * @returns {Promise<Response>} Raw response for streaming
+ */
+export async function resumeAgent({
+  conversationId,
+  resume,
+  enableReasoning = true,
+  reasoningEffort = 'medium',
+  responseStyle = 'balanced',
+  maxRows = 1000,
+  provider = null,
+  model = null,
+}, signal) {
+  return postRaw(
+    CONVERSATIONS.RESUME_AGENT,
+    {
+      conversation_id: conversationId,
+      resume,
+      enable_reasoning: enableReasoning,
+      reasoning_effort: reasoningEffort,
+      response_style: responseStyle,
+      max_rows: maxRows === 0 ? null : maxRows,
+      provider,
+      model,
+    },
+    { signal }
+  );
+}

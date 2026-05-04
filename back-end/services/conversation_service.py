@@ -49,7 +49,7 @@ class ConversationService:
     @staticmethod
     async def create_streaming_generator(
         conversation_id: str,
-        prompt: str,
+        prompt: str | None,
         user_id: str,
         db_config: dict = None,
         enable_reasoning: bool = True,
@@ -59,6 +59,7 @@ class ConversationService:
         api_key: str = None,
         provider: str | None = None,
         model: str | None = None,
+        resume: dict | None = None,
     ) -> AsyncGenerator[str, None]:
         """
         Consume SSE events from the LangGraph agent, pass them through
@@ -99,6 +100,7 @@ class ConversationService:
                 model=model,
                 enable_reasoning=enable_reasoning,
                 reasoning_effort=reasoning_effort,
+                resume=resume,
             ):
                 # Parse the SSE data line to track content/tools for persistence
                 event = _parse_sse_event(sse_line)
@@ -110,7 +112,7 @@ class ConversationService:
                 event_type = event.get("type")
 
                 if event_type == "token":
-                    if not prompt_stored:
+                    if prompt and not prompt_stored:
                         await run_in_threadpool(
                             ConversationRepository.store_message,
                             conversation_id, "user", prompt, user_id
@@ -119,7 +121,7 @@ class ConversationService:
                     full_content.append(event.get("content", ""))
 
                 elif event_type == "tool_start":
-                    if not prompt_stored:
+                    if prompt and not prompt_stored:
                         await run_in_threadpool(
                             ConversationRepository.store_message,
                             conversation_id, "user", prompt, user_id
@@ -148,7 +150,7 @@ class ConversationService:
                             break
 
                 elif event_type == "thinking_token":
-                    if not prompt_stored:
+                    if prompt and not prompt_stored:
                         await run_in_threadpool(
                             ConversationRepository.store_message,
                             conversation_id, "user", prompt, user_id
@@ -160,6 +162,13 @@ class ConversationService:
 
                 elif event_type == "error":
                     has_error = True
+
+                elif event_type == "agent_interrupt" and prompt and not prompt_stored:
+                    await run_in_threadpool(
+                        ConversationRepository.store_message,
+                        conversation_id, "user", prompt, user_id
+                    )
+                    prompt_stored = True
 
                 # event_type "done" — pass-through only
 
@@ -181,7 +190,8 @@ class ConversationService:
             yield _make_sse_error(_classify_error(str(err)))
 
         finally:
-            if prompt_stored and not response_stored and not has_error:
+            should_store_response = (prompt_stored or resume is not None) and not response_stored and not has_error
+            if should_store_response:
                 response_text = "".join(full_content).strip()
                 thinking_text = "".join(thinking_content).strip()
                 if response_text or tools_used or thinking_text:

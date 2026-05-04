@@ -21,6 +21,7 @@ export {
   getConversation,
   deleteConversation,
   sendMessage,
+  resumeAgent,
 } from './conversations';
 
 export { getLlmOptions } from './llm';

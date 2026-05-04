@@ -17,7 +17,7 @@ from agent.model_factory import (
     get_provider_models,
     get_default_model,
 )
-from api.request_schemas import ChatRequest
+from api.request_schemas import AgentResumeRequest, ChatRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["conversation"])
@@ -184,6 +184,93 @@ async def pass_user_prompt_to_llm(
     except Exception as e:
         llm_rate_limiter.release()
         logger.error(f"Error initializing chat: {e}")
+        if ConversationService.check_quota_error(str(e)):
+            raise HTTPException(status_code=429, detail="Rate limit exceeded")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/resume_agent")
+async def resume_agent(
+    request: Request,
+    data: AgentResumeRequest,
+    user: dict = Depends(get_current_user),
+    db_config: Optional[dict] = Depends(get_db_config),
+):
+    """Resume a LangGraph conversation paused by a human-in-the-loop interrupt."""
+    conversation_id = data.conversation_id
+    user_id = user.get("uid") or user
+    provider = data.provider or Config.LLM_PROVIDER
+    model = data.model
+
+    supported = set(get_supported_providers())
+    if provider not in supported:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "error": "invalid_provider",
+                "message": f"Unsupported provider '{provider}'. Supported values: {sorted(supported)}",
+            },
+        )
+
+    try:
+        _ = ConversationService.get_conversation_data(conversation_id, user_id)
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+
+    user_quota = request.app.state.user_quota
+    quota_allowed, usage = await user_quota.check_and_increment(user_id)
+    if not quota_allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "quota_exceeded",
+                "message": "You have exceeded your rate limit. Please wait.",
+                "usage": usage.to_dict(),
+            },
+        )
+
+    llm_rate_limiter = request.app.state.llm_rate_limiter
+    success, api_key = await llm_rate_limiter.acquire()
+    if not success:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "server_busy",
+                "message": "Server is busy. Please try again in a moment.",
+            },
+        )
+
+    try:
+
+        async def sse_generator():
+            try:
+                async for sse_line in ConversationService.create_streaming_generator(
+                    conversation_id,
+                    None,
+                    user_id,
+                    db_config=db_config,
+                    enable_reasoning=data.enable_reasoning,
+                    reasoning_effort=data.reasoning_effort,
+                    response_style=data.response_style,
+                    max_rows=data.max_rows,
+                    api_key=api_key if provider == Config.LLM_PROVIDER else None,
+                    provider=provider,
+                    model=model,
+                    resume=data.resume,
+                ):
+                    yield sse_line
+            finally:
+                llm_rate_limiter.release()
+
+        headers = ConversationService.get_streaming_headers(conversation_id)
+        return StreamingResponse(
+            sse_generator(),
+            media_type="text/event-stream",
+            headers=headers,
+        )
+    except Exception as e:
+        llm_rate_limiter.release()
+        logger.error(f"Error resuming agent: {e}")
         if ConversationService.check_quota_error(str(e)):
             raise HTTPException(status_code=429, detail="Rate limit exceeded")
         raise HTTPException(status_code=500, detail=str(e))

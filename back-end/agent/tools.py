@@ -16,6 +16,7 @@ from typing import Optional
 
 from langchain_core.tools import tool
 from langchain_core.runnables import RunnableConfig
+from langgraph.types import interrupt
 
 from .tool_executor import ToolExecutor
 from services.db_tool_executors import AIToolExecutor as DBTools
@@ -58,6 +59,102 @@ def _effective_max_rows(user_max_rows):
     from config import Config
 
     return Config.MAX_QUERY_RESULTS
+
+
+def _with_ui_metadata(
+    tool_name: str,
+    payload: dict | None = None,
+    *,
+    title: str | None = None,
+    message: str | None = None,
+    intent: str = "guide",
+    severity: str = "info",
+    requires_confirmation: bool = False,
+) -> dict:
+    """Attach the shared guided-copilot metadata every UI action may use."""
+    base = dict(payload or {})
+    metadata = {
+        "title": title,
+        "message": message,
+        "intent": intent,
+        "severity": severity,
+        "requiresConfirmation": requires_confirmation,
+        "sourceTool": tool_name,
+    }
+    for key, value in metadata.items():
+        if value is not None and (key != "requiresConfirmation" or value):
+            base[key] = value
+    return base
+
+
+def _emit_ui_action_tool(
+    tool_name: str,
+    raw_args: dict,
+    payload: dict | None,
+    summary: str,
+    *,
+    title: str | None = None,
+    message: str | None = None,
+    intent: str = "guide",
+    severity: str = "info",
+    requires_confirmation: bool = False,
+) -> str:
+    """Validate, emit tool_start -> ui_action -> tool_end, and return the LLM summary."""
+    validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
+    writer = _try_writer()
+    enriched_payload = _with_ui_metadata(
+        tool_name,
+        payload,
+        title=title,
+        message=message,
+        intent=intent,
+        severity=severity,
+        requires_confirmation=requires_confirmation,
+    )
+    result = {"success": True, "action": tool_name}
+    if requires_confirmation:
+        result["requiresConfirmation"] = True
+
+    writer({"type": "tool_start", "name": tool_name, "args": validated})
+    writer({"type": "ui_action", "action": tool_name, "payload": enriched_payload})
+    writer({"type": "tool_end", "name": tool_name, "args": validated, "result": result})
+    return summary
+
+
+def _is_user_approved(decision) -> bool:
+    """Normalize a human-in-the-loop resume payload into a boolean approval."""
+    if isinstance(decision, bool):
+        return decision
+    if isinstance(decision, dict):
+        return bool(decision.get("approved") or decision.get("confirmed"))
+    return False
+
+
+def _guided_interrupt_payload(
+    tool_name: str,
+    payload: dict | None = None,
+    *,
+    title: str,
+    message: str,
+    confirm_text: str = "Confirm",
+    cancel_text: str = "Not now",
+    intent: str = "confirm",
+    severity: str = "warning",
+) -> dict:
+    return _with_ui_metadata(
+        tool_name,
+        {
+            **(payload or {}),
+            "action": tool_name,
+            "confirmText": confirm_text,
+            "cancelText": cancel_text,
+        },
+        title=title,
+        message=message,
+        intent=intent,
+        severity=severity,
+        requires_confirmation=True,
+    )
 
 
 def _execute_tool(
@@ -205,10 +302,36 @@ def execute_query(
     *,
     config: RunnableConfig,
 ) -> str:
-    """Execute a SQL SELECT query against the connected database. Only SELECT queries are allowed for safety."""
+    """Ask the user to approve a SQL SELECT query, then execute it only after approval. Only SELECT queries are allowed for safety."""
+    tool_name = "execute_query"
+    raw_args = {"query": query, "rationale": rationale, "max_rows": max_rows}
+    validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
+    decision = interrupt(
+        _guided_interrupt_payload(
+            tool_name,
+            {"query": validated["query"]},
+            title="Run this query?",
+            message="Review the query before running it.",
+            confirm_text="Run Query",
+            intent="confirm",
+        )
+    )
+
+    if not _is_user_approved(decision):
+        writer = _try_writer()
+        result = {
+            "success": True,
+            "action": tool_name,
+            "approved": False,
+            "requiresConfirmation": True,
+        }
+        writer({"type": "tool_start", "name": tool_name, "args": validated})
+        writer({"type": "tool_end", "name": tool_name, "args": validated, "result": result})
+        return "The user declined the SQL query. Do not run it; continue without executing SQL."
+
     return _execute_tool(
-        "execute_query",
-        {"query": query, "rationale": rationale, "max_rows": max_rows},
+        tool_name,
+        raw_args,
         config,
         lambda v, uid, db_cfg, mx: DBTools._execute_query(
             uid, v["query"], _effective_max_rows(mx), db_config=db_cfg
@@ -320,6 +443,161 @@ def web_search(query: str, rationale: str, *, config: RunnableConfig) -> str:
     return "\n".join(lines)
 
 
+# ── UI action tools ──────────────────────────────────────────────────
+
+
+@tool
+def open_sql_editor(
+    rationale: str,
+    query: Optional[str] = None,
+    *,
+    config: RunnableConfig,
+) -> str:
+    """Opens the SQL editor panel in the UI. Optionally pre-populates the editor with a SQL query."""
+    tool_name = "open_sql_editor"
+    validated = ToolExecutor.validate_and_parse_args(tool_name, {"rationale": rationale, "query": query})
+    q = validated.get("query")
+    summary = (
+        "Opened the SQL editor with the provided query pre-populated."
+        if q
+        else "Opened the SQL editor."
+    )
+    return _emit_ui_action_tool(
+        tool_name,
+        {"rationale": rationale, "query": query},
+        {"query": q},
+        summary,
+        title="SQL editor ready",
+        message="Review the query before running it." if q else None,
+        intent="prepare",
+    )
+
+
+@tool
+def write_sql_editor_query(
+    query: str,
+    rationale: str,
+    *,
+    config: RunnableConfig,
+) -> str:
+    """Writes a SQL query directly into the SQL editor panel, opening it if not already open."""
+    tool_name = "write_sql_editor_query"
+    validated = ToolExecutor.validate_and_parse_args(tool_name, {"query": query, "rationale": rationale})
+    return _emit_ui_action_tool(
+        tool_name,
+        {"query": query, "rationale": rationale},
+        {"query": validated["query"]},
+        "Wrote the SQL query into the editor.",
+        title="Query prepared",
+        message="Review the query before running it.",
+        intent="prepare",
+    )
+
+
+@tool
+def open_database_modal(
+    rationale: str,
+    db_type: Optional[str] = None,
+    *,
+    config: RunnableConfig,
+) -> str:
+    """Opens the database connection modal in the UI. Optionally pre-selects a database type."""
+    tool_name = "open_database_modal"
+    validated = ToolExecutor.validate_and_parse_args(tool_name, {"rationale": rationale, "db_type": db_type})
+    dt = validated.get("db_type")
+    summary = (
+        f"Opened the database connection modal with '{dt}' pre-selected."
+        if dt
+        else "Opened the database connection modal."
+    )
+    return _emit_ui_action_tool(
+        tool_name,
+        {"rationale": rationale, "db_type": db_type},
+        {"db_type": dt},
+        summary,
+        title="Connect a database",
+        message="Fill in the connection details to continue.",
+        intent="navigate",
+    )
+
+
+@tool
+def open_settings_modal(
+    rationale: str,
+    section: Optional[str] = None,
+    *,
+    config: RunnableConfig,
+) -> str:
+    """Opens the settings modal in the UI. Optionally navigates to a specific section (appearance, ai, database, context)."""
+    tool_name = "open_settings_modal"
+    validated = ToolExecutor.validate_and_parse_args(tool_name, {"rationale": rationale, "section": section})
+    sec = validated.get("section")
+    summary = (
+        f"Opened the settings modal on the '{sec}' section."
+        if sec
+        else "Opened the settings modal."
+    )
+    return _emit_ui_action_tool(
+        tool_name,
+        {"rationale": rationale, "section": section},
+        {"section": sec},
+        summary,
+        title="Settings opened",
+        message=f"Showing the {sec} settings." if sec else None,
+        intent="navigate",
+    )
+
+
+@tool
+def navigate_new_chat(
+    rationale: str,
+    *,
+    config: RunnableConfig,
+) -> str:
+    """Navigates to a new chat conversation, clearing the current context."""
+    tool_name = "navigate_new_chat"
+    validated = ToolExecutor.validate_and_parse_args(tool_name, {"rationale": rationale})
+    decision = interrupt(
+        _guided_interrupt_payload(
+            tool_name,
+            title="Start a new chat?",
+            message="This will leave the current conversation.",
+            confirm_text="New Chat",
+            intent="navigate",
+        )
+    )
+
+    approved = _is_user_approved(decision)
+    writer = _try_writer()
+    result = {
+        "success": True,
+        "action": tool_name,
+        "approved": approved,
+        "requiresConfirmation": True,
+    }
+    writer({"type": "tool_start", "name": tool_name, "args": validated})
+    if approved:
+        writer(
+            {
+                "type": "ui_action",
+                "action": "complete_navigate_new_chat",
+                "payload": _with_ui_metadata(
+                    tool_name,
+                    {"delayMs": 900},
+                    title="Starting new chat",
+                    message="Opening a fresh conversation.",
+                    intent="navigate",
+                    severity="success",
+                ),
+            }
+        )
+        summary = "The user confirmed starting a new conversation. Tell them you are starting it for them."
+    else:
+        summary = "The user declined starting a new conversation. Tell them you will continue in the current chat."
+    writer({"type": "tool_end", "name": tool_name, "args": validated, "result": result})
+    return summary
+
+
 # ── public list ──────────────────────────────────────────────────────
 
 ALL_TOOLS = [
@@ -331,4 +609,9 @@ ALL_TOOLS = [
     get_table_indexes,
     get_foreign_keys,
     web_search,
+    open_sql_editor,
+    write_sql_editor_query,
+    open_database_modal,
+    open_settings_modal,
+    navigate_new_chat,
 ]
