@@ -262,7 +262,7 @@ function ChatInput({
                 onClick={() => handleDatabaseChange(db)}
                 sx={getSelectableMenuItemSx(theme, { isActive })}
               >
-                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'text.primary' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                <Typography sx={{ ...theme.typography.uiNavItem, color: isActive ? 'text.primary' : 'text.primary', fontWeight: isActive ? 500 : 400 }}>
                   {db}
                 </Typography>
                 {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
@@ -295,7 +295,7 @@ function ChatInput({
                 onClick={() => handleSchemaChange(schema)}
                 sx={getSelectableMenuItemSx(theme, { isActive })}
               >
-                <Typography sx={{ fontSize: '0.875rem', color: isActive ? 'text.primary' : 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                <Typography sx={{ ...theme.typography.uiNavItem, color: isActive ? 'text.primary' : 'text.primary', fontWeight: isActive ? 500 : 400 }}>
                   {schema}
                 </Typography>
                 {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
@@ -342,11 +342,11 @@ function ChatInput({
                       sx={getSelectableMenuItemSx(theme, { isActive })}
                     >
                       <Box>
-                        <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                        <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary', fontWeight: isActive ? 500 : 400 }}>
                           {model}
                         </Typography>
                         {model === section.defaultModel && (
-                          <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', lineHeight: 1.3, mt: 0.25 }}>
+                          <Typography sx={{ ...theme.typography.uiNavShortcut, color: 'text.secondary', mt: 0.25 }}>
                             Default
                           </Typography>
                         )}
@@ -361,10 +361,10 @@ function ChatInput({
             ))
           ) : (
             <Box sx={{ px: 1, py: 1 }}>
-              <Typography sx={{ fontSize: '0.875rem', fontWeight: 500, color: 'text.primary' }}>
+              <Typography sx={{ ...theme.typography.uiNavItem, fontWeight: 500, color: 'text.primary' }}>
                 No models available
               </Typography>
-              <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mt: 0.25 }}>
+              <Typography sx={{ ...theme.typography.uiNavShortcut, color: 'text.secondary', mt: 0.25 }}>
                 Model options could not be loaded.
               </Typography>
             </Box>
@@ -403,10 +403,10 @@ function ChatInput({
           onClick={toggleReasoning}
         >
           <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ fontSize: '0.875rem', color: reasoningEnabled ? 'success.main' : 'text.primary', lineHeight: 1.4, fontWeight: reasoningEnabled ? 500 : 400, transition: 'color 150ms' }}>
+            <Typography sx={{ ...theme.typography.uiNavItem, color: reasoningEnabled ? 'success.main' : 'text.primary', fontWeight: reasoningEnabled ? 500 : 400, transition: 'color 150ms' }}>
               Extended thinking
             </Typography>
-            <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', lineHeight: 1.3, mt: 0.25 }}>
+            <Typography sx={{ ...theme.typography.uiNavShortcut, color: 'text.secondary', mt: 0.25 }}>
               Think longer for complex tasks
             </Typography>
           </Box>

@@ -231,7 +231,7 @@ function Chat() {
         <Box sx={{ px: 1, pt: 0.5, pb: 1 }}>
           <Typography
             sx={{
-              fontSize: '0.75rem',
+              ...theme.typography.uiCaptionXs,
               color: 'text.secondary',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -255,7 +255,7 @@ function Chat() {
           }}
         >
           <SettingsOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
-          <Typography sx={{ fontSize: '0.875rem', color: 'text.primary' }}>Settings</Typography>
+          <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary' }}>Settings</Typography>
         </MenuItem>
         {/* Separator */}
         <Box sx={{ height: '0.5px', backgroundColor: alpha(theme.palette.text.primary, 0.07), my: 0.75, mx: 0.5 }} />
@@ -272,7 +272,7 @@ function Chat() {
           }}
         >
           <LogoutOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
-          <Typography sx={{ fontSize: '0.875rem', color: 'text.primary' }}>Sign out</Typography>
+          <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary' }}>Sign out</Typography>
         </MenuItem>
       </Menu>
       <Sidebar

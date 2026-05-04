@@ -85,7 +85,7 @@ function SidebarOverlays({
                 onClick={() => handleDatabaseSelect(db)}
                 sx={getSelectableMenuItemSx(theme, { isActive })}
               >
-                <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary', fontWeight: isActive ? 500 : 400 }}>
                   {db}
                 </Typography>
                 {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
@@ -101,7 +101,7 @@ function SidebarOverlays({
           sx={getSelectableMenuItemSx(theme, { columns: 'auto minmax(0, 1fr)' })}
         >
           <AddCircleOutlineRoundedIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
-          <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4 }}>
+          <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary' }}>
             New Connection
           </Typography>
         </Box>
@@ -145,7 +145,7 @@ function SidebarOverlays({
         <Box sx={{ maxHeight: 360, overflowY: 'auto', mt: 0.25 }}>
           {searchedConversations.length === 0 ? (
             <Box sx={{ px: 1, py: 1.5 }}>
-              <Typography sx={{ fontSize: '0.875rem', color: 'text.secondary', lineHeight: 1.4 }}>
+              <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary' }}>
                 {conversations.length === 0 ? 'No conversations yet' : 'No matching chats'}
               </Typography>
             </Box>
@@ -182,7 +182,7 @@ function SidebarOverlays({
         <Box sx={{ maxHeight: 360, overflowY: 'auto', mt: 0.5 }}>
           {conversations.length === 0 ? (
             <Box sx={{ px: 1, py: 1.5 }}>
-              <Typography sx={{ fontSize: '0.875rem', color: 'text.secondary', lineHeight: 1.4 }}>
+              <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary' }}>
                 No conversations yet
               </Typography>
             </Box>

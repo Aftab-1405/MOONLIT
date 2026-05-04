@@ -565,7 +565,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                 onClick={() => { setLabelColumn(col); setLabelAnchorEl(null); }}
                 sx={getSelectableMenuItemSx(theme, { isActive, columns: 'minmax(0, 1fr) auto' })}
               >
-                <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary', fontWeight: isActive ? 500 : 400 }}>
                   {col}
                 </Typography>
                 {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
@@ -598,7 +598,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
                 onClick={() => { setValueColumn(col); setValueAnchorEl(null); }}
                 sx={getSelectableMenuItemSx(theme, { isActive, columns: 'minmax(0, 1fr) auto' })}
               >
-                <Typography sx={{ fontSize: '0.875rem', color: 'text.primary', lineHeight: 1.4, fontWeight: isActive ? 500 : 400 }}>
+                <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary', fontWeight: isActive ? 500 : 400 }}>
                   {col}
                 </Typography>
                 {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}

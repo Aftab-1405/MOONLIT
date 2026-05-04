@@ -114,10 +114,11 @@ export const ConversationItem = memo(function ConversationItem({
         <MenuItem
           onClick={handleDelete}
           sx={{
-            fontSize: '0.84rem',
+            ...theme.typography.uiMenuItemSm,
             gap: 1,
             px: 1,
-            py: 0.85,            borderRadius: '8px',
+            py: 0.85,
+            borderRadius: '8px',
             color: theme.palette.error.main,
             transition: theme.transitions.create(['background-color', 'color'], {
               duration: theme.transitions.duration.shortest,
