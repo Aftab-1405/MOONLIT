@@ -7,8 +7,6 @@ import { getMoonlitBrandGradients } from '../../styles/themeEffects';
 function DemoSection() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const brand = theme.palette.primary.main;
-  const accent = theme.palette.secondary.main;
   const brandGradients = getMoonlitBrandGradients(theme);
 
   return (
@@ -24,7 +22,7 @@ function DemoSection() {
             sx={{
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
-              color: accent,
+              color: 'text.secondary',
               ...theme.typography.uiCaptionXs,
             }}
           >
@@ -71,7 +69,7 @@ function DemoSection() {
             sx={{
               position: 'absolute',
               inset: { xs: -30, md: -60 },
-              background: `radial-gradient(ellipse at 50% 40%, ${alpha(brand, isDark ? 0.18 : 0.1)}, transparent 65%)`,
+              background: `radial-gradient(ellipse at 50% 40%, ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.045)}, transparent 65%)`,
               pointerEvents: 'none',
               zIndex: 0,
               filter: { xs: 'blur(30px)', md: 'blur(60px)' },

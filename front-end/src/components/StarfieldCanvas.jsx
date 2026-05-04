@@ -67,14 +67,14 @@ const COLORS = {
     [212, 208, 200],
     [204, 200, 194],
   ],
-  // Kept *darker* than the theme bg so nebulas can only ever subtract luminance,
-  // never add it. The Selene tint is the one exception — used at near-invisible alpha.
+  // Kept darker than the theme bg so nebulas stay as monochrome depth texture,
+  // never as a colored effect layer.
   nebulas: [
     { r: 4,  g: 4,  b: 6,   name: 'voidBlack' },
     { r: 5,  g: 5,  b: 8,   name: 'deepCharcoal' },
     { r: 4,  g: 5,  b: 10,  name: 'deepInk' },
     { r: 6,  g: 7,  b: 9,   name: 'deepSlate' },
-    { r: 18, g: 20, b: 38,  name: 'seleneDeep' },
+    { r: 16, g: 16, b: 16,  name: 'codGrayDepth' },
   ],
   meteor: {
     head:  [205, 208, 215],
@@ -196,11 +196,10 @@ class NebulaSystem {
   }
 
   init(width, height) {
-    const seleneColor = COLORS.nebulas.find(n => n.name === 'seleneDeep');
+    const depthColor = COLORS.nebulas.find(n => n.name === 'codGrayDepth');
     for (let i = 0; i < CONFIG.nebulas.count; i++) {
-      // Last slot is always Selene-tinted for brand identity
-      const isSelene = i === CONFIG.nebulas.count - 1;
-      const color = isSelene ? seleneColor : pickRandom(COLORS.nebulas.slice(0, 4));
+      const isDepthLayer = i === CONFIG.nebulas.count - 1;
+      const color = isDepthLayer ? depthColor : pickRandom(COLORS.nebulas.slice(0, 4));
       this.nebulas.push({
         x: rand(0, width),
         y: rand(0, height),
@@ -209,10 +208,8 @@ class NebulaSystem {
         rotation: rand(0, Math.PI),
         rotationSpeed: (Math.random() - 0.5) * 0.005,
         color,
-        isSelene,
-        // Whisper-level alpha. Selene is the only one that ever adds *any* luminance,
-        // and it does so at near the JND threshold so it reads as a tint, not a cloud.
-        baseOpacity: isSelene ? rand(0.05, 0.08) : rand(0.18, 0.28),
+        isDepthLayer,
+        baseOpacity: isDepthLayer ? rand(0.05, 0.08) : rand(0.18, 0.28),
         vx: (Math.random() - 0.5) * 0.06,
         vy: (Math.random() - 0.5) * 0.06,
         pulsePhase: Math.random() * TWO_PI,
@@ -248,9 +245,8 @@ class NebulaSystem {
       const opacity = n.baseOpacity * pulse * globalOpacity;
 
       ctx.save();
-      // Dark fillers use 'darken' so they only ever deepen the bg. Selene uses
-      // normal compositing because it's intentionally a brand-tint *addition*.
-      ctx.globalCompositeOperation = n.isSelene ? 'source-over' : 'darken';
+      // Depth fillers use 'darken' so they only ever deepen the background.
+      ctx.globalCompositeOperation = n.isDepthLayer ? 'source-over' : 'darken';
       ctx.translate(n.x, n.y);
       ctx.rotate(n.rotation);
       ctx.scale(distort, 1 / distort);
@@ -582,15 +578,14 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
       bg.fillStyle = vignette;
       bg.fillRect(0, 0, state.width, state.height);
 
-      // Selene moonrise bloom — brand tint at top-center
-      const brand = hexToRgb(theme.palette.primary.main);
+      const luminance = hexToRgb(theme.palette.text.primary);
       const moonBloom = bg.createRadialGradient(
         state.width * 0.52, state.height * -0.05, 0,
         state.width * 0.52, state.height * -0.05, state.height * 0.55
       );
-      moonBloom.addColorStop(0,    `rgba(${brand.r},${brand.g},${brand.b},0.028)`);
-      moonBloom.addColorStop(0.45, `rgba(${brand.r},${brand.g},${brand.b},0.012)`);
-      moonBloom.addColorStop(1,    `rgba(${brand.r},${brand.g},${brand.b},0)`);
+      moonBloom.addColorStop(0,    `rgba(${luminance.r},${luminance.g},${luminance.b},0.018)`);
+      moonBloom.addColorStop(0.45, `rgba(${luminance.r},${luminance.g},${luminance.b},0.008)`);
+      moonBloom.addColorStop(1,    `rgba(${luminance.r},${luminance.g},${luminance.b},0)`);
       bg.fillStyle = moonBloom;
       bg.fillRect(0, 0, state.width, state.height);
 
@@ -726,7 +721,7 @@ function StarfieldCanvas({ active = false, intensity = 'medium' }) {
   return (
     <Box
       sx={{
-        position: 'absolute',
+        position: 'fixed',
         inset: 0,
         zIndex: 0,
         pointerEvents: 'none',

@@ -129,8 +129,8 @@ export const getPrimaryActionButtonSx = (theme, {
   borderRadius = 1.5,
 } = {}) => {
   const isDark = theme.palette.mode === 'dark';
-  const brand = theme.palette.primary.main;
   const brandGradients = getMoonlitBrandGradients(theme);
+  const shadowColor = theme.palette.common.black;
 
   return {
     py: { xs: 1, sm: 1.125 },
@@ -139,9 +139,9 @@ export const getPrimaryActionButtonSx = (theme, {
     fontWeight: 600,
     backgroundImage: brandGradients.static,
     backgroundColor: 'transparent',
-    color: '#fff',
+    color: theme.palette.primary.contrastText,
     border: 'none',
-    boxShadow: `0 4px 20px ${alpha(brand, isDark ? 0.45 : 0.35)}`,
+    boxShadow: `0 10px 26px ${alpha(shadowColor, isDark ? 0.32 : 0.12)}`,
     transition: theme.transitions.create(
       ['filter', 'transform', 'box-shadow'],
       { duration: 200 },
@@ -150,7 +150,7 @@ export const getPrimaryActionButtonSx = (theme, {
       '&:hover': {
         filter: 'brightness(1.12)',
         transform: 'translateY(-1px)',
-        boxShadow: `0 6px 24px ${alpha(brand, isDark ? 0.55 : 0.45)}`,
+        boxShadow: `0 14px 32px ${alpha(shadowColor, isDark ? 0.38 : 0.16)}`,
       },
     },
     '&:active': { transform: 'scale(0.98)', boxShadow: 'none' },

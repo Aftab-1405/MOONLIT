@@ -1,8 +1,8 @@
 /**
  * MUI light theme for Moonlit.
  *
- * Brand gradient: #00BFFF → #6A5ACD → #8A2BE2 (cyan → slate blue → electric violet).
- * Primary token uses electric violet, accent uses cyan-blue.
+ * Brand palette: strict CRED-inspired monochrome.
+ * Primary token uses Cod Gray on an Alabaster canvas; secondary is neutral support.
  *
  * Token mapping:
  *   bg-000  → background.default   (pure white canvas)
@@ -12,8 +12,8 @@
  *   text-000 → text.primary
  *   text-200 → text.secondary
  *   text-400 → text.disabled / text.hint
- *   brand-000 → primary.main       (deep indigo-violet)
- *   accent-000 → secondary.main    (muted violet support tone)
+ *   brand-000 → primary.main       (Cod Gray)
+ *   accent-000 → secondary.main    (neutral support tone)
  */
 
 import { createTheme, alpha, responsiveFontSizes } from '@mui/material/styles';
@@ -29,7 +29,7 @@ const palette = {
   mode: 'light',
 
   background: {
-    default:  H.bg000,   // #ffffff
+    default:  H.bg000,   // Alabaster
     paper:    H.bg100,   // barely-warm white
     elevated: H.bg000,   // popovers sit at the same white level
     sunken:   H.bg200,   // soft neutral inset / input bg

@@ -18,9 +18,9 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import HighlightOffSharpIcon from '@mui/icons-material/HighlightOffSharp';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
-import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
+import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
+import DatasetOutlinedIcon from '@mui/icons-material/DatasetOutlined';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
-import TerminalRoundedIcon from '@mui/icons-material/TerminalRounded';
 import SQLResultsTable from './SQLResultsTable';
 import ChartVisualization from './ChartVisualization';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
@@ -31,6 +31,13 @@ import { runQuery } from '../api';
 const fadeIn = keyframes`
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
+`;
+
+// Separate keyframe for the bottom-center toast — must keep translateX(-50%)
+// in both states so the centering offset is never dropped during the animation.
+const toastSlideUp = keyframes`
+  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 `;
 const MONACO_OPTIONS = {
   minimap: { enabled: false },
@@ -101,7 +108,7 @@ function buildPanelSx(theme, open, panelWidth) {
   };
 }
 
-const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, textColor, accent }) {
+const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, textColor, accent, hint }) {
   const Icon = _Icon;
   return (
     <Box
@@ -143,19 +150,38 @@ const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, text
       >
         {title}
       </Typography>
-      <Typography
-        variant="body2"
-        sx={{
-          textAlign: 'center',
-          px: 3,
-          maxWidth: 320,
-          lineHeight: 1.65,
-          color: 'text.secondary',
-          opacity: 0.85,
-        }}
-      >
-        {subtitle}
-      </Typography>
+      {subtitle && (
+        <Typography
+          variant="body2"
+          sx={{
+            textAlign: 'center',
+            px: 3,
+            maxWidth: 320,
+            lineHeight: 1.65,
+            color: 'text.secondary',
+            opacity: 0.85,
+          }}
+        >
+          {subtitle}
+        </Typography>
+      )}
+      {hint && (
+        <Box
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.75,
+            px: 1.5,
+            py: 0.625,
+            borderRadius: '8px',
+            border: '1px solid',
+            borderColor: alpha(textColor, 0.1),
+            bgcolor: alpha(textColor, 0.04),
+          }}
+        >
+          {hint}
+        </Box>
+      )}
     </Box>
   );
 });
@@ -184,6 +210,7 @@ function SQLEditorCanvas({
   const [copyMenuAnchor, setCopyMenuAnchor] = useState(null);
   const editorRef = useRef(null);
   const copyTimeoutRef = useRef(null);
+  const handleRunQueryRef = useRef(null);
   const textColor = useMemo(() => theme.palette.text.primary, [theme.palette.text.primary]);
   const monacoOptions = useMemo(
     () => ({
@@ -217,11 +244,17 @@ function SQLEditorCanvas({
     editor.focus();
     registerMonacoThemes(monaco, { transparent: true });
     monaco.editor.setTheme(getMonacoThemeName(theme.palette.mode, true));
+    // Register Ctrl+Enter / Cmd+Enter directly on the Monaco instance.
+    // Monaco captures keyboard events inside its own DOM layer, so the outer
+    // React onKeyDown wrapper never fires when the editor has focus.
+    editor.addCommand(
+      monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
+      () => { handleRunQueryRef.current?.(); }
+    );
   }, [theme.palette.mode]);
 
   const handleRunQuery = useCallback(async () => {
     if (!query.trim() || isRunning) return;
-
     if (!isConnected) {
       setError('Please connect to a database first');
       return;
@@ -269,6 +302,10 @@ function SQLEditorCanvas({
       setIsRunning(false);
     }
   }, [query, isConnected, isRunning, settings.maxRows, settings.queryTimeout]);
+
+  // Keep the ref pointing at the latest version so the Monaco addCommand
+  // closure (registered once on mount) always calls the current handler.
+  handleRunQueryRef.current = handleRunQuery;
 
   const handleClear = useCallback(() => {
     setQuery('');
@@ -373,7 +410,7 @@ function SQLEditorCanvas({
     boxShadow: isDark
       ? `0 -1px 0 ${alpha(theme.palette.common.white, 0.04)} inset`
       : `0 -1px 0 ${alpha(theme.palette.common.white, 0.85)} inset`,
-  }), [artifactBorder, footerBarBg, isCompactMobile, isDark, theme.palette.common.black, theme.palette.common.white]);
+  }), [artifactBorder, footerBarBg, isCompactMobile, isDark, theme.palette.common.white]);
 
   const toolbarGhostStyles = useMemo(() => ({
     ...getGhostIconButtonSx(theme, { size: 42, radius: '13px' }),
@@ -418,34 +455,9 @@ function SQLEditorCanvas({
         display: 'flex',
         flexDirection: 'column',
         bgcolor: artifactChromeBg,
+        position: 'relative',
       }}
     >
-      {error && (
-        <Box
-          sx={{
-            mx: 2,
-            mt: 1.5,
-            px: 2,
-            py: 1.25,
-            flexShrink: 0,
-            borderRadius: 2,
-            border: '1px solid',
-            borderColor: alpha(theme.palette.error.main, 0.35),
-            borderLeftWidth: 4,
-            borderLeftColor: theme.palette.error.main,
-            backgroundColor: alpha(theme.palette.error.main, isDark ? 0.12 : 0.06),
-            animation: `${fadeIn} 0.25s cubic-bezier(0.22, 1, 0.36, 1)`,
-          }}
-        >
-          <Typography
-            variant="body2"
-            color="error.main"
-            sx={{ fontFamily: theme.typography.fontFamilyMono, fontSize: '0.8125rem', lineHeight: 1.55 }}
-          >
-            {error}
-          </Typography>
-        </Box>
-      )}
       <Box
         sx={{
           flex: 1,
@@ -467,6 +479,44 @@ function SQLEditorCanvas({
           options={monacoOptions}
         />
       </Box>
+
+      {/* Floating toast — slides up from the bottom-center of the editor */}
+      {error && (
+        <Box
+          sx={{
+            position: 'absolute',
+            bottom: 16,
+            left: '50%',
+            zIndex: 10,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 1,
+            px: 2,
+            py: 1,
+            borderRadius: '10px',
+            border: '1px solid',
+            borderColor: alpha(theme.palette.error.main, isDark ? 0.35 : 0.25),
+            backgroundColor: isDark
+              ? alpha(theme.palette.background.paper, 0.92)
+              : alpha(theme.palette.background.paper, 0.96),
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            boxShadow: isDark
+              ? `0 4px 24px ${alpha(theme.palette.common.black, 0.5)}, 0 0 0 1px ${alpha(theme.palette.error.main, 0.15)}`
+              : `0 4px 20px ${alpha(theme.palette.common.black, 0.1)}, 0 0 0 1px ${alpha(theme.palette.error.main, 0.1)}`,
+            whiteSpace: 'nowrap',
+            animation: `${toastSlideUp} 0.22s cubic-bezier(0.22, 1, 0.36, 1) both`,
+          }}
+        >
+          <Typography
+            variant="body2"
+            color="error.main"
+            sx={{ fontSize: '0.8125rem', lineHeight: 1.5, fontWeight: 500 }}
+          >
+            {error}
+          </Typography>
+        </Box>
+      )}
     </Box>
   ), [artifactChromeBg, error, isDark, query, handleKeyDown, handleQueryChange, handleEditorDidMount, monacoOptions, theme]);
 
@@ -477,16 +527,52 @@ function SQLEditorCanvas({
       ) : (
         <Box sx={centeredEmptyWrapStyles}>
           <EmptyState
-            icon={TableChartOutlinedIcon}
+            icon={DatasetOutlinedIcon}
             title="No results yet"
-            subtitle="Run a query to see results here"
+            subtitle={null}
+            hint={
+              <>
+                <Typography variant="caption" sx={{ fontFamily: 'inherit', color: 'text.disabled', fontSize: '0.7rem', letterSpacing: '0.02em' }}>
+                  Press
+                </Typography>
+                {['Ctrl', 'Enter'].map((key, i) => (
+                  <Box
+                    key={key}
+                    component="kbd"
+                    sx={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      px: 0.625,
+                      py: 0.125,
+                      borderRadius: '5px',
+                      fontSize: '0.6875rem',
+                      fontWeight: 600,
+                      fontFamily: 'inherit',
+                      lineHeight: 1.5,
+                      color: 'text.secondary',
+                      bgcolor: alpha(textColor, 0.07),
+                      border: '1px solid',
+                      borderColor: alpha(textColor, 0.12),
+                      boxShadow: `0 1px 0 ${alpha(textColor, 0.1)}`,
+                      ml: i === 0 ? 0.25 : 0,
+                    }}
+                  >
+                    {key}
+                  </Box>
+                ))}
+                <Typography variant="caption" sx={{ fontFamily: 'inherit', color: 'text.disabled', fontSize: '0.7rem', letterSpacing: '0.02em', ml: 0.25 }}>
+                  to run
+                </Typography>
+              </>
+            }
             textColor={textColor}
             accent={theme.palette.text.secondary}
           />
         </Box>
       )}
     </Box>
-  ), [artifactTabPaneStyles, centeredEmptyWrapStyles, handleCloseResults, results, textColor, theme.palette.primary.main]);
+  ), [artifactTabPaneStyles, centeredEmptyWrapStyles, handleCloseResults, results, textColor, theme.palette.text.secondary]);
 
   const chartTabContent = useMemo(() => (
     <Box sx={artifactTabPaneStyles}>
@@ -518,8 +604,8 @@ function SQLEditorCanvas({
     : `SQL workspace · ${tabTitleSuffix}`;
 
   const navSegments = useMemo(() => [
-    { id: 0, ariaLabel: 'SQL editor', icon: TerminalRoundedIcon, disabled: false },
-    { id: 1, ariaLabel: 'Query results', icon: TableChartOutlinedIcon, disabled: false },
+    { id: 0, ariaLabel: 'SQL editor', icon: CodeRoundedIcon, disabled: false },
+    { id: 1, ariaLabel: 'Query results', icon: DatasetOutlinedIcon, disabled: false },
     { id: 2, ariaLabel: 'Chart', icon: BarChartRoundedIcon, disabled: !results },
   ], [results]);
 

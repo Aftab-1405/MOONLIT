@@ -7,8 +7,6 @@ import { getMoonlitBrandGradients } from '../../styles/themeEffects';
 function StepsGrid() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const brand = theme.palette.primary.main;
-  const accent = theme.palette.secondary.main;
   const brandGradients = getMoonlitBrandGradients(theme);
 
   const steps = useMemo(() => [
@@ -39,7 +37,7 @@ function StepsGrid() {
             sx={{
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
-              color: accent,
+              color: 'text.secondary',
               ...theme.typography.uiCaptionXs,
               display: 'block',
               mb: 1.5,
@@ -109,14 +107,14 @@ function StepsGrid() {
                     [REDUCED_MOTION_QUERY]: { animation: 'none', transition: 'none' },
                     [HOVER_CAPABLE_QUERY]: {
                       '&:hover': {
-                        borderColor: alpha(brand, isDark ? 0.32 : 0.22),
+                        borderColor: alpha(theme.palette.text.primary, isDark ? 0.22 : 0.14),
                         backgroundColor: isDark
-                          ? alpha(brand, 0.06)
-                          : alpha(brand, 0.04),
+                          ? alpha(theme.palette.text.primary, 0.055)
+                          : alpha(theme.palette.text.primary, 0.035),
                         transform: 'translateY(-5px)',
                         boxShadow: isDark
-                          ? `0 20px 40px -16px ${alpha(brand, 0.22)}`
-                          : `0 20px 40px -16px ${alpha(brand, 0.13)}`,
+                          ? `0 20px 42px -18px ${alpha(theme.palette.common.black, 0.44)}`
+                          : `0 20px 40px -18px ${alpha(theme.palette.common.black, 0.12)}`,
                       },
                     },
                   }}
@@ -136,7 +134,7 @@ function StepsGrid() {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
-                      boxShadow: `0 4px 16px ${alpha(brand, isDark ? 0.45 : 0.3)}`,
+                      boxShadow: `0 8px 22px ${alpha(theme.palette.common.black, isDark ? 0.34 : 0.12)}`,
                       border: `3px solid ${theme.palette.background.default}`,
                     }}
                   >
@@ -144,7 +142,7 @@ function StepsGrid() {
                       sx={{
                         ...theme.typography.uiStepNumber,
                         fontWeight: 700,
-                        color: theme.palette.background.paper,
+                        color: theme.palette.primary.contrastText,
                         letterSpacing: '0.02em',
                       }}
                     >

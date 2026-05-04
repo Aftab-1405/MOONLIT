@@ -1,8 +1,8 @@
 /**
  * MUI dark theme for Moonlit.
  *
- * Brand gradient: #00BFFF → #6A5ACD → #8A2BE2 (cyan → slate blue → electric violet).
- * Primary token uses electric violet (luminous on dark), accent uses cyan-blue.
+ * Brand palette: strict CRED-inspired monochrome.
+ * Primary token uses Alabaster on a Cod Gray canvas; secondary is neutral support.
  *
  * Token mapping:
  *   bg-000  → background.default   (dark base surface)
@@ -12,8 +12,8 @@
  *   text-000 → text.primary        (near white)
  *   text-200 → text.secondary      (mid gray)
  *   text-400 → text.disabled / hint
- *   brand-000 → primary.main       (vibrant indigo-violet)
- *   accent-000 → secondary.main    (muted violet support tone)
+ *   brand-000 → primary.main       (Alabaster)
+ *   accent-000 → secondary.main    (neutral support tone)
  */
 
 import { createTheme, alpha, responsiveFontSizes } from '@mui/material/styles';
@@ -29,7 +29,7 @@ const palette = {
   mode: 'dark',
 
   background: {
-    default:  H.bg000,   // #2f2e2d — base dark surface
+    default:  H.bg000,   // Cod Gray — base dark surface
     paper:    H.bg100,   // #252524 — cards and app panels
     elevated: H.bg000,   // popovers float on the base dark level
     sunken:   H.bg200,   // #1f1e1c — inputs / very deep insets
@@ -46,7 +46,7 @@ const palette = {
     main:         H.brand000,
     light:        H.brand200,
     dark:         H.brandDark,
-    contrastText: H.bg200,  // dark text on luminous Moonlit brand
+    contrastText: H.bg000,
   },
 
   secondary: {
@@ -340,7 +340,7 @@ const components = {
       },
       contained: {
         backgroundColor: H.brand000,
-        color: '#ffffff',
+        color: H.bg000,
         '&:hover': {
           backgroundColor: H.brand200,
           boxShadow: `0 8px 20px -12px ${alpha(H.brand000, 0.55)}`,

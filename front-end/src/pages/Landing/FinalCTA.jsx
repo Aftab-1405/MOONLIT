@@ -7,43 +7,10 @@ import { getMoonlitBrandGradients } from '../../styles/themeEffects';
 function FinalCTA({ onGetStarted }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const brand = theme.palette.primary.main;
   const brandGradients = getMoonlitBrandGradients(theme);
 
   return (
     <Section sx={{ flexDirection: 'column', py: { xs: 6, md: 8 } }}>
-      {/* Dot-grid texture */}
-      <Box
-        aria-hidden
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `radial-gradient(${alpha(theme.palette.text.primary, isDark ? 0.05 : 0.035)} 1px, transparent 1px)`,
-          backgroundSize: '24px 24px',
-          maskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 80%)',
-          WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 20%, transparent 80%)',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-
-      {/* Central glow */}
-      <Box
-        aria-hidden
-        sx={{
-          position: 'absolute',
-          top: '15%',
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: '70%',
-          height: '70%',
-          background: `radial-gradient(ellipse at center, ${alpha(brand, isDark ? 0.14 : 0.09)}, transparent 70%)`,
-          filter: { xs: 'blur(50px)', md: 'blur(90px)' },
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-
       <Container maxWidth="md" sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
         <Stack spacing={3} alignItems="center">
           <Typography
@@ -86,16 +53,16 @@ function FinalCTA({ onGetStarted }) {
               fontWeight: 600,
               backgroundImage: brandGradients.static,
               backgroundColor: 'transparent',
-              color: '#fff',
+              color: theme.palette.primary.contrastText,
               border: 'none',
-              boxShadow: `0 4px 24px ${alpha(brand, isDark ? 0.45 : 0.35)}`,
+              boxShadow: `0 10px 28px ${alpha(theme.palette.common.black, isDark ? 0.32 : 0.12)}`,
               transition: theme.transitions.create(['filter', 'transform', 'box-shadow'], { duration: 200 }),
               [REDUCED_MOTION_QUERY]: { transition: 'none' },
               [HOVER_CAPABLE_QUERY]: {
                 '&:hover': {
                   filter: 'brightness(1.12)',
                   transform: 'translateY(-2px)',
-                  boxShadow: `0 8px 28px ${alpha(brand, isDark ? 0.55 : 0.45)}`,
+                  boxShadow: `0 14px 34px ${alpha(theme.palette.common.black, isDark ? 0.38 : 0.16)}`,
                 },
               },
               '&:active': { transform: 'scale(0.98)' },

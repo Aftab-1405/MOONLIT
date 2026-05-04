@@ -14,87 +14,11 @@ const STATS = [
 function Hero({ onGetStarted }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const brand = theme.palette.primary.main;
-  const brandLight = theme.palette.primary.light;
-  const accent = theme.palette.secondary.main;
   const brandGradients = getMoonlitBrandGradients(theme);
+  const premiumShadow = alpha(theme.palette.common.black, isDark ? 0.32 : 0.12);
 
   return (
     <Section sx={{ py: { xs: 8, md: 6 } }}>
-      {/* Dot-grid texture */}
-      <Box
-        aria-hidden
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          backgroundImage: `radial-gradient(${alpha(theme.palette.text.primary, isDark ? 0.055 : 0.04)} 1px, transparent 1px)`,
-          backgroundSize: '28px 28px',
-          maskImage: 'radial-gradient(ellipse 80% 80% at 50% 0%, black 30%, transparent 100%)',
-          WebkitMaskImage: 'radial-gradient(ellipse 80% 80% at 50% 0%, black 30%, transparent 100%)',
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-
-      {/* Floating orbs */}
-      <Box sx={{ position: 'absolute', inset: 0, overflow: 'hidden', pointerEvents: 'none', zIndex: 0 }}>
-        <Box
-          sx={{
-            position: 'absolute',
-            top: '-15%',
-            left: '8%',
-            width: { xs: 280, md: 440 },
-            height: { xs: 280, md: 440 },
-            borderRadius: '50%',
-            background: `radial-gradient(circle, ${alpha(brand, isDark ? 0.22 : 0.14)}, transparent 70%)`,
-            filter: { xs: 'blur(40px)', md: 'blur(80px)' },
-            animation: 'float 8s ease-in-out infinite',
-            [REDUCED_MOTION_QUERY]: { animation: 'none' },
-          }}
-        />
-        <Box
-          sx={{
-            position: 'absolute',
-            top: '8%',
-            right: '4%',
-            width: { xs: 200, md: 340 },
-            height: { xs: 200, md: 340 },
-            borderRadius: '50%',
-            background: `radial-gradient(circle, ${alpha(accent, isDark ? 0.18 : 0.12)}, transparent 70%)`,
-            filter: { xs: 'blur(30px)', md: 'blur(60px)' },
-            animation: 'float 10s ease-in-out infinite 1.5s',
-            [REDUCED_MOTION_QUERY]: { animation: 'none' },
-          }}
-        />
-        <Box
-          sx={{
-            position: 'absolute',
-            bottom: '12%',
-            left: '50%',
-            transform: 'translateX(-50%)',
-            width: { xs: 160, md: 280 },
-            height: { xs: 160, md: 280 },
-            borderRadius: '50%',
-            background: `radial-gradient(circle, ${alpha(brandLight, isDark ? 0.16 : 0.1)}, transparent 70%)`,
-            filter: { xs: 'blur(25px)', md: 'blur(50px)' },
-            animation: 'float 12s ease-in-out infinite 3s',
-            [REDUCED_MOTION_QUERY]: { animation: 'none' },
-          }}
-        />
-      </Box>
-
-      {/* Top gradient */}
-      <Box
-        aria-hidden
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          background: `radial-gradient(ellipse 80% 50% at 50% -10%, ${alpha(brand, isDark ? 0.12 : 0.08)}, transparent)`,
-          pointerEvents: 'none',
-          zIndex: 0,
-        }}
-      />
-
       <Container maxWidth="md" sx={{ zIndex: 2, textAlign: 'center' }}>
         <Stack spacing={3} alignItems="center">
           {/* Badge */}
@@ -103,8 +27,8 @@ function Hero({ onGetStarted }) {
               px: 2,
               py: 0.625,
               borderRadius: 2,
-              backgroundColor: alpha(brand, isDark ? 0.12 : 0.08),
-              border: `1px solid ${alpha(brand, isDark ? 0.28 : 0.2)}`,
+              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.045),
+              border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.16 : 0.1)}`,
               display: 'inline-flex',
               alignItems: 'center',
               gap: 1,
@@ -118,7 +42,7 @@ function Hero({ onGetStarted }) {
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
-                backgroundColor: brand,
+                backgroundColor: 'text.primary',
                 animation: 'pulse-dot 2s ease-in-out infinite',
                 flexShrink: 0,
                 [REDUCED_MOTION_QUERY]: { animation: 'none' },
@@ -203,16 +127,16 @@ function Hero({ onGetStarted }) {
                 fontWeight: 600,
                 backgroundImage: brandGradients.static,
                 backgroundColor: 'transparent',
-                color: '#fff',
+                color: theme.palette.primary.contrastText,
                 border: 'none',
-                boxShadow: `0 4px 24px ${alpha(brand, isDark ? 0.45 : 0.35)}`,
+                boxShadow: `0 10px 28px ${premiumShadow}`,
                 transition: theme.transitions.create(['filter', 'transform', 'box-shadow'], { duration: 200 }),
                 [REDUCED_MOTION_QUERY]: { transition: 'none' },
                 [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
                     filter: 'brightness(1.12)',
                     transform: 'translateY(-2px)',
-                    boxShadow: `0 8px 28px ${alpha(brand, isDark ? 0.55 : 0.45)}`,
+                    boxShadow: `0 14px 34px ${alpha(theme.palette.common.black, isDark ? 0.38 : 0.16)}`,
                   },
                 },
                 '&:active': { transform: 'scale(0.98)' },
@@ -239,9 +163,9 @@ function Hero({ onGetStarted }) {
                 [REDUCED_MOTION_QUERY]: { transition: 'none' },
                 [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
-                    borderColor: alpha(brand, 0.5),
-                    backgroundColor: alpha(brand, isDark ? 0.09 : 0.06),
-                    color: brand,
+                    borderColor: alpha(theme.palette.text.primary, isDark ? 0.28 : 0.2),
+                    backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.05),
+                    color: 'text.primary',
                     transform: 'translateY(-2px)',
                   },
                 },

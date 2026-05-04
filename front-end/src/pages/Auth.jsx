@@ -20,14 +20,13 @@ import {
   DialogContent,
   DialogActions,
   Snackbar,
+  SvgIcon,
   useMediaQuery,
 } from '@mui/material';
 import GlobalStyles from '@mui/material/GlobalStyles';
 import { useNavigate } from 'react-router-dom';
 import { useTheme, alpha } from '@mui/material/styles';
-import GoogleIcon from '@mui/icons-material/Google';
 import GitHubIcon from '@mui/icons-material/GitHub';
-import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
@@ -45,6 +44,7 @@ import {
 } from '../validation';
 import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
 import { getPrimaryActionButtonSx } from '../styles/shared';
+import { getMoonlitBrandGradients } from '../styles/themeEffects';
 import logger from '../utils/logger';
 
 // ─── Keyframes ────────────────────────────────────────────────────────────────
@@ -71,12 +71,32 @@ const AUTH_KEYFRAMES = (
   />
 );
 
+function GoogleBrandIcon(props) {
+  return (
+    <SvgIcon {...props} viewBox="0 0 24 24">
+      <path
+        fill="#4285F4"
+        d="M21.6 12.23c0-.78-.07-1.53-.2-2.23H12v4.26h5.38a4.6 4.6 0 0 1-2 3.02v2.5h3.24c1.9-1.75 2.98-4.33 2.98-7.55z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 22c2.7 0 4.96-.9 6.62-2.43l-3.24-2.5c-.9.6-2.04.95-3.38.95-2.6 0-4.8-1.76-5.59-4.12H3.06v2.58A10 10 0 0 0 12 22z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M6.41 13.9A6 6 0 0 1 6.1 12c0-.66.11-1.3.31-1.9V7.52H3.06A10 10 0 0 0 2 12c0 1.61.39 3.13 1.06 4.48l3.35-2.58z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 5.98c1.47 0 2.78.5 3.82 1.49l2.87-2.87C16.95 2.98 14.7 2 12 2a10 10 0 0 0-8.94 5.52l3.35 2.58C7.2 7.74 9.4 5.98 12 5.98z"
+      />
+    </SvgIcon>
+  );
+}
+
 // ─── SQL→NL Decorative Mockup ─────────────────────────────────────────────────
 function QueryMockup({ isDark }) {
   const theme = useTheme();
-  const brand = theme.palette.primary.main;
-  const brandLight = theme.palette.primary.light;
-  const accent = theme.palette.secondary.main;
 
   const C = {
     panelBg: isDark
@@ -97,12 +117,12 @@ function QueryMockup({ isDark }) {
     codeBg: isDark
       ? alpha(theme.palette.common.black, 0.22)
       : alpha(theme.palette.text.primary, 0.055),
-    keyword: isDark ? brandLight : brand,
+    keyword: theme.palette.text.primary,
     codeText: isDark
       ? alpha(theme.palette.common.white, 0.58)
       : alpha(theme.palette.text.primary, 0.7),
-    highlight: alpha(brand, isDark ? 0.1 : 0.07),
-    dot: brand,
+    highlight: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.045),
+    dot: theme.palette.text.primary,
   };
 
   const SQL_LINES = [
@@ -238,7 +258,7 @@ function QueryMockup({ isDark }) {
             borderBottom: `1px solid ${C.panelBorder}`,
           }}
         >
-          <AutoAwesomeIcon sx={{ fontSize: 12, color: accent }} />
+          <AutoAwesomeIcon sx={{ fontSize: 12, color: C.muted }} />
           <Typography
             sx={{
               fontSize: '0.63rem',
@@ -421,6 +441,7 @@ function Auth() {
   const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+  const brandGradients = getMoonlitBrandGradients(theme);
 
   useEffect(() => {
     document.title = 'Moonlit - Sign In';
@@ -574,9 +595,9 @@ function Auth() {
     '& .MuiTabs-indicator': {
       height: '100%',
       borderRadius: 1,
-      backgroundImage: `linear-gradient(to right, ${theme.palette.secondary.main}, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
+      backgroundImage: brandGradients.static,
       backgroundColor: 'transparent',
-      boxShadow: `0 1px 4px ${alpha(theme.palette.primary.main, 0.25)}`,
+      boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, isDark ? 0.28 : 0.1)}`,
       zIndex: 0,
     },
     '& .MuiTab-root': {
@@ -587,7 +608,7 @@ function Auth() {
       color: 'text.secondary',
       zIndex: 1,
       transition: theme.transitions.create('color', { duration: 150 }),
-      '&.Mui-selected': { color: theme.palette.primary.main, fontWeight: 600 },
+      '&.Mui-selected': { color: theme.palette.primary.contrastText, fontWeight: 600 },
     },
   };
 
@@ -664,8 +685,8 @@ function Auth() {
                 width: '60%',
                 height: '60%',
                 background: `radial-gradient(circle, ${alpha(
-                  theme.palette.primary.main,
-                  isDark ? 0.22 : 0.14
+                  theme.palette.text.primary,
+                  isDark ? 0.075 : 0.045
                 )} 0%, transparent 70%)`,
                 filter: 'blur(70px)',
                 pointerEvents: 'none',
@@ -681,8 +702,8 @@ function Auth() {
                 width: '50%',
                 height: '50%',
                 background: `radial-gradient(circle, ${alpha(
-                  theme.palette.secondary.main,
-                  isDark ? 0.18 : 0.11
+                  theme.palette.text.primary,
+                  isDark ? 0.055 : 0.035
                 )} 0%, transparent 70%)`,
                 filter: 'blur(60px)',
                 pointerEvents: 'none',
@@ -721,41 +742,12 @@ function Auth() {
                 minHeight: 0,
               }}
             >
-              <Button
-                startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 13 }} />}
-                onClick={() => navigate('/')}
-                size="small"
-                sx={{
-                  alignSelf: 'flex-start',
-                  color: 'text.secondary',
-                  opacity: isDark ? 0.6 : 0.78,
-                  fontWeight: 500,
-                  ...theme.typography.uiCaptionXs,
-                  border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.12 : 0.14)}`,
-                  backgroundColor: isDark
-                    ? alpha(theme.palette.background.paper, 0.04)
-                    : alpha(theme.palette.background.paper, 0.8),
-                  '@media (hover: hover)': {
-                    '&:hover': {
-                      opacity: 1,
-                      backgroundColor: alpha(
-                        theme.palette.text.primary,
-                        isDark ? 0.06 : 0.045
-                      ),
-                      color: 'text.primary',
-                    },
-                  },
-                }}
-              >
-                Back to home
-              </Button>
-
               <Stack spacing={1}>
                 <Typography
                   component="span"
                   sx={{
                     ...theme.typography.uiBrandWordmark,
-                    background: `linear-gradient(to right, ${theme.palette.secondary.main}, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
+                    background: brandGradients.shimmer,
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',
@@ -813,8 +805,8 @@ function Auth() {
               width: '80%',
               height: '50%',
               background: `radial-gradient(ellipse at center, ${alpha(
-                theme.palette.primary.main,
-                isDark ? 0.1 : 0.07
+                theme.palette.text.primary,
+                isDark ? 0.055 : 0.035
               )}, transparent 70%)`,
               filter: 'blur(50px)',
               pointerEvents: 'none',
@@ -847,7 +839,7 @@ function Auth() {
                   component="span"
                   sx={{
                     ...theme.typography.uiBrandWordmark,
-                    background: `linear-gradient(to right, ${theme.palette.secondary.main}, ${theme.palette.primary.light}, ${theme.palette.primary.main})`,
+                    background: brandGradients.shimmer,
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',
@@ -1014,7 +1006,7 @@ function Auth() {
                           textDecoration: 'none',
                           ...theme.typography.uiCaptionXs,
                           transition: theme.transitions.create(['opacity', 'color'], { duration: 150 }),
-                          '@media (hover: hover)': { '&:hover': { opacity: 1, color: theme.palette.primary.main } },
+                          '@media (hover: hover)': { '&:hover': { opacity: 1, color: 'text.primary' } },
                         }}
                       >
                         Forgot password?
@@ -1157,7 +1149,7 @@ function Auth() {
 
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ width: '100%' }}>
                   {[
-                    { label: 'Google', icon: <GoogleIcon sx={{ fontSize: 17 }} />, handler: handleGoogleSignIn },
+                    { label: 'Google', icon: <GoogleBrandIcon sx={{ fontSize: 17 }} />, handler: handleGoogleSignIn },
                     { label: 'GitHub', icon: <GitHubIcon sx={{ fontSize: 17 }} />, handler: handleGitHubSignIn },
                   ].map(({ label, icon, handler }) => (
                     <Button
@@ -1179,12 +1171,12 @@ function Auth() {
                         ),
                         '@media (hover: hover)': {
                           '&:hover': {
-                            borderColor: alpha(theme.palette.primary.main, isDark ? 0.45 : 0.35),
+                            borderColor: alpha(theme.palette.text.primary, isDark ? 0.28 : 0.18),
                             backgroundColor: alpha(
-                              theme.palette.primary.main,
-                              isDark ? 0.08 : 0.06
+                              theme.palette.text.primary,
+                              isDark ? 0.07 : 0.04
                             ),
-                            boxShadow: `0 2px 8px ${alpha(theme.palette.primary.main, isDark ? 0.2 : 0.14)}`,
+                            boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, isDark ? 0.22 : 0.08)}`,
                           },
                         },
                       }}
@@ -1194,27 +1186,6 @@ function Auth() {
                   ))}
                 </Stack>
 
-                {isMobile && (
-                  <Button
-                    startIcon={<ArrowBackRoundedIcon sx={{ fontSize: 13 }} />}
-                    onClick={() => navigate('/')}
-                    sx={{
-                      color: 'text.secondary',
-                      opacity: 0.62,
-                      py: 0.35,
-                      ...theme.typography.uiCaptionXs,
-                      '@media (hover: hover)': {
-                        '&:hover': {
-                          opacity: 1,
-                          backgroundColor: 'transparent',
-                          color: 'text.primary',
-                        },
-                      },
-                    }}
-                  >
-                    Back to home
-                  </Button>
-                )}
               </Stack>
             </Paper>
 

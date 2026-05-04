@@ -19,10 +19,12 @@ import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlin
 import { TOUCH_DEVICE_QUERY } from '../../styles/mediaQueries';
 import { getAppPopoverPaperSx } from '../AppPopover';
 import {
+  buildNavRowSx,
   buildConversationRowSx,
-  buildSidebarNavRowSx,
+  ICON_COL,
 } from './sidebarStyles';
 
+// ─── ConversationItem ─────────────────────────────────────────────────────────
 export const ConversationItem = memo(function ConversationItem({
   conv,
   isActive,
@@ -40,7 +42,7 @@ export const ConversationItem = memo(function ConversationItem({
     setMenuAnchor(e.currentTarget);
   }, []);
   const handleMenuClose = useCallback(() => setMenuAnchor(null), []);
-  const handleDeleteFromMenu = useCallback((e) => {
+  const handleDelete = useCallback((e) => {
     e.stopPropagation();
     setMenuAnchor(null);
     onDelete(conv.id);
@@ -58,8 +60,8 @@ export const ConversationItem = memo(function ConversationItem({
           [TOUCH_DEVICE_QUERY]: {
             '& .options-btn': { opacity: 1 },
             '& .conv-title': {
-              maskImage: 'linear-gradient(to right, black 78%, transparent 95%)',
-              WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 95%)',
+              maskImage: 'linear-gradient(to right, black 75%, transparent 95%)',
+              WebkitMaskImage: 'linear-gradient(to right, black 75%, transparent 95%)',
             },
           },
         }}
@@ -67,16 +69,11 @@ export const ConversationItem = memo(function ConversationItem({
         <Typography
           className="conv-title"
           noWrap
-          sx={{
-            flex: '1 1 auto',
-            minWidth: 0,
-            fontSize: '0.875rem',
-            lineHeight: 1.3,
-            fontWeight: isActive ? 500 : 400,
-          }}
+          sx={{ flex: '1 1 auto', minWidth: 0, fontSize: '0.875rem', lineHeight: 1.3, fontWeight: isActive ? 500 : 400 }}
         >
           {conv.title || 'New Conversation'}
         </Typography>
+
         <IconButton
           className="options-btn"
           size="small"
@@ -93,15 +90,13 @@ export const ConversationItem = memo(function ConversationItem({
             borderRadius: '6px',
             color: theme.palette.text.secondary,
             transition: 'opacity 0.15s ease, color 0.15s ease',
-            '&:hover': {
-              color: theme.palette.text.primary,
-              backgroundColor: 'transparent',
-            },
+            '&:hover': { color: theme.palette.text.primary, backgroundColor: 'transparent' },
           }}
         >
           <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
         </IconButton>
       </Box>
+
       <Menu
         anchorEl={menuAnchor}
         open={menuOpen}
@@ -111,20 +106,13 @@ export const ConversationItem = memo(function ConversationItem({
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{
           paper: {
-            sx: getAppPopoverPaperSx(theme, isDark, {
-              borderRadius: '12px',
-              minWidth: 160,
-              mt: 0.75,
-              p: 0.5,
-            }),
+            sx: getAppPopoverPaperSx(theme, isDark, { borderRadius: '12px', minWidth: 160, mt: 0.75, p: 0.5 }),
           },
-          list: {
-            sx: { py: 0 },
-          },
+          list: { sx: { py: 0 } },
         }}
       >
         <MenuItem
-          onClick={handleDeleteFromMenu}
+          onClick={handleDelete}
           sx={{
             fontSize: '0.84rem',
             gap: 1,
@@ -139,13 +127,10 @@ export const ConversationItem = memo(function ConversationItem({
               backgroundColor: alpha(theme.palette.error.main, isDark ? 0.12 : 0.08),
               color: theme.palette.error.main,
             },
-            '&:focus-visible': {
-              backgroundColor: alpha(theme.palette.error.main, isDark ? 0.16 : 0.1),
-            },
           }}
         >
           <ListItemIcon sx={{ minWidth: 'auto', color: 'inherit' }}>
-            <DeleteOutlineRoundedIcon sx={{ fontSize: 16, color: 'inherit' }} />
+            <DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />
           </ListItemIcon>
           Delete
         </MenuItem>
@@ -154,6 +139,18 @@ export const ConversationItem = memo(function ConversationItem({
   );
 });
 
+// ─── SidebarNavItem ───────────────────────────────────────────────────────────
+//
+// Layout model (collapsed width = 52px, row px = 8px each side):
+//
+//  ┌──────────────────────────────────────────────────────────────────┐
+//  │  8px │  ←── ICON_COL (36px) ──→  │  label (fades out) │  8px  │
+//  └──────────────────────────────────────────────────────────────────┘
+//
+// The icon column is always 36px wide and centered within itself.
+// It never moves — no justifyContent switching, no px switching.
+// The label box collapses to maxWidth:0 + opacity:0 when collapsed.
+//
 export const SidebarNavItem = memo(function SidebarNavItem({
   label,
   tooltip,
@@ -172,12 +169,12 @@ export const SidebarNavItem = memo(function SidebarNavItem({
 
   return (
     <Tooltip
-      title={isCollapsed ? tooltip : ''}
+      title={isCollapsed ? (tooltip || label) : ''}
       placement="right"
       arrow
-      disableHoverListener={!isCollapsed || !tooltip}
-      disableFocusListener={!isCollapsed || !tooltip}
-      disableTouchListener={!isCollapsed || !tooltip}
+      disableHoverListener={!isCollapsed}
+      disableFocusListener={!isCollapsed}
+      disableTouchListener={!isCollapsed}
     >
       <Box
         component="button"
@@ -187,48 +184,64 @@ export const SidebarNavItem = memo(function SidebarNavItem({
         aria-label={label}
         data-ui-target={uiTarget}
         sx={{
-          ...buildSidebarNavRowSx(theme, { isActive, disabled }),
+          ...buildNavRowSx(theme, { isActive, disabled }),
+          px: 0,
           '&:hover:not(:disabled) .shortcut-hint': { opacity: 1 },
           ...(circularIconBg && {
-            '&:hover:not(:disabled) .nav-icon-wrapper': {
-              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.18 : 0.14),
+            '&:hover:not(:disabled) .icon-ring': {
+              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.2 : 0.15),
               transform: 'scale(1.08) rotate(-3deg)',
             },
-            '&:active:not(:disabled) .nav-icon-wrapper': {
-              transform: 'scale(0.98) rotate(6deg)',
+            '&:active:not(:disabled) .icon-ring': {
+              transform: 'scale(0.96) rotate(6deg)',
             },
           }),
         }}
       >
+        {/* ── Icon column ── always ICON_COL wide, icon centered inside ── */}
         <Box
-          className="nav-icon-wrapper"
           component="span"
           sx={{
             display: 'inline-flex',
             flexShrink: 0,
-            width: circularIconBg ? 24 : 16,
-            height: circularIconBg ? 24 : 16,
-            mx: circularIconBg ? -0.5 : 0,
+            width: ICON_COL,
             justifyContent: 'center',
             alignItems: 'center',
-            color: 'inherit',
             position: 'relative',
-            borderRadius: circularIconBg ? '50%' : 0,
-            backgroundColor: circularIconBg
-              ? alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08)
-              : 'transparent',
-            transition: theme.transitions.create(['background-color', 'transform'], {
-              duration: theme.transitions.duration.shorter,
-            }),
           }}
         >
-          {icon}
+          {circularIconBg ? (
+            <Box
+              className="icon-ring"
+              component="span"
+              sx={{
+                display: 'inline-flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                width: 24,
+                height: 24,
+                borderRadius: '50%',
+                backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
+                color: 'inherit',
+                transition: theme.transitions.create(['background-color', 'transform'], {
+                  duration: theme.transitions.duration.shorter,
+                }),
+              }}
+            >
+              {icon}
+            </Box>
+          ) : (
+            <Box component="span" sx={{ display: 'inline-flex', color: 'inherit' }}>
+              {icon}
+            </Box>
+          )}
+
           {showStatus && (
             <Box
               sx={{
                 position: 'absolute',
-                top: -1,
-                right: -2,
+                top: 6,
+                right: 6,
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
@@ -238,43 +251,41 @@ export const SidebarNavItem = memo(function SidebarNavItem({
             />
           )}
         </Box>
+
+        {/* ── Label — collapses to zero when sidebar is collapsed ── */}
         <Box
           sx={{
             flex: '1 1 auto',
             minWidth: 0,
-            maxWidth: isCollapsed ? 0 : 190,
+            maxWidth: isCollapsed ? 0 : 200,
             opacity: isCollapsed ? 0 : 1,
             overflow: 'hidden',
-            transition: theme.transitions.create(['opacity', 'max-width'], {
+            transition: theme.transitions.create(['max-width', 'opacity'], {
               duration: theme.transitions.duration.shortest,
             }),
           }}
         >
           <Typography
             noWrap
-            sx={{
-              fontSize: '0.875rem',
-              lineHeight: 1.3,
-              fontWeight: isActive ? 500 : 400,
-              color: 'inherit',
-            }}
+            sx={{ fontSize: '0.875rem', lineHeight: 1.3, fontWeight: isActive ? 500 : 400, color: 'inherit', textAlign: 'left' }}
           >
             {label}
           </Typography>
         </Box>
+
+        {/* ── Shortcut hint — only visible on hover when expanded ── */}
         {shortcut && !isCollapsed && (
           <Typography
             className="shortcut-hint"
             component="span"
             sx={{
-              fontSize: '0.75rem',
-              fontWeight: 400,
+              fontSize: '0.72rem',
               color: 'text.disabled',
               flexShrink: 0,
               opacity: 0,
               transition: 'opacity 0.15s ease',
               whiteSpace: 'nowrap',
-              pr: 0.25,
+              pr: 0.5,
             }}
           >
             {shortcut}
@@ -285,6 +296,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   );
 });
 
+// ─── HistoryPopoverItem ───────────────────────────────────────────────────────
 export const HistoryPopoverItem = memo(function HistoryPopoverItem({
   conv,
   isActive,
@@ -297,6 +309,7 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
     onClosePopover();
     onSelect(conv.id);
   }, [onClosePopover, onSelect, conv.id]);
+
   const handleDelete = useCallback((e) => {
     e.stopPropagation();
     onDelete(conv.id);
@@ -306,29 +319,19 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
     <ListItemButton
       selected={isActive}
       onClick={handleClick}
-      sx={{
-        borderRadius: '8px',
-        py: 0.5,
-        px: 1,
-        minHeight: 32,
-      }}
+      sx={{ borderRadius: '8px', py: 0.5, px: 1, minHeight: 32 }}
     >
       <ListItemIcon sx={{ minWidth: 26 }}>
-        {isActive ? (
-          <CheckCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.text.primary }} />
-        ) : (
-          <QuestionAnswerOutlinedIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
-        )}
+        {isActive
+          ? <CheckCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.text.primary }} />
+          : <QuestionAnswerOutlinedIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
+        }
       </ListItemIcon>
       <ListItemText
         primary={conv.title || 'New Conversation'}
         primaryTypographyProps={{
           noWrap: true,
-          sx: {
-            fontSize: '0.875rem',
-            lineHeight: 1.3,
-            fontWeight: isActive ? 500 : 400,
-          },
+          sx: { fontSize: '0.875rem', lineHeight: 1.3, fontWeight: isActive ? 500 : 400 },
         }}
       />
       <IconButton
@@ -337,7 +340,7 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
         aria-label="Delete conversation"
         sx={{
           opacity: 0.5,
-          padding: 0.5,
+          p: 0.5,
           color: theme.palette.text.secondary,
           transition: 'opacity 0.15s ease',
           '&:hover': { opacity: 1, backgroundColor: 'transparent' },
@@ -349,13 +352,13 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
   );
 });
 
+// ─── HistoryListSkeleton ──────────────────────────────────────────────────────
 export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
-  const skeletonRows = [0, 1, 2, 3, 4];
   return (
     <Box sx={{ px: 1, pb: 1 }}>
-      {skeletonRows.map((row) => (
+      {[0, 1, 2, 3, 4].map((i) => (
         <Box
-          key={`history-skeleton-${row}`}
+          key={i}
           sx={{
             display: 'flex',
             alignItems: 'center',
@@ -364,18 +367,12 @@ export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
             py: 0.5,
             mb: 0.25,
             minHeight: 32,
-            borderRadius: '8px',
           }}
         >
-          <Skeleton variant="circular" width={16} height={16} />
+          <Skeleton variant="circular" width={14} height={14} />
           <Skeleton
             variant="rounded"
-            sx={{
-              width: `${92 - (row % 3) * 14}%`,
-              maxWidth: 170,
-              height: 12,
-              borderRadius: 999,
-            }}
+            sx={{ width: `${90 - (i % 3) * 14}%`, maxWidth: 170, height: 11, borderRadius: 999 }}
           />
         </Box>
       ))}

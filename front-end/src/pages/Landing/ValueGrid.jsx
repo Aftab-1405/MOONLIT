@@ -10,8 +10,6 @@ import { getMoonlitBrandGradients } from '../../styles/themeEffects';
 function ValueGrid() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const brand = theme.palette.primary.main;
-  const accent = theme.palette.secondary.main;
   const brandGradients = getMoonlitBrandGradients(theme);
 
   const values = useMemo(() => [
@@ -42,7 +40,7 @@ function ValueGrid() {
             sx={{
               textTransform: 'uppercase',
               letterSpacing: '0.15em',
-              color: accent,
+              color: 'text.secondary',
               ...theme.typography.uiCaptionXs,
               display: 'block',
               mb: 1.5,
@@ -105,14 +103,14 @@ function ValueGrid() {
                 [REDUCED_MOTION_QUERY]: { animation: 'none', transition: 'none' },
                 [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
-                    borderColor: alpha(brand, isDark ? 0.32 : 0.22),
+                    borderColor: alpha(theme.palette.text.primary, isDark ? 0.22 : 0.14),
                     backgroundColor: isDark
-                      ? alpha(brand, 0.06)
-                      : alpha(brand, 0.04),
+                      ? alpha(theme.palette.text.primary, 0.055)
+                      : alpha(theme.palette.text.primary, 0.035),
                     transform: 'translateY(-5px)',
                     boxShadow: isDark
-                      ? `0 20px 40px -16px ${alpha(brand, 0.22)}`
-                      : `0 20px 40px -16px ${alpha(brand, 0.13)}`,
+                      ? `0 20px 42px -18px ${alpha(theme.palette.common.black, 0.44)}`
+                      : `0 20px 40px -18px ${alpha(theme.palette.common.black, 0.12)}`,
                     '& .icon-container': { transform: 'scale(1.06)' },
                     '& .card-number': { opacity: 0.5 },
                   },
@@ -146,19 +144,19 @@ function ValueGrid() {
                     height: 48,
                     borderRadius: 2,
                     backgroundColor: isDark
-                      ? alpha(brand, 0.12)
-                      : alpha(brand, 0.08),
-                    border: `1px solid ${alpha(brand, isDark ? 0.22 : 0.15)}`,
+                      ? alpha(theme.palette.text.primary, 0.09)
+                      : alpha(theme.palette.text.primary, 0.055),
+                    border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.16 : 0.1)}`,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     transition: theme.transitions.create('transform', { duration: 250 }),
                     boxShadow: isDark
-                      ? `inset 0 1px 0 ${alpha(brand, 0.12)}`
-                      : `inset 0 1px 0 ${alpha(brand, 0.08)}`,
+                      ? `inset 0 1px 0 ${alpha(theme.palette.text.primary, 0.1)}`
+                      : `inset 0 1px 0 ${alpha(theme.palette.common.white, 0.85)}`,
                   }}
                 >
-                  <v.Icon sx={{ fontSize: 22, color: brand }} />
+                  <v.Icon sx={{ fontSize: 22, color: 'text.primary' }} />
                 </Box>
 
                 <Box>

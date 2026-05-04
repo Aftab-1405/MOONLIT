@@ -57,12 +57,16 @@ const moonlitBrandGradientCache = new WeakMap();
 export const getMoonlitBrandGradients = (theme) => {
   if (moonlitBrandGradientCache.has(theme)) return moonlitBrandGradientCache.get(theme);
 
-  const brand = theme.palette.primary.main;
-  const brandLight = theme.palette.primary.light;
-  const accent = theme.palette.secondary.main;
+  const isDark = theme.palette.mode === 'dark';
+  const primary = theme.palette.text.primary;
+  const secondary = theme.palette.text.secondary;
   const gradients = Object.freeze({
-    static: `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`,
-    shimmer: `linear-gradient(to right, ${accent}, ${brandLight}, ${brand}, ${brandLight}, ${accent})`,
+    static: isDark
+      ? `linear-gradient(135deg, ${primary}, ${secondary})`
+      : `linear-gradient(135deg, ${primary}, ${alpha(primary, 0.82)})`,
+    shimmer: isDark
+      ? `linear-gradient(to right, ${secondary}, ${primary}, ${secondary})`
+      : `linear-gradient(to right, ${primary}, ${alpha(primary, 0.68)}, ${primary})`,
   });
 
   moonlitBrandGradientCache.set(theme, gradients);
@@ -72,10 +76,9 @@ export const getMoonlitBrandGradients = (theme) => {
 export const getMoonlitGradient = (theme) => {
   if (gradientCache.has(theme)) return gradientCache.get(theme);
   const isDark = theme.palette.mode === 'dark';
-  // Neutral graphite gradient for monochrome surfaces and text accents
   const gradient = isDark
-    ? `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.92)}, ${alpha(theme.palette.secondary.main, 0.82)})`
-    : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.94)}, ${alpha(theme.palette.secondary.main, 0.80)})`;
+    ? `linear-gradient(135deg, ${alpha(theme.palette.text.primary, 0.94)}, ${alpha(theme.palette.text.secondary, 0.78)})`
+    : `linear-gradient(135deg, ${theme.palette.text.primary}, ${alpha(theme.palette.text.primary, 0.72)})`;
   gradientCache.set(theme, gradient);
   return gradient;
 };
@@ -83,26 +86,26 @@ export const getMoonlitGradient = (theme) => {
 export const getAccentEffects = (theme) => {
   if (accentEffectsCache.has(theme)) return accentEffectsCache.get(theme);
   const isDark = theme.palette.mode === 'dark';
-  const main = theme.palette.primary.main;
-  const accent = theme.palette.secondary.main;
+  const main = theme.palette.text.primary;
+  const secondary = theme.palette.text.secondary;
   const gradient = isDark
-    ? `linear-gradient(135deg, ${alpha(theme.palette.primary.light, 0.92)}, ${alpha(accent, 0.82)})`
-    : `linear-gradient(135deg, ${main}, ${alpha(accent, 0.85)})`;
+    ? `linear-gradient(135deg, ${alpha(main, 0.94)}, ${alpha(secondary, 0.78)})`
+    : `linear-gradient(135deg, ${main}, ${alpha(main, 0.68)})`;
 
   const effects = isDark
     ? {
         gradient,
         textGradient: gradient,
-        glow: `0 0 24px ${alpha(main, 0.22)}, 0 0 46px ${alpha(accent, 0.14)}`,
-        border: `1px solid ${alpha(main, 0.22)}`,
-        background: alpha(main, 0.1),
+        glow: `0 16px 42px ${alpha(theme.palette.common.black, 0.34)}`,
+        border: `1px solid ${alpha(main, 0.16)}`,
+        background: alpha(main, 0.08),
       }
     : {
         gradient,
         textGradient: gradient,
-        glow: `0 8px 28px ${alpha(main, 0.18)}`,
-        border: `1px solid ${alpha(main, 0.16)}`,
-        background: alpha(main, 0.07),
+        glow: `0 16px 36px ${alpha(theme.palette.common.black, 0.08)}`,
+        border: `1px solid ${alpha(main, 0.12)}`,
+        background: alpha(main, 0.045),
       };
 
   const frozen = Object.freeze(effects);

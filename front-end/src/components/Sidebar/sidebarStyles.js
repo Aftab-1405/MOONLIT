@@ -1,118 +1,112 @@
 import { alpha } from '@mui/material/styles';
 import { UI_LAYOUT } from '../../styles/shared';
 
-export const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth;
-export const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth;
-export const SIDEBAR_ROW_RADIUS = '10px';
+export const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth;   // 260
+export const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth; // 52
+export const SIDEBAR_RADIUS = '10px';
 
-export function buildSidebarNavRowSx(theme, {
-  isActive = false,
-  disabled = false,
-} = {}) {
+// ─── Shared token ────────────────────────────────────────────────────────────
+// Every clickable row uses the same horizontal inset (px: ROW_PX = 8px each side).
+// The icon column is ICON_COL wide — a fixed-width slot that centers the icon.
+// Height is controlled by the row's minHeight, not the icon slot.
+export const ROW_PX = 1;        // MUI spacing → 8px each side
+export const ICON_COL = 36;     // px — fixed icon column width only (not height)
+export const ROW_HEIGHT = 36;   // px — single consistent row height for all items
+
+// ─── Nav row (toggle, nav items, footer) ─────────────────────────────────────
+export function buildNavRowSx(theme, { isActive = false, disabled = false } = {}) {
   const isDark = theme.palette.mode === 'dark';
-  const activeBg = alpha(theme.palette.text.primary, isDark ? 0.105 : 0.065);
-  const hoverBg = alpha(theme.palette.text.primary, isDark ? 0.065 : 0.045);
-
   return {
     display: 'flex',
     alignItems: 'center',
     width: '100%',
-    minHeight: 38,
-    // Fixed padding — icon stays left-aligned at all times.
-    // The label fades/shrinks via maxWidth+opacity, so the icon never needs to re-center.
-    px: 1.5,
-    py: 0.65,
-    justifyContent: 'flex-start',
+    height: ROW_HEIGHT,
+    minHeight: ROW_HEIGHT,
+    px: ROW_PX,
+    py: 0,
+    gap: 0,
     border: 'none',
     outline: 'none',
     appearance: 'none',
-    cursor: disabled ? 'default' : 'pointer',
     textAlign: 'left',
-    borderRadius: SIDEBAR_ROW_RADIUS,
-    gap: 1.25,
-    overflow: 'hidden',
+    cursor: disabled ? 'default' : 'pointer',
+    borderRadius: SIDEBAR_RADIUS,
+    boxSizing: 'border-box',
+    backgroundColor: isActive
+      ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.065)
+      : 'transparent',
     color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
-    backgroundColor: isActive ? activeBg : 'transparent',
-    opacity: disabled ? 0.45 : 1,
+    opacity: disabled ? 0.4 : 1,
     transition: theme.transitions.create(['background-color', 'color', 'opacity'], {
       duration: theme.transitions.duration.shorter,
     }),
     '&:hover:not(:disabled)': {
-      backgroundColor: isActive ? activeBg : hoverBg,
+      backgroundColor: isActive
+        ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.065)
+        : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.045),
       color: theme.palette.text.primary,
     },
     '&:focus-visible': {
-      boxShadow: `0 0 0 2px ${alpha(theme.palette.text.primary, isDark ? 0.22 : 0.18)}`,
+      outline: `2px solid ${alpha(theme.palette.text.primary, 0.4)}`,
+      outlineOffset: -2,
     },
   };
 }
 
+// ─── Conversation row ─────────────────────────────────────────────────────────
 export function buildConversationRowSx(theme, { isActive = false, menuOpen = false } = {}) {
   const isDark = theme.palette.mode === 'dark';
-  const activeBg = alpha(theme.palette.text.primary, isDark ? 0.11 : 0.07);
-  const hoverBg = alpha(theme.palette.text.primary, isDark ? 0.065 : 0.045);
-
   return {
     display: 'flex',
     alignItems: 'center',
     position: 'relative',
     width: '100%',
-    mb: 0.125,
+    height: ROW_HEIGHT,
+    minHeight: ROW_HEIGHT,
     pl: 1.5,
     pr: 3.5,
-    py: 0.65,
-    minHeight: 36,
-    borderRadius: SIDEBAR_ROW_RADIUS,
+    py: 0,
+    mb: 0.125,
     border: 'none',
     outline: 'none',
     appearance: 'none',
     cursor: 'pointer',
     textAlign: 'left',
+    borderRadius: SIDEBAR_RADIUS,
+    boxSizing: 'border-box',
+    backgroundColor: isActive
+      ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07)
+      : 'transparent',
     color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
-    backgroundColor: isActive ? activeBg : 'transparent',
     transition: theme.transitions.create(['background-color', 'color'], {
       duration: theme.transitions.duration.shorter,
     }),
     '& .options-btn': { opacity: menuOpen ? 1 : 0 },
     '&:hover .options-btn, &:focus-within .options-btn': { opacity: 1 },
     '&:hover .conv-title, &:focus-within .conv-title': {
-      maskImage: 'linear-gradient(to right, black 78%, transparent 95%)',
-      WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 95%)',
+      maskImage: 'linear-gradient(to right, black 75%, transparent 95%)',
+      WebkitMaskImage: 'linear-gradient(to right, black 75%, transparent 95%)',
     },
     ...(menuOpen && {
       '& .conv-title': {
-        maskImage: 'linear-gradient(to right, black 78%, transparent 95%)',
-        WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 95%)',
+        maskImage: 'linear-gradient(to right, black 75%, transparent 95%)',
+        WebkitMaskImage: 'linear-gradient(to right, black 75%, transparent 95%)',
       },
     }),
     '&:hover': {
-      backgroundColor: isActive ? activeBg : hoverBg,
+      backgroundColor: isActive
+        ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07)
+        : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.045),
       color: theme.palette.text.primary,
     },
     '&:focus-visible': {
-      boxShadow: `0 0 0 2px ${alpha(theme.palette.text.primary, isDark ? 0.22 : 0.18)}`,
+      outline: `2px solid ${alpha(theme.palette.text.primary, 0.4)}`,
+      outlineOffset: -2,
     },
   };
 }
 
-export function buildSidebarSectionLabelSx() {
-  return {
-    px: 2,
-    pt: 2.25,
-    pb: 0.75,
-    fontSize: '0.8rem',
-    fontWeight: 700,
-    lineHeight: 1.25,
-    color: 'text.primary',
-    letterSpacing: 0,
-  };
-}
-
-/**
- * Builds sx for the desktop sidebar <nav> element.
- * Replaces the old StyledDesktopSidebarPanel (styled MuiDrawer).
- * Result: 1 <nav> element instead of MuiDrawer > MuiPaper > MuiDrawer-paper (3+ wrappers).
- */
+// ─── Desktop nav element ──────────────────────────────────────────────────────
 export function buildDesktopNavSx(theme, open) {
   const isDark = theme.palette.mode === 'dark';
   return {
@@ -124,7 +118,6 @@ export function buildDesktopNavSx(theme, open) {
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
-    whiteSpace: 'nowrap',
     boxSizing: 'border-box',
     zIndex: 2,
     transition: theme.transitions.create('width', {
@@ -133,26 +126,20 @@ export function buildDesktopNavSx(theme, open) {
         ? theme.transitions.duration.enteringScreen
         : theme.transitions.duration.leavingScreen,
     }),
-    backgroundColor: alpha(
-      theme.palette.background.paper,
-      isDark ? 0.9 : 0.98,
-    ),
+    backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.9 : 0.98),
     backgroundImage: isDark
       ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.03)} 0%, transparent 18%)`
       : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.02)} 0%, transparent 18%)`,
-    borderRight: 'none',
-    boxShadow: 'none',
   };
 }
 
+// ─── Mobile drawer paper ──────────────────────────────────────────────────────
 export function buildMobileDrawerPaperStyles(theme) {
   return {
     height: '100dvh',
+    '@supports not (height: 100dvh)': { height: '100vh' },
     display: 'flex',
     flexDirection: 'column',
-    '@supports not (height: 100dvh)': {
-      height: '100vh',
-    },
     width: { xs: '88vw', sm: 320 },
     maxWidth: 320,
     paddingBottom: 'env(safe-area-inset-bottom)',
@@ -162,6 +149,20 @@ export function buildMobileDrawerPaperStyles(theme) {
     backgroundImage: theme.palette.mode === 'dark'
       ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.03)} 0%, transparent 18%)`
       : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.02)} 0%, transparent 18%)`,
-    borderRight: 'none',
+  };
+}
+
+// ─── Section label ────────────────────────────────────────────────────────────
+export function buildSidebarSectionLabelSx() {
+  return {
+    px: 2,
+    pt: 2,
+    pb: 0.75,
+    fontSize: '0.75rem',
+    fontWeight: 700,
+    lineHeight: 1.25,
+    color: 'text.secondary',
+    letterSpacing: '0.04em',
+    textTransform: 'uppercase',
   };
 }
