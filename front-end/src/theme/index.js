@@ -2,7 +2,7 @@
  * Theme module entry point.
  *
  * Exports:
- *   - createDarkTheme / createLightTheme — Claude.ai-styled MUI theme factories
+ *   - createDarkTheme / createLightTheme — Moonlit MUI theme factories
  *   - Re-exports of shared style utilities (backward-compat with ../theme imports)
  *
  * NOTE: ThemeContext itself is NOT re-exported here to prevent a circular
@@ -11,7 +11,7 @@
  * Import ThemeContext directly from `../contexts/ThemeContext` when needed.
  */
 
-// ─── Claude.ai MUI themes ─────────────────────────────────────────────────────
+// ─── Moonlit MUI themes ───────────────────────────────────────────────────────
 export { createDarkTheme } from './darkTheme';
 export { createLightTheme } from './lightTheme';
 

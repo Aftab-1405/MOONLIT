@@ -3,6 +3,7 @@
  */
 import { alpha } from '@mui/material/styles';
 import { HOVER_CAPABLE_QUERY } from './mediaQueries';
+import { getMoonlitBrandGradients } from './themeEffects';
 
 export const DIALOG_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
 
@@ -129,15 +130,14 @@ export const getPrimaryActionButtonSx = (theme, {
 } = {}) => {
   const isDark = theme.palette.mode === 'dark';
   const brand = theme.palette.primary.main;
-  const brandLight = theme.palette.primary.light;
-  const accent = theme.palette.secondary.main;
+  const brandGradients = getMoonlitBrandGradients(theme);
 
   return {
     py: { xs: 1, sm: 1.125 },
     minHeight,
     borderRadius,
     fontWeight: 600,
-    backgroundImage: `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`,
+    backgroundImage: brandGradients.static,
     backgroundColor: 'transparent',
     color: '#fff',
     border: 'none',

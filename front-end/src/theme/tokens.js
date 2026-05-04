@@ -102,7 +102,7 @@ export const DARK = {
   border200:  hslToHex(51,  16.5, 84.5),   // #dedcd0  — light warm gray
 };
 
-/** Claude.ai / Anthropic font stacks */
+/** Moonlit font stacks */
 export const FONTS = {
   sans:  '"Anthropic Sans", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
   mono:  '"Anthropic Mono", ui-monospace, "Cascadia Code", "Fira Code", monospace',

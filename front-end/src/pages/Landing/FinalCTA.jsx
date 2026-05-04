@@ -2,15 +2,13 @@ import { Box, Container, Stack, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
+import { getMoonlitBrandGradients } from '../../styles/themeEffects';
 
 function FinalCTA({ onGetStarted }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const brand = theme.palette.primary.main;
-  const brandLight = theme.palette.primary.light;
-  const accent = theme.palette.secondary.main;
-  const brandGradient = `linear-gradient(to right, ${accent}, ${brandLight}, ${brand}, ${brandLight}, ${accent})`;
-  const brandGradientStatic = `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`;
+  const brandGradients = getMoonlitBrandGradients(theme);
 
   return (
     <Section sx={{ flexDirection: 'column', py: { xs: 6, md: 8 } }}>
@@ -57,7 +55,7 @@ function FinalCTA({ onGetStarted }) {
             <Box
               component="span"
               sx={{
-                background: brandGradient,
+                background: brandGradients.shimmer,
                 backgroundSize: '200% auto',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
@@ -86,7 +84,7 @@ function FinalCTA({ onGetStarted }) {
               py: 1.75,
               borderRadius: 2,
               fontWeight: 600,
-              backgroundImage: brandGradientStatic,
+              backgroundImage: brandGradients.static,
               backgroundColor: 'transparent',
               color: '#fff',
               border: 'none',

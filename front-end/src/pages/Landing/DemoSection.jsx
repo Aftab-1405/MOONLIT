@@ -2,14 +2,14 @@ import { Box, Container, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
 import { UI_LAYOUT } from '../../styles/shared';
+import { getMoonlitBrandGradients } from '../../styles/themeEffects';
 
 function DemoSection() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const brand = theme.palette.primary.main;
-  const brandLight = theme.palette.primary.light;
   const accent = theme.palette.secondary.main;
-  const brandGradientStatic = `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`;
+  const brandGradients = getMoonlitBrandGradients(theme);
 
   return (
     <Section
@@ -39,7 +39,7 @@ function DemoSection() {
             <Box
               component="span"
               sx={{
-                background: brandGradientStatic,
+                background: brandGradients.static,
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',

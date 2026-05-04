@@ -52,6 +52,22 @@ export const KEYFRAMES = {
 
 const gradientCache = new WeakMap();
 const accentEffectsCache = new WeakMap();
+const moonlitBrandGradientCache = new WeakMap();
+
+export const getMoonlitBrandGradients = (theme) => {
+  if (moonlitBrandGradientCache.has(theme)) return moonlitBrandGradientCache.get(theme);
+
+  const brand = theme.palette.primary.main;
+  const brandLight = theme.palette.primary.light;
+  const accent = theme.palette.secondary.main;
+  const gradients = Object.freeze({
+    static: `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`,
+    shimmer: `linear-gradient(to right, ${accent}, ${brandLight}, ${brand}, ${brandLight}, ${accent})`,
+  });
+
+  moonlitBrandGradientCache.set(theme, gradients);
+  return gradients;
+};
 
 export const getMoonlitGradient = (theme) => {
   if (gradientCache.has(theme)) return gradientCache.get(theme);

@@ -30,7 +30,7 @@ const palette = {
 
   background: {
     default:  H.bg000,   // #2f2e2d — base dark surface
-    paper:    H.bg100,   // #252524 — cards (darker than default, like Claude)
+    paper:    H.bg100,   // #252524 — cards and app panels
     elevated: H.bg000,   // popovers float on the base dark level
     sunken:   H.bg200,   // #1f1e1c — inputs / very deep insets
   },
@@ -46,7 +46,7 @@ const palette = {
     main:         H.brand000,
     light:        H.brand200,
     dark:         H.brandDark,
-    contrastText: H.bg200,  // dark text on light Selene brand
+    contrastText: H.bg200,  // dark text on luminous Moonlit brand
   },
 
   secondary: {
@@ -705,7 +705,7 @@ const components = {
   MuiLink: {
     styleOverrides: {
       root: {
-        color: H.brand200,  // Use lighter orange for better contrast on dark bg
+        color: H.brand200,
         textDecorationColor: alpha(H.brand200, 0.35),
         textUnderlineOffset: '2px',
         transition: TRANSITIONS.default,

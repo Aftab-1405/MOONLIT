@@ -2,15 +2,14 @@ import { useMemo } from 'react';
 import { Box, Container, Typography, Stack } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
+import { getMoonlitBrandGradients } from '../../styles/themeEffects';
 
 function StepsGrid() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const brand = theme.palette.primary.main;
-  const brandLight = theme.palette.primary.light;
   const accent = theme.palette.secondary.main;
-  const brandGradient = `linear-gradient(to right, ${accent}, ${brandLight}, ${brand}, ${brandLight}, ${accent})`;
-  const brandGradientStatic = `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`;
+  const brandGradients = getMoonlitBrandGradients(theme);
 
   const steps = useMemo(() => [
     {
@@ -57,7 +56,7 @@ function StepsGrid() {
             <Box
               component="span"
               sx={{
-                background: brandGradient,
+                background: brandGradients.shimmer,
                 backgroundSize: '200% auto',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
@@ -132,7 +131,7 @@ function StepsGrid() {
                       width: 44,
                       height: 44,
                       borderRadius: '50%',
-                      backgroundImage: brandGradientStatic,
+                      backgroundImage: brandGradients.static,
                       backgroundColor: 'transparent',
                       display: 'flex',
                       alignItems: 'center',

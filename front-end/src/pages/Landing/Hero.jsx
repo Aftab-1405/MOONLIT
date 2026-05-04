@@ -3,6 +3,7 @@ import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined';
 import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
+import { getMoonlitBrandGradients } from '../../styles/themeEffects';
 
 const STATS = [
   { value: '10K+', label: 'Queries/day' },
@@ -16,8 +17,7 @@ function Hero({ onGetStarted }) {
   const brand = theme.palette.primary.main;
   const brandLight = theme.palette.primary.light;
   const accent = theme.palette.secondary.main;
-  const brandGradient = `linear-gradient(to right, ${accent}, ${brandLight}, ${brand}, ${brandLight}, ${accent})`;
-  const brandGradientStatic = `linear-gradient(135deg, ${accent}, ${brandLight}, ${brand})`;
+  const brandGradients = getMoonlitBrandGradients(theme);
 
   return (
     <Section sx={{ py: { xs: 8, md: 6 } }}>
@@ -154,7 +154,7 @@ function Hero({ onGetStarted }) {
             <Box
               component="span"
               sx={{
-                background: brandGradient,
+                background: brandGradients.shimmer,
                 backgroundSize: '200% auto',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
@@ -201,7 +201,7 @@ function Hero({ onGetStarted }) {
                 py: 1.5,
                 borderRadius: 2,
                 fontWeight: 600,
-                backgroundImage: brandGradientStatic,
+                backgroundImage: brandGradients.static,
                 backgroundColor: 'transparent',
                 color: '#fff',
                 border: 'none',
@@ -277,7 +277,7 @@ function Hero({ onGetStarted }) {
                 <Typography
                   sx={{
                     fontWeight: 700,
-                    background: brandGradientStatic,
+                    background: brandGradients.static,
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',

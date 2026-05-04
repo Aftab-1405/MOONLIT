@@ -5,14 +5,14 @@ import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SpeedIcon from '@mui/icons-material/Speed';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
+import { getMoonlitBrandGradients } from '../../styles/themeEffects';
 
 function ValueGrid() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const brand = theme.palette.primary.main;
-  const brandLight = theme.palette.primary.light;
   const accent = theme.palette.secondary.main;
-  const brandGradient = `linear-gradient(to right, ${accent}, ${brandLight}, ${brand}, ${brandLight}, ${accent})`;
+  const brandGradients = getMoonlitBrandGradients(theme);
 
   const values = useMemo(() => [
     {
@@ -59,7 +59,7 @@ function ValueGrid() {
             <Box
               component="span"
               sx={{
-                background: brandGradient,
+                background: brandGradients.shimmer,
                 backgroundSize: '200% auto',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
