@@ -272,15 +272,12 @@ function Sidebar({
               <Typography
                 noWrap
                 sx={{
-                  fontFamily: '"Georgia", "Times New Roman", serif',
+                  ...theme.typography.uiBrandWordmark,
                   fontSize: '1rem',
-                  fontWeight: 700,
-                  lineHeight: 1,
                   color: 'text.primary',
                   whiteSpace: 'nowrap',
                 }}
-              >
-                Moonlit
+              >                Moonlit
               </Typography>
             </Box>
           </Box>
@@ -354,13 +351,12 @@ function Sidebar({
         <Typography
           component="span"
           sx={{ ...buildSidebarSectionLabelSx(), px: 0, pt: 0, pb: 0 }}
-        >
-          Recents
+        >          Recents
         </Typography>
         <Typography
           className="toggle-hint"
           component="span"
-          sx={{ fontSize: '0.72rem', color: 'text.disabled', opacity: 0, transition: 'opacity 0.15s ease' }}
+          sx={{ ...theme.typography.uiNavShortcut, color: 'text.disabled', opacity: 0, transition: 'opacity 0.15s ease' }}
         >
           {recentsCollapsed ? 'Show' : 'Hide'}
         </Typography>
@@ -389,7 +385,7 @@ function Sidebar({
             <HistoryListSkeleton />
           ) : conversations.length === 0 ? (
             <Box sx={{ px: 1.5, py: 1.5, opacity: 0.55 }}>
-              <Typography sx={{ fontSize: '0.875rem', color: 'text.secondary', lineHeight: 1.4 }}>
+              <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary' }}>
                 No conversations yet
               </Typography>
             </Box>
@@ -478,7 +474,7 @@ function Sidebar({
               }),
             }}
           >
-            <Typography noWrap sx={{ fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.2, color: 'text.primary', whiteSpace: 'nowrap' }}>
+            <Typography noWrap sx={{ ...theme.typography.uiNavItem, fontWeight: 500, color: 'text.primary', whiteSpace: 'nowrap' }}>
               {user?.displayName || 'Profile'}
             </Typography>
           </Box>

@@ -69,7 +69,7 @@ export const ConversationItem = memo(function ConversationItem({
         <Typography
           className="conv-title"
           noWrap
-          sx={{ flex: '1 1 auto', minWidth: 0, fontSize: '0.875rem', lineHeight: 1.3, fontWeight: isActive ? 500 : 400 }}
+          sx={{ flex: '1 1 auto', minWidth: 0, ...theme.typography.uiNavItem, fontWeight: isActive ? 500 : 400 }}
         >
           {conv.title || 'New Conversation'}
         </Typography>
@@ -117,8 +117,7 @@ export const ConversationItem = memo(function ConversationItem({
             fontSize: '0.84rem',
             gap: 1,
             px: 1,
-            py: 0.85,
-            borderRadius: '8px',
+            py: 0.85,            borderRadius: '8px',
             color: theme.palette.error.main,
             transition: theme.transitions.create(['background-color', 'color'], {
               duration: theme.transitions.duration.shortest,
@@ -267,7 +266,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
         >
           <Typography
             noWrap
-            sx={{ fontSize: '0.875rem', lineHeight: 1.3, fontWeight: isActive ? 500 : 400, color: 'inherit', textAlign: 'left' }}
+            sx={{ ...theme.typography.uiNavItem, fontWeight: isActive ? 500 : 400, color: 'inherit', textAlign: 'left' }}
           >
             {label}
           </Typography>
@@ -279,7 +278,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
             className="shortcut-hint"
             component="span"
             sx={{
-              fontSize: '0.72rem',
+              ...theme.typography.uiNavShortcut,
               color: 'text.disabled',
               flexShrink: 0,
               opacity: 0,
@@ -331,7 +330,7 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
         primary={conv.title || 'New Conversation'}
         primaryTypographyProps={{
           noWrap: true,
-          sx: { fontSize: '0.875rem', lineHeight: 1.3, fontWeight: isActive ? 500 : 400 },
+          sx: { ...theme.typography.uiNavItem, fontWeight: isActive ? 500 : 400 },
         }}
       />
       <IconButton

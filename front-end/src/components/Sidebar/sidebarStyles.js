@@ -153,6 +153,8 @@ export function buildMobileDrawerPaperStyles(theme) {
 }
 
 // ─── Section label ────────────────────────────────────────────────────────────
+// Returns sx that matches theme.typography.uiSectionLabel.
+// Used as a spread: sx={{ ...buildSidebarSectionLabelSx(), px: 0, pt: 0, pb: 0 }}
 export function buildSidebarSectionLabelSx() {
   return {
     px: 2,

@@ -511,7 +511,7 @@ function SQLEditorCanvas({
           <Typography
             variant="body2"
             color="error.main"
-            sx={{ fontSize: '0.8125rem', lineHeight: 1.5, fontWeight: 500 }}
+            sx={{ ...theme.typography.uiMenuItemSm, fontWeight: 500 }}
           >
             {error}
           </Typography>
@@ -532,7 +532,7 @@ function SQLEditorCanvas({
             subtitle={null}
             hint={
               <>
-                <Typography variant="caption" sx={{ fontFamily: 'inherit', color: 'text.disabled', fontSize: '0.7rem', letterSpacing: '0.02em' }}>
+                <Typography variant="caption" sx={{ fontFamily: 'inherit', color: 'text.disabled', ...theme.typography.uiCaptionXs, letterSpacing: '0.02em' }}>
                   Press
                 </Typography>
                 {['Ctrl', 'Enter'].map((key, i) => (
@@ -546,6 +546,7 @@ function SQLEditorCanvas({
                       px: 0.625,
                       py: 0.125,
                       borderRadius: '5px',
+                      ...theme.typography.uiMonoLabel,
                       fontSize: '0.6875rem',
                       fontWeight: 600,
                       fontFamily: 'inherit',
@@ -561,7 +562,7 @@ function SQLEditorCanvas({
                     {key}
                   </Box>
                 ))}
-                <Typography variant="caption" sx={{ fontFamily: 'inherit', color: 'text.disabled', fontSize: '0.7rem', letterSpacing: '0.02em', ml: 0.25 }}>
+                <Typography variant="caption" sx={{ fontFamily: 'inherit', color: 'text.disabled', ...theme.typography.uiCaptionXs, letterSpacing: '0.02em', ml: 0.25 }}>
                   to run
                 </Typography>
               </>
@@ -781,9 +782,7 @@ function SQLEditorCanvas({
               px: 1.75,
               minWidth: 0,
               height: '100%',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              letterSpacing: '0.01em',
+              ...theme.typography.uiButtonSm,
               textTransform: 'none',
               borderRadius: 0,
               borderRight: '1px solid',
@@ -839,14 +838,14 @@ function SQLEditorCanvas({
           <MenuItem
             onClick={handleCopyMenuSql}
             disabled={!query.trim()}
-            sx={{ fontSize: '0.8125rem', py: 1, borderRadius: '8px', mx: 0.5, my: 0.25 }}
+            sx={{ ...theme.typography.uiMenuItemSm, py: 1, borderRadius: '8px', mx: 0.5, my: 0.25 }}
           >
             Copy SQL
           </MenuItem>
           <MenuItem
             onClick={handleCopyCsv}
             disabled={!results?.columns?.length}
-            sx={{ fontSize: '0.8125rem', py: 1, borderRadius: '8px', mx: 0.5, mb: 0.5 }}
+            sx={{ ...theme.typography.uiMenuItemSm, py: 1, borderRadius: '8px', mx: 0.5, mb: 0.5 }}
           >
             Copy results as CSV
           </MenuItem>

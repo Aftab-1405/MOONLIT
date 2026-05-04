@@ -194,6 +194,13 @@ const typography = {
   uiSchemaColumnType: { fontSize: { xs: '0.65rem', sm: '0.6rem' }, lineHeight: 1.2 },
   uiCode:         { fontSizePx: 13 },
   uiCodeCompact:  { fontSizePx: 12 },
+  // Sidebar-specific variants
+  uiNavItem:      { fontSize: '0.875rem', lineHeight: 1.3, letterSpacing: '0.008em' },
+  uiNavShortcut:  { fontSize: '0.72rem',  lineHeight: 1.4, letterSpacing: '0.01em' },
+  uiSectionLabel: { fontSize: '0.75rem',  fontWeight: 700, lineHeight: 1.25, letterSpacing: '0.04em', textTransform: 'uppercase' },
+  // SQL editor button/menu text
+  uiButtonSm:     { fontSize: '0.75rem',  fontWeight: 600, letterSpacing: '0.01em' },
+  uiMenuItemSm:   { fontSize: '0.8125rem', lineHeight: 1.5 },
 };
 
 // ─── Component overrides ──────────────────────────────────────────────────────

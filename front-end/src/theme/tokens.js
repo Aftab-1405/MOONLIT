@@ -103,9 +103,12 @@ export const DARK = {
 
 /** Moonlit font stacks */
 export const FONTS = {
-  sans:  '"Anthropic Sans", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
-  mono:  '"Anthropic Mono", ui-monospace, "Cascadia Code", "Fira Code", monospace',
-  serif: '"Anthropic Serif", Georgia, "Times New Roman", serif',
+  // JetBrains Mono loaded via Google Fonts in index.html
+  mono:  '"JetBrains Mono", ui-monospace, "Cascadia Code", "Fira Code", monospace',
+  // Merriweather loaded via Google Fonts in index.html
+  serif: '"Merriweather", Georgia, "Times New Roman", serif',
+  // System sans-serif stack — no custom font loaded
+  sans:  'system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
 };
 
 /** Shared MUI shape config */
