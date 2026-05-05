@@ -201,17 +201,17 @@ function ChatInput({
   const suggestions = useMemo(() => [
     {
       label: 'Check Connection',
-      icon: <CloudUploadOutlinedIcon sx={{ fontSize: 14 }} />,
+      icon: <CloudUploadOutlinedIcon sx={{ fontSize: 16 }} />,
       prompt: 'Check my database connection status and show connection details',
     },
     {
       label: 'Schema Details',
-      icon: <StreamOutlinedIcon sx={{ fontSize: 14 }} />,
+      icon: <StreamOutlinedIcon sx={{ fontSize: 16 }} />,
       prompt: 'Show me the database schema with all tables and their columns',
     },
     {
       label: 'Open SQL Editor',
-      icon: <CodeRoundedIcon sx={{ fontSize: 14 }} />,
+      icon: <CodeRoundedIcon sx={{ fontSize: 16 }} />,
       prompt: 'Open the SQL editor and help me write a query',
     },
   ], []);
@@ -665,26 +665,44 @@ function ChatInput({
               onClick={() => handleSuggestionClick(chip.prompt)}
               size="small"
               sx={{
-                height: 34,
-                borderRadius: '10px',
+                height: 32,
+                borderRadius: '8px',
                 border: '1px solid',
-                borderColor: alpha(theme.palette.text.primary, 0.12),
+                borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.1),
                 color: 'text.secondary',
                 backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.32 : 0.72),
                 cursor: 'pointer',
+                transition: theme.transitions.create(['background-color', 'border-color', 'color', 'transform'], {
+                  duration: theme.transitions.duration.shorter,
+                }),
+                '&:active': { transform: 'scale(0.995)' },
                 '& .MuiChip-label': {
-                  px: 1.125,
+                  px: 1.25,
                   ...theme.typography.uiCaptionSm,
                   lineHeight: 1,
                   display: 'flex',
                   alignItems: 'center',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
                 },
-                '& .MuiChip-icon': { color: 'inherit', ml: 0.875, mr: -0.125, fontSize: 14, display: 'flex', alignItems: 'center' },
+                '& .MuiChip-icon': {
+                  color: alpha(theme.palette.text.primary, 0.45),
+                  ml: 1,
+                  mr: -0.25,
+                  fontSize: 16,
+                  flexShrink: 0,
+                  display: 'flex',
+                  alignItems: 'center',
+                },
                 [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
-                    borderColor: alpha(theme.palette.text.primary, 0.22),
-                    backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.48 : 0.9),
+                    borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.22 : 0.18),
+                    backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.52 : 0.92),
                     color: 'text.primary',
+                    '& .MuiChip-icon': {
+                      color: alpha(theme.palette.text.primary, 0.65),
+                    },
                   },
                 },
               }}
