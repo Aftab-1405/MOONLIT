@@ -1,10 +1,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
+  BaseEdge,
   Background,
   Handle,
   MarkerType,
   Position,
+  getBezierPath,
+  useInternalNode,
   useEdgesState,
   useNodesState,
 } from '@xyflow/react';
@@ -25,6 +28,7 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded';
 import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
+import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 import {
   ArtifactActions,
   ArtifactBody,
@@ -38,21 +42,25 @@ import {
   HIDDEN_FLOW_HANDLE_STYLE,
   getReactFlowBackgroundColor,
   getReactFlowCanvasSx,
+  getReactFlowCountBadgeSx,
   getReactFlowCustomNodeAccentSx,
   getReactFlowDefaultEdgeOptions,
   getReactFlowEdgeStyle,
   getReactFlowNodeCardSx,
   getReactFlowNodeChromeSx,
+  getReactFlowNodeStatusDotSx,
   getReactFlowStatusSx,
+  getReactFlowTagChipSx,
 } from '../styles/reactFlowStyles';
 import { getReadOnlyReactFlowProps } from '../config/reactFlow';
 
 const VALID_DIRECTIONS = new Set(['LR', 'TD']);
 const STREAM_SETTLE_MS = 350;
-const DEFAULT_NODE_WIDTH = 188;
-const DEFAULT_NODE_HEIGHT = 72;
-const MOBILE_NODE_WIDTH = 176;
-const MOBILE_NODE_HEIGHT = 70;
+// Slightly larger default nodes give more room for rich content
+const DEFAULT_NODE_WIDTH = 200;
+const DEFAULT_NODE_HEIGHT = 96;
+const MOBILE_NODE_WIDTH = 186;
+const MOBILE_NODE_HEIGHT = 90;
 const INLINE_VIEWPORT = { width: 720, height: 340 };
 const MOBILE_VIEWPORT = { width: 320, height: 230 };
 const STYLE_KEYS = new Set([
@@ -60,7 +68,6 @@ const STYLE_KEYS = new Set([
   'backgroundColor',
   'border',
   'borderColor',
-  'borderRadius',
   'color',
   'fontWeight',
   'lineHeight',
@@ -84,12 +91,6 @@ const normalizeNodeStatus = (status) => {
   const normalized = typeof status === 'string' ? status.trim().toLowerCase() : '';
   return NODE_STATUSES.has(normalized) ? normalized : undefined;
 };
-
-const getPositionsForDirection = (direction) => (
-  direction === 'TD'
-    ? { sourcePosition: Position.Bottom, targetPosition: Position.Top }
-    : { sourcePosition: Position.Right, targetPosition: Position.Left }
-);
 
 const normalizeStyle = (style) => {
   if (!style || typeof style !== 'object' || Array.isArray(style)) return undefined;
@@ -116,7 +117,7 @@ const normalizeNodeStyle = (node) => {
 const normalizeEdgeStyle = (edge) => {
   const style = normalizeStyle(edge.style) || {};
   if (typeof edge.color === 'string') style.stroke = edge.color;
-  if (edge.dashed) style.strokeDasharray = style.strokeDasharray || '5 5';
+  if (edge.dashed) style.strokeDasharray = style.strokeDasharray || '6 4';
   return Object.keys(style).length > 0 ? style : undefined;
 };
 
@@ -150,14 +151,15 @@ const getLayoutedElements = (nodes, edges, direction, isMobile) => {
   const graph = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
   graph.setGraph({
     rankdir: direction,
-    nodesep: isMobile ? 28 : 40,
-    ranksep: isMobile ? 68 : 96,
+    // More generous breathing room between nodes
+    nodesep: isMobile ? 36 : 52,
+    ranksep: isMobile ? 82 : 112,
   });
 
   nodes.forEach((node) => {
     graph.setNode(node.id, {
-      width: node.width || 180,
-      height: node.height || 56,
+      width: node.width || 196,
+      height: node.height || 74,
     });
   });
 
@@ -170,8 +172,8 @@ const getLayoutedElements = (nodes, edges, direction, isMobile) => {
   return {
     nodes: nodes.map((node) => {
       const layoutNode = graph.node(node.id);
-      const width = node.width || 180;
-      const height = node.height || 56;
+      const width = node.width || 196;
+      const height = node.height || 74;
       return {
         ...node,
         position: {
@@ -256,7 +258,6 @@ const normalizeDiagram = (diagram) => {
 };
 
 const buildFlowElements = (diagram, isMobile, theme) => {
-  const { sourcePosition, targetPosition } = getPositionsForDirection(diagram.direction);
   const nodeWidth = isMobile ? MOBILE_NODE_WIDTH : DEFAULT_NODE_WIDTH;
   const nodeHeight = isMobile ? MOBILE_NODE_HEIGHT : DEFAULT_NODE_HEIGHT;
   const edgeBaseStyle = getReactFlowEdgeStyle(theme, { isMobile });
@@ -271,8 +272,8 @@ const buildFlowElements = (diagram, isMobile, theme) => {
       status: node.status,
       tags: node.tags,
       customStyle: node.style,
-      sourcePosition,
-      targetPosition,
+      sourcePosition: Position.Right,
+      targetPosition: Position.Left,
     },
     position: { x: 0, y: 0 },
     width: nodeWidth,
@@ -284,27 +285,31 @@ const buildFlowElements = (diagram, isMobile, theme) => {
     source: edge.source,
     target: edge.target,
     label: edge.label,
-    sourcePosition,
-    targetPosition,
-    type: 'default',
+    type: 'floating',
     markerEnd: {
       type: MarkerType.ArrowClosed,
+      // Cleaner, proportionate arrowhead
+      width: 14,
+      height: 14,
       color: edge.style?.stroke || edgeBaseStyle.stroke,
     },
     style: {
       ...edgeBaseStyle,
       ...(edge.style || {}),
     },
-    interactionWidth: 18,
+    interactionWidth: 20,
     labelStyle: {
       fontSize: 10,
-      fontWeight: 500,
+      fontWeight: 600,
+      letterSpacing: 0,
     },
     animated: edge.animated,
   }));
 
   return getLayoutedElements(nodes, edges, diagram.direction, isMobile);
 };
+
+// ─── Premium Node Component ───────────────────────────────────────────────────
 
 const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
   const theme = useTheme();
@@ -324,28 +329,48 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
         ...getReactFlowNodeChromeSx(theme, disabled),
         position: 'relative',
         height: '100%',
-        minHeight: 68,
-        px: 1.5,
-        py: 1.25,
+        minHeight: 90,
+        px: 1.75,
+        py: 1.5,
         color: disabled ? 'text.disabled' : 'text.primary',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: hasFooter ? 'space-between' : 'center',
-        gap: hasFooter ? 1 : 0,
+        gap: hasFooter ? 1.25 : 0,
         textAlign: 'center',
         opacity: disabled ? 0.62 : 1,
         ...accentSx,
       }}
     >
       <Handle type="target" position={data.targetPosition || Position.Left} style={HIDDEN_FLOW_HANDLE_STYLE} />
+
+      {/* Status indicator dot — top-right corner */}
+      {status && (
+        <Box
+          aria-hidden
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 9,
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            zIndex: 2,
+            ...getReactFlowNodeStatusDotSx(theme, status),
+          }}
+        />
+      )}
+
+      {/* Primary content: label + subtitle */}
       <Box sx={{ minWidth: 0, width: '100%' }}>
         <Typography
           noWrap
           sx={{
             ...theme.typography.uiBodySm,
-            lineHeight: 1.2,
-            fontWeight: 650,
+            lineHeight: 1.25,
+            fontWeight: 660,
+            letterSpacing: 0,
             color: disabled ? 'text.disabled' : 'text.primary',
             textAlign: 'center',
           }}
@@ -356,8 +381,10 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
           <Typography
             noWrap
             sx={{
-              mt: 0.35,
+              mt: 0.4,
               ...theme.typography.uiCaption2xs,
+              lineHeight: 1.35,
+              letterSpacing: 0,
               color: disabled ? 'text.disabled' : 'text.secondary',
               textAlign: 'center',
             }}
@@ -367,20 +394,32 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
         )}
       </Box>
 
+      {/* Footer row: status badge, count pill, tag chips */}
       {hasFooter && (
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75, minWidth: 0, width: '100%' }}>
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexWrap: 'wrap',
+            gap: 0.5,
+            minWidth: 0,
+            width: '100%',
+          }}
+        >
           {showStatus && (
             <Box
               component="span"
               sx={{
-                px: 0.75,
-                py: 0.35,
-                borderRadius: theme.shape.radius.full,
+                px: 0.875,
+                py: 0.375,
+                borderRadius: theme.shape.radius?.full ?? '999px',
                 border: '1px solid',
                 fontFamily: theme.typography.fontFamilyMono,
-                fontSize: 10,
-                fontWeight: 600,
+                fontSize: 9,
+                fontWeight: 700,
                 lineHeight: 1,
+                letterSpacing: 0,
                 textTransform: 'uppercase',
                 ...getReactFlowStatusSx(theme, status),
               }}
@@ -388,34 +427,22 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
               {status}
             </Box>
           )}
+
           {hasCount && (
-            <Typography
-              noWrap
-              sx={{
-                fontFamily: theme.typography.fontFamilyMono,
-                ...theme.typography.uiCaption2xs,
-                color: 'text.secondary',
-              }}
-            >
+            <Box component="span" sx={getReactFlowCountBadgeSx(theme)}>
               {data.count}
-            </Typography>
+            </Box>
           )}
-          {hasTags && (
-            <Typography
-              noWrap
-              sx={{
-                minWidth: 0,
-                color: 'text.disabled',
-                fontFamily: theme.typography.fontFamilyMono,
-                ...theme.typography.uiCaption2xs,
-                textAlign: 'center',
-              }}
-            >
-              {data.tags.join(' / ')}
-            </Typography>
-          )}
+
+          {/* Individual tag chips instead of a joined string */}
+          {hasTags && data.tags.map((tag) => (
+            <Box key={tag} component="span" sx={getReactFlowTagChipSx(theme)}>
+              {tag}
+            </Box>
+          ))}
         </Box>
       )}
+
       <Handle type="source" position={data.sourcePosition || Position.Right} style={HIDDEN_FLOW_HANDLE_STYLE} />
     </Box>
   );
@@ -424,6 +451,102 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
 const nodeTypes = {
   [PREMIUM_NODE_TYPE]: DiagramFlowNode,
 };
+
+// ─── Floating Edge ────────────────────────────────────────────────────────────
+
+const getNodeGeometry = (node) => {
+  if (!node) return null;
+  const position = node.internals?.positionAbsolute || node.position || { x: 0, y: 0 };
+  const width = node.measured?.width || node.width || node.initialWidth || DEFAULT_NODE_WIDTH;
+  const height = node.measured?.height || node.height || node.initialHeight || DEFAULT_NODE_HEIGHT;
+
+  return {
+    x: position.x,
+    y: position.y,
+    width,
+    height,
+    centerX: position.x + width / 2,
+    centerY: position.y + height / 2,
+  };
+};
+
+const getBorderCenterPoint = (sourceNode, targetNode) => {
+  const source = getNodeGeometry(sourceNode);
+  const target = getNodeGeometry(targetNode);
+  if (!source || !target) return null;
+
+  const dx = target.centerX - source.centerX;
+  const dy = target.centerY - source.centerY;
+
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return {
+      x: dx >= 0 ? source.x + source.width : source.x,
+      y: source.centerY,
+      position: dx >= 0 ? Position.Right : Position.Left,
+    };
+  }
+
+  return {
+    x: source.centerX,
+    y: dy >= 0 ? source.y + source.height : source.y,
+    position: dy >= 0 ? Position.Bottom : Position.Top,
+  };
+};
+
+const FloatingBorderCenterEdge = memo(function FloatingBorderCenterEdge({
+  id,
+  source,
+  target,
+  markerEnd,
+  style,
+  label,
+  labelStyle,
+  labelBgStyle,
+  labelBgPadding,
+  labelBgBorderRadius,
+  interactionWidth,
+}) {
+  const sourceNode = useInternalNode(source);
+  const targetNode = useInternalNode(target);
+  const sourcePoint = getBorderCenterPoint(sourceNode, targetNode);
+  const targetPoint = getBorderCenterPoint(targetNode, sourceNode);
+
+  if (!sourcePoint || !targetPoint) return null;
+
+  const [edgePath, labelX, labelY] = getBezierPath({
+    sourceX: sourcePoint.x,
+    sourceY: sourcePoint.y,
+    sourcePosition: sourcePoint.position,
+    targetX: targetPoint.x,
+    targetY: targetPoint.y,
+    targetPosition: targetPoint.position,
+    // Slightly more graceful curve
+    curvature: 0.28,
+  });
+
+  return (
+    <BaseEdge
+      id={id}
+      path={edgePath}
+      markerEnd={markerEnd}
+      style={style}
+      interactionWidth={interactionWidth}
+      label={label}
+      labelX={labelX}
+      labelY={labelY}
+      labelStyle={labelStyle}
+      labelBgStyle={labelBgStyle}
+      labelBgPadding={labelBgPadding}
+      labelBgBorderRadius={labelBgBorderRadius}
+    />
+  );
+});
+
+const edgeTypes = {
+  floating: FloatingBorderCenterEdge,
+};
+
+// ─── Fallback ─────────────────────────────────────────────────────────────────
 
 const DiagramFallback = memo(function DiagramFallback({ code, message, copied, onCopy, title = 'diagram', embedded = false }) {
   const theme = useTheme();
@@ -490,12 +613,68 @@ const DiagramFallback = memo(function DiagramFallback({ code, message, copied, o
   );
 });
 
+// ─── Header ───────────────────────────────────────────────────────────────────
+
+const DiagramHeaderTitle = memo(function DiagramHeaderTitle({ title, embedded = false }) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
+  return (
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        minWidth: 0,
+        gap: embedded ? 0.75 : 1,
+      }}
+    >
+      <Box
+        aria-hidden="true"
+        sx={{
+          display: 'grid',
+          placeItems: 'center',
+          flexShrink: 0,
+          width: embedded ? 24 : 28,
+          height: embedded ? 24 : 28,
+          borderRadius: '7px',
+          color: theme.palette.primary.main,
+          background: isDark
+            ? `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.24)}, ${alpha(theme.palette.background.default, 0.72)})`
+            : `linear-gradient(135deg, ${alpha(theme.palette.primary.main, 0.14)}, ${alpha(theme.palette.background.paper, 0.92)})`,
+          border: `1px solid ${alpha(theme.palette.primary.main, isDark ? 0.34 : 0.22)}`,
+          boxShadow: isDark
+            ? `0 10px 24px ${alpha(theme.palette.common.black, 0.2)}`
+            : `0 8px 20px ${alpha(theme.palette.primary.main, 0.12)}`,
+        }}
+      >
+        <AccountTreeRoundedIcon sx={{ fontSize: embedded ? 14 : 16 }} />
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography
+          noWrap
+          sx={{
+            color: 'text.primary',
+            fontFamily: theme.typography.fontFamilyMono,
+            fontWeight: 700,
+            textTransform: 'uppercase',
+            lineHeight: 1.05,
+            letterSpacing: 0,
+            ...theme.typography.uiCaption2xs,
+          }}
+        >
+          {title}
+        </Typography>
+      </Box>
+    </Box>
+  );
+});
+
 const DiagramHeader = memo(function DiagramHeader({ title, copied, onCopy, fullscreen, onToggleFullscreen, embedded = false }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const headerBg = isDark
-    ? alpha(theme.palette.background.paper, embedded ? 0.96 : 0.9)
-    : alpha(theme.palette.background.paper, embedded ? 0.98 : 0.95);
+    ? alpha(theme.palette.background.paper, embedded ? 0.98 : 0.94)
+    : alpha(theme.palette.background.paper, embedded ? 1 : 0.98);
 
   return (
     <Box
@@ -503,34 +682,31 @@ const DiagramHeader = memo(function DiagramHeader({ title, copied, onCopy, fulls
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        px: { xs: 1.25, sm: 1.75 },
-        backgroundColor: headerBg,
+        px: { xs: 1.25, sm: 1.5 },
+        py: embedded ? 0.75 : 1,
+        background: `linear-gradient(180deg, ${headerBg}, ${alpha(
+          theme.palette.background.default,
+          isDark ? 0.2 : 0.34,
+        )})`,
+        backdropFilter: 'blur(12px)',
+        WebkitBackdropFilter: 'blur(12px)',
         borderBottom: '1px solid',
         borderColor: theme.palette.border.subtle,
-        minHeight: embedded ? 44 : { xs: 38, sm: 42 },
-        gap: 1,
+        boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.06 : 0.72)}`,
+        minHeight: embedded ? 44 : { xs: 44, sm: 48 },
+        gap: 1.25,
       }}
     >
-      <Typography
-        variant="caption"
-        sx={{
-          color: 'text.secondary',
-          textTransform: 'lowercase',
-          fontFamily: theme.typography.fontFamilyMono,
-          fontWeight: 500,
-          ...theme.typography.uiCaption2xs,
-        }}
-      >
-        {title}
-      </Typography>
+      <DiagramHeaderTitle title={title} embedded={embedded} />
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
         <Tooltip title={copied ? 'Copied!' : 'Copy code'} arrow>
           <IconButton
+            aria-label={copied ? 'Code copied' : 'Copy diagram code'}
             size="small"
             onClick={onCopy}
             sx={getGhostIconButtonSx(theme, {
-              size: 30,
-              radius: '6px',
+              size: embedded ? 30 : 32,
+              radius: '7px',
               active: copied,
               activeColor: theme.palette.success.main,
             })}
@@ -543,9 +719,10 @@ const DiagramHeader = memo(function DiagramHeader({ title, copied, onCopy, fulls
         {onToggleFullscreen && (
           <Tooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'} arrow>
             <IconButton
+              aria-label={fullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
               size="small"
               onClick={onToggleFullscreen}
-              sx={getGhostIconButtonSx(theme, { size: 30, radius: '6px' })}
+              sx={getGhostIconButtonSx(theme, { size: embedded ? 30 : 32, radius: '7px' })}
             >
               {fullscreen
                 ? <FullscreenExitRoundedIcon sx={{ fontSize: 16 }} />
@@ -557,6 +734,8 @@ const DiagramHeader = memo(function DiagramHeader({ title, copied, onCopy, fulls
     </Box>
   );
 });
+
+// ─── Main Renderer ────────────────────────────────────────────────────────────
 
 function DiagramFlowRenderer({ code, embedded = false }) {
   const theme = useTheme();
@@ -710,17 +889,7 @@ function DiagramFlowRenderer({ code, embedded = false }) {
   const embeddedControls = (
     <ArtifactCommandBar
       leading={(
-        <Typography
-          noWrap
-          sx={{
-            color: 'text.secondary',
-            textTransform: 'lowercase',
-            fontFamily: theme.typography.fontFamilyMono,
-            ...theme.typography.uiCaption2xs,
-          }}
-        >
-          {graphTitle}
-        </Typography>
+        <DiagramHeaderTitle title={graphTitle} embedded />
       )}
       trailing={(
         <ArtifactActions>
@@ -793,6 +962,7 @@ function DiagramFlowRenderer({ code, embedded = false }) {
               defaultViewport={initialViewport}
               defaultEdgeOptions={defaultEdgeOptions}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
               style={{ width: '100%', height: '100%', background: 'transparent' }}
               minZoom={0.2}
               maxZoom={2}
@@ -803,7 +973,8 @@ function DiagramFlowRenderer({ code, embedded = false }) {
               zoomOnPinch
               preventScrolling
             >
-              <Background gap={22} size={0.8} color={getReactFlowBackgroundColor(theme)} />
+              {/* Slightly larger dot gap (24px) for a more refined grid */}
+              <Background gap={24} size={0.9} color={getReactFlowBackgroundColor(theme)} />
             </ReactFlow>
           </Box>
         )}

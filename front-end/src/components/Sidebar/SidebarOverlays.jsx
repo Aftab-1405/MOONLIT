@@ -272,9 +272,6 @@ function SidebarOverlays({
             </Box>
           ) : schemaData ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ display: { xs: 'none', sm: 'block' }, mb: 1.5, flexShrink: 0 }}>
-                Click on table nodes to expand/collapse columns. Use mouse to pan and scroll to zoom.
-              </Typography>
               <Box sx={{ flex: 1, minHeight: 0 }}>
                 <SchemaFlowDiagram
                   database={schemaData.database}

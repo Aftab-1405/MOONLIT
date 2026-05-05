@@ -456,7 +456,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
         width: '100%',
         height: '100%',
         minHeight: 300,
-        borderRadius: theme.shape.radius.md,
+        borderRadius: '6px',
         overflow: 'hidden',
         touchAction: 'pan-y',
         border: '1px solid',
