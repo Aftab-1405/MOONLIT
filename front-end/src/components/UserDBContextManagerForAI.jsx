@@ -69,18 +69,19 @@ const formatTimeAgo = (isoString) => {
 const registerOpaqueMonacoThemes = (monaco) => registerMonacoThemes(monaco);
 function ContextCard({ children, sx = {} }) {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   return (
     <Box
       sx={{
-        p: 2,
-        borderRadius: 2,
+        borderRadius: '10px',
         border: '1px solid',
-        borderColor: 'divider',
-        backgroundColor: alpha(theme.palette.background.paper, 0.5),
-        transition: 'border-color 0.15s ease',
+        borderColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
+        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.03 : 0.02),
+        overflow: 'hidden',
+        transition: 'border-color 150ms ease',
         [HOVER_CAPABLE_QUERY]: {
           '&:hover': {
-            borderColor: alpha(theme.palette.text.primary, 0.15),
+            borderColor: alpha(theme.palette.text.primary, isDark ? 0.16 : 0.13),
           },
         },
         ...sx,
@@ -118,7 +119,7 @@ function ContextLoadingSkeleton({ isCompactMobile }) {
         />
       </Box>
 
-      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
         {Array.from({ length: 3 }).map((_, index) => (
           <ContextCard key={`context-loading-${index}`} sx={{ p: 0, overflow: 'hidden' }}>
             <Box
@@ -172,6 +173,7 @@ function UserDBContextManagerForAI() {
   const [error, setError] = useState(null);
 
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const closeDeleteDialog = useCallback(() => {
     setDeleteDialog({ open: false, type: null, target: null });
@@ -274,91 +276,157 @@ function UserDBContextManagerForAI() {
 
   return (
     <Box>
-      <Alert
-        severity="info"
-        icon={<InfoOutlinedIcon />}
-        sx={{
-          mb: 2.5,
-          borderRadius: 2,
-          py: { xs: 0.25, sm: 0.5 },
-          px: { xs: 0.25, sm: 0.5 },
-          '& .MuiAlert-message': { width: '100%' },
-        }}
-      >
-        <Typography variant="body2" sx={{ ...theme.typography.uiBodySm, lineHeight: 1.45 }}>
-          This is the AI's memory of your database structure. Delete only if your schema has changed.
-        </Typography>
-      </Alert>
-
-      {error && (
-        <Alert severity="error" sx={{ mb: 2, borderRadius: 2 }} onClose={() => setError(null)}>
-          {error}
-        </Alert>
-      )}
+      {/* Info banner — subdued, inline style */}
       <Box
         sx={{
           display: 'flex',
-          alignItems: { xs: 'stretch', sm: 'center' },
-          justifyContent: 'space-between',
-          flexDirection: { xs: 'column', sm: 'row' },
-          gap: { xs: 1, sm: 1.5 },
-          mb: 2.5,
+          gap: 1.25,
+          mb: 3,
+          p: 0,
+          color: 'text.secondary',
         }}
       >
+        <InfoOutlinedIcon sx={{ fontSize: 16, mt: '2px', flexShrink: 0, opacity: 0.7 }} />
+        <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary', lineHeight: 1.5 }}>
+          This is the AI's memory of your database structure. Delete only if your schema has changed.
+        </Typography>
+      </Box>
+
+      {error && (
+        <Alert severity="error" sx={{ mb: 2.5, borderRadius: 2 }} onClose={() => setError(null)}>
+          {error}
+        </Alert>
+      )}
+
+      {/* Toolbar: segment control + clear action */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        {/* Pill segment control — matches modal toggleStyles */}
         <ToggleButtonGroup
           value={activeView}
           exclusive
-          onChange={(e, v) => v && setActiveView(v)}
+          onChange={(_e, v) => v && setActiveView(v)}
           size="small"
-          fullWidth={isCompactMobile}
           sx={{
+            borderRadius: '8px',
+            backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
+            p: '2px',
+            gap: 0,
             width: { xs: '100%', sm: 'auto' },
-            flexShrink: 0,
+            '& .MuiToggleButtonGroup-grouped': {
+              border: 0,
+              '&:not(:first-of-type)': { borderLeft: 0, marginLeft: 0 },
+            },
             '& .MuiToggleButton-root': {
-              px: 2,
-              py: 0.75,
-              minHeight: 44,
-              flex: { xs: 1, sm: '0 0 auto' },
-              textTransform: 'none',
+              px: 1.5,
+              py: 0,
+              height: 32,
+              flex: { xs: 1, sm: 'unset' },
+              border: '0 !important',
+              borderRadius: '6px !important',
+              color: 'text.secondary',
+              ...theme.typography.uiNavItem,
               fontWeight: 500,
-              gap: 1,
+              textTransform: 'none',
+              gap: 0.75,
+              transition: 'background-color 150ms ease, color 150ms ease, box-shadow 150ms ease',
+              '&.Mui-selected': {
+                color: 'text.primary',
+                fontWeight: 600,
+                backgroundColor: theme.palette.background.paper,
+                boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, isDark ? 0.3 : 0.1)}, inset 0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08)}`,
+                '&:hover': { backgroundColor: theme.palette.background.paper },
+              },
+              '&:hover:not(.Mui-selected)': {
+                backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
+                color: 'text.primary',
+              },
             },
           }}
         >
           <ToggleButton value="schemas">
-            <StorageRoundedIcon sx={{ fontSize: 16 }} />
+            <StorageRoundedIcon sx={{ fontSize: 15 }} />
             Schemas
             {schemas.length > 0 && (
-              <Chip size="small" label={schemas.length} sx={{ height: 18, ml: 0.5 }} />
+              <Box
+                component="span"
+                sx={{
+                  ml: 0.5,
+                  px: 0.75,
+                  height: 18,
+                  minWidth: 18,
+                  borderRadius: '9px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09),
+                  ...theme.typography.uiCaptionMd,
+                  fontWeight: 600,
+                  lineHeight: 1,
+                }}
+              >
+                {schemas.length}
+              </Box>
             )}
           </ToggleButton>
           <ToggleButton value="queries">
-            <HistoryRoundedIcon sx={{ fontSize: 16 }} />
+            <HistoryRoundedIcon sx={{ fontSize: 15 }} />
             Queries
             {queries.length > 0 && (
-              <Chip size="small" label={queries.length} sx={{ height: 18, ml: 0.5 }} />
+              <Box
+                component="span"
+                sx={{
+                  ml: 0.5,
+                  px: 0.75,
+                  height: 18,
+                  minWidth: 18,
+                  borderRadius: '9px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09),
+                  ...theme.typography.uiCaptionMd,
+                  fontWeight: 600,
+                  lineHeight: 1,
+                }}
+              >
+                {queries.length}
+              </Box>
             )}
           </ToggleButton>
         </ToggleButtonGroup>
+
+        {/* Clear all — ghost text button, only shown when there's data */}
         {((activeView === 'schemas' && schemas.length > 0) ||
           (activeView === 'queries' && queries.length > 0)) && (
           <Button
             size="small"
             color="error"
-            startIcon={<DeleteOutlineRoundedIcon sx={{ fontSize: 16 }} />}
             onClick={() => openDeleteDialog(activeView === 'schemas' ? 'all-schemas' : 'queries')}
-            fullWidth={false}
             sx={{
-              minHeight: 44,
-              width: { xs: '100%', sm: 'fit-content' },
-              minWidth: { sm: 108 },
-              ml: { sm: 1 },
-              alignSelf: { xs: 'stretch', sm: 'center' },
-              flexShrink: 0,
-              whiteSpace: 'nowrap',
+              ...theme.typography.uiNavItem,
+              textTransform: 'none',
+              fontWeight: 500,
+              px: 1.5,
+              height: 32,
+              borderRadius: '8px',
+              minWidth: 0,
+              color: 'error.main',
+              opacity: 0.8,
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.error.main, isDark ? 0.12 : 0.08),
+                opacity: 1,
+              },
             }}
           >
-            Clear All
+            Clear all
           </Button>
         )}
       </Box>
@@ -371,7 +439,7 @@ function UserDBContextManagerForAI() {
               subtitle="Connect to a database to cache its schema"
             />
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
               {schemas.map((schema) => {
                 const tableList = Array.isArray(schema.tables) ? schema.tables : [];
                 const columnsByTable = schema.columns && typeof schema.columns === 'object' ? schema.columns : {};
@@ -504,7 +572,7 @@ function UserDBContextManagerForAI() {
               subtitle="Run SQL queries to build history"
             />
           ) : (
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
               {queries.map((query, index) => (
                 <ContextCard key={`${query.executed_at || index}-${query.database || 'db'}`} sx={{ p: 0, overflow: 'hidden' }}>
                   <Box
