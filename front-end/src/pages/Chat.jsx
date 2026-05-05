@@ -21,7 +21,7 @@ import MessageList from '../components/MessageList';
 import DatabaseModal from '../components/DatabaseModal';
 import SettingsModal from '../components/SettingsModal';
 import ConfirmDialog from '../components/ConfirmDialog';
-import WorkspaceCanvas from '../components/WorkspaceCanvas';
+import ArtifactLoader from '../components/ArtifactLoader';
 import ResizeHandle from '../components/ResizeHandle';
 import WelcomeScreen from '../components/WelcomeScreen';
 import StarfieldCanvas from '../components/StarfieldCanvas';
@@ -418,7 +418,7 @@ function Chat() {
             aria-label="Workspace canvas"
           >
             <ResizeHandle onResize={handleCanvasResize} disabled={!workspaceCanvasOpen} />
-            <WorkspaceCanvas
+            <ArtifactLoader
               artifact={workspaceCanvasArtifact}
               onOpenArtifact={handleOpenCanvasArtifact}
               onClose={handleCloseWorkspaceCanvas}
@@ -445,7 +445,7 @@ function Chat() {
               bgcolor: 'background.default',
             }}
           >
-            <WorkspaceCanvas
+            <ArtifactLoader
               artifact={workspaceCanvasArtifact}
               onOpenArtifact={handleOpenCanvasArtifact}
               onClose={handleCloseWorkspaceCanvas}

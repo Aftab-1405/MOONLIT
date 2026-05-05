@@ -56,6 +56,103 @@ export const ArtifactBody = forwardRef(function ArtifactBody({ children, sx = {}
   );
 });
 
+export function ArtifactToolbar({
+  leading,
+  center,
+  trailing,
+  sx = {},
+  leadingSx = {},
+  centerSx = {},
+}) {
+  if (!leading && !center && !trailing) return null;
+  const hasLeading = Boolean(leading);
+  const hasCenter = Boolean(center);
+  const hasTrailing = Boolean(trailing);
+  const gridTemplateColumns = hasLeading && hasCenter && hasTrailing
+    ? 'minmax(0, 1fr) auto minmax(0, 1fr)'
+    : hasLeading && hasCenter
+      ? 'auto auto'
+      : hasCenter && hasTrailing
+        ? 'auto auto'
+        : hasLeading && hasTrailing
+          ? 'minmax(0, 1fr) auto'
+          : 'minmax(0, 1fr)';
+
+  return (
+    <Box
+      sx={(theme) => {
+        const isDark = theme.palette.mode === 'dark';
+        return {
+          display: 'grid',
+          gridTemplateColumns,
+          alignItems: 'center',
+          gap: { xs: 0.75, sm: 1 },
+          minHeight: 46,
+          minWidth: 0,
+          px: { xs: 1, sm: 1.25 },
+          py: 0.625,
+          flexShrink: 0,
+          overflow: 'hidden',
+          borderBottom: '1px solid',
+          borderColor: theme.palette.border.subtle,
+          bgcolor: alpha(theme.palette.background.paper, isDark ? 0.94 : 0.98),
+          boxSizing: 'border-box',
+          ...sx,
+        };
+      }}
+    >
+      {leading && (
+        <Box
+          sx={{
+            gridColumn: hasCenter && !hasTrailing ? 1 : 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-start',
+            gap: 0.5,
+            minWidth: 0,
+            overflow: 'hidden',
+            ...leadingSx,
+          }}
+        >
+          {leading}
+        </Box>
+      )}
+      {center && (
+        <Box
+          sx={{
+            gridColumn: hasLeading && hasCenter ? 2 : 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 0.75,
+            minWidth: 0,
+            overflow: 'hidden',
+            px: { xs: 0, sm: 0.75 },
+            ...centerSx,
+          }}
+        >
+          {center}
+        </Box>
+      )}
+      {trailing && (
+        <Box
+          sx={{
+            gridColumn: hasCenter && hasTrailing ? 3 : 'auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'flex-end',
+            gap: 0.375,
+            minWidth: 0,
+            overflow: 'hidden',
+          }}
+        >
+          {trailing}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
 function ArtifactFooter({ children, sx = {}, justifyContent = 'flex-end' }) {
   return (
     <Box
@@ -65,11 +162,12 @@ function ArtifactFooter({ children, sx = {}, justifyContent = 'flex-end' }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent,
-          gap: 0.75,
-          px: { xs: 1.25, sm: 1.5 },
+          gap: { xs: 0.5, sm: 0.75 },
+          px: { xs: 1, sm: 1.25 },
           py: 0.75,
           flexShrink: 0,
           minHeight: 48,
+          minWidth: 0,
           borderTop: '1px solid',
           borderColor: theme.palette.border.subtle,
           bgcolor: alpha(theme.palette.background.paper, isDark ? 0.96 : 0.98),
@@ -88,18 +186,16 @@ export function ArtifactCommandBar({
   center,
   trailing,
   sx = {},
-  leadingSx = {},
   centerSx = {},
-  trailingSx = {},
 }) {
   return (
     <ArtifactFooter
       justifyContent="space-between"
       sx={{
         gap: { xs: 0.75, sm: 1 },
-        flexWrap: { xs: 'wrap', md: 'nowrap' },
+        flexWrap: 'nowrap',
         alignItems: 'center',
-        minHeight: 54,
+        minHeight: 50,
         overflow: 'hidden',
         ...sx,
       }}
@@ -111,9 +207,8 @@ export function ArtifactCommandBar({
             alignItems: 'center',
             gap: 0.75,
             minWidth: 0,
-            flex: '1 1 0',
+            flex: '0 1 auto',
             overflow: 'hidden',
-            ...leadingSx,
           }}
         >
           {leading}
@@ -127,7 +222,7 @@ export function ArtifactCommandBar({
             justifyContent: 'center',
             gap: 0.75,
             minWidth: 0,
-            flex: '0 1 auto',
+            flex: '1 1 auto',
             overflow: 'hidden',
             ...centerSx,
           }}
@@ -143,9 +238,8 @@ export function ArtifactCommandBar({
             justifyContent: 'flex-end',
             gap: 0.5,
             minWidth: 0,
-            flex: '1 1 0',
+            flex: '0 0 auto',
             overflow: 'hidden',
-            ...trailingSx,
           }}
         >
           {trailing}
@@ -171,7 +265,7 @@ export function ArtifactIconButton({
   active = false,
   disabled = false,
   size = 32,
-  radius = '8px',
+  radius = '9px',
   buttonProps = {},
 }) {
   return (

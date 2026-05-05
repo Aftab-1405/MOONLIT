@@ -19,8 +19,8 @@ import DatasetOutlinedIcon from '@mui/icons-material/DatasetOutlined';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import SQLResultsTable from './SQLResultsTable';
-import ChartVisualization from './ChartVisualization';
+import ExecutionResultPanel from './ExecutionResultPanel';
+import DataVisualizationPanel from './DataVisualizationPanel';
 import {
   ArtifactActions,
   ArtifactBody,
@@ -76,7 +76,7 @@ function resultsToCsv(results) {
   return [header, ...body].join('\n');
 }
 
-function SQLEditorCanvas({
+function MonacoEditor({
   initialQuery = '',
   initialResults = null,
   isConnected = false,
@@ -93,6 +93,8 @@ function SQLEditorCanvas({
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState(0);
   const [copyMenuAnchor, setCopyMenuAnchor] = useState(null);
+  const [resultControls, setResultControls] = useState(null);
+  const [chartControls, setChartControls] = useState(null);
   const editorRef = useRef(null);
   const copyTimeoutRef = useRef(null);
   const handleRunQueryRef = useRef(null);
@@ -242,9 +244,14 @@ function SQLEditorCanvas({
     setQuery(value || '');
   }, []);
 
-  const handleCloseResults = useCallback(() => {
-    setResults(null);
+  const handleResultControlsChange = useCallback((controls) => {
+    setResultControls(controls);
   }, []);
+
+  const handleChartControlsChange = useCallback((controls) => {
+    setChartControls(controls);
+  }, []);
+
   const artifactChromeBg = useMemo(
     () => theme.palette.background.paper,
     [theme.palette.background.paper]
@@ -258,35 +265,11 @@ function SQLEditorCanvas({
     [theme.palette.text.primary, isDark]
   );
 
-  const toolbarGhostStyles = useMemo(() => ({
-    minWidth: 0,
-    height: 34,
-    px: 1.15,
-    borderRadius: '10px',
-    ...theme.typography.uiButtonSm,
-    textTransform: 'none',
-    color: 'text.secondary',
-    border: '1px solid',
-    borderColor: 'transparent',
-    bgcolor: 'transparent',
-    transition: TRANSITIONS.default,
-    '&:hover': {
-      color: 'text.primary',
-      borderColor: alpha(theme.palette.text.primary, isDark ? 0.11 : 0.08),
-      bgcolor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.045),
-    },
-    '&.Mui-disabled': {
-      color: 'text.disabled',
-      bgcolor: 'transparent',
-      borderColor: 'transparent',
-    },
-  }), [theme, isDark]);
-
   const runButtonStyles = useMemo(() => ({
     minWidth: 0,
-    height: 34,
-    px: 1.35,
-    borderRadius: '10px',
+    height: 32,
+    px: 1.2,
+    borderRadius: '9px',
     ...theme.typography.uiButtonSm,
     textTransform: 'none',
     color: 'primary.contrastText',
@@ -406,7 +389,11 @@ function SQLEditorCanvas({
   const resultsTabContent = useMemo(() => (
     <Box sx={artifactTabPaneStyles}>
       {results ? (
-        <SQLResultsTable data={results} onClose={handleCloseResults} embedded />
+        <ExecutionResultPanel
+          data={results}
+          chrome="contained"
+          onControlsChange={handleResultControlsChange}
+        />
       ) : (
         <Box sx={centeredEmptyWrapStyles}>
           <ArtifactEmptyState
@@ -420,14 +407,18 @@ function SQLEditorCanvas({
   ), [
     artifactTabPaneStyles,
     centeredEmptyWrapStyles,
-    handleCloseResults,
+    handleResultControlsChange,
     results,
   ]);
 
   const chartTabContent = useMemo(() => (
     <Box sx={artifactTabPaneStyles}>
       {results ? (
-        <ChartVisualization data={results} embedded />
+        <DataVisualizationPanel
+          data={results}
+          chrome="contained"
+          onControlsChange={handleChartControlsChange}
+        />
       ) : (
         <Box sx={centeredEmptyWrapStyles}>
           <ArtifactEmptyState
@@ -446,6 +437,7 @@ function SQLEditorCanvas({
   ), [
     artifactTabPaneStyles,
     centeredEmptyWrapStyles,
+    handleChartControlsChange,
     results,
     theme.typography.uiCaptionXs,
   ]);
@@ -474,8 +466,8 @@ function SQLEditorCanvas({
           gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
           alignItems: 'center',
           gap: 0.25,
-          p: 0.25,
-          width: { xs: 156, sm: 186 },
+          p: 0.5,
+          width: 112,
           height: 34,
           flexShrink: 0,
           borderRadius: '10px',
@@ -489,90 +481,89 @@ function SQLEditorCanvas({
           const Icon = seg.icon;
           const selected = activeTab === seg.id;
           return (
-            <ButtonBase
-              key={seg.id}
-              role="tab"
-              aria-label={seg.ariaLabel}
-              aria-selected={selected}
-              aria-disabled={seg.disabled}
-              disabled={seg.disabled}
-              onClick={() => !seg.disabled && handleTabChange(seg.id)}
-              sx={{
-                position: 'relative',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 0.5,
-                minWidth: 0,
-                height: 28,
-                px: { xs: 0.5, sm: 0.75 },
-                borderRadius: '8px',
-                color: selected ? 'text.primary' : 'text.secondary',
-                bgcolor: selected ? alpha(theme.palette.background.paper, isDark ? 0.96 : 1) : 'transparent',
-                boxShadow: selected
-                  ? `0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08)}, 0 1px 4px ${alpha(theme.palette.common.black, isDark ? 0.38 : 0.06)}`
-                  : 'none',
-                transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
-                  duration: 160,
-                  easing: theme.transitions.easing.easeInOut,
-                }),
-                '@media (prefers-reduced-motion: reduce)': {
-                  transition: 'none',
-                },
-                '&:hover': {
-                  color: 'text.primary',
-                  bgcolor: selected
-                    ? theme.palette.background.paper
-                    : alpha(theme.palette.text.primary, 0.055),
-                },
-                '&:focus-visible': {
-                  outline: `2px solid ${alpha(theme.palette.text.secondary, 0.38)}`,
-                  outlineOffset: 1,
-                },
-                '&.Mui-disabled': { opacity: 0.32 },
-              }}
-            >
-              <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Icon sx={{ fontSize: 17 }} />
-                {seg.id === 1 && results?.row_count != null && (
-                  <Box
-                    component="span"
-                    sx={{
-                      position: 'absolute',
-                      top: -6,
-                      right: -8,
-                      minWidth: 15,
-                      height: 15,
-                      px: 0.25,
-                      borderRadius: 999,
-                      fontSize: 8,
-                      fontWeight: 700,
-                      lineHeight: '15px',
-                      textAlign: 'center',
-                      bgcolor: 'primary.main',
-                      color: 'primary.contrastText',
-                      boxShadow: `0 0 0 2px ${artifactChromeBg}`,
-                    }}
-                  >
-                    {results.row_count > 99 ? '99+' : results.row_count}
-                  </Box>
-                )}
-              </Box>
-              <Typography
+            <Tooltip key={seg.id} title={seg.label}>
+              <Box
                 component="span"
-                noWrap
                 sx={{
-                  display: { xs: 'none', sm: 'inline' },
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   minWidth: 0,
-                  ...theme.typography.uiCaptionXs,
-                  fontWeight: selected ? 650 : 550,
-                  lineHeight: 1,
-                  color: 'inherit',
+                  height: '100%',
+                  lineHeight: 0,
                 }}
               >
-                {seg.label}
-              </Typography>
-            </ButtonBase>
+                <ButtonBase
+                  role="tab"
+                  aria-label={seg.ariaLabel}
+                  aria-selected={selected}
+                  aria-disabled={seg.disabled}
+                  disabled={seg.disabled}
+                  onClick={() => !seg.disabled && handleTabChange(seg.id)}
+                  sx={{
+                    position: 'relative',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    minWidth: 0,
+                    width: '100%',
+                    height: 24,
+                    borderRadius: '7px',
+                    lineHeight: 0,
+                    color: selected ? 'text.primary' : 'text.secondary',
+                    bgcolor: selected ? alpha(theme.palette.background.paper, isDark ? 0.96 : 1) : 'transparent',
+                    boxShadow: selected
+                      ? `inset 0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08)}`
+                      : 'none',
+                    transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
+                      duration: 160,
+                      easing: theme.transitions.easing.easeInOut,
+                    }),
+                    '@media (prefers-reduced-motion: reduce)': {
+                      transition: 'none',
+                    },
+                    '&:hover': {
+                      color: 'text.primary',
+                      bgcolor: selected
+                        ? theme.palette.background.paper
+                        : alpha(theme.palette.text.primary, 0.055),
+                    },
+                    '&:focus-visible': {
+                      outline: `2px solid ${alpha(theme.palette.text.secondary, 0.38)}`,
+                      outlineOffset: 1,
+                    },
+                    '&.Mui-disabled': { opacity: 0.32 },
+                  }}
+                >
+                  <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, height: 18, lineHeight: 0 }}>
+                    <Icon sx={{ fontSize: 17 }} />
+                    {seg.id === 1 && results?.row_count != null && (
+                      <Box
+                        component="span"
+                        sx={{
+                          position: 'absolute',
+                          top: -6,
+                          right: -8,
+                          minWidth: 15,
+                          height: 15,
+                          px: 0.25,
+                          borderRadius: 999,
+                          fontSize: 8,
+                          fontWeight: 700,
+                          lineHeight: '15px',
+                          textAlign: 'center',
+                          bgcolor: 'primary.main',
+                          color: 'primary.contrastText',
+                          boxShadow: `0 0 0 2px ${artifactChromeBg}`,
+                        }}
+                      >
+                        {results.row_count > 99 ? '99+' : results.row_count}
+                      </Box>
+                    )}
+                  </Box>
+                </ButtonBase>
+              </Box>
+            </Tooltip>
           );
         })}
       </Box>
@@ -633,8 +624,8 @@ function SQLEditorCanvas({
           onClick={openCopyMenu}
           active={copied}
           disabled={!query.trim() && !results?.columns?.length}
-          size={34}
-          radius="10px"
+          size={32}
+          radius="9px"
           buttonProps={{
             'aria-haspopup': 'true',
             'aria-expanded': Boolean(copyMenuAnchor),
@@ -681,16 +672,15 @@ function SQLEditorCanvas({
           Copy results as CSV
         </MenuItem>
       </Menu>
-      <Tooltip title="Clear query and results">
-        <Button
-          size="small"
-          onClick={handleClear}
-          sx={toolbarGhostStyles}
-          startIcon={<HighlightOffSharpIcon sx={{ fontSize: 18 }} />}
-        >
-          Clear
-        </Button>
-      </Tooltip>
+      <ArtifactIconButton
+        title="Clear query and results"
+        ariaLabel="Clear query and results"
+        onClick={handleClear}
+        size={32}
+        radius="9px"
+      >
+        <HighlightOffSharpIcon sx={{ fontSize: 18 }} />
+      </ArtifactIconButton>
       <Tooltip title={activeTab !== 0 ? 'Switch to SQL tab to run' : (isRunning ? 'Running…' : 'Run query (Ctrl+Enter)')}>
         <span>
           <Button
@@ -712,13 +702,28 @@ function SQLEditorCanvas({
     </>
   );
 
+  const footerCenter = activeTab === 1
+    ? null
+    : activeTab === 2
+      ? null
+      : connectionStatus;
+  const footerTrailing = activeTab === 1
+    ? resultControls?.trailing
+    : activeTab === 2
+      ? chartControls?.trailing
+      : sqlActions;
+  const footerCenterSx = activeTab === 1
+    ? {}
+    : activeTab === 2
+      ? {}
+      : { display: { xs: 'none', md: 'flex' }, flex: '0 1 220px' };
+
   const actionBarComponent = (
     <ArtifactCommandBar
       leading={sqlTabs}
-      center={connectionStatus}
-      trailing={sqlActions}
-      centerSx={{ display: { xs: 'none', md: 'flex' }, flex: '0 1 220px' }}
-      trailingSx={{ flex: '1 0 auto' }}
+      center={footerCenter}
+      trailing={footerTrailing}
+      centerSx={footerCenterSx}
     />
   );
   return (
@@ -727,6 +732,7 @@ function SQLEditorCanvas({
       aria-label="SQL editor"
       sx={{
         height: '100%',
+        minHeight: 0,
         width: '100%',
         whiteSpace: 'nowrap',
       }}
@@ -739,5 +745,5 @@ function SQLEditorCanvas({
   );
 }
 
-export default memo(SQLEditorCanvas);
+export default memo(MonacoEditor);
 
