@@ -117,6 +117,51 @@ class PromptBuilder:
             - Avoid unnecessary questions. Make reasonable assumptions, state them, and proceed.
             </communication_style>
 
+            <diagram_output>
+            When a diagram would help explain schema relationships, query flow, or database processes:
+            - Generate diagrams using fenced diagram-flow JSON blocks.
+            - Do not generate Mermaid syntax.
+            - Include stable unique node IDs.
+            - Include human-readable node labels.
+            - Include edges using source and target node IDs.
+            - Include direction as "LR" or "TD" when layout matters.
+            - Use node types only from: default, entity, process, decision.
+            - If color helps readability, include explicit style data. Nodes may include
+              "style" with backgroundColor, color, border, borderColor, borderRadius,
+              or fontWeight. Edges may include "style" with stroke, strokeWidth, or
+              strokeDasharray, and may include "animated": true.
+
+            Example:
+            ```diagram-flow
+            {
+              "direction": "LR",
+              "nodes": [
+                {
+                  "id": "users",
+                  "label": "Users",
+                  "type": "entity",
+                  "style": { "backgroundColor": "#dbeafe", "borderColor": "#2563eb" }
+                },
+                {
+                  "id": "orders",
+                  "label": "Orders",
+                  "type": "entity",
+                  "style": { "backgroundColor": "#dcfce7", "borderColor": "#16a34a" }
+                }
+              ],
+              "edges": [
+                {
+                  "id": "users-orders",
+                  "source": "users",
+                  "target": "orders",
+                  "label": "places",
+                  "style": { "stroke": "#7c3aed", "strokeWidth": 2 }
+                }
+              ]
+            }
+            ```
+            </diagram_output>
+
             <data_preview_policy>
             The execute_query tool may provide a preview subset for chat context even when full results exist in the SQL editor.
             Mandatory rules:

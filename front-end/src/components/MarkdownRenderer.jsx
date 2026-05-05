@@ -9,7 +9,6 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import MermaidDiagram from './MermaidDiagram';
 import { getGhostIconButtonSx } from '../styles/shared';
 
 const SQL_LANGUAGES = new Set([
@@ -18,7 +17,13 @@ const SQL_LANGUAGES = new Set([
 
 const REMARK_PLUGINS = [remarkGfm];
 
-const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isDarkMode, theme }) {
+const CodeBlock = memo(function CodeBlock({
+  children,
+  className,
+  onRunQuery,
+  isDarkMode,
+  theme,
+}) {
   const [copied, setCopied] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
   const [wrapLongLines, setWrapLongLines] = useState(false);
@@ -36,7 +41,6 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
   }, [children]);
 
   const isSQL = SQL_LANGUAGES.has(language.toLowerCase());
-  const isMermaid = language.toLowerCase() === 'mermaid';
   const lineCount = code.split('\n').length;
   const showLineNumbers = lineCount >= 4;
 
@@ -78,10 +82,6 @@ const CodeBlock = memo(function CodeBlock({ children, className, onRunQuery, isD
       borderColor: alpha(theme.palette.text.secondary, isDarkMode ? 0.18 : 0.14),
     },
   }), [theme, codeBg, isDarkMode]);
-
-  if (isMermaid) {
-    return <MermaidDiagram code={code} />;
-  }
 
   return (
     <Box sx={containerStyles}>

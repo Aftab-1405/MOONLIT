@@ -15,6 +15,8 @@ import {
 import { getGhostIconButtonSx, UI_LAYOUT } from '../styles/shared';
 
 const COPY_FEEDBACK_DURATION = 2000;
+const CANVAS_CODE_LANGUAGES = new Set(['diagram-flow']);
+const FENCED_CODE_BLOCK_PATTERN = /```([A-Za-z0-9_-]+)[^\n]*\n([\s\S]*?)```/g;
 
 const messageActionsRowSx = {
   display: 'flex',
@@ -201,17 +203,53 @@ function parseJSON(value) {
   }
 }
 
-const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery, onOpenSqlEditor }) {
+function extractCanvasCodeArtifacts(markdown) {
+  const artifacts = [];
+  String(markdown || '').replace(FENCED_CODE_BLOCK_PATTERN, (match, rawLanguage, code, offset) => {
+    const language = String(rawLanguage || '').toLowerCase();
+    if (CANVAS_CODE_LANGUAGES.has(language)) {
+      artifacts.push({
+        key: `${language}-${offset}`,
+        type: 'react-flow',
+        title: 'Diagram',
+        props: {
+          code: String(code || '').trim(),
+        },
+      });
+    }
+    return match;
+  });
+  return artifacts;
+}
+
+function stripCanvasCodeArtifacts(markdown) {
+  return String(markdown || '').replace(FENCED_CODE_BLOCK_PATTERN, (match, rawLanguage) => {
+    const language = String(rawLanguage || '').toLowerCase();
+    return CANVAS_CODE_LANGUAGES.has(language) ? '' : match;
+  });
+}
+
+const AIMessage = memo(function AIMessage({
+  id,
+  text,
+  steps,
+  status,
+  onRunQuery,
+  onOpenSqlEditor,
+  onOpenCanvasArtifact,
+}) {
   const { copied, copyRich } = useCopyToClipboard();
   const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
   const contentRef = useRef(null);
   const sqlEditorTimeoutRef = useRef(null);
   const openedToolsRef = useRef(new Set());
+  const openedArtifactsRef = useRef(new Set());
 
   const isStreaming = status === MESSAGE_STATUS.STREAMING;
   const isWaiting = status === MESSAGE_STATUS.WAITING;
 
   const displayText = useCharacterPacing(text || '', isStreaming);
+  const chatDisplayText = useMemo(() => stripCanvasCodeArtifacts(displayText), [displayText]);
   const displaySteps = useMemo(() => (Array.isArray(steps) ? steps : []), [steps]);
 
   useEffect(() => {
@@ -253,6 +291,17 @@ const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery,
     });
   }, [displaySteps, id, isStreaming, isWaiting, onOpenSqlEditor]);
 
+  useEffect(() => {
+    if (!onOpenCanvasArtifact || isWaiting || isStreaming) return;
+    const artifacts = extractCanvasCodeArtifacts(text);
+    artifacts.forEach((artifact) => {
+      const artifactKey = `${id}-${artifact.key}`;
+      if (openedArtifactsRef.current.has(artifactKey)) return;
+      openedArtifactsRef.current.add(artifactKey);
+      onOpenCanvasArtifact(artifact);
+    });
+  }, [id, isStreaming, isWaiting, onOpenCanvasArtifact, text]);
+
   const handleCopy = useCallback(() => {
     const container = contentRef.current;
     const htmlContent = container?.innerHTML;
@@ -260,7 +309,7 @@ const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery,
     copyRich(htmlContent, plainTextContent);
   }, [copyRich, displayText]);
 
-  const showThinkingSpinner = isWaiting && displaySteps.length === 0 && !displayText.trim();
+  const showThinkingSpinner = isWaiting && displaySteps.length === 0 && !chatDisplayText.trim();
 
   return (
     <Fade in timeout={300}>
@@ -290,9 +339,9 @@ const AIMessage = memo(function AIMessage({ id, text, steps, status, onRunQuery,
             </Box>
           )}
 
-          {displayText.trim() && (
+          {chatDisplayText.trim() && (
             <Box sx={{ pl: 1, pr: { xs: 2, sm: 4 }, minWidth: 0, py: 0.5 }}>
-              <MarkdownRenderer content={displayText} onRunQuery={onRunQuery} />
+              <MarkdownRenderer content={chatDisplayText} onRunQuery={onRunQuery} />
             </Box>
           )}
 
@@ -390,6 +439,7 @@ const MessageList = memo(function MessageList({
   isLoadingConversation = false,
   onRunQuery,
   onOpenSqlEditor,
+  onOpenCanvasArtifact,
 }) {
   const [visibleCount, setVisibleCount] = useState(60);
   const normalizedMessages = useMemo(() => (
@@ -459,6 +509,7 @@ const MessageList = memo(function MessageList({
                 status={message.status}
                 onRunQuery={onRunQuery}
                 onOpenSqlEditor={onOpenSqlEditor}
+                onOpenCanvasArtifact={onOpenCanvasArtifact}
               />
             )
         ))}

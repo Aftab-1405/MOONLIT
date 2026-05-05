@@ -27,7 +27,16 @@ import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined';
+import KeyboardArrowLeftRoundedIcon from '@mui/icons-material/KeyboardArrowLeftRounded';
+import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
 import ChartVisualization from './ChartVisualization';
+import {
+  ArtifactActions,
+  ArtifactBody,
+  ArtifactCommandBar,
+  ArtifactIconButton,
+  ArtifactSurface,
+} from './ArtifactLayout';
 import { getCompactActionSx, getToolbarChipSx, getScrollbarStyles, UI_LAYOUT } from '../styles/shared';
 
 function SQLResultsTable({ data, onClose, embedded = false }) {
@@ -185,14 +194,21 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
       };
     }
   }, [resizing, handleResizeMove, handleResizeEnd]);
+  const visibleRowCount = searchQuery ? filteredData.length : row_count;
+  const maxPage = Math.max(0, Math.ceil(visibleRowCount / rowsPerPage) - 1);
+  const currentPage = Math.min(page, maxPage);
   const paginatedData = sortedData.slice(
-    page * rowsPerPage,
-    page * rowsPerPage + rowsPerPage
+    currentPage * rowsPerPage,
+    currentPage * rowsPerPage + rowsPerPage
   );
+  const pageStart = visibleRowCount ? currentPage * rowsPerPage + 1 : 0;
+  const pageEnd = visibleRowCount ? Math.min(currentPage * rowsPerPage + rowsPerPage, visibleRowCount) : 0;
+  const canPageBack = currentPage > 0;
+  const canPageForward = pageEnd < visibleRowCount;
   const headerCellBaseSx = useMemo(() => ({
     minWidth: isCompactMobile ? 68 : 80,
     maxWidth: 500,
-    backgroundColor: theme.palette.background.default,
+    backgroundColor: embedded ? theme.palette.background.paper : theme.palette.background.default,
     fontWeight: 600,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -205,7 +221,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     borderColor: theme.palette.border.subtle,
     position: 'relative',
     userSelect: 'none',
-  }), [isCompactMobile, theme]);
+  }), [embedded, isCompactMobile, theme]);
   const sortLabelSx = useMemo(() => ({
     '&.Mui-active': { color: 'text.primary' },
     '& .MuiTableSortLabel-icon': { fontSize: 16 },
@@ -237,6 +253,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     whiteSpace: 'nowrap',
     py: isCompactMobile ? 0.75 : 1,
     px: isCompactMobile ? 1 : 1.5,
+    fontFamily: theme.typography.fontFamily,
     fontSize: isCompactMobile
       ? theme.typography.uiBodyTable.fontSize.xs
       : theme.typography.body2.fontSize,
@@ -251,6 +268,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     theme.palette.action.hover,
     theme.palette.border.subtle,
     theme.typography.body2.fontSize,
+    theme.typography.fontFamily,
     theme.typography.uiBodyTable.fontSize.xs,
   ]);
   const nullValueSx = useMemo(() => ({
@@ -261,21 +279,6 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     py: 0.25,
     borderRadius: 0.5,
   }), [theme.palette.action.disabledBackground]);
-
-  const embeddedToolbarSx = useMemo(() => ({
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    flexWrap: 'wrap',
-    gap: { xs: 0.5, sm: 0.75 },
-    px: 2,
-    py: 0.75,
-    flexShrink: 0,
-    minHeight: 44,
-    borderBottom: '1px solid',
-    borderColor: theme.palette.border.subtle,
-    backgroundColor: theme.palette.background.paper,
-  }), [theme.palette.background.paper, theme.palette.border.subtle]);
 
   if (!data || !columns.length) {
     return null;
@@ -306,117 +309,142 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
     );
   }
 
-  return (
-    <Box
-      key="table"
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        ...(embedded
-          ? {
-            flex: 1,
-            minHeight: 0,
-            minWidth: 0,
-            alignSelf: 'stretch',
-            height: 'auto',
-          }
-          : {
-            height: '100%',
-            minHeight: 400,
-            animation: 'moonlitFadeIn 0.2s ease',
-            '@keyframes moonlitFadeIn': {
-              from: { opacity: 0, transform: 'translateY(5px)' },
-              to:   { opacity: 1, transform: 'translateY(0)' },
-            },
-          }),
-      }}
-    >
-      {embedded && (
-        <Box sx={embeddedToolbarSx}>
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: { xs: 0.35, sm: 0.5 },
-              minWidth: 0,
-              flexWrap: 'wrap',
-            }}
-          >
-            <Chip
-              size="small"
-              label={`${searchQuery ? filteredData.length : row_count} rows`}
-              sx={getToolbarChipSx(theme, { interactive: false })}
-            />
-            {execution_time != null && (
-              <Chip
-                size="small"
-                icon={<TimerOutlinedIcon />}
-                label={`${execution_time.toFixed(2)}s`}
-                sx={getToolbarChipSx(theme, { interactive: false })}
-              />
-            )}
-            {truncated && (
-              <Chip
-                size="small"
-                label="Truncated"
-                sx={getToolbarChipSx(theme, { interactive: false })}
-              />
-            )}
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <TextField
-              size="small"
-              placeholder="Search…"
-              value={searchQuery}
-              onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <SearchRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-                  </InputAdornment>
-                ),
-              }}
-              sx={{
-                width: { xs: 100, sm: 140 },
-                '& .MuiOutlinedInput-root': {
-                  height: 30,
-                  ...theme.typography.uiCaptionMd,
-                  bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
-                  '& fieldset': { borderColor: theme.palette.border.subtle },
-                },
-              }}
-            />
-            <Tooltip title={copied ? 'Copied!' : 'Copy as CSV'}>
-              <IconButton
-                size="small"
-                onClick={handleCopyAsCSV}
-                aria-label="Copy as CSV"
-                sx={{
-                  ...getCompactActionSx(theme, { size: 32 }),
-                  color: copied ? 'text.primary' : 'text.secondary',
-                  borderRadius: 1.5,
-                }}
-              >
-                {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
-              </IconButton>
-            </Tooltip>
-            <Tooltip title="Download CSV">
-              <IconButton
-                size="small"
-                onClick={handleDownloadCSV}
-                aria-label="Download CSV"
-                sx={{
-                  ...getCompactActionSx(theme, { size: 32 }),
-                  color: 'text.secondary',
-                  borderRadius: 1.5,
-                }}
-              >
-                <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
-              </IconButton>
-            </Tooltip>
-          </Box>
-        </Box>
+  const RootComponent = embedded ? ArtifactSurface : Box;
+  const BodyComponent = embedded ? ArtifactBody : Box;
+  const rootSx = embedded
+    ? { alignSelf: 'stretch', height: 'auto' }
+    : {
+      display: 'flex',
+      flexDirection: 'column',
+      height: '100%',
+      minHeight: 400,
+      animation: 'moonlitFadeIn 0.2s ease',
+      '@keyframes moonlitFadeIn': {
+        from: { opacity: 0, transform: 'translateY(5px)' },
+        to:   { opacity: 1, transform: 'translateY(0)' },
+      },
+    };
+  const embeddedMeta = embedded ? (
+    <>
+      <Chip
+        size="small"
+        label={`${visibleRowCount} rows`}
+        sx={getToolbarChipSx(theme, { interactive: false })}
+      />
+      {execution_time != null && (
+        <Chip
+          size="small"
+          icon={<TimerOutlinedIcon />}
+          label={`${execution_time.toFixed(2)}s`}
+          sx={{
+            ...getToolbarChipSx(theme, { interactive: false }),
+            display: { xs: 'none', lg: 'inline-flex' },
+          }}
+        />
       )}
+      {truncated && (
+        <Chip
+          size="small"
+          label="Truncated"
+          sx={{
+            ...getToolbarChipSx(theme, { interactive: false }),
+            display: { xs: 'none', lg: 'inline-flex' },
+          }}
+        />
+      )}
+    </>
+  ) : null;
+  const embeddedSearch = embedded ? (
+    <TextField
+      size="small"
+      placeholder="Search..."
+      value={searchQuery}
+      onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
+      InputProps={{
+        startAdornment: (
+          <InputAdornment position="start">
+            <SearchRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+          </InputAdornment>
+        ),
+      }}
+      sx={{
+        width: { sm: 150, md: 190 },
+        '& .MuiOutlinedInput-root': {
+          height: 32,
+          ...theme.typography.uiCaptionMd,
+          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
+          '& fieldset': { borderColor: theme.palette.border.subtle },
+        },
+      }}
+    />
+  ) : null;
+  const embeddedActions = embedded ? (
+    <>
+      <ArtifactActions>
+        <ArtifactIconButton
+          title={copied ? 'Copied!' : 'Copy as CSV'}
+          ariaLabel="Copy as CSV"
+          onClick={handleCopyAsCSV}
+          active={copied}
+        >
+          {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
+        </ArtifactIconButton>
+        <ArtifactIconButton
+          title="Download CSV"
+          ariaLabel="Download CSV"
+          onClick={handleDownloadCSV}
+        >
+          <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
+        </ArtifactIconButton>
+      </ArtifactActions>
+      <Box
+        sx={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 0.25,
+          minWidth: 0,
+          pl: { xs: 0.25, sm: 0.75 },
+          ml: { xs: 0, sm: 0.25 },
+          borderLeft: { xs: 'none', sm: '1px solid' },
+          borderColor: theme.palette.border.subtle,
+        }}
+      >
+        <Typography
+          noWrap
+          sx={{
+            display: { xs: 'none', sm: 'block' },
+            color: 'text.secondary',
+            ...theme.typography.uiCaptionMd,
+          }}
+        >
+          {pageStart}-{pageEnd} of {visibleRowCount}
+        </Typography>
+        <ArtifactIconButton
+          title="Previous page"
+          ariaLabel="Previous page"
+          onClick={(event) => handleChangePage(event, currentPage - 1)}
+          disabled={!canPageBack}
+          size={30}
+          radius="8px"
+        >
+          <KeyboardArrowLeftRoundedIcon sx={{ fontSize: 18 }} />
+        </ArtifactIconButton>
+        <ArtifactIconButton
+          title="Next page"
+          ariaLabel="Next page"
+          onClick={(event) => handleChangePage(event, currentPage + 1)}
+          disabled={!canPageForward}
+          size={30}
+          radius="8px"
+        >
+          <KeyboardArrowRightRoundedIcon sx={{ fontSize: 18 }} />
+        </ArtifactIconButton>
+      </Box>
+    </>
+  ) : null;
+
+  return (
+    <RootComponent key="table" sx={rootSx}>
       {!embedded && (
         <Box
           sx={{
@@ -555,7 +583,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           </Box>
         </Box>
       )}
-      <Box
+      <BodyComponent
         sx={{
           position: 'relative',
           flex: 1,
@@ -663,7 +691,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
                         <Typography
                           component="span"
                           sx={{
-                            fontFamily: theme.typography.fontFamilyMono,
+                            fontFamily: 'inherit',
                             color: 'text.primary',
                           }}
                         >
@@ -680,34 +708,45 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           </TableBody>
         </Table>
       </TableContainer>
-      </Box>
-      <TablePagination
-        component="div"
-        count={searchQuery ? filteredData.length : row_count}
-        page={page}
-        onPageChange={handleChangePage}
-        rowsPerPage={rowsPerPage}
-        onRowsPerPageChange={handleChangeRowsPerPage}
-        rowsPerPageOptions={[10, 25, 50, 100]}
-        sx={{
-          position: 'relative',
-          zIndex: 1,
-          flexShrink: 0,
-          borderTop: '1px solid',
-          borderColor: theme.palette.border.subtle,
-          '& .MuiTablePagination-toolbar': {
-            px: { xs: 1, sm: 2 },
-            minHeight: { xs: UI_LAYOUT.touchTarget + 8, sm: 56 },
-          },
-          '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
-            ...theme.typography.uiCaptionMd,
-            m: 0,
-          },
-          '& .MuiTablePagination-actions': {
-            marginLeft: { xs: 0.25, sm: 1 },
-          },
-        }}
-      />
+      </BodyComponent>
+      {embedded ? (
+        <ArtifactCommandBar
+          leading={embeddedMeta}
+          center={embeddedSearch}
+          trailing={embeddedActions}
+          leadingSx={{ flex: '0 1 auto', flexWrap: 'nowrap' }}
+          centerSx={{ display: { xs: 'none', sm: 'flex' }, flex: '1 1 auto' }}
+          trailingSx={{ flex: '0 0 auto' }}
+        />
+      ) : (
+        <TablePagination
+          component="div"
+          count={searchQuery ? filteredData.length : row_count}
+          page={currentPage}
+          onPageChange={handleChangePage}
+          rowsPerPage={rowsPerPage}
+          onRowsPerPageChange={handleChangeRowsPerPage}
+          rowsPerPageOptions={[10, 25, 50, 100]}
+          sx={{
+            position: 'relative',
+            zIndex: 1,
+            flexShrink: 0,
+            borderTop: '1px solid',
+            borderColor: theme.palette.border.subtle,
+            '& .MuiTablePagination-toolbar': {
+              px: { xs: 1, sm: 2 },
+              minHeight: { xs: UI_LAYOUT.touchTarget + 8, sm: 56 },
+            },
+            '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+              ...theme.typography.uiCaptionMd,
+              m: 0,
+            },
+            '& .MuiTablePagination-actions': {
+              marginLeft: { xs: 0.25, sm: 1 },
+            },
+          }}
+        />
+      )}
       <Snackbar
         open={!!cellCopied}
         message="Cell copied!"
@@ -726,7 +765,7 @@ function SQLResultsTable({ data, onClose, embedded = false }) {
           }
         }}
       />
-    </Box>
+    </RootComponent>
   );
 }
 

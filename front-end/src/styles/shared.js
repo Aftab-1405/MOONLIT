@@ -24,25 +24,9 @@ export const getGlassmorphismStyles = (theme) => ({
   borderColor: theme.palette.glassmorphism.borderColor,
 });
 
-export const getScrollbarStyles = (theme, { size = 8 } = {}) => ({
-  scrollbarWidth: 'thin',
-  scrollbarColor: `${theme.palette.scrollbar.thumb} ${theme.palette.scrollbar.track}`,
-  '&::-webkit-scrollbar': { width: size, height: size },
-  '&::-webkit-scrollbar-track': { background: theme.palette.scrollbar.track },
-  '&::-webkit-scrollbar-thumb': {
-    backgroundColor: theme.palette.scrollbar.thumb,
-    borderRadius: 999,
-    border: '2px solid transparent',
-    backgroundClip: 'content-box',
-    minHeight: 24,
-    minWidth: 24,
-  },
-  '&::-webkit-scrollbar-thumb:hover': {
-    backgroundColor: theme.palette.scrollbar.thumbHover,
-  },
-  '&::-webkit-scrollbar-corner': {
-    backgroundColor: 'transparent',
-  },
+export const getScrollbarStyles = (_theme, _opts = {}) => ({
+  scrollbarWidth: 'none',
+  '&::-webkit-scrollbar': { display: 'none' },
 });
 
 export const getInsetPanelSx = (

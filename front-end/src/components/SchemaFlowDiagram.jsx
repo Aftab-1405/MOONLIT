@@ -1,12 +1,14 @@
 import { useState, useCallback, useMemo, useEffect, memo } from 'react';
-import ReactFlow, {
+import {
+  ReactFlow,
+  BaseEdge,
+  Background,
   useNodesState,
   useEdgesState,
   Handle,
   Position,
   getBezierPath,
-} from 'reactflow';
-import 'reactflow/dist/style.css';
+} from '@xyflow/react';
 import Dagre from '@dagrejs/dagre';
 import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
 import { alpha } from '@mui/material/styles';
@@ -14,9 +16,18 @@ import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
+import {
+  FLOW_NODE_CARD_CLASS,
+  HIDDEN_FLOW_HANDLE_STYLE,
+  getReactFlowBackgroundColor,
+  getReactFlowCanvasSx,
+  getReactFlowDefaultEdgeOptions,
+  getReactFlowEdgeStyle,
+  getReactFlowNodeCardSx,
+} from '../styles/reactFlowStyles';
+import { getReadOnlyReactFlowProps } from '../config/reactFlow';
 
 const MOBILE_BREAKPOINT_QUERY = 'sm';
-const HIDDEN_HANDLE_STYLE = { opacity: 0 };
 
 const CustomBezierEdge = ({
   id,
@@ -37,15 +48,7 @@ const CustomBezierEdge = ({
     targetPosition,
   });
 
-  return (
-    <path
-      id={id}
-      style={style}
-      className="react-flow__edge-path"
-      d={edgePath}
-      fill="none"
-    />
-  );
+  return <BaseEdge id={id} path={edgePath} style={style} />;
 };
 const DatabaseNode = memo(({ data }) => {
   const theme = useTheme();
@@ -54,24 +57,20 @@ const DatabaseNode = memo(({ data }) => {
 
   return (
     <Box
+      className={FLOW_NODE_CARD_CLASS}
       sx={{
-        px: { xs: 2, sm: 1.75 },
+        ...getReactFlowNodeCardSx(theme),
+        px: { xs: 1.75, sm: 1.5 },
         py: { xs: 1.25, sm: 1 },
-        borderRadius: 2,
-        backgroundColor: isDark 
-          ? alpha(theme.palette.text.primary, 0.08)
-          : alpha(theme.palette.text.primary, 0.05),
-        border: '1.5px solid',
-        borderColor: alpha(theme.palette.text.primary, isDark ? 0.2 : 0.15),
+        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.055),
+        borderColor: alpha(theme.palette.text.primary, isDark ? 0.22 : 0.16),
         display: 'flex',
         alignItems: 'center',
         gap: 1,
-        minWidth: isMobile ? 130 : 110,
-        transition: 'all 0.2s ease',
-        boxShadow: `0 2px 8px ${alpha(theme.palette.text.primary, 0.1)}`,
+        minWidth: isMobile ? 164 : 150,
+        minHeight: isMobile ? 54 : 48,
         '&:hover': {
-          borderColor: alpha(theme.palette.text.primary, 0.35),
-          boxShadow: `0 4px 12px ${alpha(theme.palette.text.primary, 0.15)}`,
+          borderColor: alpha(theme.palette.text.primary, isDark ? 0.36 : 0.26),
         },
       }}
     >
@@ -81,16 +80,29 @@ const DatabaseNode = memo(({ data }) => {
           color: theme.palette.text.primary,
         }}
       />
-      <Typography
-        variant="body2"
-        sx={{
-          fontWeight: 600,
-          color: theme.palette.text.primary,
-          ...theme.typography.uiSchemaDbLabel,
-        }}
-      >
-        {data.label}
-      </Typography>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography
+          noWrap
+          variant="body2"
+          sx={{
+            fontWeight: 650,
+            color: theme.palette.text.primary,
+            ...theme.typography.uiSchemaDbLabel,
+          }}
+        >
+          {data.label}
+        </Typography>
+        <Typography
+          noWrap
+          variant="caption"
+          sx={{
+            color: alpha(theme.palette.text.primary, isDark ? 0.58 : 0.52),
+            ...theme.typography.uiCaption2xs,
+          }}
+        >
+          {data.tableCount} tables
+        </Typography>
+      </Box>
       <ChevronRightRoundedIcon
         sx={{
           fontSize: { xs: 18, sm: 14 },
@@ -98,7 +110,7 @@ const DatabaseNode = memo(({ data }) => {
           ml: 'auto',
         }}
       />
-      <Handle type="source" position={Position.Right} style={HIDDEN_HANDLE_STYLE} />
+      <Handle type="source" position={Position.Right} style={HIDDEN_FLOW_HANDLE_STYLE} />
     </Box>
   );
 });
@@ -108,43 +120,42 @@ const TableNode = memo(({ data }) => {
   const isDark = theme.palette.mode === 'dark';
   const isMobile = data.isMobile;
   const hasColumns = data.columnCount > 0;
+  const handleToggle = useCallback(() => {
+    if (hasColumns && data.onToggle) data.onToggle(data.id);
+  }, [data, hasColumns]);
+  const handleKeyDown = useCallback((event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      handleToggle();
+    }
+  }, [handleToggle]);
 
   return (
     <Box
+      className={FLOW_NODE_CARD_CLASS}
+      role={hasColumns ? 'button' : undefined}
+      tabIndex={hasColumns ? 0 : undefined}
+      aria-expanded={hasColumns ? data.expanded : undefined}
       sx={{
-        px: { xs: 1.75, sm: 1.5 },
-        py: { xs: 1, sm: 0.75 },
-        borderRadius: 2,
-        backgroundColor: isDark 
-          ? alpha(theme.palette.background.paper, 0.8)
-          : theme.palette.background.paper,
-        border: '1px solid',
-        borderColor: data.expanded 
-          ? theme.palette.text.primary 
-          : 'divider',
+        ...getReactFlowNodeCardSx(theme, { interactive: hasColumns }),
+        px: { xs: 1.5, sm: 1.25 },
+        py: { xs: 1.1, sm: 0.95 },
+        borderColor: data.expanded
+          ? alpha(theme.palette.text.primary, isDark ? 0.38 : 0.3)
+          : alpha(theme.palette.text.primary, isDark ? 0.12 : 0.1),
         display: 'flex',
         alignItems: 'center',
         gap: { xs: 1, sm: 0.75 },
-        minWidth: isMobile ? 120 : 100,
-        minHeight: isMobile ? 40 : 32,
-        cursor: hasColumns ? 'pointer' : 'default',
-        transition: 'all 0.15s ease',
-        boxShadow: data.expanded 
-          ? `0 0 0 2px ${alpha(theme.palette.text.primary, 0.1)}`
-          : 'none',
-        '&:hover': hasColumns ? {
-          borderColor: alpha(theme.palette.text.primary, 0.35),
-          backgroundColor: isDark 
-            ? alpha(theme.palette.text.primary, 0.05)
-            : alpha(theme.palette.text.primary, 0.03),
-        } : {},
-        '&:active': hasColumns ? {
-          transform: 'scale(0.98)',
-        } : {},
+        minWidth: isMobile ? 160 : 144,
+        minHeight: isMobile ? 52 : 46,
+        boxShadow: data.expanded
+          ? `0 0 0 3px ${alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07)}, 0 18px 38px -30px ${alpha(theme.palette.common.black, isDark ? 0.86 : 0.28)}`
+          : undefined,
       }}
-      onClick={() => hasColumns && data.onToggle && data.onToggle(data.id)}
+      onClick={handleToggle}
+      onKeyDown={handleKeyDown}
     >
-      <Handle type="target" position={Position.Left} style={HIDDEN_HANDLE_STYLE} />
+      <Handle type="target" position={Position.Left} style={HIDDEN_FLOW_HANDLE_STYLE} />
       
       <TableChartRoundedIcon
         sx={{
@@ -153,16 +164,31 @@ const TableNode = memo(({ data }) => {
         }}
       />
       
-      <Typography
-        variant="caption"
-        sx={{
-          fontWeight: 500,
-          color: data.expanded ? theme.palette.text.primary : 'text.primary',
-          ...theme.typography.uiSchemaTableLabel,
-        }}
-      >
-        {data.label}
-      </Typography>
+      <Box sx={{ minWidth: 0, flex: 1 }}>
+        <Typography
+          noWrap
+          variant="caption"
+          sx={{
+            fontWeight: 650,
+            color: data.expanded ? theme.palette.text.primary : 'text.primary',
+            ...theme.typography.uiSchemaTableLabel,
+          }}
+        >
+          {data.label}
+        </Typography>
+        <Typography
+          noWrap
+          variant="caption"
+          sx={{
+            display: 'block',
+            mt: 0.25,
+            color: 'text.secondary',
+            ...theme.typography.uiCaption2xs,
+          }}
+        >
+          {data.columnCount} columns
+        </Typography>
+      </Box>
       
       {hasColumns && (
         <Box sx={{ display: 'flex', alignItems: 'center', ml: 'auto' }}>
@@ -177,7 +203,7 @@ const TableNode = memo(({ data }) => {
         </Box>
       )}
       
-      <Handle type="source" position={Position.Right} style={HIDDEN_HANDLE_STYLE} />
+      <Handle type="source" position={Position.Right} style={HIDDEN_FLOW_HANDLE_STYLE} />
     </Box>
   );
 });
@@ -190,31 +216,30 @@ const ColumnNode = memo(({ data }) => {
 
   return (
     <Box
+      className={FLOW_NODE_CARD_CLASS}
       sx={{
-        px: { xs: 1.5, sm: 1.25 },
-        py: { xs: 0.625, sm: 0.5 },
-        borderRadius: 1.5,
+        ...getReactFlowNodeCardSx(theme),
+        px: { xs: 1.25, sm: 1 },
+        py: { xs: 0.75, sm: 0.625 },
         backgroundColor: isPK 
           ? alpha(theme.palette.warning.main, isDark ? 0.12 : 0.08)
-          : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
-        border: '1px solid',
+          : alpha(theme.palette.background.paper, isDark ? 0.92 : 0.96),
         borderColor: isPK 
-          ? alpha(theme.palette.warning.main, 0.25) 
-          : 'divider',
+          ? alpha(theme.palette.warning.main, isDark ? 0.34 : 0.24)
+          : alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
         display: 'flex',
         alignItems: 'center',
         gap: { xs: 0.75, sm: 0.5 },
-        minWidth: isMobile ? 90 : 70,
-        minHeight: isMobile ? 32 : 24,
-        transition: 'all 0.15s ease',
+        minWidth: isMobile ? 138 : 124,
+        minHeight: isMobile ? 38 : 32,
         '&:hover': {
           borderColor: isPK 
-            ? alpha(theme.palette.warning.main, 0.4)
-            : alpha(theme.palette.text.primary, 0.2),
+            ? alpha(theme.palette.warning.main, isDark ? 0.48 : 0.38)
+            : alpha(theme.palette.text.primary, isDark ? 0.22 : 0.16),
         },
       }}
     >
-      <Handle type="target" position={Position.Left} style={HIDDEN_HANDLE_STYLE} />
+      <Handle type="target" position={Position.Left} style={HIDDEN_FLOW_HANDLE_STYLE} />
       
       {isPK && (
         <KeyRoundedIcon
@@ -318,24 +343,24 @@ function SchemaFlowDiagram({ database, tables, columns }) {
     });
   }, []);
   const edgeStyle = useMemo(() => ({
-    stroke: alpha(theme.palette.text.secondary, isDark ? 0.3 : 0.4),
-    strokeWidth: isMobile ? 1.5 : 1,
-  }), [isDark, isMobile, theme.palette.text.secondary]);
+    ...getReactFlowEdgeStyle(theme, { isMobile }),
+  }), [isMobile, theme]);
 
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodes = [];
     const edges = [];
-    const dbNodeWidth = isMobile ? 150 : 130;
-    const dbNodeHeight = isMobile ? 44 : 36;
-    const tableNodeWidth = isMobile ? 140 : 120;
-    const tableNodeHeight = isMobile ? 40 : 32;
-    const colNodeWidth = isMobile ? 120 : 100;
-    const colNodeHeight = isMobile ? 32 : 24;
+    const dbNodeWidth = isMobile ? 176 : 160;
+    const dbNodeHeight = isMobile ? 58 : 52;
+    const tableNodeWidth = isMobile ? 170 : 154;
+    const tableNodeHeight = isMobile ? 58 : 52;
+    const colNodeWidth = isMobile ? 148 : 134;
+    const colNodeHeight = isMobile ? 40 : 34;
     nodes.push({
       id: 'db',
       type: 'database',
       data: {
         label: database,
+        tableCount: tables.length,
         isMobile,
       },
       position: { x: 0, y: 0 },
@@ -369,6 +394,7 @@ function SchemaFlowDiagram({ database, tables, columns }) {
         target: tableId,
         type: 'custom',
         style: edgeStyle,
+        interactionWidth: 18,
         sourcePosition: Position.Right,
         targetPosition: Position.Left,
       });
@@ -398,7 +424,8 @@ function SchemaFlowDiagram({ database, tables, columns }) {
             source: tableId,
             target: columnId,
             type: 'custom',
-            style: { ...edgeStyle, strokeWidth: 1 },
+            style: getReactFlowEdgeStyle(theme, { isMobile, emphasis: 'subtle' }),
+            interactionWidth: 18,
             sourcePosition: Position.Right,
             targetPosition: Position.Left,
           });
@@ -408,10 +435,15 @@ function SchemaFlowDiagram({ database, tables, columns }) {
 
     const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, 'LR', isMobile);
     return { initialNodes: layoutedNodes, initialEdges: layoutedEdges };
-  }, [database, tables, columns, activeExpandedTables, toggleTable, edgeStyle, isMobile]);
+  }, [database, tables, columns, activeExpandedTables, toggleTable, edgeStyle, isMobile, theme]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const reactFlowProps = useMemo(() => getReadOnlyReactFlowProps(theme), [theme]);
+  const defaultEdgeOptions = useMemo(
+    () => getReactFlowDefaultEdgeOptions(theme, { isMobile }),
+    [isMobile, theme],
+  );
 
   useEffect(() => {
     setNodes(initialNodes);
@@ -424,35 +456,39 @@ function SchemaFlowDiagram({ database, tables, columns }) {
         width: '100%',
         height: '100%',
         minHeight: 300,
-        borderRadius: 2,
+        borderRadius: theme.shape.radius.md,
         overflow: 'hidden',
         touchAction: 'pan-y',
         border: '1px solid',
-        borderColor: 'divider',
-        backgroundColor: isDark
-          ? alpha(theme.palette.background.default, 0.5)
-          : theme.palette.background.paper,
+        borderColor: theme.palette.border.subtle,
+        backgroundColor: alpha(theme.palette.background.default, isDark ? 0.6 : 0.5),
       }}
     >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        nodeTypes={nodeTypes}
-        edgeTypes={edgeTypes}
-        fitView
-        fitViewOptions={{ padding: isMobile ? 0.15 : 0.3 }}
-        minZoom={0.2}
-        maxZoom={2}
-        proOptions={{ hideAttribution: true }}
-        panOnScroll={!isMobile}
-        panOnDrag={true}
-        zoomOnScroll={!isMobile}
-        zoomOnPinch={true}
-        preventScrolling={true}
-      >
-      </ReactFlow>
+      <Box sx={getReactFlowCanvasSx(theme, { tone: 'schema' })}>
+        <ReactFlow
+          aria-label="Database schema diagram"
+          nodes={nodes}
+          edges={edges}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          nodeTypes={nodeTypes}
+          edgeTypes={edgeTypes}
+          defaultEdgeOptions={defaultEdgeOptions}
+          fitView
+          fitViewOptions={{ padding: isMobile ? 0.2 : 0.34 }}
+          minZoom={0.2}
+          maxZoom={2}
+          {...reactFlowProps}
+          panOnScroll={!isMobile}
+          panOnDrag={true}
+          zoomOnScroll={!isMobile}
+          zoomOnPinch={true}
+          preventScrolling={true}
+          style={{ width: '100%', height: '100%', background: 'transparent' }}
+        >
+          <Background gap={22} size={0.8} color={getReactFlowBackgroundColor(theme)} />
+        </ReactFlow>
+      </Box>
     </Box>
   );
 }

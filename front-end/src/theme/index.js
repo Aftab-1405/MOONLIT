@@ -18,4 +18,3 @@ export { createLightTheme } from './lightTheme';
 // ─── Style utilities (backward-compat: consumers import from '../theme') ──────
 export { TRANSITIONS, getMoonlitGradient } from '../styles/themeEffects';
 export { getMonacoThemeName, registerMonacoThemes } from '../styles/themeMonaco';
-export { getMermaidThemeConfig }                    from '../styles/themeMermaid';

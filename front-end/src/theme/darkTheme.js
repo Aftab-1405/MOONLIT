@@ -216,20 +216,9 @@ const components = {
       '*, *::before, *::after': { boxSizing: 'border-box' },
 
       '*': {
-        scrollbarWidth: 'thin',
-        scrollbarColor: 'var(--scrollbar-thumb) var(--scrollbar-track)',
+        scrollbarWidth: 'none',
       },
-      '*::-webkit-scrollbar':        { width: 'var(--app-scrollbar-size)', height: 'var(--app-scrollbar-size)' },
-      '*::-webkit-scrollbar-track':  { background: 'var(--scrollbar-track)' },
-      '*::-webkit-scrollbar-thumb':  {
-        backgroundColor: 'var(--scrollbar-thumb)',
-        borderRadius: 999,
-        border: '2px solid transparent',
-        backgroundClip: 'content-box',
-        minHeight: 24,
-        minWidth: 24,
-      },
-      '*::-webkit-scrollbar-thumb:hover': { backgroundColor: 'var(--scrollbar-thumb-hover)' },
+      '*::-webkit-scrollbar': { display: 'none' },
       '*::-webkit-scrollbar-corner':      { backgroundColor: 'transparent' },
 
       html: {
@@ -455,9 +444,15 @@ const components = {
     styleOverrides: {
       root: {
         color: H.text000,
+        fontFamily: FONTS.sans,
         '&.MuiOutlinedInput-root': {
           backgroundColor: H.bg200,
         },
+      },
+      input: {
+        // Browsers don't inherit fontFamily on <input> from the body by default.
+        // Explicitly set it here so all text fields match the rest of the UI.
+        fontFamily: 'inherit',
       },
     },
   },

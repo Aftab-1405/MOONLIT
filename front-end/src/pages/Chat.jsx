@@ -6,9 +6,7 @@ import {
   Menu,
   MenuItem,
   Snackbar,
-  Dialog,
   Button,
-  Grow,
   Slide,
   Fade,
   IconButton,
@@ -21,18 +19,15 @@ import Sidebar from '../components/Sidebar';
 import ChatInput from '../components/ChatInput';
 import MessageList from '../components/MessageList';
 import DatabaseModal from '../components/DatabaseModal';
-import SQLResultsTable from '../components/SQLResultsTable';
 import SettingsModal from '../components/SettingsModal';
 import ConfirmDialog from '../components/ConfirmDialog';
-import SQLEditorCanvas from '../components/SQLEditorCanvas';
+import WorkspaceCanvas from '../components/WorkspaceCanvas';
 import ResizeHandle from '../components/ResizeHandle';
 import WelcomeScreen from '../components/WelcomeScreen';
 import StarfieldCanvas from '../components/StarfieldCanvas';
 import { useChatPageController } from '../hooks/chat-page/useChatPageController';
 import {
   getScrollbarStyles,
-  getDialogPaperSx,
-  DIALOG_VIEWPORT_SUPPORT_QUERY,
   UI_LAYOUT,
 } from '../styles/shared';
 
@@ -158,13 +153,13 @@ function Chat() {
     isConversationLoading,
     handleRunQuery,
     handleOpenSqlEditor,
+    handleOpenCanvasArtifact,
     chatInputSharedProps,
-    sqlEditorOpen,
-    handlePanelResize,
-    handleCloseSqlEditor,
-    sqlEditorQuery,
-    sqlEditorResults,
-    sqlEditorWidth,
+    workspaceCanvasOpen,
+    workspaceCanvasArtifact,
+    workspaceCanvasWidth,
+    handleCanvasResize,
+    handleCloseWorkspaceCanvas,
     isDbConnected,
     currentDatabase,
     dbModalOpen,
@@ -174,8 +169,6 @@ function Chat() {
     handleCloseSnackbar,
     snackbarAnchorOrigin,
     snackbarContentProps,
-    queryResults,
-    handleCloseQueryResults,
     settingsOpen,
     handleCloseSettings,
     confirmDialog,
@@ -379,6 +372,7 @@ function Chat() {
                     isLoadingConversation={isConversationLoading}
                     onRunQuery={handleRunQuery}
                     onOpenSqlEditor={handleOpenSqlEditor}
+                    onOpenCanvasArtifact={handleOpenCanvasArtifact}
                   />
                 </Box>
 
@@ -413,7 +407,7 @@ function Chat() {
         {!isNarrowLayout && (
           <Box
             component="section"
-            data-ui-target="sql_editor"
+            data-ui-target="workspace_canvas"
             sx={{
               display: 'flex',
               flexShrink: 0,
@@ -421,23 +415,23 @@ function Chat() {
               alignSelf: 'stretch',
               height: '100%',
             }}
-            aria-label="SQL editor panel"
+            aria-label="Workspace canvas"
           >
-            <ResizeHandle onResize={handlePanelResize} disabled={!sqlEditorOpen} />
-            <SQLEditorCanvas
-              onClose={handleCloseSqlEditor}
-              initialQuery={sqlEditorQuery}
-              initialResults={sqlEditorResults}
-              isConnected={isDbConnected}
+            <ResizeHandle onResize={handleCanvasResize} disabled={!workspaceCanvasOpen} />
+            <WorkspaceCanvas
+              artifact={workspaceCanvasArtifact}
+              onOpenArtifact={handleOpenCanvasArtifact}
+              onClose={handleCloseWorkspaceCanvas}
+              isDbConnected={isDbConnected}
               currentDatabase={currentDatabase}
-              isOpen={sqlEditorOpen}
-              panelWidth={sqlEditorWidth}
+              isOpen={workspaceCanvasOpen}
+              panelWidth={workspaceCanvasWidth}
             />
           </Box>
         )}
       </Box>
       {isNarrowLayout && (
-        <Slide direction="up" in={sqlEditorOpen} mountOnEnter unmountOnExit>
+        <Slide direction="up" in={workspaceCanvasOpen} mountOnEnter unmountOnExit>
           <Box
             sx={{
               position: 'fixed',
@@ -451,13 +445,12 @@ function Chat() {
               bgcolor: 'background.default',
             }}
           >
-            <SQLEditorCanvas
-              onClose={handleCloseSqlEditor}
-              initialQuery={sqlEditorQuery}
-              initialResults={sqlEditorResults}
-              isConnected={isDbConnected}
+            <WorkspaceCanvas
+              artifact={workspaceCanvasArtifact}
+              onOpenArtifact={handleOpenCanvasArtifact}
+              onClose={handleCloseWorkspaceCanvas}
+              isDbConnected={isDbConnected}
               currentDatabase={currentDatabase}
-              isOpen={sqlEditorOpen}
               fullscreen
             />
           </Box>
@@ -486,24 +479,6 @@ function Chat() {
           },
         }}
       />
-      <Dialog
-        open={Boolean(queryResults)}
-        onClose={handleCloseQueryResults}
-        fullScreen
-        TransitionComponent={Grow}
-        PaperProps={{
-          sx: {
-            ...getDialogPaperSx(theme, { isMobile: true }),
-            backgroundColor: theme.palette.background.paper,
-            backgroundImage: theme.palette.mode === 'dark'
-              ? `linear-gradient(160deg, ${alpha(theme.palette.primary.main, 0.08)} 0%, transparent 40%)`
-              : `linear-gradient(160deg, ${alpha(theme.palette.primary.main, 0.06)} 0%, transparent 40%)`,
-            [DIALOG_VIEWPORT_SUPPORT_QUERY]: { height: '100dvh', maxHeight: '100dvh', minHeight: '100dvh' },
-          },
-        }}
-      >
-        {queryResults && <SQLResultsTable data={queryResults} onClose={handleCloseQueryResults} />}
-      </Dialog>
       <SettingsModal open={settingsOpen} onClose={handleCloseSettings} initialSection={settingsInitialSection} />
       <ConfirmDialog
         open={confirmDialog.open}

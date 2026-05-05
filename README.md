@@ -70,7 +70,7 @@ Moonlit removes that friction. You connect your database, describe your goal, an
 | **Model Selector** | Switch LLM provider and model from within the chat input |
 | **SQL Editor** | Monaco-powered SQL editor with syntax highlighting |
 | **Result Visualization** | Chart.js charts and formatted data tables for query results |
-| **Mermaid Diagrams** | AI can render ER diagrams and flowcharts inline |
+| **React Flow Diagrams** | AI can render structured `diagram-flow` ER diagrams and flowcharts inline |
 | **Markdown Rendering** | Full markdown + code block support in AI responses |
 | **Dark / Light Theme** | User-selectable with custom colour palettes |
 | **Conversation Sidebar** | Browse, resume, and delete past conversations |
@@ -164,7 +164,7 @@ Tools that read schema or connection state are **cached within a conversation tu
 | UI Library | Material UI 7 |
 | SQL Editor | Monaco Editor |
 | Charts | Chart.js |
-| Diagrams | Mermaid |
+| Diagrams | React Flow + Dagre |
 | Auth | Firebase Web SDK |
 | Markdown | react-markdown + remark-gfm |
 

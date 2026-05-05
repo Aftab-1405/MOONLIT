@@ -8,7 +8,7 @@ import { useIdleDetection } from './useIdleDetection';
 import { useConversations } from './useConversations';
 import { useMessageStreaming } from './useMessageStreaming';
 import { useQueryExecution } from './useQueryExecution';
-import { useSqlEditorPanel } from './useSqlEditorPanel';
+import { useWorkspaceCanvas } from './useWorkspaceCanvas';
 import { useResponsive } from './useResponsive';
 import { useChatPageLlmSelection } from './useChatPageLlmSelection';
 import { useChatPageSessionLifecycle } from './useChatPageSessionLifecycle';
@@ -67,14 +67,14 @@ export function useChatPageController() {
     sidebarOpen ? DRAWER_WIDTH : COLLAPSED_WIDTH,
   [sidebarOpen]);
   const {
-    sqlEditorOpen,
-    sqlEditorQuery,
-    sqlEditorResults,
-    sqlEditorWidth,
+    workspaceCanvasOpen,
+    workspaceCanvasArtifact,
+    workspaceCanvasWidth,
+    handleOpenCanvasArtifact,
     handleOpenSqlEditor,
-    handleCloseSqlEditor,
-    handlePanelResize,
-  } = useSqlEditorPanel({ sidebarWidth: currentSidebarWidth });
+    handleCloseWorkspaceCanvas,
+    handleCanvasResize,
+  } = useWorkspaceCanvas({ sidebarWidth: currentSidebarWidth });
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
@@ -111,17 +111,23 @@ export function useChatPageController() {
       severity,
     });
   }, []);
+  const handleQueryResults = useCallback((data) => {
+    handleOpenCanvasArtifact({
+      type: 'results',
+      title: 'Query results',
+      props: { data },
+    });
+  }, [handleOpenCanvasArtifact]);
   const {
-    queryResults,
     confirmDialog,
     handleRunQuery,
-    handleCloseQueryResults,
     handleConfirmDialogClose,
   } = useQueryExecution({
     isDbConnected,
     settings,
     setDbModalOpen,
     showSnackbar,
+    onQueryResults: handleQueryResults,
   });
 
   const handleSidebarNewChat = useCallback(() => {
@@ -468,13 +474,13 @@ export function useChatPageController() {
     isConversationLoading,
     handleRunQuery,
     handleOpenSqlEditor,
+    handleOpenCanvasArtifact,
     chatInputSharedProps,
-    sqlEditorOpen,
-    handlePanelResize,
-    handleCloseSqlEditor,
-    sqlEditorQuery,
-    sqlEditorResults,
-    sqlEditorWidth,
+    workspaceCanvasOpen,
+    workspaceCanvasArtifact,
+    workspaceCanvasWidth,
+    handleCanvasResize,
+    handleCloseWorkspaceCanvas,
     isDbConnected,
     currentDatabase,
     dbModalOpen,
@@ -484,8 +490,6 @@ export function useChatPageController() {
     handleCloseSnackbar,
     snackbarAnchorOrigin,
     snackbarContentProps,
-    queryResults,
-    handleCloseQueryResults,
     settingsOpen,
     handleCloseSettings,
     confirmDialog,

@@ -7,6 +7,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { DatabaseProvider } from './contexts/DatabaseContext';
 import ErrorBoundary from './components/ErrorBoundary';
 import App from './App';
+import '@xyflow/react/dist/style.css';
 
 /**
  * Application Entry Point

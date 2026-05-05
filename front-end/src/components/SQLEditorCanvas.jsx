@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect, useMemo, memo } from 'react';
 import {
   Box,
   Typography,
-  IconButton,
   Tooltip,
   CircularProgress,
   ButtonBase,
@@ -13,10 +12,8 @@ import {
 import { useTheme as useMuiTheme, alpha, keyframes } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import Editor from '@monaco-editor/react';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
 import HighlightOffSharpIcon from '@mui/icons-material/HighlightOffSharp';
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import DatasetOutlinedIcon from '@mui/icons-material/DatasetOutlined';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
@@ -24,15 +21,17 @@ import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import SQLResultsTable from './SQLResultsTable';
 import ChartVisualization from './ChartVisualization';
+import {
+  ArtifactActions,
+  ArtifactBody,
+  ArtifactCommandBar,
+  ArtifactEmptyState,
+  ArtifactIconButton,
+  ArtifactSurface,
+} from './ArtifactLayout';
 import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 import { TRANSITIONS } from '../styles/themeEffects';
-import { getGhostIconButtonSx, getGlassmorphismStyles } from '../styles/shared';
 import { runQuery } from '../api';
-
-const fadeIn = keyframes`
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-`;
 
 // Separate keyframe for the bottom-center toast — must keep translateX(-50%)
 // in both states so the centering offset is never dropped during the animation.
@@ -77,124 +76,11 @@ function resultsToCsv(results) {
   return [header, ...body].join('\n');
 }
 
-const openedMixin = (theme, width) => ({
-  width: typeof width === 'number' ? width : width,
-  transition: theme.transitions.create('width', {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.enteringScreen,
-  }),
-  overflowX: 'hidden',
-  ...getGlassmorphismStyles(theme),
-});
-
-const closedMixin = (theme) => ({
-  transition: theme.transitions.create('width', {
-    easing: theme.transitions.easing.sharp,
-    duration: theme.transitions.duration.leavingScreen,
-  }),
-  overflowX: 'hidden',
-  width: 0,
-  ...getGlassmorphismStyles(theme),
-});
-
-function buildPanelSx(theme, open, panelWidth) {
-  return {
-    display: 'flex',
-    flexDirection: 'column',
-    height: '100%',
-    flexShrink: 0,
-    whiteSpace: 'nowrap',
-    boxSizing: 'border-box',
-    ...(open ? openedMixin(theme, panelWidth) : closedMixin(theme)),
-  };
-}
-
-const EmptyState = memo(function EmptyState({ icon: _Icon, title, subtitle, textColor, accent, hint }) {
-  const Icon = _Icon;
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        color: 'text.secondary',
-        gap: 1.35,
-        animation: `${fadeIn} 0.4s cubic-bezier(0.22, 1, 0.36, 1)`,
-      }}
-    >
-      <Box
-        sx={{
-          width: 48,
-          height: 48,
-          borderRadius: '12px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          bgcolor: alpha(accent, 0.055),
-          border: '1px solid',
-          borderColor: alpha(accent, 0.12),
-        }}
-      >
-        <Icon sx={{ fontSize: 23, color: accent, opacity: 0.78 }} />
-      </Box>
-      <Typography
-        variant="body1"
-        sx={{
-          fontWeight: 600,
-          letterSpacing: 0,
-          color: 'text.primary',
-          opacity: 0.9,
-        }}
-      >
-        {title}
-      </Typography>
-      {subtitle && (
-        <Typography
-          variant="body2"
-          sx={{
-            textAlign: 'center',
-            px: 3,
-            maxWidth: 320,
-            lineHeight: 1.55,
-            color: 'text.secondary',
-            opacity: 0.78,
-          }}
-        >
-          {subtitle}
-        </Typography>
-      )}
-      {hint && (
-        <Box
-          sx={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 0.75,
-            px: 1.25,
-            py: 0.5,
-            borderRadius: '8px',
-            border: '1px solid',
-            borderColor: alpha(textColor, 0.08),
-            bgcolor: alpha(textColor, 0.025),
-          }}
-        >
-          {hint}
-        </Box>
-      )}
-    </Box>
-  );
-});
-
 function SQLEditorCanvas({
-  onClose,
   initialQuery = '',
   initialResults = null,
   isConnected = false,
   currentDatabase = null,
-  isOpen = true,
-  panelWidth = 450,
-  fullscreen = false,
 }) {
   const theme = useMuiTheme();
   const { settings } = useAppTheme();
@@ -210,7 +96,6 @@ function SQLEditorCanvas({
   const editorRef = useRef(null);
   const copyTimeoutRef = useRef(null);
   const handleRunQueryRef = useRef(null);
-  const textColor = useMemo(() => theme.palette.text.primary, [theme.palette.text.primary]);
   const monacoOptions = useMemo(
     () => ({
       ...MONACO_OPTIONS,
@@ -372,41 +257,6 @@ function SQLEditorCanvas({
     () => alpha(theme.palette.text.primary, isDark ? 0.11 : 0.055),
     [theme.palette.text.primary, isDark]
   );
-  const headerBarBg = useMemo(
-    () => (isDark
-      ? `linear-gradient(180deg, ${alpha(artifactChromeBg, 1)} 0%, ${alpha(artifactChromeBg, 0.94)} 100%)`
-      : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 1)} 0%, ${alpha(artifactChromeBg, 0.98)} 100%)`
-    ),
-    [artifactChromeBg, isDark, theme.palette.common.white]
-  );
-  const footerBarBg = useMemo(
-    () => (isDark
-      ? `linear-gradient(0deg, ${alpha(artifactChromeBg, 1)} 0%, ${alpha(artifactChromeBg, 0.92)} 100%)`
-      : `linear-gradient(0deg, ${alpha(artifactChromeBg, 1)} 0%, ${alpha(theme.palette.common.white, 0.97)} 100%)`
-    ),
-    [artifactChromeBg, isDark, theme.palette.common.white]
-  );
-  const headerActionHoverBg = useMemo(
-    () => alpha(theme.palette.text.primary, isDark ? 0.12 : 0.065),
-    [theme.palette.text.primary, isDark]
-  );
-
-  const actionBarStyles = useMemo(() => ({
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'flex-end',
-    gap: 0.75,
-    px: { xs: 1, sm: 1.25 },
-    py: { xs: 0.75, sm: 0.85 },
-    flexShrink: 0,
-    minHeight: { xs: 48, sm: 50 },
-    borderTop: '1px solid',
-    borderColor: artifactBorder,
-    background: footerBarBg,
-    boxShadow: isDark
-      ? `0 -1px 0 ${alpha(theme.palette.common.white, 0.04)} inset`
-      : `0 -1px 0 ${alpha(theme.palette.common.white, 0.85)} inset`,
-  }), [artifactBorder, footerBarBg, isDark, theme.palette.common.white]);
 
   const toolbarGhostStyles = useMemo(() => ({
     minWidth: 0,
@@ -453,32 +303,6 @@ function SQLEditorCanvas({
       boxShadow: 'none',
     },
   }), [isDark, theme]);
-
-  const shortcutHintStyles = useMemo(() => ({
-    display: { xs: 'none', sm: 'inline-flex' },
-    alignItems: 'center',
-    gap: 0.5,
-    mr: 'auto',
-    color: 'text.disabled',
-  }), []);
-
-  const shortcutKeyStyles = useMemo(() => ({
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 24,
-    height: 22,
-    px: 0.625,
-    borderRadius: '6px',
-    ...theme.typography.uiMonoLabel,
-    fontSize: '0.6875rem',
-    fontWeight: 600,
-    color: 'text.secondary',
-    bgcolor: alpha(textColor, 0.055),
-    border: '1px solid',
-    borderColor: alpha(textColor, 0.1),
-    boxSizing: 'border-box',
-  }), [textColor, theme.typography.uiMonoLabel]);
 
   /** Fills canvas body; overflow stays inside table/chart (not this wrapper). */
   const artifactTabPaneStyles = useMemo(() => ({
@@ -585,12 +409,10 @@ function SQLEditorCanvas({
         <SQLResultsTable data={results} onClose={handleCloseResults} embedded />
       ) : (
         <Box sx={centeredEmptyWrapStyles}>
-          <EmptyState
+          <ArtifactEmptyState
             icon={DatasetOutlinedIcon}
             title="Awaiting results"
             subtitle={null}
-            textColor={textColor}
-            accent={theme.palette.text.secondary}
           />
         </Box>
       )}
@@ -600,8 +422,6 @@ function SQLEditorCanvas({
     centeredEmptyWrapStyles,
     handleCloseResults,
     results,
-    textColor,
-    theme.palette.text.secondary,
   ]);
 
   const chartTabContent = useMemo(() => (
@@ -610,7 +430,7 @@ function SQLEditorCanvas({
         <ChartVisualization data={results} embedded />
       ) : (
         <Box sx={centeredEmptyWrapStyles}>
-          <EmptyState
+          <ArtifactEmptyState
             icon={BarChartRoundedIcon}
             title="Awaiting data"
             subtitle={null}
@@ -619,8 +439,6 @@ function SQLEditorCanvas({
                 Results required
               </Typography>
             }
-            textColor={textColor}
-            accent={theme.palette.info.main}
           />
         </Box>
       )}
@@ -629,15 +447,8 @@ function SQLEditorCanvas({
     artifactTabPaneStyles,
     centeredEmptyWrapStyles,
     results,
-    textColor,
-    theme.palette.info.main,
     theme.typography.uiCaptionXs,
   ]);
-  const panelSx = useMemo(
-    () => buildPanelSx(theme, isOpen, panelWidth),
-    [theme, isOpen, panelWidth],
-  );
-
   const tabContent = activeTab === 0 ? editorTabContent : activeTab === 1 ? resultsTabContent : chartTabContent;
 
   const navSegments = useMemo(() => [
@@ -646,23 +457,13 @@ function SQLEditorCanvas({
     { id: 2, label: 'Chart', ariaLabel: 'Chart', icon: BarChartRoundedIcon, disabled: !results },
   ], [results]);
 
-  const unifiedHeader = (
+  const sqlTabs = (
     <Box
       sx={{
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        gap: 1,
-        px: { xs: 1, sm: 1.25 },
-        py: { xs: 0.85, sm: 0.95 },
-        flexShrink: 0,
-        minHeight: { xs: 52, sm: 54 },
-        borderBottom: '1px solid',
-        borderColor: artifactBorder,
-        background: headerBarBg,
-        boxShadow: isDark
-          ? `0 1px 0 ${alpha(theme.palette.common.white, 0.06)} inset`
-          : `0 1px 0 ${alpha(theme.palette.common.white, 0.85)} inset`,
+        minWidth: 0,
+        overflow: 'hidden',
       }}
     >
       <Box
@@ -775,108 +576,73 @@ function SQLEditorCanvas({
           );
         })}
       </Box>
+    </Box>
+  );
 
+  const connectionStatus = (
+    <Box
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 0.75,
+        minWidth: 0,
+        maxWidth: 220,
+        height: 32,
+        px: 1,
+        borderRadius: '9px',
+        border: '1px solid',
+        borderColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.065),
+        bgcolor: alpha(theme.palette.text.primary, isDark ? 0.045 : 0.025),
+        boxSizing: 'border-box',
+      }}
+    >
       <Box
+        component="span"
+        aria-hidden="true"
         sx={{
-          display: { xs: 'none', sm: 'inline-flex' },
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 0.75,
+          width: 6,
+          height: 6,
+          borderRadius: '50%',
+          flexShrink: 0,
+          bgcolor: isConnected ? 'success.main' : 'text.disabled',
+        }}
+      />
+      <Typography
+        noWrap
+        title={currentDatabase || undefined}
+        sx={{
           minWidth: 0,
-          maxWidth: '42%',
-          height: 32,
-          px: 1,
-          borderRadius: '9px',
-          border: '1px solid',
-          borderColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.065),
-          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.045 : 0.025),
-          boxSizing: 'border-box',
+          ...theme.typography.uiCaptionXs,
+          fontWeight: 500,
+          lineHeight: 1,
+          color: 'text.secondary',
         }}
       >
-        <Box
-          component="span"
-          aria-hidden="true"
-          sx={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            flexShrink: 0,
-            bgcolor: isConnected ? 'success.main' : 'text.disabled',
-          }}
-        />
-        <Typography
-          noWrap
-          title={currentDatabase || undefined}
-          sx={{
-            minWidth: 0,
-            ...theme.typography.uiCaptionXs,
-            fontWeight: 500,
-            lineHeight: 1,
-            color: 'text.secondary',
+        {currentDatabase || (isConnected ? 'Connected' : 'Not connected')}
+      </Typography>
+    </Box>
+  );
+
+  const sqlActions = (
+    <>
+      <ArtifactActions sx={{ display: { xs: 'none', sm: 'flex' } }}>
+        <ArtifactIconButton
+          title={copied ? 'Copied' : 'Copy options'}
+          ariaLabel="Copy options"
+          onClick={openCopyMenu}
+          active={copied}
+          disabled={!query.trim() && !results?.columns?.length}
+          size={34}
+          radius="10px"
+          buttonProps={{
+            'aria-haspopup': 'true',
+            'aria-expanded': Boolean(copyMenuAnchor),
           }}
         >
-          {currentDatabase || (isConnected ? 'Connected' : 'Not connected')}
-        </Typography>
-      </Box>
-
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.375, flexShrink: 0 }}>
-        <Tooltip title={copied ? 'Copied' : 'Copy SQL'}>
-          <span>
-            <IconButton
-              size="small"
-              onClick={handleCopy}
-              disabled={!query.trim()}
-              aria-label="Copy SQL"
-              sx={{
-                ...getGhostIconButtonSx(theme, { size: 34, radius: '10px' }),
-                color: copied ? 'success.main' : 'text.secondary',
-                '&:hover': {
-                  opacity: 1,
-                  color: copied ? 'success.main' : 'text.primary',
-                  bgcolor: headerActionHoverBg,
-                },
-                '&.Mui-disabled': { opacity: 0.36 },
-              }}
-            >
-              {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
-            </IconButton>
-          </span>
-        </Tooltip>
-        <Tooltip title="Copy options">
-          <IconButton
-            size="small"
-            onClick={openCopyMenu}
-            aria-label="More copy options"
-            aria-haspopup="true"
-            aria-expanded={Boolean(copyMenuAnchor)}
-            sx={{
-              ...getGhostIconButtonSx(theme, { size: 34, radius: '10px' }),
-              '&:hover': {
-                opacity: 1,
-                bgcolor: headerActionHoverBg,
-              },
-            }}
-          >
-            <KeyboardArrowDownRoundedIcon sx={{ fontSize: 18 }} />
-          </IconButton>
-        </Tooltip>
-        <Tooltip title="Close panel">
-          <IconButton
-            size="small"
-            onClick={onClose}
-            aria-label="Close SQL editor"
-            sx={{
-              ...getGhostIconButtonSx(theme, { size: 34, radius: '10px' }),
-              '&:hover': {
-                opacity: 1,
-                backgroundColor: headerActionHoverBg,
-              },
-            }}
-          >
-            <CloseRoundedIcon sx={{ fontSize: 20 }} />
-          </IconButton>
-        </Tooltip>
-      </Box>
+          {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
+        </ArtifactIconButton>
+      </ArtifactActions>
       <Menu
         anchorEl={copyMenuAnchor}
         open={Boolean(copyMenuAnchor)}
@@ -915,18 +681,6 @@ function SQLEditorCanvas({
           Copy results as CSV
         </MenuItem>
       </Menu>
-    </Box>
-  );
-
-  const actionBarComponent = (
-    <Box sx={actionBarStyles}>
-      <Box sx={shortcutHintStyles} aria-hidden="true">
-        {['Ctrl', 'Enter'].map((key) => (
-          <Box key={key} component="kbd" sx={shortcutKeyStyles}>
-            {key}
-          </Box>
-        ))}
-      </Box>
       <Tooltip title="Clear query and results">
         <Button
           size="small"
@@ -955,56 +709,33 @@ function SQLEditorCanvas({
           </Button>
         </span>
       </Tooltip>
-    </Box>
+    </>
   );
-  if (fullscreen) {
-    return (
-      <Box
-        sx={{
-          display: 'flex',
-          flexDirection: 'column',
-          height: '100dvh',
-          '@supports not (height: 100dvh)': {
-            height: '100vh',
-          },
-          width: '100%',
-          bgcolor: 'background.default',
-        }}
-      >
-        {unifiedHeader}
-        <Box
-          sx={{
-            flex: 1,
-            minHeight: 0,
-            minWidth: 0,
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
-        >
-          {tabContent}
-        </Box>
-        {actionBarComponent}
-      </Box>
-    );
-  }
+
+  const actionBarComponent = (
+    <ArtifactCommandBar
+      leading={sqlTabs}
+      center={connectionStatus}
+      trailing={sqlActions}
+      centerSx={{ display: { xs: 'none', md: 'flex' }, flex: '0 1 220px' }}
+      trailingSx={{ flex: '1 0 auto' }}
+    />
+  );
   return (
-    <Box component="section" aria-label="SQL editor panel" sx={panelSx}>
-      {unifiedHeader}
-      <Box
-        sx={{
-          flex: 1,
-          minHeight: 0,
-          minWidth: 0,
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-        }}
-      >
+    <ArtifactSurface
+      component="section"
+      aria-label="SQL editor"
+      sx={{
+        height: '100%',
+        width: '100%',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      <ArtifactBody>
         {tabContent}
-      </Box>
+      </ArtifactBody>
       {actionBarComponent}
-    </Box>
+    </ArtifactSurface>
   );
 }
 

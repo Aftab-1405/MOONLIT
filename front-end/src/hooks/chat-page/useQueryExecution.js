@@ -17,6 +17,7 @@ import { runQuery } from '../../api';
  * @param {Object} params.settings - User settings object
  * @param {Function} params.setDbModalOpen - Function to open database modal
  * @param {Function} params.showSnackbar - Function to show snackbar notifications
+ * @param {Function} params.onQueryResults - Function to show successful results
  * @returns {Object} Query execution state and handlers
  */
 export function useQueryExecution({
@@ -24,8 +25,8 @@ export function useQueryExecution({
   settings,
   setDbModalOpen,
   showSnackbar,
+  onQueryResults,
 }) {
-  const [queryResults, setQueryResults] = useState(null);
   const [confirmDialog, setConfirmDialog] = useState({ 
     open: false, 
     sql: '', 
@@ -42,7 +43,6 @@ export function useQueryExecution({
       }
     };
   }, []);
-  const handleCloseQueryResults = useCallback(() => setQueryResults(null), []);
   const executeQuery = useCallback(async (sql, maxRows, queryTimeout) => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
@@ -64,7 +64,7 @@ export function useQueryExecution({
           return obj;
         });
 
-        setQueryResults({
+        onQueryResults?.({
           columns,
           result: transformedResult,
           row_count: data.row_count,
@@ -80,7 +80,7 @@ export function useQueryExecution({
       if (error.name === 'AbortError') return; // Ignore abort errors
       showSnackbar('Failed to execute query', 'error');
     }
-  }, [showSnackbar]);
+  }, [onQueryResults, showSnackbar]);
   const handleRunQuery = useCallback((sql) => {
     if (!isDbConnected) {
       showSnackbar('Please connect to a database first', 'warning');
@@ -119,10 +119,8 @@ export function useQueryExecution({
   }, [confirmDialog]);
 
   return {
-    queryResults,
     confirmDialog,
     handleRunQuery,
-    handleCloseQueryResults,
     handleConfirmDialogClose,
   };
 }

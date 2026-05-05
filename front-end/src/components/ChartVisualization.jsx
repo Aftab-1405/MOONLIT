@@ -26,6 +26,15 @@ import {
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import AppPopover from './AppPopover';
+import {
+  ArtifactActions,
+  ArtifactBody,
+  ArtifactCommandBar,
+  ArtifactEmptyState,
+  ArtifactIconButton,
+  ArtifactSurface,
+} from './ArtifactLayout';
+import { artifactControlButtonSx } from './artifactLayoutStyles';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
@@ -203,19 +212,129 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
   if (!columns.length || !result.length) return null;
 
   if (!numericColumns.length) {
+    const EmptyRoot = embedded ? ArtifactSurface : Box;
     return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <InsightsRoundedIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1 }} />
-        <Typography color="text.secondary">
-          No numeric columns available for visualization
-        </Typography>
-      </Box>
+      <EmptyRoot sx={embedded ? {} : { p: 3, textAlign: 'center' }}>
+        <ArtifactEmptyState
+          icon={InsightsRoundedIcon}
+          title="No numeric columns"
+          subtitle="This result set does not contain numeric data for charting."
+        />
+      </EmptyRoot>
     );
   }
 
+  const RootComponent = embedded ? ArtifactSurface : Box;
+  const BodyComponent = embedded ? ArtifactBody : Box;
+  const columnButtonSx = artifactControlButtonSx(theme, { height: embedded ? 30 : 32 });
+  const columnControls = (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, overflow: 'hidden' }}>
+      <Box
+        component="button"
+        onClick={(e) => setLabelAnchorEl(e.currentTarget)}
+        aria-haspopup="listbox"
+        sx={columnButtonSx}
+      >
+        <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Label</Typography>
+        <Typography component="span" noWrap sx={{ ...theme.typography.uiCaptionMd, color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{labelColumn || '-'}</Typography>
+        <KeyboardArrowDownRoundedIcon sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
+      </Box>
+      <Box
+        component="button"
+        onClick={(e) => setValueAnchorEl(e.currentTarget)}
+        aria-haspopup="listbox"
+        sx={columnButtonSx}
+      >
+        <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Value</Typography>
+        <Typography component="span" noWrap sx={{ ...theme.typography.uiCaptionMd, color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{valueColumn || '-'}</Typography>
+        <KeyboardArrowDownRoundedIcon sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
+      </Box>
+    </Box>
+  );
+  const chartTypeControls = (
+    <Box
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 0.25,
+        p: 0.5,
+        borderRadius: '10px',
+        bgcolor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06),
+        border: '1px solid',
+        borderColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
+      }}
+    >
+      <ToggleButtonGroup
+        value={chartType}
+        exclusive
+        onChange={(e, v) => v && setChartType(v)}
+        size="small"
+        sx={{
+          gap: 0.25,
+          '& .MuiToggleButton-root': {
+            border: 'none',
+            borderRadius: '8px',
+            px: 0.75,
+            py: 0.5,
+            minWidth: 36,
+            height: 30,
+            color: 'text.secondary',
+            '&.Mui-selected': {
+              color: 'text.primary',
+              bgcolor: alpha(theme.palette.background.paper, isDark ? 0.95 : 1),
+              boxShadow: `0 0 0 1px ${alpha(theme.palette.text.primary, 0.08)}, 0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.35 : 0.08)}`,
+            },
+            '&:hover': {
+              bgcolor: alpha(theme.palette.text.primary, 0.06),
+            },
+          },
+        }}
+      >
+        <ToggleButton value="bar" aria-label="Bar chart">
+          <MuiTooltip title="Bar chart">
+            <BarChartRoundedIcon sx={{ fontSize: 18 }} />
+          </MuiTooltip>
+        </ToggleButton>
+        <ToggleButton value="line" aria-label="Line chart">
+          <MuiTooltip title="Line chart">
+            <ShowChartRoundedIcon sx={{ fontSize: 18 }} />
+          </MuiTooltip>
+        </ToggleButton>
+        <ToggleButton value="pie" aria-label="Pie chart">
+          <MuiTooltip title="Pie chart">
+            <PieChartOutlineRoundedIcon sx={{ fontSize: 18 }} />
+          </MuiTooltip>
+        </ToggleButton>
+        <ToggleButton value="doughnut" aria-label="Doughnut chart">
+          <MuiTooltip title="Doughnut chart">
+            <DonutLargeRoundedIcon sx={{ fontSize: 18 }} />
+          </MuiTooltip>
+        </ToggleButton>
+      </ToggleButtonGroup>
+    </Box>
+  );
+  const chartActions = (
+    <ArtifactActions>
+      <ArtifactIconButton title="Download PNG" ariaLabel="Download chart as PNG" onClick={handleDownload}>
+        <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
+      </ArtifactIconButton>
+      <ArtifactIconButton
+        title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        ariaLabel={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+        onClick={() => setFullscreen(!fullscreen)}
+      >
+        {fullscreen ? (
+          <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
+        ) : (
+          <FullscreenRoundedIcon sx={{ fontSize: 18 }} />
+        )}
+      </ArtifactIconButton>
+    </ArtifactActions>
+  );
+
   return (
     <>
-      <Box
+      <RootComponent
         ref={containerRef}
         sx={{
         display: 'flex',
@@ -225,106 +344,13 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
         zIndex: fullscreen ? 9999 : 'auto',
         backgroundColor: fullscreen ? theme.palette.background.default : 'transparent',
         ...(embedded
-          ? {
-            flex: 1,
-            minHeight: 0,
-            minWidth: 0,
-            alignSelf: 'stretch',
-            height: 'auto',
-          }
+          ? { alignSelf: 'stretch', height: 'auto' }
           : {
             height: '100%',
             minHeight: 400,
           }),
       }}
       >
-        {embedded && (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-              gap: { xs: 0.75, sm: 1 },
-              px: 2,
-              py: 0.75,
-              flexShrink: 0,
-              minHeight: 44,
-              borderBottom: '1px solid',
-              borderColor: theme.palette.border.subtle,
-              bgcolor: theme.palette.background.paper,
-            }}
-          >
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 0.5, sm: 0.75 }, flexWrap: 'wrap', minWidth: 0 }}>
-              <Box
-                component="button"
-                onClick={(e) => setLabelAnchorEl(e.currentTarget)}
-                aria-haspopup="listbox"
-                sx={{
-                  display: 'inline-flex', alignItems: 'center', gap: 0.5,
-                  height: 30, minWidth: { xs: 80, sm: 96 }, maxWidth: { xs: 120, sm: 140 },
-                  px: 1, borderRadius: '8px', border: '1px solid',
-                  borderColor: theme.palette.border.subtle,
-                  bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
-                  cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
-                  transition: 'border-color 0.12s, background-color 0.12s',
-                  '&:hover': { borderColor: theme.palette.border.hover, bgcolor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06) },
-                  '&:focus-visible': { outline: `2px solid ${alpha(theme.palette.text.secondary, 0.4)}`, outlineOffset: 1 },
-                }}
-              >
-                <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Label</Typography>
-                <Typography component="span" noWrap sx={{ ...theme.typography.uiCaptionMd, color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{labelColumn || '—'}</Typography>
-                <KeyboardArrowDownRoundedIcon sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
-              </Box>
-              <Box
-                component="button"
-                onClick={(e) => setValueAnchorEl(e.currentTarget)}
-                aria-haspopup="listbox"
-                sx={{
-                  display: 'inline-flex', alignItems: 'center', gap: 0.5,
-                  height: 30, minWidth: { xs: 80, sm: 96 }, maxWidth: { xs: 120, sm: 140 },
-                  px: 1, borderRadius: '8px', border: '1px solid',
-                  borderColor: theme.palette.border.subtle,
-                  bgcolor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
-                  cursor: 'pointer', fontFamily: 'inherit', outline: 'none',
-                  transition: 'border-color 0.12s, background-color 0.12s',
-                  '&:hover': { borderColor: theme.palette.border.hover, bgcolor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06) },
-                  '&:focus-visible': { outline: `2px solid ${alpha(theme.palette.text.secondary, 0.4)}`, outlineOffset: 1 },
-                }}
-              >
-                <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Value</Typography>
-                <Typography component="span" noWrap sx={{ ...theme.typography.uiCaptionMd, color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{valueColumn || '—'}</Typography>
-                <KeyboardArrowDownRoundedIcon sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
-              </Box>
-            </Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
-              <MuiTooltip title="Download PNG">
-                <IconButton
-                  size="small"
-                  onClick={handleDownload}
-                  aria-label="Download chart as PNG"
-                  sx={getGhostIconButtonSx(theme, { size: 32 })}
-                >
-                  <FileDownloadOutlinedIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </MuiTooltip>
-              <MuiTooltip title={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
-                <IconButton
-                  size="small"
-                  onClick={() => setFullscreen(!fullscreen)}
-                  aria-label={fullscreen ? 'Exit fullscreen' : 'Fullscreen'}
-                  sx={getGhostIconButtonSx(theme, { size: 32 })}
-                >
-                  {fullscreen ? (
-                    <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
-                  ) : (
-                    <FullscreenRoundedIcon sx={{ fontSize: 18 }} />
-                  )}
-                </IconButton>
-              </MuiTooltip>
-            </Box>
-          </Box>
-        )}
         {!embedded && (
           <Box
             sx={{
@@ -421,7 +447,7 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
             </Box>
           </Box>
         )}
-        <Box
+        <BodyComponent
           className="chart-container"
           sx={{
             flex: 1,
@@ -435,98 +461,35 @@ function ChartVisualization({ data, onClose, embedded = false, viewMode, onViewM
           {chartData && ChartComponent && (
             <ChartComponent ref={chartRef} data={chartData} options={chartOptions} />
           )}
-        </Box>
-        <Box
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            position: 'relative',
-            gap: 2,
-            px: 2,
-            py: 1,
-            minHeight: 48,
-            flexShrink: 0,
-            borderTop: '1px solid',
-            borderColor: theme.palette.border.subtle,
-            bgcolor: theme.palette.background.paper,
-          }}
-        >
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            sx={{
-              position: 'absolute',
-              left: 16,
-              fontWeight: 500,
-              ...theme.typography.uiCaptionMd,
-              display: { xs: 'none', sm: 'block' },
-            }}
-          >
-            {result.length > 50 ? `Showing 50 of ${result.length} data points` : `${result.length} data points`}
-          </Typography>
+        </BodyComponent>
+        {embedded ? (
+          <ArtifactCommandBar
+            leading={columnControls}
+            center={chartTypeControls}
+            trailing={chartActions}
+            leadingSx={{ display: { xs: 'none', md: 'flex' } }}
+            trailingSx={{ flex: '1 0 auto' }}
+          />
+        ) : (
           <Box
             sx={{
-              display: 'inline-flex',
+              display: 'flex',
               alignItems: 'center',
-              gap: 0.25,
-              p: 0.5,
-              borderRadius: '10px',
-              bgcolor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06),
-              border: '1px solid',
-              borderColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
+              justifyContent: 'center',
+              gap: 2,
+              px: 2,
+              py: 1,
+              minHeight: 48,
+              flexShrink: 0,
+              borderTop: '1px solid',
+              borderColor: theme.palette.border.subtle,
+              bgcolor: theme.palette.background.paper,
             }}
           >
-            <ToggleButtonGroup
-              value={chartType}
-              exclusive
-              onChange={(e, v) => v && setChartType(v)}
-              size="small"
-              sx={{
-                gap: 0.25,
-                '& .MuiToggleButton-root': {
-                  border: 'none',
-                  borderRadius: '8px',
-                  px: 0.75,
-                  py: 0.5,
-                  minWidth: 36,
-                  height: 30,
-                  color: 'text.secondary',
-                  '&.Mui-selected': {
-                    color: 'text.primary',
-                    bgcolor: alpha(theme.palette.background.paper, isDark ? 0.95 : 1),
-                    boxShadow: `0 0 0 1px ${alpha(theme.palette.text.primary, 0.08)}, 0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.35 : 0.08)}`,
-                  },
-                  '&:hover': {
-                    bgcolor: alpha(theme.palette.text.primary, 0.06),
-                  },
-                },
-              }}
-            >
-              <ToggleButton value="bar" aria-label="Bar chart">
-                <MuiTooltip title="Bar chart">
-                  <BarChartRoundedIcon sx={{ fontSize: 18 }} />
-                </MuiTooltip>
-              </ToggleButton>
-              <ToggleButton value="line" aria-label="Line chart">
-                <MuiTooltip title="Line chart">
-                  <ShowChartRoundedIcon sx={{ fontSize: 18 }} />
-                </MuiTooltip>
-              </ToggleButton>
-              <ToggleButton value="pie" aria-label="Pie chart">
-                <MuiTooltip title="Pie chart">
-                  <PieChartOutlineRoundedIcon sx={{ fontSize: 18 }} />
-                </MuiTooltip>
-              </ToggleButton>
-              <ToggleButton value="doughnut" aria-label="Doughnut chart">
-                <MuiTooltip title="Doughnut chart">
-                  <DonutLargeRoundedIcon sx={{ fontSize: 18 }} />
-                </MuiTooltip>
-              </ToggleButton>
-            </ToggleButtonGroup>
+            {chartTypeControls}
           </Box>
-        </Box>
-      </Box>
+        )}
+      </RootComponent>
       {fullscreen && (
         <Box
           onClick={() => setFullscreen(false)}
