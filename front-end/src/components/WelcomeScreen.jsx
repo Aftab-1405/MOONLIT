@@ -58,12 +58,6 @@ function WelcomeScreen({ visible, user, chatInputProps, starfieldFocus = false }
                 flexWrap: 'wrap',
               }}
             >
-              <Box
-                component="img"
-                src="/moonlit.svg"
-                alt="Moonlit"
-                sx={{ height: '1.2em', width: 'auto', flexShrink: 0, mt: '0.15em' }}
-              />
               <span>{firstName ? `How can I help today, ${firstName}?` : 'How can I help you today?'}</span>
             </Typography>
           </Box>
