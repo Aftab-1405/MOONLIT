@@ -104,9 +104,6 @@ function ChatInput({
       }));
   }, [providerOptions]);
   const hasLlmOptions = llmSections.length > 0;
-  const modelChipLabel = llmOptionsLoading
-    ? 'Loading models...'
-    : (selectedModel || 'Choose model');
 
   const handleCloseDbMenu = useCallback(() => setDbAnchor(null), []);
   const handleCloseSchemaMenu = useCallback(() => setSchemaAnchor(null), []);
@@ -445,41 +442,37 @@ function ChatInput({
           mx: 'auto',
           position: 'relative',
           borderRadius: '20px',
-          overflow: 'hidden',
-          boxSizing: 'border-box',
+          border: '1px solid transparent',
+          backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.94 : 0.98),
+          boxShadow: isFocused
+            ? `0 4px 20px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.075)}, 0 0 0 0.5px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.22 : 0.18)}`
+            : `0 4px 20px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.14 : 0.035)}, 0 0 0 0.5px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.08)}`,
+          transition: theme.transitions.create(['box-shadow', 'background-color'], {
+            duration: theme.transitions.duration.shorter,
+          }),
+          [HOVER_CAPABLE_QUERY]: {
+            '&:hover': {
+              boxShadow: isFocused
+                ? `0 4px 20px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.075)}, 0 0 0 0.5px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.28 : 0.22)}`
+                : `0 4px 20px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.14 : 0.035)}, 0 0 0 0.5px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.18 : 0.14)}`,
+            },
+          },
+          cursor: 'text',
         }}
       >
-
         <Box
           sx={{
-            m: '1px',
-            p: { xs: 1.25, sm: 1.5 },
-            borderRadius: '18px',
-            position: 'relative',
-            zIndex: 1,
-            border: '1px solid',
-            borderColor: isFocused
-              ? alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.26 : 0.18)
-              : alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.14 : 0.1),
-            backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.94 : 0.98),
-            boxShadow: isFocused
-              ? `0 10px 24px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.08)}`
-              : `0 4px 12px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.16 : 0.05)}`,
-            transition: theme.transitions.create(['border-color', 'box-shadow', 'background-color'], {
-              duration: theme.transitions.duration.shorter,
-            }),
-            [HOVER_CAPABLE_QUERY]: {
-              '&:hover': {
-                borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.22 : 0.15),
-              },
-            },
+            p: { xs: 1.75, sm: 1.75 },
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 1.5,
           }}
         >
-        <TextField
-          fullWidth
-          multiline
-          minRows={isCompactMobile ? 1 : 2}
-          maxRows={6}
+          <TextField
+            fullWidth
+            multiline
+            minRows={isCompactMobile ? 1 : 2}
+            maxRows={6}
           placeholder={inputPlaceholder}
           value={message}
           onChange={handleInputChange}
@@ -512,7 +505,7 @@ function ChatInput({
           }}
         />
 
-        <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: 1, overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
             <Tooltip title="Attach file (coming soon)">
               <span>
@@ -521,9 +514,9 @@ function ChatInput({
                   disabled
                   aria-label="Attach file (coming soon)"
                   sx={{
-                    width: 34,
-                    height: 34,
-                    borderRadius: '10px',
+                    width: 32,
+                    height: 32,
+                    borderRadius: '6px',
                     color: 'text.secondary',
                     opacity: 0.45,
                     flexShrink: 0,
@@ -577,29 +570,31 @@ function ChatInput({
                   aria-expanded={Boolean(llmAnchor)}
                   aria-label="Select model"
                   sx={{
-                    height: 34,
-                    borderRadius: '10px',
-                    px: 1.125,
+                    height: 32,
+                    borderRadius: '6px',
+                    px: 1.25,
                     gap: 0.5,
                     display: 'inline-flex',
                     alignItems: 'center',
                     maxWidth: { xs: 'min(44vw, 144px)', sm: 208 },
                     color: 'text.secondary',
-                    backgroundColor: alpha(theme.palette.text.primary, 0.04),
+                    backgroundColor: 'transparent',
                     ...theme.typography.uiCaptionSm,
                     transition: theme.transitions.create(['background-color', 'color'], { duration: theme.transitions.duration.shorter }),
                     [HOVER_CAPABLE_QUERY]: {
-                      '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.07) },
+                      '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.06), color: 'text.primary' },
                     },
-                    '&[aria-expanded="true"]': { backgroundColor: alpha(theme.palette.text.primary, 0.09), color: 'text.primary' },
+                    '&[aria-expanded="true"]': { backgroundColor: alpha(theme.palette.text.primary, 0.08), color: 'text.primary' },
                     '&.Mui-disabled': { opacity: 0.38, cursor: 'default' },
                   }}
                 >
-                  <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                    {modelChipLabel}
+                  <Box component="span" sx={{ display: 'inline-flex', alignItems: 'baseline', gap: 0.5, minWidth: 0 }}>
+                    <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                      {selectedModel || (llmOptionsLoading ? 'Loading...' : 'Choose model')}
+                    </Box>
                   </Box>
                   <KeyboardArrowDownRoundedIcon sx={{
-                    fontSize: 14,
+                    fontSize: 12,
                     flexShrink: 0,
                     opacity: 0.75,
                     transform: llmAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -617,10 +612,10 @@ function ChatInput({
                   disabled={!isStreaming && (!hasText || disabled)}
                   aria-label={isStreaming ? 'Stop generating response' : 'Send message'}
                   sx={{
-                    width: 34,
-                    height: 34,
+                    width: 32,
+                    height: 32,
                     flexShrink: 0,
-                    borderRadius: '10px',
+                    borderRadius: '8px',
                     color: isStreaming
                       ? theme.palette.error.main
                       : (hasText ? theme.palette.getContrastText(theme.palette.primary.main) : alpha(theme.palette.text.primary, 0.28)),

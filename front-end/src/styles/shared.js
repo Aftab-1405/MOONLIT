@@ -93,31 +93,39 @@ export const getToolbarChipSx = (
     interactive = true,
   } = {},
 ) => ({
-  height: 26,
-  borderRadius: '8px',
-  border: '1px solid',
-  borderColor: alpha(theme.palette.text.primary, 0.14),
-  backgroundColor: alpha(theme.palette.text.primary, 0.04),
+  height: 32,
+  borderRadius: '6px',
+  border: 'none',
+  backgroundColor: 'transparent',
+  color: 'text.secondary',
+  transition: 'background-color 150ms ease, color 150ms ease',
   '& .MuiChip-label': {
-    px: 0.875,
+    px: 1.25,
     ...theme.typography.uiCaptionSm,
     lineHeight: 1,
     display: 'flex',
     alignItems: 'center',
+    whiteSpace: 'nowrap',
   },
   '& .MuiChip-icon': {
-    fontSize: 14,
-    ml: 0.625,
-    mr: -0.125,
+    fontSize: 16,
+    ml: 0.875,
+    mr: -0.25,
+    color: alpha(theme.palette.text.primary, 0.45),
+    flexShrink: 0,
     display: 'flex',
     alignItems: 'center',
   },
+  '&:active': { transform: 'scale(0.995)' },
   ...(interactive
     ? {
         [HOVER_CAPABLE_QUERY]: {
           '&:hover': {
-            borderColor: alpha(theme.palette.text.primary, 0.28),
-            backgroundColor: alpha(theme.palette.text.primary, 0.07),
+            backgroundColor: alpha(theme.palette.text.primary, 0.06),
+            color: 'text.primary',
+            '& .MuiChip-icon': {
+              color: alpha(theme.palette.text.primary, 0.65),
+            },
           },
         },
       }
