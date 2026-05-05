@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -11,16 +11,9 @@ import {
   useMediaQuery,
   Slide,
   Stack,
-  List,
-  ListItemButton,
-  ListItemIcon,
-  ListItemText,
   Fade,
   ToggleButton,
   ToggleButtonGroup,
-  Tooltip,
-  Drawer,
-  Divider,
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { useSettings } from '../contexts/SettingsContext';
@@ -31,7 +24,6 @@ import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
-import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import {
   getDatabases,
   connectDb,
@@ -48,10 +40,8 @@ import {
 import { DB_TYPES } from '../config/databases';
 import DialogShell from './DialogShell';
 import {
-  DIALOG_VIEWPORT_SUPPORT_QUERY,
   getCompactActionSx,
-  getDialogNavPaneSx,
-  getInsetPanelSx,
+  getScrollbarStyles,
   UI_LAYOUT,
 } from '../styles/shared';
 import logger from '../utils/logger';
@@ -60,21 +50,53 @@ const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
-function FormCard({ title, children, sx = {} }) {
+function DatabaseSection({ title, children, sx = {}, noDivider = false }) {
   const theme = useTheme();
   return (
     <Box
       sx={{
-        ...getInsetPanelSx(theme),
-        p: { xs: 2, sm: 2.5 },
+        mb: { xs: 5, md: 6 },
+        '&:last-of-type': { mb: 0 },
         ...sx,
       }}
     >
       {title ? (
-        <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 2, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+        <Typography
+          variant="subtitle1"
+          sx={{
+            ...theme.typography.uiCardTitle,
+            color: 'text.primary',
+            fontWeight: 600,
+            pb: { xs: 1.5, md: 2 },
+          }}
+        >
           {title}
         </Typography>
       ) : null}
+      {noDivider ? children : (
+        <Box sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
+          {children}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// Wraps form fields with consistent spacing — no extra border chrome
+function FieldGrid({ children }) {
+  return (
+    <Box
+      sx={{
+        mt: 2,
+        mb: 1,
+        '& .MuiTextField-root': {
+          '& .MuiInputBase-root': {
+            borderRadius: '8px',
+            backgroundColor: 'transparent',
+          },
+        },
+      }}
+    >
       {children}
     </Box>
   );
@@ -96,14 +118,15 @@ const VisibilityToggleAdornment = memo(({ show, onToggle }) => (
 
 function EmptyState({ icon, title, subtitle }) {
   const Icon = icon;
+  const theme = useTheme();
   return (
     <Box sx={{ textAlign: 'center', py: 6, px: 3 }}>
       <Icon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
-      <Typography variant="body2" color="text.secondary" fontWeight={500}>
+      <Typography sx={{ ...theme.typography.uiBodySm, color: 'text.secondary', fontWeight: 500 }}>
         {title}
       </Typography>
       {subtitle ? (
-        <Typography variant="caption" color="text.disabled" sx={{ mt: 0.5, display: 'block' }}>
+        <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.disabled', mt: 0.5, display: 'block' }}>
           {subtitle}
         </Typography>
       ) : null}
@@ -113,6 +136,7 @@ function EmptyState({ icon, title, subtitle }) {
 
 const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) => {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
 
   if (databases.length === 0) {
     return (
@@ -125,41 +149,67 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
   }
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+    <Box
+      sx={{
+        borderTop: '1px solid',
+        borderColor: 'divider',
+        pt: 1,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.25,
+      }}
+    >
       {databases.map((db) => {
         const isSelected = db === currentDatabase;
         return (
           <Box
             key={db}
+            role="button"
+            tabIndex={loading ? -1 : 0}
             onClick={() => !loading && onSelect(db)}
+            onKeyDown={(e) => {
+              if (!loading && (e.key === 'Enter' || e.key === ' ')) {
+                e.preventDefault();
+                onSelect(db);
+              }
+            }}
+            aria-pressed={isSelected}
             sx={{
-              p: 1.5,
-              borderRadius: 2,
-              border: '1px solid',
-              borderColor: isSelected ? 'primary.main' : 'divider',
-              backgroundColor: isSelected ? alpha(theme.palette.text.primary, 0.06) : 'transparent',
+              px: 1.5,
+              py: 1,
+              borderRadius: '8px',
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.6 : 1,
-              transition: 'all 0.15s ease',
-              minHeight: { xs: UI_LAYOUT.touchTarget, sm: 0 },
+              transition: 'background-color 120ms ease',
+              minHeight: { xs: UI_LAYOUT.touchTarget, sm: 40 },
               display: 'flex',
               alignItems: 'center',
               gap: 1.5,
+              backgroundColor: isSelected
+                ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07)
+                : 'transparent',
               '&:hover': !loading ? {
-                borderColor: alpha(theme.palette.text.primary, 0.2),
-                backgroundColor: alpha(theme.palette.text.primary, 0.04),
+                backgroundColor: isSelected
+                  ? alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09)
+                  : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
               } : undefined,
+              '&:focus-visible': {
+                outline: `2px solid ${theme.palette.primary.main}`,
+                outlineOffset: 1,
+              },
             }}
           >
             {isSelected ? (
-              <CheckRoundedIcon sx={{ fontSize: 18, color: 'primary.main' }} />
+              <CheckRoundedIcon sx={{ fontSize: 16, color: 'text.primary', flexShrink: 0 }} />
             ) : (
-              <StorageRoundedIcon sx={{ fontSize: 18, color: 'text.secondary' }} />
+              <StorageRoundedIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
             )}
             <Typography
-              variant="body2"
-              fontWeight={isSelected ? 600 : 500}
-              color={isSelected ? 'primary.main' : 'text.primary'}
+              sx={{
+                ...theme.typography.uiBodySm,
+                fontWeight: isSelected ? 600 : 400,
+                color: isSelected ? 'text.primary' : 'text.secondary',
+              }}
             >
               {db}
             </Typography>
@@ -170,7 +220,16 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
   );
 });
 
-function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase, initialDbType = null }) {
+function DatabaseModal({
+  open,
+  onClose,
+  onConnect,
+  isConnected,
+  currentDatabase,
+  initialDbType = null,
+  sidebarOpen = true,
+  isNarrowLayout = false,
+}) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { settings } = useSettings();
@@ -180,7 +239,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
   const [dbType, setDbType] = useState(defaultDbType);
   const [connectionMode, setConnectionMode] = useState('credentials');
   const [connectionString, setConnectionString] = useState('');
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileSection, setMobileSection] = useState('connect');
   const [formData, setFormData] = useState({
     host: '',
@@ -197,13 +255,14 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
   const [databases, setDatabases] = useState([]);
   const [isRemote, setIsRemote] = useState(false);
   const { errors: fieldErrors, validateForm, clearError } = useFormValidation(dbFieldSchemas);
-  const timeoutRefs = useRef([]);
   const currentDbConfig = useMemo(() => DB_TYPES.find((db) => db.value === dbType) || DB_TYPES[1], [dbType]);
   const supportsConnectionString = currentDbConfig.supportsConnectionString;
   const hasDatabases = databases.length > 0;
-  const mobileHeaderTitle = mobileSection === 'databases' ? 'Available Databases' : 'Connection Details';
-
-  useEffect(() => () => timeoutRefs.current.forEach(clearTimeout), []);
+  const sidebarOffset = !isNarrowLayout && !isMobile
+    ? (sidebarOpen ? UI_LAYOUT.sidebarExpandedWidth : UI_LAYOUT.sidebarCollapsedWidth)
+    : 0;
+  const databaseSurfaceLeft = `${sidebarOffset}px`;
+  const databaseSurfaceWidth = sidebarOffset > 0 ? `calc(100vw - ${sidebarOffset}px)` : '100vw';
 
   useEffect(() => {
     if (rememberConnection && open && savedConnection) {
@@ -259,12 +318,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
     }
   }, [hasDatabases, mobileSection]);
 
-  const safeSetTimeout = useCallback((callback, delay) => {
-    const id = setTimeout(callback, delay);
-    timeoutRefs.current.push(id);
-    return id;
-  }, []);
-
   const handleDbTypeChange = useCallback((newValue) => {
     setDbType(newValue);
     const dbConfig = DB_TYPES.find((db) => db.value === newValue);
@@ -273,8 +326,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
       port: dbConfig?.defaultPort?.toString() || '',
     }));
     setError(null);
-    if (isMobile) setMobileNavOpen(false);
-  }, [isMobile]);
+  }, []);
 
   const handleInputChange = useCallback((event) => {
     const { name, value } = event.target;
@@ -326,9 +378,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
           });
         }
 
-        if (data.is_remote && data.selectedDatabase) {
-          safeSetTimeout(() => onClose(), 1500);
-        }
       } else {
         setError(data.message || 'Failed to connect');
       }
@@ -342,10 +391,8 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
     connectionString,
     dbType,
     formData,
-    onClose,
     onConnect,
     rememberConnection,
-    safeSetTimeout,
     setSavedConnection,
     supportsConnectionString,
     validateForm,
@@ -359,7 +406,6 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
       if (data.status === 'connected') {
         setSuccess(`Switched to ${dbName}`);
         onConnect?.({ ...data, selectedDatabase: dbName });
-        safeSetTimeout(() => onClose(), 1000);
       } else {
         setError(data.message);
       }
@@ -368,7 +414,7 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
     } finally {
       setLoading(false);
     }
-  }, [isRemote, onClose, onConnect, safeSetTimeout]);
+  }, [isRemote, onConnect]);
 
   const handleDisconnect = useCallback(async () => {
     setLoading(true);
@@ -384,43 +430,110 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
     }
   }, [onConnect]);
 
+  const isDark = theme.palette.mode === 'dark';
+
+  // Compact pill-style toggle — matches SettingsModal
+  const toggleStyles = useMemo(() => ({
+    width: { xs: '100%', sm: 'auto' },
+    borderRadius: '8px',
+    backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
+    p: '2px',
+    gap: 0,
+    '& .MuiToggleButtonGroup-grouped': {
+      border: 0,
+      '&:not(:first-of-type)': { borderLeft: 0, marginLeft: 0 },
+    },
+    '& .MuiToggleButton-root': {
+      px: { xs: 1.25, sm: 1.5 },
+      py: 0,
+      height: 32,
+      minWidth: { sm: 44 },
+      flex: { xs: 1, sm: 'unset' },
+      border: '0 !important',
+      borderRadius: '6px !important',
+      color: 'text.secondary',
+      ...theme.typography.uiNavItem,
+      fontWeight: 500,
+      textTransform: 'none',
+      gap: 0.75,
+      transition: 'background-color 150ms ease, color 150ms ease, box-shadow 150ms ease',
+      '&.Mui-selected': {
+        color: 'text.primary',
+        fontWeight: 600,
+        backgroundColor: theme.palette.background.paper,
+        boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, isDark ? 0.3 : 0.1)}, inset 0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08)}`,
+        '&:hover': { backgroundColor: theme.palette.background.paper },
+      },
+      '&:hover:not(.Mui-selected)': {
+        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
+        color: 'text.primary',
+      },
+    },
+  }), [isDark, theme]);
+
   const navContent = (
-    <List sx={{ p: 1.5 }}>
+    <Box
+      component="nav"
+      aria-label="Database type"
+      sx={{ minWidth: 0 }}
+    >
+      <Box
+        component="ul"
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'row', md: 'column' },
+          gap: { xs: 0.25, md: 0.5 },
+          m: 0,
+          p: 0,
+          listStyle: 'none',
+          minWidth: 0,
+        }}
+      >
       {DB_TYPES.map((type) => (
-        <ListItemButton
-          key={type.value}
-          selected={dbType === type.value}
-          onClick={() => handleDbTypeChange(type.value)}
-          sx={{
-            borderRadius: 1.5,
-            mb: 0.5,
-            py: 1.25,
-            '&.Mui-selected': {
-              backgroundColor: alpha(theme.palette.text.primary, 0.08),
+        <Box component="li" key={type.value} sx={{ flexShrink: 0 }}>
+          <Button
+            type="button"
+            aria-current={dbType === type.value ? 'page' : undefined}
+            onClick={() => handleDbTypeChange(type.value)}
+            sx={{
+              height: 36,
+              width: { xs: 'auto', md: '100%' },
+              justifyContent: 'flex-start',
+              gap: 1,
+              px: 1.5,
+              py: 0,
+              borderRadius: '8px',
+              textTransform: 'none',
+              whiteSpace: 'nowrap',
+              color: dbType === type.value ? 'text.primary' : 'text.secondary',
+              ...theme.typography.uiNavItem,
+              fontWeight: dbType === type.value ? 600 : 400,
+              backgroundColor: dbType === type.value
+                ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07)
+                : 'transparent',
+              transition: 'background-color 150ms ease, color 150ms ease',
               '&:hover': {
-                backgroundColor: alpha(theme.palette.text.primary, 0.12),
+                backgroundColor: dbType === type.value
+                  ? alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09)
+                  : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
+                color: 'text.primary',
               },
-            },
-          }}
-        >
-          <ListItemIcon sx={{ minWidth: 36 }}>
-            <Box
-              component="img"
-              src={type.icon}
-              alt={type.label}
-              sx={{ width: 20, height: 20, objectFit: 'contain' }}
-            />
-          </ListItemIcon>
-          <ListItemText
-            primary={type.label}
-            primaryTypographyProps={{
-              variant: 'body2',
-              fontWeight: dbType === type.value ? 600 : 500,
             }}
-          />
-        </ListItemButton>
+            startIcon={(
+              <Box
+                component="img"
+                src={type.icon}
+                alt=""
+                sx={{ width: 18, height: 18, objectFit: 'contain' }}
+              />
+            )}
+          >
+            {type.label}
+          </Button>
+        </Box>
       ))}
-    </List>
+      </Box>
+    </Box>
   );
 
   const renderConnectionForm = () => (
@@ -428,40 +541,36 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
       sx={{
         display: 'flex',
         flexDirection: 'column',
-        gap: 2.5,
+        gap: 0,
         '& .MuiInputBase-input': {
           ...theme.typography.uiInput,
         },
       }}
     >
       {supportsConnectionString ? (
-        <FormCard>
-          <ToggleButtonGroup
-            value={connectionMode}
-            exclusive
-            onChange={(event, value) => value && setConnectionMode(value)}
-            fullWidth
-            size="small"
-            sx={{
-              '& .MuiToggleButton-root': {
-                py: 1,
-                gap: 1,
-                minHeight: { xs: UI_LAYOUT.compactTouchTarget, sm: 36 },
-              },
-            }}
-          >
-            <ToggleButton value="credentials">
-              <VpnKeyRoundedIcon sx={{ fontSize: 18 }} />
-              <Typography variant="body2" fontWeight={500}>Credentials</Typography>
-            </ToggleButton>
-            <ToggleButton value="connection_string">
-              <LinkRoundedIcon sx={{ fontSize: 18 }} />
-              <Typography variant="body2" fontWeight={500}>Connection String</Typography>
-            </ToggleButton>
-          </ToggleButtonGroup>
-        </FormCard>
+        <DatabaseSection title="Connection Method">
+          <Box sx={{ pt: 2 }}>
+            <ToggleButtonGroup
+              value={connectionMode}
+              exclusive
+              onChange={(event, value) => value && setConnectionMode(value)}
+              size="small"
+              sx={toggleStyles}
+            >
+              <ToggleButton value="credentials">
+                <VpnKeyRoundedIcon sx={{ fontSize: 16 }} />
+                Credentials
+              </ToggleButton>
+              <ToggleButton value="connection_string">
+                <LinkRoundedIcon sx={{ fontSize: 16 }} />
+                Connection String
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+        </DatabaseSection>
       ) : null}
-      <FormCard title="Connection Details">
+      <DatabaseSection title="Connection Details">
+        <FieldGrid>
         {connectionMode === 'connection_string' && supportsConnectionString ? (
           <TextField
             fullWidth
@@ -537,189 +646,248 @@ function DatabaseModal({ open, onClose, onConnect, isConnected, currentDatabase,
             />
           </Stack>
         )}
-      </FormCard>
-      {error ? <Alert severity="error" sx={{ borderRadius: 2 }}>{error}</Alert> : null}
-      {success ? <Alert severity="success" sx={{ borderRadius: 2 }}>{success}</Alert> : null}
+        </FieldGrid>
+      </DatabaseSection>
+      {error ? <Alert severity="error" sx={{ borderRadius: 2, mt: 1 }}>{error}</Alert> : null}
+      {success ? <Alert severity="success" sx={{ borderRadius: 2, mt: 1 }}>{success}</Alert> : null}
     </Box>
   );
 
   const renderDatabaseSection = (sx = {}) => (
-    <Box
-      sx={{
-        width: { xs: '100%', sm: 280 },
-        flexShrink: 0,
-        p: { xs: 2, sm: 3 },
-        overflowY: 'auto',
-        WebkitOverflowScrolling: 'touch',
-        backgroundColor: alpha(theme.palette.background.default, 0.5),
-        ...sx,
-      }}
-    >
-      <Typography variant="caption" fontWeight={600} color="text.secondary" sx={{ mb: 2, display: 'block', textTransform: 'uppercase', letterSpacing: 0.5 }}>
-        Available Databases
-      </Typography>
-      <DatabaseList
-        databases={databases}
-        currentDatabase={currentDatabase}
-        onSelect={handleSelectDatabase}
-        loading={loading}
-      />
+    <Box sx={{ ...sx }}>
+      <DatabaseSection title="Available Databases" sx={{ mb: 0 }} noDivider>
+        <DatabaseList
+          databases={databases}
+          currentDatabase={currentDatabase}
+          onSelect={handleSelectDatabase}
+          loading={loading}
+        />
+      </DatabaseSection>
     </Box>
   );
 
-  const mobileNavButton = isMobile ? (
-    <IconButton
-      size="small"
-      onClick={() => setMobileNavOpen(true)}
-      aria-label="Open database type menu"
-      sx={getCompactActionSx(theme)}
-    >
-      <MenuRoundedIcon />
-    </IconButton>
-  ) : null;
-
   return (
-    <>
-      <DialogShell
-        open={open}
-        onClose={onClose}
-        isMobile={isMobile}
-        maxWidth="md"
-        TransitionComponent={isMobile ? Transition : undefined}
-        headerLeading={mobileNavButton}
-        headerIcon={(
-          <Box
-            component="img"
-            src={currentDbConfig.icon}
-            alt="Database logo"
-            sx={{ width: 28, height: 28, objectFit: 'contain' }}
-          />
-        )}
-        headerTitle={isMobile ? mobileHeaderTitle : 'Connect Database'}
-        bodySx={{ flexDirection: 'row' }}
-        footer={(
-          <>
-            {isConnected ? (
-              <Button
-                variant="outlined"
-                onClick={handleDisconnect}
-                color="error"
-                disabled={loading}
-                size="small"
-                sx={{ minHeight: { xs: UI_LAYOUT.compactTouchTarget, sm: 'auto' } }}
-              >
-                Disconnect
-              </Button>
-            ) : <Box />}
-            <Button
-              variant="outlined"
-              onClick={handleConnect}
-              disabled={loading || isConnected}
-              startIcon={loading ? <CircularProgress size={18} color="inherit" /> : null}
-              size="small"
-              sx={{ minHeight: { xs: UI_LAYOUT.compactTouchTarget, sm: 'auto' } }}
-            >
-              {loading ? 'Connecting...' : 'Connect'}
-            </Button>
-          </>
-        )}
+    <DialogShell
+      open={open}
+      onClose={onClose}
+      isMobile={isMobile}
+      maxWidth={false}
+      fullWidth={false}
+      TransitionComponent={isMobile ? Transition : undefined}
+      desktopMaxHeight="100vh"
+      desktopMinHeight="100vh"
+      showCloseButton={false}
+      paperSx={{
+        position: 'fixed',
+        inset: '0 auto auto auto',
+        left: databaseSurfaceLeft,
+        top: 0,
+        width: databaseSurfaceWidth,
+        maxWidth: databaseSurfaceWidth,
+        height: '100vh',
+        maxHeight: '100vh',
+        minHeight: '100vh',
+        m: 0,
+        borderRadius: 0,
+        backgroundColor: theme.palette.background.default,
+        boxShadow: 'none',
+      }}
+      backdropSx={{
+        left: databaseSurfaceLeft,
+        width: databaseSurfaceWidth,
+      }}
+      bodySx={{
+        display: 'block',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        backgroundColor: theme.palette.background.default,
+        ...getScrollbarStyles(theme),
+      }}
+    >
+      {/* Page header with title + close */}
+      <Box
+        component="header"
+        sx={{
+          display: 'flex',
+          alignItems: { xs: 'center', md: 'flex-end' },
+          justifyContent: 'space-between',
+          height: { xs: 'auto', md: 96 },
+          px: { xs: 2.5, sm: 5, md: 8, lg: 10 },
+          pt: { xs: 3, md: 0 },
+          pb: { xs: 2, md: 0 },
+          maxWidth: 1380,
+          mx: 'auto',
+          width: '100%',
+        }}
       >
-        {!isMobile ? (
-          <Box sx={getDialogNavPaneSx(theme, 180)}>
-            {navContent}
-          </Box>
-        ) : null}
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, overflow: 'hidden' }}>
-          {isMobile ? (
-            <>
-              {hasDatabases ? (
-                <Box sx={{ px: 2, pt: 2, pb: 1.5, borderBottom: 1, borderColor: 'divider' }}>
-                  <ToggleButtonGroup
-                    value={mobileSection}
-                    exclusive
-                    onChange={(event, value) => value && setMobileSection(value)}
-                    fullWidth
-                    size="small"
-                    sx={{
-                      '& .MuiToggleButton-root': {
-                        gap: 1,
-                        py: 1,
-                        minHeight: UI_LAYOUT.compactTouchTarget,
-                      },
-                    }}
-                  >
-                    <ToggleButton value="connect">
-                      <LinkRoundedIcon sx={{ fontSize: 18 }} />
-                      <Typography variant="body2" fontWeight={500}>Connection</Typography>
-                    </ToggleButton>
-                    <ToggleButton value="databases">
-                      <StorageRoundedIcon sx={{ fontSize: 18 }} />
-                      <Typography variant="body2" fontWeight={500}>Databases</Typography>
-                    </ToggleButton>
-                  </ToggleButtonGroup>
-                </Box>
-              ) : null}
-              <Fade in key={mobileSection}>
-                <Box sx={{ flex: 1, overflow: 'hidden' }}>
-                  {mobileSection === 'databases' && hasDatabases ? (
-                    renderDatabaseSection({ p: 2, backgroundColor: 'transparent' })
-                  ) : (
-                    <Box sx={{ height: '100%', p: 2, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                      {renderConnectionForm()}
-                    </Box>
-                  )}
-                </Box>
-              </Fade>
-            </>
-          ) : (
-            <>
-              <Fade in key="form">
-                <Box sx={{ flex: 1, p: { xs: 2, sm: 3 }, overflowY: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                  {renderConnectionForm()}
-                </Box>
-              </Fade>
-              {hasDatabases ? (
-                <>
-                  <Divider orientation="vertical" flexItem />
-                  <Fade in key="databases">
-                    {renderDatabaseSection()}
-                  </Fade>
-                </>
-              ) : null}
-            </>
-          )}
-        </Box>
-      </DialogShell>
-      {isMobile ? (
-        <Drawer
-          anchor="left"
-          open={mobileNavOpen}
-          onClose={() => setMobileNavOpen(false)}
-          ModalProps={{ keepMounted: true }}
-          sx={{ zIndex: (muiTheme) => muiTheme.zIndex.modal + 2 }}
-          PaperProps={{
-            sx: {
-              width: 220,
-              maxWidth: '85vw',
-              height: '100vh',
-              [DIALOG_VIEWPORT_SUPPORT_QUERY]: {
-                height: '100dvh',
-              },
-              paddingBottom: 'env(safe-area-inset-bottom)',
-              overflowY: 'auto',
-              backgroundColor: theme.palette.background.paper,
+        <Typography
+          component="h1"
+          sx={{
+            ...theme.typography.h3,
+            color: 'text.primary',
+            pb: { xs: 0, md: 2 },
+          }}
+        >
+          Connect Database
+        </Typography>
+        <Button
+          onClick={onClose}
+          size="small"
+          sx={{
+            ...theme.typography.uiNavItem,
+            mb: { xs: 0, md: 1.5 },
+            textTransform: 'none',
+            fontWeight: 500,
+            color: 'text.secondary',
+            borderRadius: '8px',
+            px: 1.5,
+            height: 34,
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
+              color: 'text.primary',
             },
           }}
         >
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="subtitle1" fontWeight={600}>
-              Database Type
-            </Typography>
+          Close
+        </Button>
+      </Box>
+
+      {/* Main content */}
+      <Box
+        component="main"
+        sx={{
+          width: '100%',
+          maxWidth: 1380,
+          mx: 'auto',
+          px: { xs: 2.5, sm: 5, md: 8, lg: 10 },
+          pt: { xs: 3, md: 4 },
+          pb: { xs: 6, md: 8 },
+        }}
+      >
+        <Box
+          sx={{
+            display: { xs: 'block', md: 'grid' },
+            gridTemplateColumns: '200px minmax(0, 1fr)',
+            columnGap: { md: 8, lg: 10 },
+            alignItems: 'start',
+          }}
+        >
+          {/* DB type nav */}
+          <Box
+            sx={{
+              mb: { xs: 3, md: 0 },
+              overflowX: { xs: 'auto', md: 'visible' },
+              overflowY: 'hidden',
+              mx: { xs: -2.5, sm: -5, md: 0 },
+              px: { xs: 2.5, sm: 5, md: 0 },
+              ...getScrollbarStyles(theme),
+            }}
+          >
+            <Box sx={{ position: { md: 'sticky' }, top: { md: 86 } }}>
+              {navContent}
+            </Box>
           </Box>
-          {navContent}
-        </Drawer>
-      ) : null}
-    </>
+
+          {/* Form + databases */}
+          <Box
+            tabIndex={-1}
+            sx={{
+              outline: 'none',
+              flex: 1,
+              minWidth: 0,
+              maxWidth: 860,
+              mt: { xs: 0, md: 4 },
+            }}
+          >
+            {/* Section switcher — shown when databases are available */}
+            {hasDatabases ? (
+              <Box sx={{ mb: 4 }}>
+                <ToggleButtonGroup
+                  value={mobileSection}
+                  exclusive
+                  onChange={(event, value) => value && setMobileSection(value)}
+                  size="small"
+                  sx={toggleStyles}
+                >
+                  <ToggleButton value="connect">
+                    <LinkRoundedIcon sx={{ fontSize: 16 }} />
+                    Connection
+                  </ToggleButton>
+                  <ToggleButton value="databases">
+                    <StorageRoundedIcon sx={{ fontSize: 16 }} />
+                    Databases
+                  </ToggleButton>
+                </ToggleButtonGroup>
+              </Box>
+            ) : null}
+
+            <Fade in key={mobileSection}>
+              <Box>
+                {mobileSection === 'databases' && hasDatabases ? (
+                  renderDatabaseSection()
+                ) : (
+                  <>
+                    {renderConnectionForm()}
+                    {hasDatabases ? renderDatabaseSection({ mt: { xs: 5, md: 6 } }) : null}
+                  </>
+                )}
+              </Box>
+            </Fade>
+
+            {/* Footer actions */}
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                gap: 2,
+                mt: { xs: 6, md: 8 },
+                pt: 2,
+                borderTop: '1px solid',
+                borderColor: 'divider',
+              }}
+            >
+              {isConnected ? (
+                <Button
+                  variant="text"
+                  onClick={handleDisconnect}
+                  color="error"
+                  disabled={loading}
+                  size="small"
+                  sx={{
+                    ...theme.typography.uiNavItem,
+                    textTransform: 'none',
+                    fontWeight: 500,
+                    px: 0,
+                    '&:hover': { backgroundColor: 'transparent' },
+                  }}
+                >
+                  Disconnect
+                </Button>
+              ) : <Box />}
+              <Button
+                variant="contained"
+                onClick={handleConnect}
+                disabled={loading || isConnected}
+                startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
+                size="small"
+                disableElevation
+                sx={{
+                  ...theme.typography.uiNavItem,
+                  height: 36,
+                  borderRadius: '8px',
+                  textTransform: 'none',
+                  fontWeight: 600,
+                  px: 2,
+                }}
+              >
+                {loading ? 'Connecting…' : isConnected ? 'Connected' : 'Connect'}
+              </Button>
+            </Box>
+          </Box>
+        </Box>
+      </Box>
+    </DialogShell>
   );
 }
 

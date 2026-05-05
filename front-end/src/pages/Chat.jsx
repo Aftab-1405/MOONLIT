@@ -463,6 +463,8 @@ function Chat() {
         isConnected={isDbConnected}
         currentDatabase={currentDatabase}
         initialDbType={dbModalInitialType}
+        sidebarOpen={sidebarOpen}
+        isNarrowLayout={isNarrowLayout}
       />
 
       <Snackbar
@@ -479,7 +481,13 @@ function Chat() {
           },
         }}
       />
-      <SettingsModal open={settingsOpen} onClose={handleCloseSettings} initialSection={settingsInitialSection} />
+      <SettingsModal
+        open={settingsOpen}
+        onClose={handleCloseSettings}
+        initialSection={settingsInitialSection}
+        sidebarOpen={sidebarOpen}
+        isNarrowLayout={isNarrowLayout}
+      />
       <ConfirmDialog
         open={confirmDialog.open}
         onClose={handleConfirmDialogClose}

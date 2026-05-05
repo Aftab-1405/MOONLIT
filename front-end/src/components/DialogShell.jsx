@@ -24,6 +24,7 @@ function DialogShell({
   showCloseButton = true,
   closeAriaLabel = 'Close dialog',
   paperSx = {},
+  backdropSx = {},
   bodySx = {},
   footer = null,
   footerSx = {},
@@ -39,6 +40,11 @@ function DialogShell({
       maxWidth={maxWidth}
       fullWidth={fullWidth}
       TransitionComponent={TransitionComponent}
+      slotProps={{
+        backdrop: {
+          sx: backdropSx,
+        },
+      }}
       PaperProps={{
         sx: {
           ...getDialogPaperSx(theme, { isMobile, desktopMaxHeight, desktopMinHeight }),
