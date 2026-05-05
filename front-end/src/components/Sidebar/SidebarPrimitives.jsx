@@ -17,7 +17,7 @@ import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import { TOUCH_DEVICE_QUERY } from '../../styles/mediaQueries';
-import { getAppPopoverPaperSx } from '../AppPopover';
+import { getPopoverPaperSx } from '../../styles/shared';
 import {
   buildNavRowSx,
   buildConversationRowSx,
@@ -106,7 +106,7 @@ export const ConversationItem = memo(function ConversationItem({
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{
           paper: {
-            sx: getAppPopoverPaperSx(theme, isDark, { borderRadius: '12px', minWidth: 160, mt: 0.75, p: 0.5 }),
+            sx: getPopoverPaperSx(theme, isDark, { borderRadius: '12px', minWidth: 160, mt: 0.75, p: 0.5 }),
           },
           list: { sx: { py: 0 } },
         }}

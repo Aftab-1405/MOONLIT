@@ -23,6 +23,7 @@ import SettingsModal from '../components/SettingsModal';
 import ConfirmDialog from '../components/ConfirmDialog';
 import ArtifactLoader from '../components/ArtifactLoader';
 import ResizeHandle from '../components/ResizeHandle';
+import { getPopoverPaperSx } from '../styles/shared';
 import WelcomeScreen from '../components/WelcomeScreen';
 import StarfieldCanvas from '../components/StarfieldCanvas';
 import { useChatPageController } from '../hooks/chat-page/useChatPageController';
@@ -204,17 +205,8 @@ function Chat() {
         MenuListProps={{ sx: { py: 0 } }}
         PaperProps={{
           sx: {
+            ...getPopoverPaperSx(theme, theme.palette.mode === 'dark'),
             width: 240,
-            borderRadius: '14px',
-            border: `0.5px solid ${alpha(theme.palette.text.primary, 0.1)}`,
-            backgroundColor: theme.palette.mode === 'dark'
-              ? alpha(theme.palette.background.paper, 0.97)
-              : alpha(theme.palette.background.paper, 0.99),
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            boxShadow: theme.palette.mode === 'dark'
-              ? `0 2px 8px ${alpha(theme.palette.common.black, 0.32)}`
-              : `0 2px 8px ${alpha(theme.palette.common.black, 0.08)}`,
             p: 0.75,
             overflow: 'hidden',
           },

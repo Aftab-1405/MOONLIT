@@ -2,7 +2,7 @@
  * Shared styling helpers built on theme tokens.
  */
 import { alpha } from '@mui/material/styles';
-import { HOVER_CAPABLE_QUERY } from './mediaQueries';
+import { HOVER_CAPABLE_QUERY, BACKDROP_FILTER_FALLBACK_QUERY } from './mediaQueries';
 import { getMoonlitBrandGradients } from './themeEffects';
 
 export const DIALOG_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
@@ -300,3 +300,44 @@ export const getDialogScrollablePaneSx = ({ padding = { xs: 2, sm: 3 } } = {}) =
 
 
 
+
+/**
+ * Shared popover/menu paper styles.
+ * Use this for any MUI Popover, Menu, or Select MenuProps so all
+ * floating surfaces look identical regardless of which primitive is used.
+ *
+ * @example — MUI Menu
+ *   PaperProps={{ sx: getPopoverPaperSx(theme, isDark) }}
+ *
+ * @example — MUI Select
+ *   MenuProps={{ PaperProps: { sx: getPopoverPaperSx(theme, isDark) } }}
+ *
+ * @example — AppPopover (handled internally, no need to call directly)
+ *
+ * @param {object} theme     — MUI theme
+ * @param {boolean} isDark   — whether dark mode is active
+ * @param {object} overrides — extra sx merged last (e.g. width, mt, p overrides)
+ */
+export const getPopoverPaperSx = (theme, isDark, overrides = {}) => ({
+  borderRadius: '14px',
+  border: `0.5px solid ${
+    isDark
+      ? alpha(theme.palette.text.primary, 0.1)
+      : alpha(theme.palette.text.primary, 0.08)
+  }`,
+  backgroundColor: isDark
+    ? alpha(theme.palette.background.paper, 0.97)
+    : alpha(theme.palette.background.paper, 0.99),
+  backgroundImage: 'none',
+  backdropFilter: 'blur(20px)',
+  WebkitBackdropFilter: 'blur(20px)',
+  boxShadow: isDark
+    ? `0 2px 8px ${alpha('#000', 0.32)}`
+    : `0 2px 8px ${alpha('#000', 0.08)}`,
+  [BACKDROP_FILTER_FALLBACK_QUERY]: {
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
+    backgroundColor: theme.palette.background.paper,
+  },
+  ...overrides,
+});

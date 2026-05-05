@@ -13,14 +13,13 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme as useMuiTheme } from '@mui/material/styles';
-import { getAppPopoverPaperSx } from './AppPopover';
 import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
 import UserDBContextManagerForAI from './UserDBContextManagerForAI';
 import DialogShell from './DialogShell';
 import { saveUserSettings } from '../api';
-import { getScrollbarStyles, UI_LAYOUT } from '../styles/shared';
+import { getScrollbarStyles, UI_LAYOUT, getPopoverPaperSx } from '../styles/shared';
 import logger from '../utils/logger';
 
 const SECTIONS = [
@@ -132,7 +131,7 @@ function SettingsModal({
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const selectMenuProps = useMemo(() => ({
-    PaperProps: { sx: getAppPopoverPaperSx(theme, isDark) },
+    PaperProps: { sx: getPopoverPaperSx(theme, isDark) },
   }), [theme, isDark]);
 
   const isDarkTheme = settings.theme === 'dark';
