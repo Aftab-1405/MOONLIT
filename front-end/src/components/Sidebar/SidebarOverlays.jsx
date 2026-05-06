@@ -1,30 +1,28 @@
-import { memo } from 'react';
+import { memo, useMemo } from 'react';
 import {
   Box,
   Typography,
-  IconButton,
+  Button,
   TextField,
   List,
   Dialog,
   DialogContent,
   CircularProgress,
+  useMediaQuery,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import StreamOutlinedIcon from '@mui/icons-material/StreamOutlined';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import AppPopover from '../AppPopover';
 import { HistoryPopoverItem } from './SidebarPrimitives';
 import SchemaFlowDiagram from '../SchemaFlowDiagram';
 import {
   getDialogPaperSx,
   getDialogHeaderSx,
-  getCompactActionSx,
   getPopoverSectionLabelSx,
   getSelectableMenuItemSx,
-  DIALOG_VIEWPORT_SUPPORT_QUERY,
+  getScrollbarStyles,
+  UI_LAYOUT,
 } from '../../styles/shared';
 
 function SidebarOverlays({
@@ -52,7 +50,24 @@ function SidebarOverlays({
   handleCloseMindmap,
   schemaLoading,
   schemaData,
+  sidebarOpen = true,
 }) {
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const sidebarOffset = !isMobile
+    ? (sidebarOpen ? UI_LAYOUT.sidebarExpandedWidth : UI_LAYOUT.sidebarCollapsedWidth)
+    : 0;
+  const schemaSurfaceLeft = `${sidebarOffset}px`;
+  const schemaSurfaceWidth = sidebarOffset > 0 ? `calc(100vw - ${sidebarOffset}px)` : '100vw';
+  const mainContentContainer = useMemo(
+    () => () => (typeof document === 'undefined' ? null : document.getElementById('main-content')),
+    [],
+  );
+  const mainContentDialogRootSx = useMemo(() => ({
+    pointerEvents: 'none',
+    '& .MuiBackdrop-root': { pointerEvents: 'auto' },
+    '& .MuiDialog-container': { pointerEvents: 'none' },
+    '& .MuiDialog-paper': { pointerEvents: 'auto' },
+  }), []);
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const searchedConversations = normalizedSearchQuery
     ? conversations.filter((conv) =>
@@ -207,63 +222,108 @@ function SidebarOverlays({
       <Dialog
         open={mindmapOpen}
         onClose={handleCloseMindmap}
-        fullScreen
+        fullScreen={false}
+        maxWidth={false}
+        fullWidth={false}
+        container={mainContentContainer}
+        disableAutoFocus
+        disableEnforceFocus
+        disableRestoreFocus
+        keepMounted
+        transitionDuration={180}
+        sx={mainContentDialogRootSx}
+        slotProps={{
+          backdrop: {
+            transitionDuration: 180,
+            sx: {
+              left: schemaSurfaceLeft,
+              width: schemaSurfaceWidth,
+              backgroundColor: 'transparent',
+            },
+          },
+        }}
         PaperProps={{
           sx: {
             ...getDialogPaperSx(theme, { isMobile: true }),
-            backgroundColor: theme.palette.background.paper,
-            [DIALOG_VIEWPORT_SUPPORT_QUERY]: { height: '100dvh', maxHeight: '100dvh', minHeight: '100dvh' },
+            position: 'fixed',
+            inset: '0 auto auto auto',
+            left: schemaSurfaceLeft,
+            top: 0,
+            width: schemaSurfaceWidth,
+            maxWidth: schemaSurfaceWidth,
+            height: '100vh',
+            maxHeight: '100vh',
+            minHeight: '100vh',
+            m: 0,
+            borderRadius: 0,
+            backgroundColor: theme.palette.background.default,
+            boxShadow: 'none',
           },
         }}
       >
-        {/* Header */}
         <Box sx={{
           ...getDialogHeaderSx(),
+          px: { xs: 2.5, sm: 5, md: 8, lg: 10 },
+          height: { xs: 'auto', md: 96 },
+          pt: { xs: 2, md: 0 },
+          pb: { xs: 2, md: 0 },
+          alignItems: { xs: 'center', md: 'flex-end' },
+          borderBottom: 0,
+          maxWidth: 1380,
+          mx: 'auto',
+          width: '100%',
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0, flex: 1 }}>
-            <Box sx={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              width: 36,
-              height: 36,
-              borderRadius: '10px',
-              backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
-              flexShrink: 0,
-            }}>
-              <StreamOutlinedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h6" fontWeight={600} sx={{ lineHeight: 1.3 }}>
-                Schema Mindmap
-              </Typography>
-              {currentDatabase && (
-                <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1, display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.25 }}>
-                  <CloudUploadOutlinedIcon sx={{ fontSize: 11 }} />
-                  {currentDatabase}
-                </Typography>
-              )}
-            </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
+            <Typography
+              sx={{
+                ...theme.typography.h3,
+                color: 'text.primary',
+                lineHeight: 1.25,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {currentDatabase ? `${currentDatabase} schema` : 'Schema Mindmap'}
+            </Typography>
           </Box>
-          <IconButton
+          <Button
             onClick={handleCloseMindmap}
             size="small"
             aria-label="Close schema mindmap"
-            sx={getCompactActionSx(theme)}
+            sx={{
+              ...theme.typography.uiNavItem,
+              mb: { xs: 0, md: 1.5 },
+              textTransform: 'none',
+              fontWeight: 500,
+              color: 'text.secondary',
+              borderRadius: '8px',
+              px: 1.5,
+              height: 34,
+              '&:hover': {
+                backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
+                color: 'text.primary',
+              },
+            }}
           >
-            <CloseRoundedIcon />
-          </IconButton>
+            Close
+          </Button>
         </Box>
 
-        {/* Content */}
         <DialogContent
           sx={{
-            p: { xs: 1, sm: 2 },
+            width: '100%',
+            maxWidth: 1380,
+            mx: 'auto',
+            px: { xs: 2.5, sm: 5, md: 8, lg: 10 },
+            pt: { xs: 2, md: 4 },
+            pb: { xs: 4, md: 6 },
             display: 'flex',
             flexDirection: 'column',
             flex: 1,
             overflow: 'hidden',
             minHeight: 0,
+            ...getScrollbarStyles(theme),
           }}
         >
           {schemaLoading ? (

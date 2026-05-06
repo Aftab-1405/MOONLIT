@@ -8,6 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "lint:fix": "eslint --fix --ext .js,.jsx .",
+    "knip": "knip",
     "preview": "vite preview",
     "test": "vitest --run"
   },

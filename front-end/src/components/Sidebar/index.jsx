@@ -74,6 +74,7 @@ function Sidebar({
   const scrollbarStyles = useMemo(() => getScrollbarStyles(theme), [theme]);
   const mobileDrawerPaperStyles = useMemo(() => buildMobileDrawerPaperStyles(theme), [theme]);
   const desktopNavSx = useMemo(() => buildDesktopNavSx(theme, open), [theme, open]);
+  const closeMindmapSurface = useCallback(() => setMindmapOpen(false), []);
 
   const userInitials = useMemo(() => {
     const name = user?.displayName?.trim();
@@ -85,24 +86,28 @@ function Sidebar({
   // ── Handlers ────────────────────────────────────────────────────────────────
   const handleDatabaseSelect = useCallback((dbName) => {
     setDbPopoverAnchor(null);
+    closeMindmapSurface();
     if (dbName !== currentDatabase) onDatabaseSwitch?.(dbName);
-  }, [currentDatabase, onDatabaseSwitch]);
+  }, [closeMindmapSurface, currentDatabase, onDatabaseSwitch]);
 
   const handleDatabaseAction = useCallback((event) => {
+    closeMindmapSurface();
     if (isConnected && availableDatabases.length > 0) {
       setDbPopoverAnchor(event.currentTarget);
     } else {
       onOpenDbModal?.();
     }
-  }, [isConnected, availableDatabases.length, onOpenDbModal]);
+  }, [closeMindmapSurface, isConnected, availableDatabases.length, onOpenDbModal]);
 
   const handleHistoryClick = useCallback((event) => {
+    closeMindmapSurface();
     if (conversations.length > 0) setHistoryPopoverAnchor(event.currentTarget);
-  }, [conversations.length]);
+  }, [closeMindmapSurface, conversations.length]);
 
   const handleSearchClick = useCallback((event) => {
+    closeMindmapSurface();
     setSearchPopoverAnchor(event.currentTarget);
-  }, []);
+  }, [closeMindmapSurface]);
 
   const handleOpenMindmap = useCallback(async () => {
     if (!isConnected || !currentDatabase) return;
@@ -128,11 +133,19 @@ function Sidebar({
     setSearchPopoverAnchor(null);
     setSearchQuery('');
   }, []);
-  const handleProfileClick = useCallback((e) => onMenuOpen?.(e), [onMenuOpen]);
+  const handleProfileClick = useCallback((e) => {
+    closeMindmapSurface();
+    onMenuOpen?.(e);
+  }, [closeMindmapSurface, onMenuOpen]);
   const handleOpenNewConnection = useCallback(() => {
     setDbPopoverAnchor(null);
+    closeMindmapSurface();
     onOpenDbModal?.();
-  }, [onOpenDbModal]);
+  }, [closeMindmapSurface, onOpenDbModal]);
+  const handleSelectConversation = useCallback((id) => {
+    closeMindmapSurface();
+    onSelectConversation?.(id);
+  }, [closeMindmapSurface, onSelectConversation]);
 
   // Close popovers when sidebar closes
   useEffect(() => {
@@ -151,7 +164,10 @@ function Sidebar({
       label: 'New chat',
       tooltip: 'New chat',
       icon: <AddRoundedIcon sx={{ fontSize: 16 }} />,
-      onClick: () => onNewChat?.(),
+      onClick: () => {
+        closeMindmapSurface();
+        onNewChat?.();
+      },
       shortcut: 'Ctrl+Shift+O',
       circularIconBg: true,
     },
@@ -163,7 +179,7 @@ function Sidebar({
       onClick: handleSearchClick,
       shortcut: 'Ctrl+K',
     },
-  ], [handleSearchClick, onNewChat]);
+  ], [closeMindmapSurface, handleSearchClick, onNewChat]);
 
   const workspaceNavItems = useMemo(() => {
     const items = [
@@ -209,12 +225,13 @@ function Sidebar({
     handleCloseHistoryPopover,
     conversations,
     currentConversationId,
-    onSelectConversation,
+    onSelectConversation: handleSelectConversation,
     onDeleteConversation,
     mindmapOpen,
     handleCloseMindmap,
     schemaLoading,
     schemaData,
+    sidebarOpen: open,
   };
 
   // ── Render helpers ───────────────────────────────────────────────────────────
@@ -395,7 +412,7 @@ function Sidebar({
                 key={conv.id}
                 conv={conv}
                 isActive={conv.id === currentConversationId}
-                onSelect={onSelectConversation}
+                onSelect={handleSelectConversation}
                 onDelete={onDeleteConversation}
               />
             ))

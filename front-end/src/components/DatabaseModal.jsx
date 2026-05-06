@@ -689,6 +689,8 @@ function DatabaseModal({
       disableAutoFocus
       disableEnforceFocus
       disableRestoreFocus
+      keepMounted
+      transitionDuration={180}
       rootSx={mainContentDialogRootSx}
       paperSx={{
         position: 'fixed',
@@ -708,6 +710,7 @@ function DatabaseModal({
       backdropSx={{
         left: databaseSurfaceLeft,
         width: databaseSurfaceWidth,
+        backgroundColor: 'transparent',
       }}
       bodySx={{
         display: 'block',

@@ -27,6 +27,8 @@ function DialogShell({
   disableAutoFocus = false,
   disableEnforceFocus = false,
   disableRestoreFocus = false,
+  keepMounted = false,
+  transitionDuration,
   rootSx = {},
   paperSx = {},
   backdropSx = {},
@@ -49,10 +51,13 @@ function DialogShell({
       disableAutoFocus={disableAutoFocus}
       disableEnforceFocus={disableEnforceFocus}
       disableRestoreFocus={disableRestoreFocus}
+      keepMounted={keepMounted}
+      transitionDuration={transitionDuration}
       sx={rootSx}
       slotProps={{
         backdrop: {
           sx: backdropSx,
+          transitionDuration,
         },
       }}
       PaperProps={{

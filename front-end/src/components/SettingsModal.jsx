@@ -544,6 +544,8 @@ function SettingsModal({
       disableAutoFocus
       disableEnforceFocus
       disableRestoreFocus
+      keepMounted
+      transitionDuration={180}
       rootSx={mainContentDialogRootSx}
       paperSx={{
         position: 'fixed',
@@ -563,6 +565,7 @@ function SettingsModal({
       backdropSx={{
         left: settingsSurfaceLeft,
         width: settingsSurfaceWidth,
+        backgroundColor: 'transparent',
       }}
       bodySx={{
         display: 'block',

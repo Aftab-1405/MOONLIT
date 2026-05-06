@@ -5,7 +5,7 @@ import { alpha } from '@mui/material/styles';
 import { HOVER_CAPABLE_QUERY, BACKDROP_FILTER_FALLBACK_QUERY } from './mediaQueries';
 import { getMoonlitBrandGradients } from './themeEffects';
 
-export const DIALOG_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
+const DIALOG_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
 
 export const UI_LAYOUT = Object.freeze({
   touchTarget: 44,
