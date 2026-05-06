@@ -132,6 +132,8 @@ export function useChatPageController() {
 
   const handleSidebarNewChat = useCallback(() => {
     setMobileOpen(false);
+    setSettingsOpen(false);
+    setDbModalOpen(false);
     navigate('/chat');
   }, [navigate]);
 
@@ -172,10 +174,12 @@ export function useChatPageController() {
       handleOpenSqlEditor(payload.query);
     },
     open_database_modal: (payload) => {
+      setSettingsOpen(false);
       setDbModalOpen(true);
       if (payload?.db_type) setDbModalInitialType(payload.db_type);
     },
     open_settings_modal: (payload) => {
+      setDbModalOpen(false);
       setSettingsOpen(true);
       if (payload?.section) setSettingsInitialSection(payload.section);
     },
@@ -360,6 +364,7 @@ export function useChatPageController() {
   }, [logout]);
   const handleOpenSettings = useCallback(() => {
     handleMenuClose();
+    setDbModalOpen(false);
     setSettingsOpen(true);
   }, [handleMenuClose]);
   const handleDbConnect = useCallback((data) => {
@@ -435,10 +440,13 @@ export function useChatPageController() {
   ]);
   const handleSidebarSelectConversation = useCallback((id) => {
     setMobileOpen(false);
+    setSettingsOpen(false);
+    setDbModalOpen(false);
     navigate(`/chat/${id}`);
   }, [navigate]);
   const handleSidebarOpenDbModal = useCallback(() => {
     setMobileOpen(false);
+    setSettingsOpen(false);
     setDbModalOpen(true);
   }, []);
   const handleSidebarMenuOpen = useCallback((e) => {

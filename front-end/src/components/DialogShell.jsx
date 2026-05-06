@@ -23,6 +23,11 @@ function DialogShell({
   titleVariant = 'h6',
   showCloseButton = true,
   closeAriaLabel = 'Close dialog',
+  container,
+  disableAutoFocus = false,
+  disableEnforceFocus = false,
+  disableRestoreFocus = false,
+  rootSx = {},
   paperSx = {},
   backdropSx = {},
   bodySx = {},
@@ -40,6 +45,11 @@ function DialogShell({
       maxWidth={maxWidth}
       fullWidth={fullWidth}
       TransitionComponent={TransitionComponent}
+      container={container}
+      disableAutoFocus={disableAutoFocus}
+      disableEnforceFocus={disableEnforceFocus}
+      disableRestoreFocus={disableRestoreFocus}
+      sx={rootSx}
       slotProps={{
         backdrop: {
           sx: backdropSx,

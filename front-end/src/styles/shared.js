@@ -281,26 +281,6 @@ export const getDialogFooterSx = () => ({
   borderColor: 'divider',
 });
 
-export const getDialogNavPaneSx = (theme, width) => ({
-  width,
-  flexShrink: 0,
-  borderRight: 1,
-  borderColor: 'divider',
-  backgroundColor: alpha(theme.palette.background.default, 0.5),
-  overflowY: 'auto',
-});
-
-export const getDialogScrollablePaneSx = ({ padding = { xs: 2, sm: 3 } } = {}) => ({
-  flex: 1,
-  overflowY: 'auto',
-  WebkitOverflowScrolling: 'touch',
-  p: padding,
-});
-
-
-
-
-
 /**
  * Shared popover/menu paper styles.
  * Use this for any MUI Popover, Menu, or Select MenuProps so all

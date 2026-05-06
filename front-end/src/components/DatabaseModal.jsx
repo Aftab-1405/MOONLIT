@@ -82,7 +82,6 @@ function DatabaseSection({ title, children, sx = {}, noDivider = false }) {
   );
 }
 
-// Wraps form fields with consistent spacing — no extra border chrome
 function FieldGrid({ children }) {
   return (
     <Box
@@ -263,6 +262,16 @@ function DatabaseModal({
     : 0;
   const databaseSurfaceLeft = `${sidebarOffset}px`;
   const databaseSurfaceWidth = sidebarOffset > 0 ? `calc(100vw - ${sidebarOffset}px)` : '100vw';
+  const mainContentContainer = useMemo(
+    () => () => (typeof document === 'undefined' ? null : document.getElementById('main-content')),
+    [],
+  );
+  const mainContentDialogRootSx = useMemo(() => ({
+    pointerEvents: 'none',
+    '& .MuiBackdrop-root': { pointerEvents: 'auto' },
+    '& .MuiDialog-container': { pointerEvents: 'none' },
+    '& .MuiDialog-paper': { pointerEvents: 'auto' },
+  }), []);
 
   useEffect(() => {
     if (rememberConnection && open && savedConnection) {
@@ -432,7 +441,6 @@ function DatabaseModal({
 
   const isDark = theme.palette.mode === 'dark';
 
-  // Compact pill-style toggle — matches SettingsModal
   const toggleStyles = useMemo(() => ({
     width: { xs: '100%', sm: 'auto' },
     borderRadius: '8px',
@@ -677,6 +685,11 @@ function DatabaseModal({
       desktopMaxHeight="100vh"
       desktopMinHeight="100vh"
       showCloseButton={false}
+      container={mainContentContainer}
+      disableAutoFocus
+      disableEnforceFocus
+      disableRestoreFocus
+      rootSx={mainContentDialogRootSx}
       paperSx={{
         position: 'fixed',
         inset: '0 auto auto auto',
@@ -704,7 +717,6 @@ function DatabaseModal({
         ...getScrollbarStyles(theme),
       }}
     >
-      {/* Page header with title + close */}
       <Box
         component="header"
         sx={{
@@ -752,7 +764,6 @@ function DatabaseModal({
         </Button>
       </Box>
 
-      {/* Main content */}
       <Box
         component="main"
         sx={{
@@ -772,7 +783,6 @@ function DatabaseModal({
             alignItems: 'start',
           }}
         >
-          {/* DB type nav */}
           <Box
             sx={{
               mb: { xs: 3, md: 0 },
@@ -788,7 +798,6 @@ function DatabaseModal({
             </Box>
           </Box>
 
-          {/* Form + databases */}
           <Box
             tabIndex={-1}
             sx={{
@@ -799,7 +808,6 @@ function DatabaseModal({
               mt: { xs: 0, md: 4 },
             }}
           >
-            {/* Section switcher — shown when databases are available */}
             {hasDatabases ? (
               <Box sx={{ mb: 4 }}>
                 <ToggleButtonGroup
@@ -834,7 +842,6 @@ function DatabaseModal({
               </Box>
             </Fade>
 
-            {/* Footer actions */}
             <Box
               sx={{
                 display: 'flex',

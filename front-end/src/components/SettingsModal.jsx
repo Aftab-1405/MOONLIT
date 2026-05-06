@@ -143,8 +143,17 @@ function SettingsModal({
     : 0;
   const settingsSurfaceLeft = `${sidebarOffset}px`;
   const settingsSurfaceWidth = sidebarOffset > 0 ? `calc(100vw - ${sidebarOffset}px)` : '100vw';
+  const mainContentContainer = useMemo(
+    () => () => (typeof document === 'undefined' ? null : document.getElementById('main-content')),
+    [],
+  );
+  const mainContentDialogRootSx = useMemo(() => ({
+    pointerEvents: 'none',
+    '& .MuiBackdrop-root': { pointerEvents: 'auto' },
+    '& .MuiDialog-container': { pointerEvents: 'none' },
+    '& .MuiDialog-paper': { pointerEvents: 'auto' },
+  }), []);
 
-  // Compact pill-style toggle matching Claude.ai segment control
   const toggleStyles = useMemo(() => ({
     width: { xs: '100%', sm: 'auto' },
     borderRadius: '8px',
@@ -184,7 +193,6 @@ function SettingsModal({
     },
   }), [isDark, theme]);
 
-  // Minimal ghost select — no visible border, right-aligned value
   const controlSx = {
     '& .MuiInputBase-root': {
       height: 32,
@@ -532,6 +540,11 @@ function SettingsModal({
       desktopMaxHeight="100vh"
       desktopMinHeight="100vh"
       showCloseButton={false}
+      container={mainContentContainer}
+      disableAutoFocus
+      disableEnforceFocus
+      disableRestoreFocus
+      rootSx={mainContentDialogRootSx}
       paperSx={{
         position: 'fixed',
         inset: '0 auto auto auto',
@@ -559,7 +572,6 @@ function SettingsModal({
         ...getScrollbarStyles(theme),
       }}
     >
-      {/* Page header with title + close */}
       <Box
         component="header"
         sx={{
@@ -607,7 +619,6 @@ function SettingsModal({
         </Button>
       </Box>
 
-      {/* Main content */}
       <Box
         component="main"
         sx={{
@@ -630,7 +641,6 @@ function SettingsModal({
           {mobileNav}
           {desktopNav}
 
-          {/* Content pane */}
           <Box
             tabIndex={-1}
             sx={{
@@ -643,7 +653,6 @@ function SettingsModal({
           >
             {renderContent()}
 
-            {/* Footer actions */}
             <Box
               sx={{
                 mt: { xs: 6, md: 8 },
