@@ -41,7 +41,7 @@ function hasRegisteredHandler(handlers) {
  * @param {{ current: Array }} pendingQueueRef - Ref holding the pending event queue
  * @returns {(event: object) => void} dispatch function
  */
-export function createUiActionDispatch(getHandlers, pendingQueueRef) {
+function createUiActionDispatch(getHandlers, pendingQueueRef) {
   return function dispatch(event) {
     const handlers = getHandlers();
     const hasHandlers = hasRegisteredHandler(handlers);

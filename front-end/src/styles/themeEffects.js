@@ -51,7 +51,6 @@ export const KEYFRAMES = {
 };
 
 const gradientCache = new WeakMap();
-const accentEffectsCache = new WeakMap();
 const moonlitBrandGradientCache = new WeakMap();
 
 export const getMoonlitBrandGradients = (theme) => {
@@ -83,33 +82,4 @@ export const getMoonlitGradient = (theme) => {
   return gradient;
 };
 
-export const getAccentEffects = (theme) => {
-  if (accentEffectsCache.has(theme)) return accentEffectsCache.get(theme);
-  const isDark = theme.palette.mode === 'dark';
-  const main = theme.palette.text.primary;
-  const secondary = theme.palette.text.secondary;
-  const gradient = isDark
-    ? `linear-gradient(135deg, ${alpha(main, 0.94)}, ${alpha(secondary, 0.78)})`
-    : `linear-gradient(135deg, ${main}, ${alpha(main, 0.68)})`;
-
-  const effects = isDark
-    ? {
-        gradient,
-        textGradient: gradient,
-        glow: `0 16px 42px ${alpha(theme.palette.common.black, 0.34)}`,
-        border: `1px solid ${alpha(main, 0.16)}`,
-        background: alpha(main, 0.08),
-      }
-    : {
-        gradient,
-        textGradient: gradient,
-        glow: `0 16px 36px ${alpha(theme.palette.common.black, 0.08)}`,
-        border: `1px solid ${alpha(main, 0.12)}`,
-        background: alpha(main, 0.045),
-      };
-
-  const frozen = Object.freeze(effects);
-  accentEffectsCache.set(theme, frozen);
-  return frozen;
-};
 

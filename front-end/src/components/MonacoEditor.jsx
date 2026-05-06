@@ -3,7 +3,6 @@ import {
   Box,
   Typography,
   Tooltip,
-  CircularProgress,
   ButtonBase,
   Button,
   Menu,
@@ -21,6 +20,7 @@ import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ExecutionResultPanel from './ExecutionResultPanel';
 import DataVisualizationPanel from './DataVisualizationPanel';
+import ButtonLoadingSpinner from './ButtonLoadingSpinner';
 import {
   ArtifactActions,
   ArtifactBody,
@@ -690,7 +690,7 @@ function MonacoEditor({
             sx={runButtonStyles}
             startIcon={
               isRunning
-                ? <CircularProgress size={16} thickness={4} sx={{ color: 'inherit' }} />
+                ? <ButtonLoadingSpinner />
                 : <PlayCircleOutlineIcon sx={{ fontSize: 19 }} />
             }
             aria-label="Run query"

@@ -45,6 +45,7 @@ import {
 import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
 import { getPrimaryActionButtonSx } from '../styles/shared';
 import { getMoonlitBrandGradients } from '../styles/themeEffects';
+import ButtonLoadingSpinner from '../components/ButtonLoadingSpinner';
 import logger from '../utils/logger';
 
 // ─── Keyframes ────────────────────────────────────────────────────────────────
@@ -1013,8 +1014,14 @@ function Auth() {
                       </Link>
                     </Box>
 
-                    <Button fullWidth type="submit" disabled={formLoading} sx={getPrimaryActionButtonSx(theme)}>
-                      {formLoading ? <CircularProgress size={18} color="inherit" /> : 'Sign In'}
+                    <Button
+                      fullWidth
+                      type="submit"
+                      disabled={formLoading}
+                      startIcon={formLoading ? <ButtonLoadingSpinner size={18} /> : null}
+                      sx={getPrimaryActionButtonSx(theme)}
+                    >
+                      {formLoading ? 'Signing in...' : 'Sign In'}
                     </Button>
                   </Stack>
                 </TabPanel>
@@ -1128,8 +1135,14 @@ function Auth() {
                       }}
                     />
 
-                    <Button fullWidth type="submit" disabled={formLoading} sx={getPrimaryActionButtonSx(theme)}>
-                      {formLoading ? <CircularProgress size={18} color="inherit" /> : 'Create Account'}
+                    <Button
+                      fullWidth
+                      type="submit"
+                      disabled={formLoading}
+                      startIcon={formLoading ? <ButtonLoadingSpinner size={18} /> : null}
+                      sx={getPrimaryActionButtonSx(theme)}
+                    >
+                      {formLoading ? 'Creating...' : 'Create Account'}
                     </Button>
                   </Stack>
                 </TabPanel>
@@ -1259,15 +1272,10 @@ function Auth() {
           <Button
             size="small"
             onClick={() => setForgotDialogOpen(false)}
+            variant="outlined"
+            color="inherit"
             sx={{
-              color: 'text.secondary',
               fontWeight: 500,
-              '@media (hover: hover)': {
-                '&:hover': {
-                  backgroundColor: 'transparent',
-                  color: 'text.primary',
-                },
-              },
             }}
           >
             Cancel
@@ -1277,9 +1285,12 @@ function Auth() {
             size="small"
             onClick={handlePasswordReset}
             disabled={resetLoading}
+            variant="outlined"
+            color="primary"
+            startIcon={resetLoading ? <ButtonLoadingSpinner size={14} /> : null}
             sx={{ ...getPrimaryActionButtonSx(theme), py: 0.625, px: 2 }}
           >
-            {resetLoading ? <CircularProgress size={14} color="inherit" /> : 'Send Reset Link'}
+            {resetLoading ? 'Sending...' : 'Send Reset Link'}
           </Button>
         </DialogActions>
       </Dialog>

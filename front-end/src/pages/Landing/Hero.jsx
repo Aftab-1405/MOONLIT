@@ -15,7 +15,6 @@ function Hero({ onGetStarted }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const brandGradients = getMoonlitBrandGradients(theme);
-  const premiumShadow = alpha(theme.palette.common.black, isDark ? 0.32 : 0.12);
 
   return (
     <Section sx={{ py: { xs: 8, md: 6 } }}>
@@ -118,6 +117,8 @@ function Hero({ onGetStarted }) {
           >
             <Button
               size="large"
+              variant="outlined"
+              color="primary"
               onClick={onGetStarted}
               endIcon={<ArrowForwardRoundedIcon />}
               sx={{
@@ -125,18 +126,11 @@ function Hero({ onGetStarted }) {
                 py: 1.5,
                 borderRadius: 2,
                 fontWeight: 600,
-                backgroundImage: brandGradients.static,
-                backgroundColor: 'transparent',
-                color: theme.palette.primary.contrastText,
-                border: 'none',
-                boxShadow: `0 10px 28px ${premiumShadow}`,
-                transition: theme.transitions.create(['filter', 'transform', 'box-shadow'], { duration: 200 }),
+                transition: theme.transitions.create(['background-color', 'border-color', 'color', 'transform'], { duration: 200 }),
                 [REDUCED_MOTION_QUERY]: { transition: 'none' },
                 [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
-                    filter: 'brightness(1.12)',
                     transform: 'translateY(-2px)',
-                    boxShadow: `0 14px 34px ${alpha(theme.palette.common.black, isDark ? 0.38 : 0.16)}`,
                   },
                 },
                 '&:active': { transform: 'scale(0.98)' },

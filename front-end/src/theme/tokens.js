@@ -55,9 +55,9 @@ export const LIGHT = {
   infoDark:   hslToHex(210, 73.7, 28),
 
   // Semantic
-  danger000:  hslToHex(0,   58.6, 34.1),   // #8a2424  — error.main
-  success000: hslToHex(125, 100,  18),      // #005c08  — success.main
-  warning000: hslToHex(45,  91.8, 19),      // #5c4500  — warning.main
+  danger000:  '#dc2626',                    // clear red — error.main
+  success000: '#15803d',                    // clear green — success.main
+  warning000: '#b45309',                    // clear amber — warning.main
 
   // Border base (to be used with alpha in practice)
   border200:  '#0f0f0f',

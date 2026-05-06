@@ -96,7 +96,7 @@ export function isMessageActive(message) {
  * Build text + steps from stored assistant message fields.
  * Used when loading conversations from Firestore.
  */
-export function parseAssistantContent(text, thinkingField = null, toolsField = null) {
+function parseAssistantContent(text, thinkingField = null, toolsField = null) {
   const steps = [];
 
   if (thinkingField && thinkingField.trim()) {

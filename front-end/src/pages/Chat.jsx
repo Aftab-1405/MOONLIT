@@ -105,10 +105,10 @@ function GuidedConfirmationPrompt({
           >
             <Button
               size="small"
-              variant="text"
+              variant="outlined"
               color="inherit"
               onClick={onCancel}
-              sx={{ minHeight: 34, color: 'text.secondary' }}
+              sx={{ minHeight: 34 }}
             >
               {cancelText || 'Not now'}
             </Button>

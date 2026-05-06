@@ -3,7 +3,6 @@
  */
 import { alpha } from '@mui/material/styles';
 import { HOVER_CAPABLE_QUERY, BACKDROP_FILTER_FALLBACK_QUERY } from './mediaQueries';
-import { getMoonlitBrandGradients } from './themeEffects';
 
 const DIALOG_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
 
@@ -28,6 +27,88 @@ export const getScrollbarStyles = (_theme, _opts = {}) => ({
   scrollbarWidth: 'none',
   '&::-webkit-scrollbar': { display: 'none' },
 });
+
+export const getGroupedToggleButtonSx = (
+  theme,
+  {
+    width = { xs: '100%', sm: 'auto' },
+    height = 32,
+    minWidth = { sm: 44 },
+    px = { xs: 1.25, sm: 1.5 },
+    borderRadius = '8px',
+    gap = 0.75,
+  } = {},
+) => {
+  const isDark = theme.palette.mode === 'dark';
+  const borderColor = alpha(theme.palette.text.primary, isDark ? 0.16 : 0.12);
+  const hoverBg = alpha(theme.palette.text.primary, isDark ? 0.08 : 0.05);
+  const selectedBg = alpha(theme.palette.text.primary, isDark ? 0.12 : 0.07);
+  const focusRing = alpha(theme.palette.text.primary, isDark ? 0.16 : 0.1);
+
+  return {
+    display: 'inline-flex',
+    width,
+    borderRadius,
+    boxShadow: `0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.22 : 0.06)}`,
+    '& .MuiToggleButtonGroup-grouped': {
+      marginLeft: '-1px',
+      '&:first-of-type': {
+        marginLeft: 0,
+        borderTopLeftRadius: `${borderRadius} !important`,
+        borderBottomLeftRadius: `${borderRadius} !important`,
+      },
+      '&:last-of-type': {
+        borderTopRightRadius: `${borderRadius} !important`,
+        borderBottomRightRadius: `${borderRadius} !important`,
+      },
+      '&:not(:first-of-type)': {
+        borderLeftColor: `${borderColor} !important`,
+      },
+    },
+    '& .MuiToggleButton-root': {
+      px,
+      py: 0,
+      height,
+      minWidth,
+      flex: { xs: 1, sm: 'unset' },
+      border: '1px solid !important',
+      borderColor: `${borderColor} !important`,
+      borderRadius: '0 !important',
+      color: 'text.secondary',
+      backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.9 : 1),
+      ...theme.typography.uiNavItem,
+      fontWeight: 500,
+      textTransform: 'none',
+      gap,
+      transition: theme.transitions.create(
+        ['background-color', 'border-color', 'box-shadow', 'color'],
+        { duration: 150 },
+      ),
+      '&.Mui-selected': {
+        color: 'text.primary',
+        fontWeight: 600,
+        backgroundColor: selectedBg,
+        borderColor: `${borderColor} !important`,
+        '&:hover': {
+          backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.15 : 0.09),
+        },
+      },
+      '&:hover:not(.Mui-selected)': {
+        backgroundColor: hoverBg,
+        color: 'text.primary',
+      },
+      '&.Mui-focusVisible': {
+        position: 'relative',
+        zIndex: 1,
+        boxShadow: `0 0 0 3px ${focusRing}`,
+      },
+      '&.Mui-disabled': {
+        color: 'text.disabled',
+        backgroundColor: alpha(theme.palette.background.sunken || theme.palette.background.default, isDark ? 0.8 : 0.72),
+      },
+    },
+  };
+};
 
 export const getInsetPanelSx = (
   theme,
@@ -121,35 +202,41 @@ export const getPrimaryActionButtonSx = (theme, {
   borderRadius = 1.5,
 } = {}) => {
   const isDark = theme.palette.mode === 'dark';
-  const brandGradients = getMoonlitBrandGradients(theme);
-  const shadowColor = theme.palette.common.black;
+  const main = theme.palette.primary.main;
+  const contrastText = theme.palette.primary.contrastText;
 
   return {
     py: { xs: 1, sm: 1.125 },
     minHeight,
     borderRadius,
     fontWeight: 600,
-    backgroundImage: brandGradients.static,
-    backgroundColor: 'transparent',
-    color: theme.palette.primary.contrastText,
-    border: 'none',
-    boxShadow: `0 10px 26px ${alpha(shadowColor, isDark ? 0.32 : 0.12)}`,
+    backgroundImage: 'none',
+    backgroundColor: theme.palette.background.paper,
+    color: main,
+    border: '1px solid',
+    borderColor: main,
+    boxShadow: 'none',
     transition: theme.transitions.create(
-      ['filter', 'transform', 'box-shadow'],
+      ['background-color', 'border-color', 'color', 'transform', 'box-shadow'],
       { duration: 200 },
     ),
     [HOVER_CAPABLE_QUERY]: {
       '&:hover': {
-        filter: 'brightness(1.12)',
+        backgroundColor: main,
+        color: contrastText,
         transform: 'translateY(-1px)',
-        boxShadow: `0 14px 32px ${alpha(shadowColor, isDark ? 0.38 : 0.16)}`,
+        boxShadow: 'none',
       },
+    },
+    '&.Mui-focusVisible': {
+      boxShadow: `0 0 0 4px ${alpha(main, isDark ? 0.2 : 0.16)}`,
     },
     '&:active': { transform: 'scale(0.98)', boxShadow: 'none' },
     '&.Mui-disabled': {
       backgroundImage: 'none',
-      backgroundColor: alpha(theme.palette.text.primary, 0.3),
-      color: alpha('#fff', 0.6),
+      backgroundColor: alpha(theme.palette.background.sunken || theme.palette.background.default, 0.8),
+      borderColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.12),
+      color: theme.palette.text.disabled,
       boxShadow: 'none',
     },
   };

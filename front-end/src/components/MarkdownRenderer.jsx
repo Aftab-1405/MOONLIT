@@ -10,6 +10,7 @@ import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { getGhostIconButtonSx } from '../styles/shared';
+import ButtonLoadingSpinner from './ButtonLoadingSpinner';
 
 const SQL_LANGUAGES = new Set([
   'sql', 'mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle', 'tsql', 'plsql'
@@ -142,7 +143,7 @@ const CodeBlock = memo(function CodeBlock({
                   }}
                 >
                   {isRunning
-                    ? <CircularProgress size={13} color="inherit" />
+                    ? <ButtonLoadingSpinner size={13} />
                     : <PlayArrowRoundedIcon sx={{ fontSize: 16 }} />}
                 </IconButton>
               </span>

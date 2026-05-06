@@ -3,7 +3,6 @@ import {
   Box,
   Typography,
   Alert,
-  CircularProgress,
   IconButton,
   Button,
   TextField,
@@ -39,8 +38,10 @@ import {
 } from '../validation';
 import { DB_TYPES } from '../config/databases';
 import DialogShell from './DialogShell';
+import ButtonLoadingSpinner from './ButtonLoadingSpinner';
 import {
   getCompactActionSx,
+  getGroupedToggleButtonSx,
   getScrollbarStyles,
   UI_LAYOUT,
 } from '../styles/shared';
@@ -441,43 +442,10 @@ function DatabaseModal({
 
   const isDark = theme.palette.mode === 'dark';
 
-  const toggleStyles = useMemo(() => ({
-    width: { xs: '100%', sm: 'auto' },
-    borderRadius: '8px',
-    backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
-    p: '2px',
-    gap: 0,
-    '& .MuiToggleButtonGroup-grouped': {
-      border: 0,
-      '&:not(:first-of-type)': { borderLeft: 0, marginLeft: 0 },
-    },
-    '& .MuiToggleButton-root': {
-      px: { xs: 1.25, sm: 1.5 },
-      py: 0,
-      height: 32,
-      minWidth: { sm: 44 },
-      flex: { xs: 1, sm: 'unset' },
-      border: '0 !important',
-      borderRadius: '6px !important',
-      color: 'text.secondary',
-      ...theme.typography.uiNavItem,
-      fontWeight: 500,
-      textTransform: 'none',
-      gap: 0.75,
-      transition: 'background-color 150ms ease, color 150ms ease, box-shadow 150ms ease',
-      '&.Mui-selected': {
-        color: 'text.primary',
-        fontWeight: 600,
-        backgroundColor: theme.palette.background.paper,
-        boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, isDark ? 0.3 : 0.1)}, inset 0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08)}`,
-        '&:hover': { backgroundColor: theme.palette.background.paper },
-      },
-      '&:hover:not(.Mui-selected)': {
-        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
-        color: 'text.primary',
-      },
-    },
-  }), [isDark, theme]);
+  const toggleStyles = useMemo(
+    () => getGroupedToggleButtonSx(theme),
+    [theme],
+  );
 
   const navContent = (
     <Box
@@ -747,20 +715,17 @@ function DatabaseModal({
         </Typography>
         <Button
           onClick={onClose}
+          variant="outlined"
+          color="error"
           size="small"
           sx={{
             ...theme.typography.uiNavItem,
             mb: { xs: 0, md: 1.5 },
             textTransform: 'none',
             fontWeight: 500,
-            color: 'text.secondary',
             borderRadius: '8px',
             px: 1.5,
             height: 34,
-            '&:hover': {
-              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
-              color: 'text.primary',
-            },
           }}
         >
           Close
@@ -859,7 +824,7 @@ function DatabaseModal({
             >
               {isConnected ? (
                 <Button
-                  variant="text"
+                  variant="outlined"
                   onClick={handleDisconnect}
                   color="error"
                   disabled={loading}
@@ -868,20 +833,18 @@ function DatabaseModal({
                     ...theme.typography.uiNavItem,
                     textTransform: 'none',
                     fontWeight: 500,
-                    px: 0,
-                    '&:hover': { backgroundColor: 'transparent' },
                   }}
                 >
                   Disconnect
                 </Button>
               ) : <Box />}
               <Button
-                variant="contained"
+                variant="outlined"
+                color="success"
                 onClick={handleConnect}
                 disabled={loading || isConnected}
-                startIcon={loading ? <CircularProgress size={16} color="inherit" /> : null}
+                startIcon={loading ? <ButtonLoadingSpinner /> : null}
                 size="small"
-                disableElevation
                 sx={{
                   ...theme.typography.uiNavItem,
                   height: 36,

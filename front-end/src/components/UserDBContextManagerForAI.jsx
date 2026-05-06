@@ -37,6 +37,7 @@ import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 import { getUserContext } from '../api';
 import { USER } from '../api/endpoints';
 import { HOVER_CAPABLE_QUERY } from '../styles/mediaQueries';
+import { getGroupedToggleButtonSx } from '../styles/shared';
 const MONACO_QUERY_BASE_OPTIONS = {
   readOnly: true,
   minimap: { enabled: false },
@@ -314,42 +315,7 @@ function UserDBContextManagerForAI() {
           exclusive
           onChange={(_e, v) => v && setActiveView(v)}
           size="small"
-          sx={{
-            borderRadius: '8px',
-            backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
-            p: '2px',
-            gap: 0,
-            width: { xs: '100%', sm: 'auto' },
-            '& .MuiToggleButtonGroup-grouped': {
-              border: 0,
-              '&:not(:first-of-type)': { borderLeft: 0, marginLeft: 0 },
-            },
-            '& .MuiToggleButton-root': {
-              px: 1.5,
-              py: 0,
-              height: 32,
-              flex: { xs: 1, sm: 'unset' },
-              border: '0 !important',
-              borderRadius: '6px !important',
-              color: 'text.secondary',
-              ...theme.typography.uiNavItem,
-              fontWeight: 500,
-              textTransform: 'none',
-              gap: 0.75,
-              transition: 'background-color 150ms ease, color 150ms ease, box-shadow 150ms ease',
-              '&.Mui-selected': {
-                color: 'text.primary',
-                fontWeight: 600,
-                backgroundColor: theme.palette.background.paper,
-                boxShadow: `0 1px 3px ${alpha(theme.palette.common.black, isDark ? 0.3 : 0.1)}, inset 0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08)}`,
-                '&:hover': { backgroundColor: theme.palette.background.paper },
-              },
-              '&:hover:not(.Mui-selected)': {
-                backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
-                color: 'text.primary',
-              },
-            },
-          }}
+          sx={getGroupedToggleButtonSx(theme, { px: 1.5 })}
         >
           <ToggleButton value="schemas">
             <StorageRoundedIcon sx={{ fontSize: 15 }} />
@@ -403,11 +369,12 @@ function UserDBContextManagerForAI() {
           </ToggleButton>
         </ToggleButtonGroup>
 
-        {/* Clear all — ghost text button, only shown when there's data */}
+        {/* Clear all — semantic danger action, only shown when there's data */}
         {((activeView === 'schemas' && schemas.length > 0) ||
           (activeView === 'queries' && queries.length > 0)) && (
           <Button
             size="small"
+            variant="outlined"
             color="error"
             onClick={() => openDeleteDialog(activeView === 'schemas' ? 'all-schemas' : 'queries')}
             sx={{
@@ -418,12 +385,6 @@ function UserDBContextManagerForAI() {
               height: 32,
               borderRadius: '8px',
               minWidth: 0,
-              color: 'error.main',
-              opacity: 0.8,
-              '&:hover': {
-                backgroundColor: alpha(theme.palette.error.main, isDark ? 0.12 : 0.08),
-                opacity: 1,
-              },
             }}
           >
             Clear all

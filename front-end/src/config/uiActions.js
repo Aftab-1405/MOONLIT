@@ -1,15 +1,5 @@
-export const UI_ACTION_METADATA_KEYS = [
-  'title',
-  'message',
-  'intent',
-  'severity',
-  'requiresConfirmation',
-  'sourceTool',
-];
-
-export const VALID_DB_TYPES = ['mysql', 'postgresql', 'sqlserver', 'oracle'];
-export const VALID_SETTINGS_SECTIONS = ['appearance', 'ai', 'database', 'context'];
-export const VALID_SEVERITIES = ['info', 'success', 'warning', 'error'];
+const VALID_DB_TYPES = ['mysql', 'postgresql', 'sqlserver', 'oracle'];
+const VALID_SETTINGS_SECTIONS = ['appearance', 'ai', 'database', 'context'];
 
 export const UI_ACTIONS = {
   open_sql_editor: {
@@ -59,5 +49,3 @@ export const UI_ACTIONS = {
     validate: ({ payload }) => ({ ok: true, payload: payload || {} }),
   },
 };
-
-export const REGISTERED_UI_ACTIONS = Object.keys(UI_ACTIONS);

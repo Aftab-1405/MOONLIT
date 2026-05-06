@@ -46,6 +46,7 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import {
+  getGroupedToggleButtonSx,
   getPopoverSectionLabelSx,
   getSelectableMenuItemSx,
 } from '../styles/shared';
@@ -240,12 +241,6 @@ function DataVisualizationPanel({ data, chrome = 'standalone', onControlsChange 
       sx={{
         display: 'inline-flex',
         alignItems: 'center',
-        gap: 0.25,
-        p: 0.25,
-        borderRadius: '10px',
-        bgcolor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06),
-        border: '1px solid',
-        borderColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
       }}
     >
       <ToggleButtonGroup
@@ -253,26 +248,14 @@ function DataVisualizationPanel({ data, chrome = 'standalone', onControlsChange 
         exclusive
         onChange={(e, v) => v && setChartType(v)}
         size="small"
-        sx={{
-          gap: 0.25,
-          '& .MuiToggleButton-root': {
-            border: 'none',
-            borderRadius: '8px',
-            px: 0.5,
-            py: 0,
-            minWidth: 30,
-            height: 28,
-            color: 'text.secondary',
-            '&.Mui-selected': {
-              color: 'text.primary',
-              bgcolor: alpha(theme.palette.background.paper, isDark ? 0.95 : 1),
-              boxShadow: `0 0 0 1px ${alpha(theme.palette.text.primary, 0.08)}, 0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.35 : 0.08)}`,
-            },
-            '&:hover': {
-              bgcolor: alpha(theme.palette.text.primary, 0.06),
-            },
-          },
-        }}
+        sx={getGroupedToggleButtonSx(theme, {
+          width: 'auto',
+          height: 28,
+          minWidth: 30,
+          px: 0.5,
+          borderRadius: '8px',
+          gap: 0,
+        })}
       >
         <ToggleButton value="bar" aria-label="Bar chart">
           <MuiTooltip title="Bar chart">
@@ -296,7 +279,7 @@ function DataVisualizationPanel({ data, chrome = 'standalone', onControlsChange 
         </ToggleButton>
       </ToggleButtonGroup>
     </Box>
-  ), [chartType, isDark, theme]);
+  ), [chartType, theme]);
   const chartActions = useMemo(() => (
     <ArtifactActions>
       <ArtifactIconButton title="Download PNG" ariaLabel="Download chart as PNG" onClick={handleDownload}>

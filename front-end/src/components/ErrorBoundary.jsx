@@ -156,7 +156,8 @@ class ErrorBoundary extends Component {
 
             <Box sx={{ display: 'flex', gap: 2, justifyContent: 'center', flexWrap: 'wrap' }}>
               <Button
-                variant="contained"
+                variant="outlined"
+                color="primary"
                 startIcon={<RefreshRoundedIcon />}
                 onClick={this.handleReload}
                 sx={{ textTransform: 'none' }}

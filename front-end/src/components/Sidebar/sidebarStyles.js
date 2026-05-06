@@ -1,9 +1,9 @@
 import { alpha } from '@mui/material/styles';
 import { UI_LAYOUT } from '../../styles/shared';
 
-export const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth;   // 260
-export const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth; // 52
-export const SIDEBAR_RADIUS = '10px';
+const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth;   // 260
+const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth; // 52
+const SIDEBAR_RADIUS = '10px';
 
 // ─── Shared token ────────────────────────────────────────────────────────────
 // Every clickable row uses the same horizontal inset (px: ROW_PX = 8px each side).
@@ -11,7 +11,7 @@ export const SIDEBAR_RADIUS = '10px';
 // Height is controlled by the row's minHeight, not the icon slot.
 export const ROW_PX = 1;        // MUI spacing → 8px each side
 export const ICON_COL = 36;     // px — fixed icon column width only (not height)
-export const ROW_HEIGHT = 36;   // px — single consistent row height for all items
+const ROW_HEIGHT = 36;   // px — single consistent row height for all items
 
 // ─── Nav row (toggle, nav items, footer) ─────────────────────────────────────
 export function buildNavRowSx(theme, { isActive = false, disabled = false } = {}) {

@@ -1,13 +1,13 @@
-export const REACT_FLOW_PRO_OPTIONS = { hideAttribution: true };
+const REACT_FLOW_PRO_OPTIONS = { hideAttribution: true };
 
-export const REACT_FLOW_ARIA_LABEL_CONFIG = {
+const REACT_FLOW_ARIA_LABEL_CONFIG = {
   'node.a11yDescription.default': 'Press enter or space to select a diagram node.',
   'edge.a11yDescription.default': 'Press enter or space to select a diagram edge.',
   'controls.ariaLabel': 'Diagram controls',
   'minimap.ariaLabel': 'Diagram minimap',
 };
 
-export const getReactFlowColorMode = (theme) => (
+const getReactFlowColorMode = (theme) => (
   theme.palette.mode === 'dark' ? 'dark' : 'light'
 );
 

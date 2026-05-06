@@ -3,12 +3,12 @@ import {
   Button,
   Typography,
   Box,
-  CircularProgress,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import DialogShell from './DialogShell';
+import ButtonLoadingSpinner from './ButtonLoadingSpinner';
 import {
   getInsetPanelSx,
   UI_LAYOUT,
@@ -71,7 +71,7 @@ function ConfirmDialog({
             color="inherit"
             disabled={isExecuting}
             fullWidth={isCompactMobile}
-            sx={{ color: 'text.secondary', borderColor: 'divider', minHeight: UI_LAYOUT.touchTarget }}
+            sx={{ minHeight: UI_LAYOUT.touchTarget }}
           >
             {cancelText}
           </Button>
@@ -81,7 +81,7 @@ function ConfirmDialog({
             disabled={isExecuting}
             color={confirmColor}
             fullWidth={isCompactMobile}
-            startIcon={isExecuting ? <CircularProgress size={16} color="inherit" /> : null}
+            startIcon={isExecuting ? <ButtonLoadingSpinner /> : null}
             sx={{ minWidth: 100, minHeight: UI_LAYOUT.touchTarget }}
           >
             {isExecuting ? 'Executing...' : confirmText}
