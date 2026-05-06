@@ -3,10 +3,11 @@ import {
   Box,
   Typography,
   Tooltip,
-  ButtonBase,
   Button,
   Menu,
   MenuItem,
+  ToggleButton,
+  ToggleButtonGroup,
 } from '@mui/material';
 import { useTheme as useMuiTheme, alpha, keyframes } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '../contexts/ThemeContext';
@@ -260,11 +261,6 @@ function MonacoEditor({
     () => alpha(theme.palette.divider, isDark ? 0.85 : 0.95),
     [theme.palette.divider, isDark]
   );
-  const segmentTrackBg = useMemo(
-    () => alpha(theme.palette.text.primary, isDark ? 0.11 : 0.055),
-    [theme.palette.text.primary, isDark]
-  );
-
   const runButtonStyles = useMemo(() => ({
     minWidth: 0,
     height: 32,
@@ -458,115 +454,66 @@ function MonacoEditor({
         overflow: 'hidden',
       }}
     >
-      <Box
+      <ToggleButtonGroup
         role="tablist"
         aria-label="SQL workspace views"
+        value={activeTab}
+        exclusive
+        onChange={(_event, nextTab) => nextTab !== null && handleTabChange(nextTab)}
+        size="small"
         sx={{
-          display: 'inline-grid',
-          gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-          alignItems: 'center',
-          gap: 0.25,
-          p: 0.5,
-          width: 112,
-          height: 34,
-          flexShrink: 0,
-          borderRadius: '10px',
-          bgcolor: segmentTrackBg,
-          border: '1px solid',
-          borderColor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.07),
-          boxSizing: 'border-box',
+          '& .MuiToggleButton-root': {
+            minWidth: 36,
+            width: 36,
+            height: 32,
+            px: 0,
+            gap: 0,
+          },
+          '& .MuiToggleButton-root.Mui-disabled': { opacity: 0.32 },
         }}
       >
         {navSegments.map((seg) => {
           const Icon = seg.icon;
-          const selected = activeTab === seg.id;
           return (
             <Tooltip key={seg.id} title={seg.label}>
-              <Box
-                component="span"
-                sx={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  minWidth: 0,
-                  height: '100%',
-                  lineHeight: 0,
-                }}
+              <ToggleButton
+                value={seg.id}
+                role="tab"
+                aria-label={seg.ariaLabel}
+                aria-selected={activeTab === seg.id}
+                disabled={seg.disabled}
               >
-                <ButtonBase
-                  role="tab"
-                  aria-label={seg.ariaLabel}
-                  aria-selected={selected}
-                  aria-disabled={seg.disabled}
-                  disabled={seg.disabled}
-                  onClick={() => !seg.disabled && handleTabChange(seg.id)}
-                  sx={{
-                    position: 'relative',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minWidth: 0,
-                    width: '100%',
-                    height: 24,
-                    borderRadius: '7px',
-                    lineHeight: 0,
-                    color: selected ? 'text.primary' : 'text.secondary',
-                    bgcolor: selected ? alpha(theme.palette.background.paper, isDark ? 0.96 : 1) : 'transparent',
-                    boxShadow: selected
-                      ? `inset 0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08)}`
-                      : 'none',
-                    transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
-                      duration: 160,
-                      easing: theme.transitions.easing.easeInOut,
-                    }),
-                    '@media (prefers-reduced-motion: reduce)': {
-                      transition: 'none',
-                    },
-                    '&:hover': {
-                      color: 'text.primary',
-                      bgcolor: selected
-                        ? theme.palette.background.paper
-                        : alpha(theme.palette.text.primary, 0.055),
-                    },
-                    '&:focus-visible': {
-                      outline: `2px solid ${alpha(theme.palette.text.secondary, 0.38)}`,
-                      outlineOffset: 1,
-                    },
-                    '&.Mui-disabled': { opacity: 0.32 },
-                  }}
-                >
-                  <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, height: 18, lineHeight: 0 }}>
-                    <Icon sx={{ fontSize: 17 }} />
-                    {seg.id === 1 && results?.row_count != null && (
-                      <Box
-                        component="span"
-                        sx={{
-                          position: 'absolute',
-                          top: -6,
-                          right: -8,
-                          minWidth: 15,
-                          height: 15,
-                          px: 0.25,
-                          borderRadius: 999,
-                          fontSize: 8,
-                          fontWeight: 700,
-                          lineHeight: '15px',
-                          textAlign: 'center',
-                          bgcolor: 'primary.main',
-                          color: 'primary.contrastText',
-                          boxShadow: `0 0 0 2px ${artifactChromeBg}`,
-                        }}
-                      >
-                        {results.row_count > 99 ? '99+' : results.row_count}
-                      </Box>
-                    )}
-                  </Box>
-                </ButtonBase>
-              </Box>
+                <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, height: 18, lineHeight: 0 }}>
+                  <Icon sx={{ fontSize: 17 }} />
+                  {seg.id === 1 && results?.row_count != null && (
+                    <Box
+                      component="span"
+                      sx={{
+                        position: 'absolute',
+                        top: -6,
+                        right: -8,
+                        minWidth: 15,
+                        height: 15,
+                        px: 0.25,
+                        borderRadius: 999,
+                        fontSize: 8,
+                        fontWeight: 700,
+                        lineHeight: '15px',
+                        textAlign: 'center',
+                        bgcolor: 'primary.main',
+                        color: 'primary.contrastText',
+                        boxShadow: `0 0 0 2px ${artifactChromeBg}`,
+                      }}
+                    >
+                      {results.row_count > 99 ? '99+' : results.row_count}
+                    </Box>
+                  )}
+                </Box>
+              </ToggleButton>
             </Tooltip>
           );
         })}
-      </Box>
+      </ToggleButtonGroup>
     </Box>
   );
 

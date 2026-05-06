@@ -37,7 +37,6 @@ import { registerMonacoThemes, getMonacoThemeName } from '../theme';
 import { getUserContext } from '../api';
 import { USER } from '../api/endpoints';
 import { HOVER_CAPABLE_QUERY } from '../styles/mediaQueries';
-import { getGroupedToggleButtonSx } from '../styles/shared';
 const MONACO_QUERY_BASE_OPTIONS = {
   readOnly: true,
   minimap: { enabled: false },
@@ -309,13 +308,11 @@ function UserDBContextManagerForAI() {
           mb: 3,
         }}
       >
-        {/* Pill segment control — matches modal toggleStyles */}
         <ToggleButtonGroup
           value={activeView}
           exclusive
           onChange={(_e, v) => v && setActiveView(v)}
           size="small"
-          sx={getGroupedToggleButtonSx(theme, { px: 1.5 })}
         >
           <ToggleButton value="schemas">
             <StorageRoundedIcon sx={{ fontSize: 15 }} />

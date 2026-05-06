@@ -412,27 +412,6 @@ function ChatInput({
             onChange={toggleReasoning}
             onClick={(e) => e.stopPropagation()}
             inputProps={{ 'aria-label': 'Toggle extended thinking' }}
-            sx={{
-              width: 36,
-              height: 20,
-              p: 0,
-              flexShrink: 0,
-              '& .MuiSwitch-switchBase': {
-                p: '2px',
-                transitionDuration: '180ms',
-                '&.Mui-checked': {
-                  transform: 'translateX(16px)',
-                  color: theme.palette.common.white,
-                  '& + .MuiSwitch-track': { opacity: 1, backgroundColor: theme.palette.success.main },
-                },
-              },
-              '& .MuiSwitch-thumb': { boxShadow: 'none', width: 16, height: 16 },
-              '& .MuiSwitch-track': {
-                borderRadius: 10,
-                opacity: 1,
-                backgroundColor: alpha(theme.palette.text.primary, 0.16),
-              },
-            }}
           />
         </Box>
       </AppPopover>

@@ -9,7 +9,6 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import { getGhostIconButtonSx } from '../styles/shared';
 import ButtonLoadingSpinner from './ButtonLoadingSpinner';
 
 const SQL_LANGUAGES = new Set([
@@ -118,9 +117,7 @@ const CodeBlock = memo(function CodeBlock({
             <IconButton
               size="small"
               onClick={() => setWrapLongLines((v) => !v)}
-              sx={{
-                ...getGhostIconButtonSx(theme, { size: 30, radius: '6px', active: wrapLongLines }),
-              }}
+              color={wrapLongLines ? 'success' : 'primary'}
             >
               <WrapTextRoundedIcon sx={{ fontSize: 14 }} />
             </IconButton>
@@ -132,15 +129,7 @@ const CodeBlock = memo(function CodeBlock({
                   size="small"
                   onClick={handleRun}
                   disabled={isRunning}
-                  sx={{
-                    ...getGhostIconButtonSx(theme, {
-                      size: 30,
-                      radius: '6px',
-                      color: theme.palette.success.main,
-                      disabledColor: 'text.disabled',
-                    }),
-                    color: isRunning ? 'text.disabled' : theme.palette.success.main,
-                  }}
+                  color="success"
                 >
                   {isRunning
                     ? <ButtonLoadingSpinner size={13} />
@@ -153,15 +142,7 @@ const CodeBlock = memo(function CodeBlock({
             <IconButton
               size="small"
               onClick={handleCopy}
-              sx={{
-                ...getGhostIconButtonSx(theme, {
-                  size: 30,
-                  radius: '6px',
-                  active: copied,
-                  activeColor: theme.palette.success.main,
-                }),
-                color: copied ? theme.palette.success.main : theme.palette.text.secondary,
-              }}
+              color={copied ? 'success' : 'primary'}
             >
               {copied
                 ? <CheckRoundedIcon sx={{ fontSize: 14 }} />

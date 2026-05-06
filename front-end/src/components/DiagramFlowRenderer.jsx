@@ -36,7 +36,6 @@ import {
   ArtifactIconButton,
   ArtifactSurface,
 } from './ArtifactLayout';
-import { getGhostIconButtonSx } from '../styles/shared';
 import {
   FLOW_NODE_CARD_CLASS,
   HIDDEN_FLOW_HANDLE_STYLE,
@@ -704,12 +703,7 @@ const DiagramHeader = memo(function DiagramHeader({ title, copied, onCopy, fulls
             aria-label={copied ? 'Code copied' : 'Copy diagram code'}
             size="small"
             onClick={onCopy}
-            sx={getGhostIconButtonSx(theme, {
-              size: embedded ? 30 : 32,
-              radius: '7px',
-              active: copied,
-              activeColor: theme.palette.success.main,
-            })}
+            color={copied ? 'success' : 'primary'}
           >
             {copied
               ? <CheckRoundedIcon sx={{ fontSize: 14 }} />
@@ -722,7 +716,6 @@ const DiagramHeader = memo(function DiagramHeader({ title, copied, onCopy, fulls
               aria-label={fullscreen ? 'Exit fullscreen' : 'Open fullscreen'}
               size="small"
               onClick={onToggleFullscreen}
-              sx={getGhostIconButtonSx(theme, { size: embedded ? 30 : 32, radius: '7px' })}
             >
               {fullscreen
                 ? <FullscreenExitRoundedIcon sx={{ fontSize: 16 }} />

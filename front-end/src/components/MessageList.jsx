@@ -12,7 +12,7 @@ import {
   HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY,
 } from '../styles/mediaQueries';
-import { getGhostIconButtonSx, UI_LAYOUT } from '../styles/shared';
+import { UI_LAYOUT } from '../styles/shared';
 
 const COPY_FEEDBACK_DURATION = 2000;
 const CANVAS_CODE_LANGUAGES = new Set(['diagram-flow']);
@@ -112,8 +112,6 @@ function useCopyToClipboard() {
 }
 
 const CopyButton = memo(function CopyButton({ copied, onClick, className = 'message-action-btn', sx = {}, 'data-testid': dataTestId }) {
-  const theme = useTheme();
-
   return (
     <Tooltip title={copied ? 'Copied!' : 'Copy'}>
       <IconButton
@@ -122,14 +120,8 @@ const CopyButton = memo(function CopyButton({ copied, onClick, className = 'mess
         data-testid={dataTestId}
         size="small"
         onClick={onClick}
-        sx={{
-          ...getGhostIconButtonSx(theme, {
-            size: 32,
-            active: copied,
-            activeColor: 'text.primary',
-          }),
-          ...sx,
-        }}
+        color={copied ? 'success' : 'primary'}
+        sx={sx}
       >
         {copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
       </IconButton>

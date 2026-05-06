@@ -2,7 +2,6 @@ import { Box, Dialog, IconButton, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import {
-  getCompactActionSx,
   getDialogFooterSx,
   getDialogHeaderSx,
   getDialogPaperSx,
@@ -83,7 +82,6 @@ function DialogShell({
               onClick={onClose}
               size="small"
               aria-label={closeAriaLabel}
-              sx={getCompactActionSx(theme)}
             >
               <CloseRoundedIcon />
             </IconButton>

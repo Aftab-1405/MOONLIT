@@ -40,8 +40,6 @@ import { DB_TYPES } from '../config/databases';
 import DialogShell from './DialogShell';
 import ButtonLoadingSpinner from './ButtonLoadingSpinner';
 import {
-  getCompactActionSx,
-  getGroupedToggleButtonSx,
   getScrollbarStyles,
   UI_LAYOUT,
 } from '../styles/shared';
@@ -109,7 +107,6 @@ const VisibilityToggleAdornment = memo(({ show, onToggle }) => (
       onClick={onToggle}
       edge="end"
       aria-label={show ? 'Hide password' : 'Show password'}
-      sx={(theme) => getCompactActionSx(theme)}
     >
       {show ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
     </IconButton>
@@ -442,11 +439,6 @@ function DatabaseModal({
 
   const isDark = theme.palette.mode === 'dark';
 
-  const toggleStyles = useMemo(
-    () => getGroupedToggleButtonSx(theme),
-    [theme],
-  );
-
   const navContent = (
     <Box
       component="nav"
@@ -531,7 +523,6 @@ function DatabaseModal({
               exclusive
               onChange={(event, value) => value && setConnectionMode(value)}
               size="small"
-              sx={toggleStyles}
             >
               <ToggleButton value="credentials">
                 <VpnKeyRoundedIcon sx={{ fontSize: 16 }} />
@@ -783,7 +774,6 @@ function DatabaseModal({
                   exclusive
                   onChange={(event, value) => value && setMobileSection(value)}
                   size="small"
-                  sx={toggleStyles}
                 >
                   <ToggleButton value="connect">
                     <LinkRoundedIcon sx={{ fontSize: 16 }} />

@@ -1,15 +1,17 @@
 import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Box, ButtonBase, CircularProgress, IconButton, Tooltip, Typography } from '@mui/material';
+import { Box, CircularProgress, IconButton, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import DatasetOutlinedIcon from '@mui/icons-material/DatasetOutlined';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
+import HighlightOffSharpIcon from '@mui/icons-material/HighlightOffSharp';
 import VisibilityRoundedIcon from '@mui/icons-material/VisibilityRounded';
-import { getGhostIconButtonSx, getGlassmorphismStyles } from '../styles/shared';
+import {
+  getGlassmorphismStyles,
+} from '../styles/shared';
 
 const ArtifactRenderers = {
   'sql-editor': lazy(() => import('./MonacoEditor')),
@@ -85,74 +87,33 @@ function ArtifactModeSwitch({ mode, onModeChange }) {
   ];
 
   return (
-    <Box
-      role="radiogroup"
+    <ToggleButtonGroup
+      value={mode}
+      exclusive
+      onChange={(_event, nextMode) => nextMode && onModeChange(nextMode)}
       aria-label="Artifact view"
-      sx={(theme) => {
-        const isDark = theme.palette.mode === 'dark';
-        return {
-          display: 'inline-grid',
-          gridTemplateColumns: 'repeat(2, 1fr)',
-          alignItems: 'center',
-          gap: 0.25,
-          p: 0.25,
-          width: 74,
-          height: 34,
-          flexShrink: 0,
-          borderRadius: '10px',
-          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.11 : 0.055),
-          border: '1px solid',
-          borderColor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.07),
-          boxSizing: 'border-box',
-        };
+      size="small"
+      sx={{
+        '& .MuiToggleButton-root': {
+          minWidth: 36,
+          width: 36,
+          height: 32,
+          px: 0,
+          gap: 0,
+        },
       }}
     >
       {segments.map((segment) => {
         const Icon = segment.icon;
-        const selected = mode === segment.id;
         return (
           <Tooltip key={segment.id} title={segment.label}>
-            <span>
-              <ButtonBase
-                role="radio"
-                aria-label={segment.label}
-                aria-checked={selected}
-                onClick={() => onModeChange(segment.id)}
-                sx={(theme) => ({
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  width: 32,
-                  height: 28,
-                  borderRadius: '8px',
-                  color: selected ? 'text.primary' : 'text.secondary',
-                  bgcolor: selected ? alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.96 : 1) : 'transparent',
-                  boxShadow: selected
-                    ? `0 0 0 1px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.08)}, 0 1px 4px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.38 : 0.06)}`
-                    : 'none',
-                  transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
-                    duration: 160,
-                    easing: theme.transitions.easing.easeInOut,
-                  }),
-                  '&:hover': {
-                    color: 'text.primary',
-                    bgcolor: selected
-                      ? theme.palette.background.paper
-                      : alpha(theme.palette.text.primary, 0.055),
-                  },
-                  '&:focus-visible': {
-                    outline: `2px solid ${alpha(theme.palette.text.secondary, 0.38)}`,
-                    outlineOffset: 1,
-                  },
-                })}
-              >
-                <Icon sx={{ fontSize: 18 }} />
-              </ButtonBase>
-            </span>
+            <ToggleButton value={segment.id} aria-label={segment.label}>
+              <Icon sx={{ fontSize: 18 }} />
+            </ToggleButton>
           </Tooltip>
         );
       })}
-    </Box>
+    </ToggleButtonGroup>
   );
 }
 
@@ -207,9 +168,7 @@ function ArtifactLoaderHeader({ title, Icon, action, mode, onModeChange, sourceA
               size="small"
               onClick={onCopySource}
               aria-label="Copy artifact source"
-              sx={(theme) => ({
-                ...getGhostIconButtonSx(theme, { size: 34, radius: '10px', active: sourceCopied, activeColor: 'success.main' }),
-              })}
+              color={sourceCopied ? 'success' : 'primary'}
             >
               {sourceCopied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />}
             </IconButton>
@@ -221,9 +180,6 @@ function ArtifactLoaderHeader({ title, Icon, action, mode, onModeChange, sourceA
               size="small"
               onClick={action.onClick}
               aria-label={action.ariaLabel}
-              sx={(theme) => ({
-                ...getGhostIconButtonSx(theme, { size: 34, radius: '10px' }),
-              })}
             >
               <ActionIcon sx={{ fontSize: 18 }} />
             </IconButton>
@@ -231,14 +187,12 @@ function ArtifactLoaderHeader({ title, Icon, action, mode, onModeChange, sourceA
         )}
         <Tooltip title="Close canvas">
           <IconButton
+            color="primary"
             size="small"
             onClick={onClose}
             aria-label="Close canvas"
-            sx={(theme) => ({
-              ...getGhostIconButtonSx(theme, { size: 34, radius: '10px' }),
-            })}
           >
-            <CloseRoundedIcon sx={{ fontSize: 20 }} />
+            <HighlightOffSharpIcon sx={{ fontSize: 18 }} />
           </IconButton>
         </Tooltip>
       </Box>

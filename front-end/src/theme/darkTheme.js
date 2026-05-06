@@ -235,6 +235,26 @@ const typography = {
 
 const focusRing = `0 0 0 3px ${alpha(H.text000, 0.1)}`;
 const surfaceGradient = `linear-gradient(180deg, ${alpha('#ffffff', 0.025)}, transparent)`;
+const groupedButtonBorder = alpha(H.border200, 0.16);
+const groupedButtonBg = alpha(H.bg100, 0.9);
+const groupedButtonHoverBg = alpha(H.text000, 0.08);
+const groupedButtonSelectedBg = alpha(H.text000, 0.12);
+const groupedButtonFocusRing = `0 0 0 3px ${alpha(H.text000, 0.16)}`;
+const iconButtonFocusRing = `0 0 0 4px ${alpha(H.brand000, 0.2)}`;
+const getIconButtonColorStyles = (main) => ({
+  color: main,
+  backgroundColor: H.bg100,
+  borderColor: alpha(main, 0.16),
+  boxShadow: 'none',
+  '&:hover': {
+    color: main,
+    backgroundColor: alpha(main, 0.08),
+    borderColor: alpha(main, 0.22),
+  },
+  '&.Mui-focusVisible': {
+    boxShadow: `0 0 0 4px ${alpha(main, 0.2)}`,
+  },
+});
 
 const components = {
   MuiCssBaseline: {
@@ -400,12 +420,80 @@ const components = {
   MuiIconButton: {
     styleOverrides: {
       root: {
-        borderRadius: SHAPE.radius.sm,
+        width: 36,
+        height: 36,
+        minWidth: 36,
+        minHeight: 36,
+        padding: 0,
+        border: '1px solid',
+        borderRadius: SHAPE.borderRadius,
+        boxShadow: 'none',
+        color: H.text200,
+        backgroundColor: H.bg100,
+        borderColor: alpha(H.border200, 0.14),
         transition: TRANSITIONS.default,
-        [MOBILE_SM_QUERY]: { minWidth: 44, minHeight: 44 },
-        '&:hover': { backgroundColor: alpha(H.text000, 0.06) },
+        '& .MuiSvgIcon-root': { fontSize: 20 },
+        '&:hover': {
+          color: H.text000,
+          backgroundColor: alpha(H.text000, 0.08),
+          borderColor: alpha(H.border200, 0.2),
+        },
+        '&.Mui-focusVisible': {
+          outline: 'none',
+          boxShadow: iconButtonFocusRing,
+        },
+        '&:active': { transform: 'scale(0.98)' },
+        '&.Mui-disabled': {
+          color: H.text400,
+          backgroundColor: alpha(H.bg200, 0.8),
+          borderColor: alpha(H.border200, 0.1),
+          boxShadow: 'none',
+        },
+      },
+      colorPrimary: getIconButtonColorStyles(H.brand000),
+      colorSecondary: getIconButtonColorStyles(H.accent000),
+      colorSuccess: getIconButtonColorStyles(H.success000),
+      colorWarning: getIconButtonColorStyles(H.warning000),
+      colorError: getIconButtonColorStyles(H.danger000),
+      colorInfo: getIconButtonColorStyles(H.info000),
+      sizeSmall: {
+        width: 32,
+        height: 32,
+        minWidth: 32,
+        minHeight: 32,
+      },
+      sizeMedium: {
+        width: 36,
+        height: 36,
+        minWidth: 36,
+        minHeight: 36,
+      },
+      sizeLarge: {
+        width: 40,
+        height: 40,
+        minWidth: 40,
+        minHeight: 40,
       },
     },
+    variants: [
+      {
+        props: { variant: 'outlined' },
+        style: {
+          color: H.text200,
+          backgroundColor: H.bg100,
+          borderColor: alpha(H.border200, 0.14),
+          boxShadow: 'none',
+          '&:hover': {
+            color: H.text000,
+            backgroundColor: alpha(H.text000, 0.08),
+            borderColor: alpha(H.border200, 0.2),
+          },
+          '&.Mui-focusVisible': {
+            boxShadow: `0 0 0 4px ${alpha(H.brand000, 0.18)}`,
+          },
+        },
+      },
+    ],
   },
 
   // ── Paper ──────────────────────────────────────────────────────────────────
@@ -706,25 +794,48 @@ const components = {
 
   MuiSwitch: {
     styleOverrides: {
-      root: { width: 44, height: 26, padding: 0, display: 'flex' },
+      root: {
+        width: 36,
+        height: 20,
+        padding: 0,
+        display: 'flex',
+        flexShrink: 0,
+        overflow: 'visible',
+        '& .MuiSwitch-switchBase': {
+          top: 0,
+          left: 0,
+          margin: 0,
+          padding: 2,
+          transform: 'translateX(0)',
+        },
+        '& .MuiSwitch-switchBase.Mui-checked': {
+          transform: 'translateX(16px)',
+        },
+        '& .MuiSwitch-thumb': {
+          display: 'block',
+        },
+      },
       switchBase: {
-        padding: 3,
+        padding: 2,
         '&.Mui-checked': {
-          transform: 'translateX(18px)',
+          transform: 'translateX(16px)',
           color: H.bg000,
           '& + .MuiSwitch-track': {
             opacity: 1,
             backgroundColor: H.success000,
           },
         },
+        '&.Mui-focusVisible + .MuiSwitch-track': {
+          boxShadow: `0 0 0 4px ${alpha(H.success000, 0.2)}`,
+        },
         '&.Mui-disabled + .MuiSwitch-track': { opacity: 0.5 },
       },
-      thumb: { boxShadow: 'none', width: 20, height: 20 },
+      thumb: { boxShadow: 'none', width: 16, height: 16 },
       track: {
         opacity: 1,
-        borderRadius: 13,
+        borderRadius: 10,
         backgroundColor: alpha(H.text000, 0.2),
-        border: `1px solid ${alpha(H.border200, 0.12)}`,
+        border: 'none',
       },
     },
   },
@@ -804,14 +915,67 @@ const components = {
   MuiToggleButton: {
     styleOverrides: {
       root: {
-        borderColor: alpha(H.border200, 0.12),
+        minWidth: 44,
+        height: 32,
+        padding: '0 12px',
+        gap: 6,
+        border: `1px solid ${groupedButtonBorder}`,
+        borderColor: groupedButtonBorder,
+        borderRadius: '0 !important',
         color: H.text200,
+        backgroundColor: groupedButtonBg,
+        ...typography.uiNavItem,
+        fontWeight: 500,
         textTransform: 'none',
-        '&:hover': { backgroundColor: alpha(H.text000, 0.06) },
+        transition: TRANSITIONS.default,
+        '&:hover': {
+          color: H.text000,
+          backgroundColor: groupedButtonHoverBg,
+        },
         '&.Mui-selected': {
           color: H.text000,
-          backgroundColor: alpha(H.text000, 0.08),
-          '&:hover': { backgroundColor: alpha(H.text000, 0.11) },
+          fontWeight: 600,
+          backgroundColor: groupedButtonSelectedBg,
+          borderColor: groupedButtonBorder,
+          '&:hover': { backgroundColor: alpha(H.text000, 0.15) },
+        },
+        '&.Mui-focusVisible': {
+          position: 'relative',
+          zIndex: 1,
+          boxShadow: groupedButtonFocusRing,
+        },
+        '&.Mui-disabled': {
+          color: H.text400,
+          backgroundColor: alpha(H.bg200, 0.8),
+        },
+      },
+      sizeSmall: {
+        height: 32,
+        padding: '0 12px',
+      },
+    },
+  },
+
+  MuiToggleButtonGroup: {
+    styleOverrides: {
+      root: {
+        display: 'inline-flex',
+        borderRadius: SHAPE.borderRadius,
+        boxShadow: `0 1px 2px ${alpha('#000000', 0.22)}`,
+      },
+      grouped: {
+        marginLeft: '-1px',
+        '&:first-of-type': {
+          marginLeft: 0,
+          borderTopLeftRadius: `${SHAPE.borderRadius}px !important`,
+          borderBottomLeftRadius: `${SHAPE.borderRadius}px !important`,
+        },
+        '&:last-of-type': {
+          borderTopRightRadius: `${SHAPE.borderRadius}px !important`,
+          borderBottomRightRadius: `${SHAPE.borderRadius}px !important`,
+        },
+        '&:not(:first-of-type)': {
+          borderLeftColor: `${groupedButtonBorder} !important`,
         },
       },
     },

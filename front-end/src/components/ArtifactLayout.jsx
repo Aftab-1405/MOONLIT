@@ -1,7 +1,6 @@
 import { forwardRef, memo } from 'react';
 import { Box, IconButton, Tooltip, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import { getGhostIconButtonSx } from '../styles/shared';
 
 export const ArtifactSurface = forwardRef(function ArtifactSurface({ children, sx = {}, component = 'section', ...props }, ref) {
   return (
@@ -264,8 +263,6 @@ export function ArtifactIconButton({
   children,
   active = false,
   disabled = false,
-  size = 32,
-  radius = '9px',
   buttonProps = {},
 }) {
   return (
@@ -276,13 +273,8 @@ export function ArtifactIconButton({
           onClick={onClick}
           disabled={disabled}
           aria-label={ariaLabel || title}
+          color={active ? 'success' : 'primary'}
           {...buttonProps}
-          sx={(theme) => getGhostIconButtonSx(theme, {
-            size,
-            radius,
-            active,
-            activeColor: active ? 'success.main' : 'text.primary',
-          })}
         >
           {children}
         </IconButton>

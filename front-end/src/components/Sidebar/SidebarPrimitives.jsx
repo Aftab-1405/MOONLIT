@@ -17,7 +17,7 @@ import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import { TOUCH_DEVICE_QUERY } from '../../styles/mediaQueries';
-import { getPopoverPaperSx } from '../../styles/shared';
+import { getPopoverPaperSx, getUtilityIconButtonSx } from '../../styles/shared';
 import {
   buildNavRowSx,
   buildConversationRowSx,
@@ -35,6 +35,7 @@ export const ConversationItem = memo(function ConversationItem({
   const isDark = theme.palette.mode === 'dark';
   const [menuAnchor, setMenuAnchor] = useState(null);
   const menuOpen = Boolean(menuAnchor);
+  const utilityIconButtonSx = getUtilityIconButtonSx(theme);
 
   const handleClick = useCallback(() => onSelect(conv.id), [onSelect, conv.id]);
   const handleMenuOpen = useCallback((e) => {
@@ -82,15 +83,11 @@ export const ConversationItem = memo(function ConversationItem({
           aria-haspopup="true"
           aria-expanded={menuOpen}
           sx={{
+            ...utilityIconButtonSx,
             position: 'absolute',
             right: 4,
             top: '50%',
             transform: 'translateY(-50%)',
-            p: 0.5,
-            borderRadius: '6px',
-            color: theme.palette.text.secondary,
-            transition: 'opacity 0.15s ease, color 0.15s ease',
-            '&:hover': { color: theme.palette.text.primary, backgroundColor: 'transparent' },
           }}
         >
           <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
@@ -305,6 +302,8 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
   onClosePopover,
   theme,
 }) {
+  const utilityIconButtonSx = getUtilityIconButtonSx(theme);
+
   const handleClick = useCallback(() => {
     onClosePopover();
     onSelect(conv.id);
@@ -339,11 +338,12 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
         onClick={handleDelete}
         aria-label="Delete conversation"
         sx={{
+          ...utilityIconButtonSx,
           opacity: 0.5,
-          p: 0.5,
-          color: theme.palette.text.secondary,
-          transition: 'opacity 0.15s ease',
-          '&:hover': { opacity: 1, backgroundColor: 'transparent' },
+          '&:hover': {
+            ...utilityIconButtonSx['&:hover'],
+            opacity: 1,
+          },
         }}
       >
         <DeleteOutlineRoundedIcon sx={{ fontSize: 14 }} />

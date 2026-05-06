@@ -16,6 +16,7 @@ import {
 import { Bar, Line, Pie, Doughnut } from 'react-chartjs-2';
 import {
   Box,
+  Button,
   Typography,
   ToggleButton,
   ToggleButtonGroup,
@@ -34,7 +35,6 @@ import {
   ArtifactSurface,
   ArtifactToolbar,
 } from './ArtifactLayout';
-import { artifactControlButtonSx } from './artifactLayoutStyles';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
 import PieChartOutlineRoundedIcon from '@mui/icons-material/PieChartOutlineRounded';
@@ -46,7 +46,6 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import {
-  getGroupedToggleButtonSx,
   getPopoverSectionLabelSx,
   getSelectableMenuItemSx,
 } from '../styles/shared';
@@ -205,32 +204,32 @@ function DataVisualizationPanel({ data, chrome = 'standalone', onControlsChange 
     doughnut: Doughnut,
   }[chartType];
 
-  const columnButtonSx = useMemo(() => artifactControlButtonSx(theme, { height: 30 }), [theme]);
   const columnControls = useMemo(() => (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0, overflow: 'hidden' }}>
-      <Box
-        component="button"
+      <Button
+        variant="outlined"
+        size="small"
         onClick={(e) => setLabelAnchorEl(e.currentTarget)}
         aria-haspopup="listbox"
-        sx={columnButtonSx}
+        endIcon={<KeyboardArrowDownRoundedIcon sx={{ fontSize: 12 }} />}
+        sx={{ minWidth: { xs: 84, sm: 100 }, maxWidth: { xs: 128, sm: 156 }, justifyContent: 'flex-start', px: 1 }}
       >
         <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Label</Typography>
         <Typography component="span" noWrap sx={{ ...theme.typography.uiCaptionMd, color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{labelColumn || '-'}</Typography>
-        <KeyboardArrowDownRoundedIcon sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
-      </Box>
-      <Box
-        component="button"
+      </Button>
+      <Button
+        variant="outlined"
+        size="small"
         onClick={(e) => setValueAnchorEl(e.currentTarget)}
         aria-haspopup="listbox"
-        sx={columnButtonSx}
+        endIcon={<KeyboardArrowDownRoundedIcon sx={{ fontSize: 12 }} />}
+        sx={{ minWidth: { xs: 84, sm: 100 }, maxWidth: { xs: 128, sm: 156 }, justifyContent: 'flex-start', px: 1 }}
       >
         <Typography component="span" sx={{ ...theme.typography.uiCaption2xs, color: 'text.disabled', flexShrink: 0, lineHeight: 1, userSelect: 'none' }}>Value</Typography>
         <Typography component="span" noWrap sx={{ ...theme.typography.uiCaptionMd, color: 'text.primary', flex: 1, minWidth: 0, lineHeight: 1, textAlign: 'left' }}>{valueColumn || '-'}</Typography>
-        <KeyboardArrowDownRoundedIcon sx={{ fontSize: 12, color: 'text.disabled', flexShrink: 0 }} />
-      </Box>
+      </Button>
     </Box>
   ), [
-    columnButtonSx,
     labelColumn,
     theme.typography.uiCaption2xs,
     theme.typography.uiCaptionMd,
@@ -248,14 +247,16 @@ function DataVisualizationPanel({ data, chrome = 'standalone', onControlsChange 
         exclusive
         onChange={(e, v) => v && setChartType(v)}
         size="small"
-        sx={getGroupedToggleButtonSx(theme, {
-          width: 'auto',
-          height: 28,
-          minWidth: 30,
-          px: 0.5,
-          borderRadius: '8px',
-          gap: 0,
-        })}
+        aria-label="Chart type"
+        sx={{
+          '& .MuiToggleButton-root': {
+            minWidth: 30,
+            width: 30,
+            height: 28,
+            px: 0,
+            gap: 0,
+          },
+        }}
       >
         <ToggleButton value="bar" aria-label="Bar chart">
           <MuiTooltip title="Bar chart">
@@ -279,7 +280,7 @@ function DataVisualizationPanel({ data, chrome = 'standalone', onControlsChange 
         </ToggleButton>
       </ToggleButtonGroup>
     </Box>
-  ), [chartType, theme]);
+  ), [chartType]);
   const chartActions = useMemo(() => (
     <ArtifactActions>
       <ArtifactIconButton title="Download PNG" ariaLabel="Download chart as PNG" onClick={handleDownload}>

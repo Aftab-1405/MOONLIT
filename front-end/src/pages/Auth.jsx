@@ -43,7 +43,6 @@ import {
   authFieldSchemas,
 } from '../validation';
 import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
-import { getPrimaryActionButtonSx } from '../styles/shared';
 import { getMoonlitBrandGradients } from '../styles/themeEffects';
 import ButtonLoadingSpinner from '../components/ButtonLoadingSpinner';
 import logger from '../utils/logger';
@@ -1018,8 +1017,9 @@ function Auth() {
                       fullWidth
                       type="submit"
                       disabled={formLoading}
+                      variant="outlined"
+                      color="primary"
                       startIcon={formLoading ? <ButtonLoadingSpinner size={18} /> : null}
-                      sx={getPrimaryActionButtonSx(theme)}
                     >
                       {formLoading ? 'Signing in...' : 'Sign In'}
                     </Button>
@@ -1139,8 +1139,9 @@ function Auth() {
                       fullWidth
                       type="submit"
                       disabled={formLoading}
+                      variant="outlined"
+                      color="primary"
                       startIcon={formLoading ? <ButtonLoadingSpinner size={18} /> : null}
-                      sx={getPrimaryActionButtonSx(theme)}
                     >
                       {formLoading ? 'Creating...' : 'Create Account'}
                     </Button>
@@ -1288,7 +1289,6 @@ function Auth() {
             variant="outlined"
             color="primary"
             startIcon={resetLoading ? <ButtonLoadingSpinner size={14} /> : null}
-            sx={{ ...getPrimaryActionButtonSx(theme), py: 0.625, px: 2 }}
           >
             {resetLoading ? 'Sending...' : 'Send Reset Link'}
           </Button>

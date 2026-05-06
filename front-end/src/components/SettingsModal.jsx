@@ -20,7 +20,6 @@ import UserDBContextManagerForAI from './UserDBContextManagerForAI';
 import DialogShell from './DialogShell';
 import { saveUserSettings } from '../api';
 import {
-  getGroupedToggleButtonSx,
   getScrollbarStyles,
   UI_LAYOUT,
   getPopoverPaperSx,
@@ -159,11 +158,6 @@ function SettingsModal({
     '& .MuiDialog-paper': { pointerEvents: 'auto' },
   }), []);
 
-  const toggleStyles = useMemo(
-    () => getGroupedToggleButtonSx(theme),
-    [theme],
-  );
-
   const controlSx = {
     '& .MuiInputBase-root': {
       height: 32,
@@ -287,7 +281,6 @@ function SettingsModal({
                     exclusive
                     onChange={(e, value) => value && updateSetting('theme', value)}
                     size="small"
-                    sx={toggleStyles}
                   >
                     <ToggleButton value="light" aria-label="Light theme">
                       <LightModeRoundedIcon sx={{ fontSize: 16, mr: 0.75 }} />
@@ -322,7 +315,6 @@ function SettingsModal({
                     onChange={(e, value) => value && updateSetting('idleAnimationIntensity', value)}
                     size="small"
                     disabled={idleControlsDisabled}
-                    sx={toggleStyles}
                   >
                     <ToggleButton value="low">Low</ToggleButton>
                     <ToggleButton value="medium">Med</ToggleButton>
@@ -352,7 +344,6 @@ function SettingsModal({
                       exclusive
                       onChange={(e, value) => value && updateSetting('reasoningEffort', value)}
                       size="small"
-                      sx={toggleStyles}
                     >
                       <ToggleButton value="low">Low</ToggleButton>
                       <ToggleButton value="medium">Med</ToggleButton>
