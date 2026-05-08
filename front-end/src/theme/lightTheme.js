@@ -25,14 +25,42 @@ const H = LIGHT; // alias for brevity
 
 // ─── Palette ─────────────────────────────────────────────────────────────────
 
-const getOutlinedButtonColorStyles = (main, contrastText = '#ffffff') => ({
-  borderColor: main,
+const getContainedButtonColorStyles = (main, contrastText = '#ffffff') => ({
+  borderColor: 'transparent',
+  color: contrastText,
+  backgroundColor: main,
+  '&:hover': {
+    borderColor: 'transparent',
+    backgroundColor: alpha(main, 0.88),
+    color: contrastText,
+  },
+  '&.Mui-focusVisible': {
+    boxShadow: `0 0 0 4px ${alpha(main, 0.16)}`,
+  },
+});
+
+const getOutlinedButtonColorStyles = (main) => ({
+  borderColor: alpha(main, 0.42),
   color: main,
-  backgroundColor: H.bg100,
+  backgroundColor: 'transparent',
   '&:hover': {
     borderColor: main,
-    backgroundColor: main,
-    color: contrastText,
+    backgroundColor: alpha(main, 0.07),
+    color: main,
+  },
+  '&.Mui-focusVisible': {
+    boxShadow: `0 0 0 4px ${alpha(main, 0.16)}`,
+  },
+});
+
+const getTextButtonColorStyles = (main) => ({
+  borderColor: 'transparent',
+  color: main,
+  backgroundColor: 'transparent',
+  '&:hover': {
+    borderColor: 'transparent',
+    backgroundColor: alpha(main, 0.07),
+    color: main,
   },
   '&.Mui-focusVisible': {
     boxShadow: `0 0 0 4px ${alpha(main, 0.16)}`,
@@ -42,10 +70,24 @@ const getOutlinedButtonColorStyles = (main, contrastText = '#ffffff') => ({
 const neutralOutlinedButtonStyles = {
   borderColor: alpha(H.border200, 0.18),
   color: H.text200,
-  backgroundColor: H.bg100,
+  backgroundColor: 'transparent',
   '&:hover': {
     borderColor: alpha(H.border200, 0.3),
-    backgroundColor: H.bg300,
+    backgroundColor: alpha(H.text000, 0.05),
+    color: H.text000,
+  },
+  '&.Mui-focusVisible': {
+    boxShadow: `0 0 0 4px ${alpha(H.border200, 0.12)}`,
+  },
+};
+
+const neutralTextButtonStyles = {
+  borderColor: 'transparent',
+  color: H.text200,
+  backgroundColor: 'transparent',
+  '&:hover': {
+    borderColor: 'transparent',
+    backgroundColor: alpha(H.text000, 0.05),
     color: H.text000,
   },
   '&.Mui-focusVisible': {
@@ -372,7 +414,7 @@ const components = {
 
   // ── Button ─────────────────────────────────────────────────────────────────
   MuiButton: {
-    defaultProps: { disableElevation: true, variant: 'outlined' },
+    defaultProps: { disableElevation: true },
     styleOverrides: {
       root: {
         borderRadius: SHAPE.radius.md,
@@ -394,29 +436,29 @@ const components = {
           boxShadow: 'none',
         },
       },
-      contained: getOutlinedButtonColorStyles(H.brand000, '#ffffff'),
-      containedPrimary: getOutlinedButtonColorStyles(H.brand000, '#ffffff'),
-      containedSecondary: getOutlinedButtonColorStyles(H.accent000, '#ffffff'),
-      containedSuccess: getOutlinedButtonColorStyles(H.success000, '#ffffff'),
-      containedWarning: getOutlinedButtonColorStyles(H.warning000, '#ffffff'),
-      containedError: getOutlinedButtonColorStyles(H.danger000, '#ffffff'),
-      containedInfo: getOutlinedButtonColorStyles(H.info000, '#ffffff'),
+      contained: getContainedButtonColorStyles(H.brand000, '#ffffff'),
+      containedPrimary: getContainedButtonColorStyles(H.brand000, '#ffffff'),
+      containedSecondary: getContainedButtonColorStyles(H.accent000, '#ffffff'),
+      containedSuccess: getContainedButtonColorStyles(H.success000, '#ffffff'),
+      containedWarning: getContainedButtonColorStyles(H.warning000, '#ffffff'),
+      containedError: getContainedButtonColorStyles(H.danger000, '#ffffff'),
+      containedInfo: getContainedButtonColorStyles(H.info000, '#ffffff'),
       outlined: neutralOutlinedButtonStyles,
       outlinedInherit: neutralOutlinedButtonStyles,
-      outlinedPrimary: getOutlinedButtonColorStyles(H.brand000, '#ffffff'),
-      outlinedSecondary: getOutlinedButtonColorStyles(H.accent000, '#ffffff'),
-      outlinedSuccess: getOutlinedButtonColorStyles(H.success000, '#ffffff'),
-      outlinedWarning: getOutlinedButtonColorStyles(H.warning000, '#ffffff'),
-      outlinedError: getOutlinedButtonColorStyles(H.danger000, '#ffffff'),
-      outlinedInfo: getOutlinedButtonColorStyles(H.info000, '#ffffff'),
-      text: neutralOutlinedButtonStyles,
-      textInherit: neutralOutlinedButtonStyles,
-      textPrimary: getOutlinedButtonColorStyles(H.brand000, '#ffffff'),
-      textSecondary: getOutlinedButtonColorStyles(H.accent000, '#ffffff'),
-      textSuccess: getOutlinedButtonColorStyles(H.success000, '#ffffff'),
-      textWarning: getOutlinedButtonColorStyles(H.warning000, '#ffffff'),
-      textError: getOutlinedButtonColorStyles(H.danger000, '#ffffff'),
-      textInfo: getOutlinedButtonColorStyles(H.info000, '#ffffff'),
+      outlinedPrimary: getOutlinedButtonColorStyles(H.brand000),
+      outlinedSecondary: getOutlinedButtonColorStyles(H.accent000),
+      outlinedSuccess: getOutlinedButtonColorStyles(H.success000),
+      outlinedWarning: getOutlinedButtonColorStyles(H.warning000),
+      outlinedError: getOutlinedButtonColorStyles(H.danger000),
+      outlinedInfo: getOutlinedButtonColorStyles(H.info000),
+      text: neutralTextButtonStyles,
+      textInherit: neutralTextButtonStyles,
+      textPrimary: getTextButtonColorStyles(H.brand000),
+      textSecondary: getTextButtonColorStyles(H.accent000),
+      textSuccess: getTextButtonColorStyles(H.success000),
+      textWarning: getTextButtonColorStyles(H.warning000),
+      textError: getTextButtonColorStyles(H.danger000),
+      textInfo: getTextButtonColorStyles(H.info000),
       sizeSmall: { padding: '6px 16px', fontSize: '0.8125rem' },
       sizeLarge: { padding: '14px 28px', fontSize: '0.9375rem' },
     },

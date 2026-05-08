@@ -10,7 +10,7 @@
  * @module api/conversations
  */
 
-import { get, post, del, postRaw } from './client';
+import { get, del, postRaw } from './client';
 import { CONVERSATIONS } from './endpoints';
 
 /**

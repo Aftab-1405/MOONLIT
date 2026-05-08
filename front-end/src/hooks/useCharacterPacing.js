@@ -9,23 +9,34 @@ import { useState, useEffect, useRef } from 'react';
  * @param {number} charsPerSecond - Reveal speed (default: 200)
  */
 export function useCharacterPacing(content, isActive, charsPerSecond = 200) {
-  const [revealedLength, setRevealedLength] = useState(0);
-  const progressRef = useRef(0);
+  const initialLength = !isActive && content.length > 0 ? content.length : 0;
+  const [revealedLength, setRevealedLength] = useState(initialLength);
+  const progressRef = useRef(initialLength);
   const isHistoryRef = useRef(!isActive && content.length > 0);
 
   useEffect(() => {
+    let frame = null;
+    const scheduleReveal = (nextLength) => {
+      progressRef.current = nextLength;
+      frame = requestAnimationFrame(() => {
+        setRevealedLength(nextLength);
+      });
+    };
+
     if (isHistoryRef.current) {
-      progressRef.current = content.length;
-      setRevealedLength(content.length);
-      return;
+      scheduleReveal(content.length);
+      return () => {
+        if (frame !== null) cancelAnimationFrame(frame);
+      };
     }
     if (!isActive && progressRef.current < content.length) {
-      progressRef.current = content.length;
-      setRevealedLength(content.length);
-      return;
+      scheduleReveal(content.length);
+      return () => {
+        if (frame !== null) cancelAnimationFrame(frame);
+      };
     }
     if (progressRef.current >= content.length) {
-      return;
+      return undefined;
     }
     const charsPerTick = 4;
     const intervalMs = (charsPerTick / charsPerSecond) * 1000;
@@ -45,14 +56,21 @@ export function useCharacterPacing(content, isActive, charsPerSecond = 200) {
       setRevealedLength(nextIdx);
     }, intervalMs);
 
-    return () => clearInterval(timer);
+    return () => {
+      if (frame !== null) cancelAnimationFrame(frame);
+      clearInterval(timer);
+    };
   }, [content, charsPerSecond, isActive]);
 
   useEffect(() => {
     if (content.length === 0) {
       progressRef.current = 0;
-      setRevealedLength(0);
+      const frame = requestAnimationFrame(() => {
+        setRevealedLength(0);
+      });
+      return () => cancelAnimationFrame(frame);
     }
+    return undefined;
   }, [content.length]);
 
   return content.slice(0, revealedLength);

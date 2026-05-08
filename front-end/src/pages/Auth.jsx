@@ -34,7 +34,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAuth } from '../contexts/AuthContext';
-import StarfieldCanvas from '../components/StarfieldCanvas';
+import { ButtonLoadingSpinner, StarfieldCanvas } from '../components';
 import {
   useFormValidation,
   signInSchema,
@@ -44,7 +44,6 @@ import {
 } from '../validation';
 import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
 import { getMoonlitBrandGradients } from '../styles/themeEffects';
-import ButtonLoadingSpinner from '../components/ButtonLoadingSpinner';
 import logger from '../utils/logger';
 
 // ─── Keyframes ────────────────────────────────────────────────────────────────

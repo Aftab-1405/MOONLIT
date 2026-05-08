@@ -29,7 +29,7 @@ export function useQueryExecution({
 }) {
   const [confirmDialog, setConfirmDialog] = useState({ 
     open: false, 
-    sql: '', 
+    details: '', 
     onConfirm: null,
     onCancel: null,
   });
@@ -97,14 +97,14 @@ export function useQueryExecution({
         queryResolverRef.current = resolve;
         setConfirmDialog({
           open: true,
-          sql: sql,
+          details: sql,
           onConfirm: async () => {
             await executeQuery(sql, maxRows, queryTimeout);
-            setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
+            setConfirmDialog({ open: false, details: '', onConfirm: null, onCancel: null });
             queryResolverRef.current?.();
           },
           onCancel: () => {
-            setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
+            setConfirmDialog({ open: false, details: '', onConfirm: null, onCancel: null });
             queryResolverRef.current?.();
           },
         });
@@ -115,7 +115,7 @@ export function useQueryExecution({
   }, [isDbConnected, settings, executeQuery, setDbModalOpen, showSnackbar]);
   const handleConfirmDialogClose = useCallback(() => {
     confirmDialog.onCancel?.();
-    setConfirmDialog({ open: false, sql: '', onConfirm: null, onCancel: null });
+    setConfirmDialog({ open: false, details: '', onConfirm: null, onCancel: null });
   }, [confirmDialog]);
 
   return {

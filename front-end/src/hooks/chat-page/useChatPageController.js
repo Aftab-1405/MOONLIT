@@ -15,7 +15,7 @@ import { useChatPageSessionLifecycle } from './useChatPageSessionLifecycle';
 import { useUiActionDispatcher } from './useUiActionDispatcher';
 import { isMessageActive } from '../../utils/chatMessages';
 import { UI_LAYOUT } from '../../styles/shared';
-import { useLocalStorage } from '../../hooks';
+import { useLocalStorage } from '..';
 
 const DRAWER_WIDTH = UI_LAYOUT.sidebarExpandedWidth;
 const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth;
@@ -92,6 +92,10 @@ export function useChatPageController() {
     onCancel: null,
     onConfirm: null,
   });
+  const [deleteConversationDialog, setDeleteConversationDialog] = useState({
+    open: false,
+    conversationId: null,
+  });
   const resumeAgentRef = useRef(null);
   const messagesRef = useRef(messages);
 
@@ -166,6 +170,25 @@ export function useChatPageController() {
     closeGuidedConfirmDialog();
     await action?.();
   }, [closeGuidedConfirmDialog, guidedConfirmDialog.onConfirm]);
+
+  const handleDeleteConversationRequest = useCallback((conversationId) => {
+    setDeleteConversationDialog({
+      open: true,
+      conversationId,
+    });
+  }, []);
+
+  const handleDeleteConversationDialogClose = useCallback(() => {
+    setDeleteConversationDialog({
+      open: false,
+      conversationId: null,
+    });
+  }, []);
+
+  const handleDeleteConversationConfirm = useCallback(async () => {
+    if (!deleteConversationDialog.conversationId) return;
+    await handleDeleteConversation(deleteConversationDialog.conversationId);
+  }, [deleteConversationDialog.conversationId, handleDeleteConversation]);
 
   const dispatchUiAction = useUiActionDispatcher({
     open_sql_editor: (payload) => handleOpenSqlEditor(payload?.query || ''),
@@ -419,7 +442,7 @@ export function useChatPageController() {
     conversations,
     isConversationsLoading,
     currentConversationId,
-    onDeleteConversation: handleDeleteConversation,
+    onDeleteConversation: handleDeleteConversationRequest,
     isConnected: isDbConnected,
     currentDatabase,
     dbType,
@@ -430,7 +453,7 @@ export function useChatPageController() {
     conversations,
     isConversationsLoading,
     currentConversationId,
-    handleDeleteConversation,
+    handleDeleteConversationRequest,
     isDbConnected,
     currentDatabase,
     dbType,
@@ -502,6 +525,9 @@ export function useChatPageController() {
     handleCloseSettings,
     confirmDialog,
     handleConfirmDialogClose,
+    deleteConversationDialog,
+    handleDeleteConversationDialogClose,
+    handleDeleteConversationConfirm,
     guidedConfirmDialog,
     closeGuidedConfirmDialog,
     handleGuidedCancel,

@@ -16,11 +16,12 @@ export const UI_LAYOUT = Object.freeze({
   dialogDesktopOffset: 64,
 });
 
-export const getGlassmorphismStyles = (theme) => ({
-  background: theme.palette.glassmorphism.background,
-  backdropFilter: theme.palette.glassmorphism.backdropFilter,
-  WebkitBackdropFilter: theme.palette.glassmorphism.backdropFilter,
-  borderColor: theme.palette.glassmorphism.borderColor,
+export const UI_Z_INDEX = Object.freeze({
+  mainContentBase: 1,
+  mainContentControl: 3,
+  artifactStickyHeader: 2,
+  artifactFullscreen: 1310,
+  mainContentModal: 1320,
 });
 
 export const getScrollbarStyles = (_theme, _opts = {}) => ({

@@ -1,7 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import { Box } from '@mui/material';
-import PageLoader from './components/PageLoader';
+import { PageLoader } from './components';
 import ProtectedRoute from './guards/ProtectedRoute';
 import Landing from './pages/Landing';
 import Auth from './pages/Auth';

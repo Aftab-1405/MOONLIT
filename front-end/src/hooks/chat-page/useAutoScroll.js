@@ -73,7 +73,7 @@ function useAutoScroll({ messageCount, isStreaming, isConversationLoading = fals
 
   useEffect(() => {
     if (!scrollContainer || !isConversationLoading) return;
-    scrollContainer.scrollTop = 0;
+    scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
     pinnedRef.current = true;
   }, [isConversationLoading, scrollContainer]);
 

@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { getLlmOptions } from '../../api';
 import logger from '../../utils/logger';
 
-export function useChatPageLlmSelection({ settings, updateSetting, updateSettings }) {
+export function useChatPageLlmSelection({ settings, updateSettings }) {
   const [llmOptions, setLlmOptions] = useState({
     providers: [],
     default_provider: null,
