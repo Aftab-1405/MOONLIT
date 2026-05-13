@@ -35,6 +35,21 @@ const getErrorMessage = (error) => ERROR_MESSAGES[error.code] || error.message;
 
 const AuthContext = createContext(null);
 
+const normalizeAuthUser = (firebaseUser, backendUser = {}) => ({
+  uid: backendUser.uid || firebaseUser.uid,
+  email: backendUser.email || firebaseUser.email,
+  displayName:
+    backendUser.displayName ||
+    backendUser.name ||
+    firebaseUser.displayName ||
+    firebaseUser.email?.split('@')[0],
+  photoURL: backendUser.photoURL || backendUser.picture || firebaseUser.photoURL,
+});
+
+const getSessionUser = (sessionResponse) => (
+  sessionResponse?.data?.user || sessionResponse?.user || {}
+);
+
 // eslint-disable-next-line react-refresh/only-export-components -- Hook export alongside Provider is valid React pattern
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -49,11 +64,20 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [initialized, setInitialized] = useState(false);
+
+  const establishBackendSession = useCallback(async (firebaseUser) => {
+    const idToken = await firebaseUser.getIdToken();
+    const sessionResponse = await setBackendSession({ idToken });
+    return normalizeAuthUser(firebaseUser, getSessionUser(sessionResponse));
+  }, []);
+
   useEffect(() => {
+    let active = true;
+
     const init = async () => {
       try {
         await initializeFirebase();
-        setInitialized(true);
+        if (active) setInitialized(true);
 
         const auth = getFirebaseAuth();
         if (auth) {
@@ -62,48 +86,55 @@ export const AuthProvider = ({ children }) => {
           } catch (redirectError) {
             logger.error('Redirect result error:', redirectError);
             if (redirectError.code && redirectError.code !== 'auth/popup-closed-by-user') {
-              setError(getErrorMessage(redirectError));
+              if (active) setError(getErrorMessage(redirectError));
             }
           }
           const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
-              setUser({
-                uid: firebaseUser.uid,
-                email: firebaseUser.email,
-                displayName: firebaseUser.displayName || firebaseUser.email?.split('@')[0],
-                photoURL: firebaseUser.photoURL,
-              });
               try {
-                const idToken = await firebaseUser.getIdToken();
-                await setBackendSession({
-                  user: {
-                    uid: firebaseUser.uid,
-                    email: firebaseUser.email,
-                    displayName: firebaseUser.displayName,
-                    photoURL: firebaseUser.photoURL
-                  },
-                  idToken
-                });
+                const sessionUser = await establishBackendSession(firebaseUser);
+                if (active) setUser(sessionUser);
               } catch (err) {
                 logger.error('Failed to set session:', err);
+                if (active) {
+                  setUser(null);
+                  setError('Unable to start a secure session. Please sign in again.');
+                }
+                try {
+                  await signOut(auth);
+                  await logoutBackend();
+                } catch (logoutError) {
+                  logger.error('Failed to clear auth after session error:', logoutError);
+                }
               }
             } else {
-              setUser(null);
+              if (active) setUser(null);
             }
-            setLoading(false);
+            if (active) setLoading(false);
           });
 
-          return () => unsubscribe();
+          return () => {
+            active = false;
+            unsubscribe();
+          };
         }
+
+        if (active) setLoading(false);
       } catch (err) {
         logger.error('Firebase init error:', err);
-        setError(err.message);
-        setLoading(false);
+        if (active) {
+          setError(err.message);
+          setLoading(false);
+        }
       }
     };
 
-    init();
-  }, []);
+    const cleanupPromise = init();
+    return () => {
+      active = false;
+      cleanupPromise.then((cleanup) => cleanup?.());
+    };
+  }, [establishBackendSession]);
   const signUpWithEmail = useCallback(async (email, password, displayName = '') => {
     setError(null);
     try {

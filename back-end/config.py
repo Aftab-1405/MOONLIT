@@ -210,6 +210,9 @@ class Config:
     )
 
     # Session/Cookie Configuration (base defaults)
+    DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS", "False").lower() == "true"
+    DEV_AUTH_USER_ID = os.getenv("DEV_AUTH_USER_ID", "local-dev-user")
+    DEV_AUTH_EMAIL = os.getenv("DEV_AUTH_EMAIL", "local-dev@moonlit.local")
     SESSION_COOKIE_SECURE = False  # Override in production
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "lax"
@@ -245,6 +248,7 @@ class DevelopmentConfig(Config):
         os.getenv("LLM_RATELIMIT_ENABLED", "False").lower() == "true"
     )
     USER_QUOTA_ENABLED = os.getenv("USER_QUOTA_ENABLED", "False").lower() == "true"
+    DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS", "False").lower() == "true"
 
 
 class StagingConfig(Config):

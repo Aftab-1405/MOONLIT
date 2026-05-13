@@ -18,6 +18,7 @@ from agent.model_factory import (
     get_default_model,
 )
 from api.request_schemas import AgentResumeRequest, ChatRequest
+from api.schemas.streaming import STREAMING_RESPONSES
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["conversation"])
@@ -40,6 +41,9 @@ def _dedupe(values: list[str]) -> list[str]:
 def _provider_has_dedicated_key(provider_name: str) -> bool:
     """Check whether *provider_name* has at least one API key configured."""
     provider = provider_name.strip().lower()
+    if provider == Config.LLM_PROVIDER and Config.LLM_API_KEYS:
+        return True
+
     key_vars = {
         "cerebras": ["CEREBRAS_API_KEYS", "CEREBRAS_API_KEY"],
         "gemini": ["GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY"],
@@ -53,7 +57,7 @@ def _provider_has_dedicated_key(provider_name: str) -> bool:
 
 
 def _build_provider_options() -> tuple[list[dict], str]:
-    supported = get_supported_providers()
+    supported = tuple(_dedupe([*get_supported_providers(), Config.LLM_PROVIDER]))
     options = []
     for provider_name in supported:
         models = get_provider_models(provider_name)
@@ -80,7 +84,11 @@ def _build_provider_options() -> tuple[list[dict], str]:
     return selected_options, default_provider
 
 
-@router.post("/pass_user_prompt_to_llm")
+@router.post(
+    "/pass_user_prompt_to_llm",
+    response_class=StreamingResponse,
+    responses=STREAMING_RESPONSES,
+)
 async def pass_user_prompt_to_llm(
     request: Request,
     data: ChatRequest,
@@ -189,7 +197,11 @@ async def pass_user_prompt_to_llm(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/resume_agent")
+@router.post(
+    "/resume_agent",
+    response_class=StreamingResponse,
+    responses=STREAMING_RESPONSES,
+)
 async def resume_agent(
     request: Request,
     data: AgentResumeRequest,

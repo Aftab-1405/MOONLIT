@@ -159,6 +159,10 @@ function databaseReducer(state, action) {
 
 const DatabaseContext = createContext(null);
 
+function getDatabaseList(connectionData = {}) {
+  return connectionData.schemas || connectionData.databases || connectionData.tables || [];
+}
+
 /**
  * Hook to access database connection state and actions.
  * Must be used within a DatabaseProvider.
@@ -199,8 +203,8 @@ export function DatabaseProvider({ children }) {
         if (sessionInstanceId) {
           await sessionActive(sessionInstanceId);
         }
-        const data = await getDbStatus();
-        dispatch({ type: ActionTypes.SYNC_STATUS, payload: data });
+        const response = await getDbStatus();
+        dispatch({ type: ActionTypes.SYNC_STATUS, payload: response.data });
       } catch (error) {
         logger.error('Failed to check DB status:', error);
       }
@@ -213,10 +217,10 @@ export function DatabaseProvider({ children }) {
     dispatch({
       type: ActionTypes.CONNECT_SUCCESS,
       payload: {
-        database: connectionData.selectedDatabase || connectionData.database,
-        dbType: connectionData.db_type || connectionData.dbType,
+        database: connectionData.selected_database || connectionData.db_config?.database,
+        dbType: connectionData.db_type,
         isRemote: connectionData.is_remote ?? false,
-        databases: connectionData.schemas || connectionData.databases || [],
+        databases: getDatabaseList(connectionData),
       },
     });
   }, []);
@@ -242,22 +246,22 @@ export function DatabaseProvider({ children }) {
     if (dbName === state.currentDatabase) return { success: true };
 
     try {
-      const data = state.isRemote
+      const response = state.isRemote
         ? await switchDatabaseApi(dbName)
         : await selectDatabase(dbName);
 
-      if (data.status === 'connected' || data.status === 'success') {
+      if (response.status === 'success') {
         dispatch({
           type: ActionTypes.SWITCH_DATABASE,
-          payload: { database: dbName }
+          payload: { database: response.data.selected_database }
         });
         return { success: true };
       } else {
         dispatch({
           type: ActionTypes.SET_ERROR,
-          payload: { error: data.message || 'Switch failed' }
+          payload: { error: response.message || 'Switch failed' }
         });
-        return { success: false, error: data.message };
+        return { success: false, error: response.message };
       }
     } catch {
       dispatch({
@@ -270,8 +274,8 @@ export function DatabaseProvider({ children }) {
 
   const refreshStatus = useCallback(async () => {
     try {
-      const data = await getDbStatus();
-      dispatch({ type: ActionTypes.SYNC_STATUS, payload: data });
+      const response = await getDbStatus();
+      dispatch({ type: ActionTypes.SYNC_STATUS, payload: response.data });
     } catch (error) {
       logger.error('Failed to refresh DB status:', error);
     }

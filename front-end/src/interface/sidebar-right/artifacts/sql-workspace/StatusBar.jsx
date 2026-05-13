@@ -30,15 +30,16 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute }) 
       const maxRows = settings.maxRows ?? 1000;
       const queryTimeout = settings.queryTimeout ?? 30;
 
-      const data = await runQuery({
+      const response = await runQuery({
         sql: activeTab.query,
         maxRows,
         timeout: queryTimeout,
       });
 
-      if (data.status === 'success') {
-        const columns = data.result?.fields || [];
-        const rows = data.result?.rows || [];
+      if (response.status === 'success') {
+        const queryData = response.data;
+        const columns = queryData.result?.columns || [];
+        const rows = queryData.result?.rows || [];
 
         const transformedResult = rows.map((row) => {
           const obj = {};
@@ -51,17 +52,17 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute }) 
         const results = {
           columns,
           result: transformedResult,
-          row_count: data.row_count,
-          total_rows: data.total_rows,
-          truncated: data.truncated,
-          execution_time: data.execution_time_ms
-            ? data.execution_time_ms / 1000
+          row_count: queryData.row_count,
+          total_rows: queryData.total_rows,
+          truncated: queryData.truncated,
+          execution_time: queryData.execution_time_ms
+            ? queryData.execution_time_ms / 1000
             : null,
         };
 
         onQueryExecute(results, null);
       } else {
-        onQueryExecute(null, data.message || 'Query execution failed');
+        onQueryExecute(null, response.message || 'Query execution failed');
       }
     } catch (err) {
       onQueryExecute(null, 'Failed to execute query: ' + err.message);

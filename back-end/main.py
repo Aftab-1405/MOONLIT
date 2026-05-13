@@ -4,7 +4,9 @@ import os
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, status
+from fastapi import FastAPI, HTTPException, Request, status
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -16,6 +18,7 @@ from config import get_config, ProductionConfig
 from services.firestore_service import FirestoreService
 from services.rate_limiting import create_rate_limiter, create_user_quota_service
 from agent.checkpointing import init_checkpointer, shutdown_checkpointer
+from api.schemas.common import ApiError
 
 
 # Configure logging
@@ -169,49 +172,78 @@ def create_app() -> FastAPI:
 def _register_error_handlers(app: FastAPI):
     """Register centralized error handlers for consistent JSON responses."""
 
-    @app.exception_handler(status.HTTP_400_BAD_REQUEST)
-    async def bad_request_handler(request: Request, exc: Exception):
+    def error_code_for_status(status_code: int) -> str:
+        return {
+            status.HTTP_400_BAD_REQUEST: "BAD_REQUEST",
+            status.HTTP_401_UNAUTHORIZED: "UNAUTHORIZED",
+            status.HTTP_403_FORBIDDEN: "FORBIDDEN",
+            status.HTTP_404_NOT_FOUND: "NOT_FOUND",
+            status.HTTP_405_METHOD_NOT_ALLOWED: "METHOD_NOT_ALLOWED",
+            status.HTTP_422_UNPROCESSABLE_ENTITY: "VALIDATION_ERROR",
+            status.HTTP_429_TOO_MANY_REQUESTS: "RATE_LIMITED",
+            status.HTTP_500_INTERNAL_SERVER_ERROR: "INTERNAL_SERVER_ERROR",
+        }.get(status_code, "REQUEST_FAILED")
+
+    def api_error_response(
+        *,
+        status_code: int,
+        error: str,
+        message: str,
+        details: dict | None = None,
+        headers: dict | None = None,
+    ):
         return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={
-                "status": "error",
-                "message": "Bad request",
-                "error_type": "bad_request",
-            },
+            status_code=status_code,
+            content=ApiError(
+                error=error,
+                message=message,
+                details=details or {},
+            ).model_dump(),
+            headers=headers,
         )
 
-    @app.exception_handler(status.HTTP_404_NOT_FOUND)
-    async def not_found_handler(request: Request, exc: Exception):
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content={
-                "status": "error",
-                "message": "Resource not found",
-                "error_type": "not_found",
-            },
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException):
+        detail = exc.detail
+        error = error_code_for_status(exc.status_code)
+        message = str(detail) if detail else error.replace("_", " ").title()
+        details = {}
+
+        if isinstance(detail, dict):
+            error = str(detail.get("error") or detail.get("error_type") or error)
+            message = str(detail.get("message") or detail.get("detail") or message)
+            details = {
+                key: value
+                for key, value in detail.items()
+                if key not in {"error", "error_type", "message", "detail"}
+            }
+
+        return api_error_response(
+            status_code=exc.status_code,
+            error=error.upper(),
+            message=message,
+            details=details,
+            headers=exc.headers,
         )
 
-    @app.exception_handler(status.HTTP_405_METHOD_NOT_ALLOWED)
-    async def method_not_allowed_handler(request: Request, exc: Exception):
-        return JSONResponse(
-            status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-            content={
-                "status": "error",
-                "message": "Method not allowed",
-                "error_type": "method_not_allowed",
-            },
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(
+        request: Request, exc: RequestValidationError
+    ):
+        return api_error_response(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            error="VALIDATION_ERROR",
+            message="Request validation failed.",
+            details={"errors": jsonable_encoder(exc.errors())},
         )
 
-    @app.exception_handler(status.HTTP_500_INTERNAL_SERVER_ERROR)
+    @app.exception_handler(Exception)
     async def internal_error_handler(request: Request, exc: Exception):
         logger.exception(f"Internal server error: {exc}")
-        return JSONResponse(
+        return api_error_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content={
-                "status": "error",
-                "message": "Internal server error",
-                "error_type": "internal_error",
-            },
+            error="INTERNAL_SERVER_ERROR",
+            message="Internal server error",
         )
 
 

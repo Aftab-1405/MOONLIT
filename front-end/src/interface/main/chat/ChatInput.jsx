@@ -116,10 +116,10 @@ function ChatInput({
   const fetchSchemas = useCallback(async () => {
     setSchemaLoading(true);
     try {
-      const data = await getSchemas();
-      if (data.status === 'success') {
-        setSchemas(data.schemas || []);
-        setCurrentSchema(data.current_schema || 'public');
+      const response = await getSchemas();
+      if (response.status === 'success') {
+        setSchemas(response.data.schemas || []);
+        setCurrentSchema(response.data.current_schema || 'public');
       }
     } catch (err) {
       logger.error('Failed to fetch schemas:', err);
@@ -134,8 +134,8 @@ function ChatInput({
 
     setSchemaLoading(true);
     try {
-      const data = await selectSchema(schema);
-      if (data.status === 'success') {
+      const response = await selectSchema(schema);
+      if (response.status === 'success') {
         setCurrentSchema(schema);
       }
     } catch (err) {

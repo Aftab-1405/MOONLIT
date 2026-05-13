@@ -12,8 +12,8 @@ Benefits:
 - Better error messages when validation fails
 """
 
-from typing import Optional, List, Dict, Any, Literal
-from pydantic import BaseModel, Field, field_validator
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 SUPPORTED_UI_ACTIONS = {
@@ -241,12 +241,16 @@ class ToolResultBase(BaseModel):
 class ConnectionStatusResult(ToolResultBase):
     """Structured result for connection status."""
 
+    model_config = ConfigDict(populate_by_name=True)
+
     connected: bool = False
     db_type: Optional[str] = None
     database: Optional[str] = None
     host: Optional[str] = None
     is_remote: Optional[bool] = None
-    schema: Optional[str] = None
+    schema_name: Optional[str] = Field(
+        default=None, validation_alias="schema", serialization_alias="schema"
+    )
 
 
 class DatabaseListResult(ToolResultBase):
@@ -372,8 +376,8 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
                 database=raw_result.get("database"),
                 host=raw_result.get("host"),
                 is_remote=raw_result.get("is_remote"),
-                schema=raw_result.get("schema"),
-            ).model_dump()
+                schema_name=raw_result.get("schema"),
+            ).model_dump(by_alias=True)
 
         elif tool_name == "get_database_list":
             dbs = raw_result.get("databases", [])

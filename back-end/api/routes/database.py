@@ -3,7 +3,7 @@
 
 import logging
 import time
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
@@ -14,12 +14,145 @@ from dependencies import (
     require_db_config,
     update_session_data,
 )
+from services.connection_service import ConnectionService
 from services.database_service import DatabaseService
-from database import connection_handlers
 from api.request_schemas import RunQueryRequest, SwitchDatabaseRequest, ConnectDBRequest
+from api.schemas.common import COMMON_ERROR_RESPONSES, ApiSuccess
+from api.schemas.database import (
+    ConnectDatabaseData,
+    DatabaseConfigPublic,
+    DatabaseStatusData,
+    DisconnectDatabaseData,
+    DatabaseListData,
+    DatabaseSelectionData,
+)
+from api.schemas.query import QueryResultData, RunSqlQueryData
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["database"])
+
+
+def _raise_service_error(result: dict, status_code: int = 400) -> None:
+    if result.get("status") == "error":
+        raise HTTPException(
+            status_code=status_code,
+            detail={
+                "error": "database_operation_failed",
+                "message": result.get("message") or "Database operation failed.",
+            },
+        )
+
+
+def _public_db_config(raw_config: dict | None, fallback_db_type: str | None = None):
+    if not raw_config and not fallback_db_type:
+        return None
+
+    raw_config = raw_config or {}
+    db_type = raw_config.get("db_type") or fallback_db_type
+    if not db_type:
+        return None
+
+    return DatabaseConfigPublic(
+        db_type=db_type,
+        database=raw_config.get("database"),
+        host=raw_config.get("host"),
+        port=raw_config.get("port"),
+        username=raw_config.get("username") or raw_config.get("user"),
+        is_remote=bool(raw_config.get("is_remote") or raw_config.get("connection_string")),
+        schema_name=raw_config.get("schema"),
+        service_name=raw_config.get("service_name"),
+    )
+
+
+def _selected_database(result: dict, db_config: DatabaseConfigPublic | None = None):
+    return (
+        result.get("selected_database")
+        or result.get("selectedDatabase")
+        or (db_config.database if db_config else None)
+    )
+
+
+def _normalize_connect_response(result: dict) -> ConnectDatabaseData:
+    db_config = _public_db_config(result.get("db_config"), result.get("db_type"))
+    if not db_config:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "invalid_database_response",
+                "message": "Database connection response did not include db_config.",
+            },
+        )
+
+    return ConnectDatabaseData(
+        db_config=db_config,
+        db_type=db_config.db_type,
+        selected_database=_selected_database(result, db_config),
+        schemas=result.get("schemas") or [],
+        databases=result.get("databases") or [],
+        tables=result.get("tables") or [],
+        is_remote=db_config.is_remote,
+    )
+
+
+def _normalize_database_list_response(result: dict) -> DatabaseListData:
+    return DatabaseListData(
+        databases=result.get("databases") or [],
+        db_type=result.get("db_type"),
+        is_remote=bool(result.get("is_remote")),
+    )
+
+
+def _normalize_database_selection_response(
+    result: dict, requested_database: str
+) -> DatabaseSelectionData:
+    db_config = _public_db_config(result.get("db_config"))
+    if not db_config:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "invalid_database_response",
+                "message": "Database selection response did not include db_config.",
+            },
+        )
+
+    selected_database = _selected_database(result, db_config) or requested_database
+    return DatabaseSelectionData(
+        db_config=db_config,
+        selected_database=selected_database,
+        tables=result.get("tables") or [],
+        db_type=db_config.db_type,
+        is_remote=db_config.is_remote,
+    )
+
+
+def _normalize_rows(rows: list[Any]) -> list[list[Any]]:
+    normalized = []
+    for row in rows:
+        if isinstance(row, list):
+            normalized.append(row)
+        elif isinstance(row, tuple):
+            normalized.append(list(row))
+        else:
+            normalized.append([row])
+    return normalized
+
+
+def _normalize_query_response(result: dict) -> RunSqlQueryData:
+    result_payload = result.get("result") or {}
+    columns = result_payload.get("columns") or result_payload.get("fields") or []
+    rows = _normalize_rows(result_payload.get("rows") or [])
+    query_type = result.get("query_type") or "SELECT"
+    if query_type not in {"SELECT", "WITH"}:
+        query_type = "OTHER"
+
+    return RunSqlQueryData(
+        result=QueryResultData(columns=columns, rows=rows),
+        row_count=result.get("row_count", len(rows)),
+        total_rows=result.get("total_rows"),
+        truncated=bool(result.get("truncated", False)),
+        execution_time_ms=result.get("execution_time_ms", 0),
+        query_type=query_type,
+    )
 
 
 # =============================================================================
@@ -27,7 +160,11 @@ router = APIRouter(tags=["database"])
 # =============================================================================
 
 
-@router.post("/connect_db")
+@router.post(
+    "/connect_db",
+    response_model=ApiSuccess[ConnectDatabaseData],
+    responses=COMMON_ERROR_RESPONSES,
+)
 async def connect_db(
     request: Request, data: ConnectDBRequest, user: dict = Depends(get_current_user)
 ):
@@ -42,46 +179,9 @@ async def connect_db(
     }
     logger.info(f"Connect request data: {safe_log_data}")
 
-    db_type = data.db_type
-    connection_string = data.connection_string
-
-    _REMOTE_STRING_HANDLERS = {
-        "postgresql": connection_handlers.connect_remote_postgresql,
-        "mysql": connection_handlers.connect_remote_mysql,
-        "sqlserver": connection_handlers.connect_remote_sqlserver,
-        "oracle": connection_handlers.connect_remote_oracle,
-    }
-
-    _HOST_PORT_HANDLERS = {
-        "postgresql": connection_handlers.connect_postgresql,
-        "mysql": connection_handlers.connect_mysql,
-        "sqlserver": connection_handlers.connect_sqlserver,
-        "oracle": connection_handlers.connect_oracle,
-    }
-
-    if connection_string:
-        # Connection string path (remote)
-        handler = _REMOTE_STRING_HANDLERS.get(db_type)
-        if not handler:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Remote {db_type} via connection string is not supported.",
-            )
-        result = await run_in_threadpool(handler, connection_string, user_id)
-    else:
-        # Host/port/credentials path — loopback addresses are rejected inside the handler
-        handler = _HOST_PORT_HANDLERS.get(db_type)
-        if not handler:
-            raise HTTPException(status_code=400, detail=f"{db_type} is not supported.")
-        result = await run_in_threadpool(
-            handler,
-            data.host,
-            data.port,
-            data.username,
-            data.password,
-            data.database,
-            user_id,
-        )
+    result = await run_in_threadpool(
+        ConnectionService.connect_database, data.model_dump(), user_id
+    )
 
     # Store db_config in session if connection successful
     if result.get("status") in ["connected", "success"] and "db_config" in result:
@@ -96,12 +196,19 @@ async def connect_db(
 
     if result.get("status") == "error":
         logger.error(f"Connection failed: {result.get('message')}")
-        raise HTTPException(status_code=400, detail=result.get("message"))
+        _raise_service_error(result)
 
-    return result
+    return ApiSuccess(
+        data=_normalize_connect_response(result),
+        message=result.get("message"),
+    )
 
 
-@router.post("/disconnect_db")
+@router.post(
+    "/disconnect_db",
+    response_model=ApiSuccess[DisconnectDatabaseData],
+    responses=COMMON_ERROR_RESPONSES,
+)
 async def disconnect_db(
     request: Request,
     db_config: Optional[dict] = Depends(get_db_config),
@@ -123,11 +230,19 @@ async def disconnect_db(
     )
 
     if result.get("status") == "error":
-        raise HTTPException(status_code=500, detail=result.get("message"))
-    return result
+        _raise_service_error(result, status_code=500)
+
+    return ApiSuccess(
+        data=DisconnectDatabaseData(disconnected=True),
+        message="Database disconnected successfully",
+    )
 
 
-@router.get("/db_status")
+@router.get(
+    "/db_status",
+    response_model=ApiSuccess[DatabaseStatusData],
+    responses=COMMON_ERROR_RESPONSES,
+)
 async def db_status(db_config: Optional[dict] = Depends(get_db_config)):
     """Get current database connection status.
 
@@ -139,7 +254,16 @@ async def db_status(db_config: Optional[dict] = Depends(get_db_config)):
     - databases: list of available databases for switching
     """
     if not db_config:
-        return {"status": "disconnected", "connected": False}
+        return ApiSuccess(
+            data=DatabaseStatusData(
+                connected=False,
+                db_type=None,
+                current_database=None,
+                is_remote=False,
+                databases=[],
+            ),
+            message=None,
+        )
 
     # Fetch available databases for the switcher chip
     databases = []
@@ -150,45 +274,41 @@ async def db_status(db_config: Optional[dict] = Depends(get_db_config)):
     except Exception as e:
         logger.warning(f"Failed to fetch databases for status: {e}")
 
-    return {
-        "status": "connected",
-        "connected": True,
-        "db_type": db_config.get("db_type"),
-        "current_database": db_config.get("database"),
-        "is_remote": db_config.get("is_remote", False),
-        "databases": databases,
-    }
+    return ApiSuccess(
+        data=DatabaseStatusData(
+            connected=True,
+            db_type=db_config.get("db_type"),
+            current_database=db_config.get("database"),
+            is_remote=db_config.get("is_remote", False),
+            databases=databases,
+        ),
+        message=None,
+    )
 
 
 @router.get("/db_heartbeat")
 async def db_heartbeat(db_config: Optional[dict] = Depends(get_db_config)):
     """Lightweight database connection health check."""
-    if not db_config:
-        return {"status": "error", "connected": False}
-
-    try:
-        from database.connection_manager import get_connection_manager
-        from database.adapters import get_adapter
-
-        manager = get_connection_manager()
-        adapter = get_adapter(db_config.get("db_type", "mysql"))
-
-        conn = await run_in_threadpool(manager.get_connection, db_config)
-        is_valid = await run_in_threadpool(adapter.validate_connection, conn)
-
-        return {"status": "success", "connected": is_valid}
-    except Exception:
-        return {"status": "error", "connected": False}
+    return await run_in_threadpool(ConnectionService.check_connection_health, db_config)
 
 
-@router.get("/get_databases")
-async def get_databases_route(db_config: Optional[dict] = Depends(get_db_config)):
+@router.get(
+    "/get_databases",
+    response_model=ApiSuccess[DatabaseListData],
+    responses=COMMON_ERROR_RESPONSES,
+)
+async def get_databases_route(db_config: dict = Depends(require_db_config)):
     """Get list of available databases."""
     result = await run_in_threadpool(DatabaseService.get_databases, db_config)
-    return result
+    _raise_service_error(result)
+    return ApiSuccess(data=_normalize_database_list_response(result))
 
 
-@router.post("/switch_remote_database")
+@router.post(
+    "/switch_remote_database",
+    response_model=ApiSuccess[DatabaseSelectionData],
+    responses=COMMON_ERROR_RESPONSES,
+)
 async def switch_remote_database(
     request: Request,
     data: SwitchDatabaseRequest,
@@ -213,12 +333,18 @@ async def switch_remote_database(
             },
         )
 
-    if result.get("status") == "error":
-        raise HTTPException(status_code=400, detail=result.get("message"))
-    return result
+    _raise_service_error(result)
+    return ApiSuccess(
+        data=_normalize_database_selection_response(result, data.database),
+        message=result.get("message"),
+    )
 
 
-@router.post("/select_database")
+@router.post(
+    "/select_database",
+    response_model=ApiSuccess[DatabaseSelectionData],
+    responses=COMMON_ERROR_RESPONSES,
+)
 async def select_database(
     request: Request,
     data: SwitchDatabaseRequest,
@@ -229,7 +355,7 @@ async def select_database(
     user_id = user.get("uid") or user
 
     result = await run_in_threadpool(
-        connection_handlers.select_database, db_config, data.database, user_id
+        ConnectionService.select_database, db_config, data.database, user_id
     )
 
     if result.get("status") in ["connected", "success"] and "db_config" in result:
@@ -242,9 +368,11 @@ async def select_database(
             },
         )
 
-    if result.get("status") == "error":
-        raise HTTPException(status_code=400, detail=result.get("message"))
-    return result
+    _raise_service_error(result)
+    return ApiSuccess(
+        data=_normalize_database_selection_response(result, data.database),
+        message=result.get("message"),
+    )
 
 
 # =============================================================================
@@ -252,7 +380,11 @@ async def select_database(
 # =============================================================================
 
 
-@router.post("/run_sql_query")
+@router.post(
+    "/run_sql_query",
+    response_model=ApiSuccess[RunSqlQueryData],
+    responses=COMMON_ERROR_RESPONSES,
+)
 async def run_sql_query(
     data: RunQueryRequest,
     db_config: dict = Depends(require_db_config),
@@ -274,4 +406,8 @@ async def run_sql_query(
         max_rows=max_rows,
         timeout=timeout,
     )
-    return result
+    _raise_service_error(result)
+    return ApiSuccess(
+        data=_normalize_query_response(result),
+        message=result.get("message"),
+    )

@@ -17,7 +17,7 @@ import { DATABASE } from './endpoints';
 /**
  * Get current database connection status.
  * 
- * @returns {Promise<{status: string, connected: boolean, database?: string, db_type?: string}>}
+ * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function getStatus() {
   return get(DATABASE.STATUS);
@@ -34,7 +34,7 @@ export async function getStatus() {
  * @param {string} [params.password] - Database password
  * @param {string} [params.db_name] - Database name
  * @param {string} [params.connection_string] - Connection string (for remote DBs)
- * @returns {Promise<{status: string, message: string, schemas?: Array}>}
+ * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function connect(params) {
   return post(DATABASE.CONNECT, params);
@@ -43,7 +43,7 @@ export async function connect(params) {
 /**
  * Disconnect from current database.
  * 
- * @returns {Promise<{status: string}>}
+ * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function disconnect() {
   return post(DATABASE.DISCONNECT);
@@ -52,7 +52,7 @@ export async function disconnect() {
 /**
  * List available databases.
  * 
- * @returns {Promise<{status: string, databases: Array, is_remote?: boolean}>}
+ * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function getDatabases() {
   return get(DATABASE.LIST_DATABASES);
@@ -62,7 +62,7 @@ export async function getDatabases() {
  * Switch to a different database (for remote connections).
  * 
  * @param {string} database - Target database name
- * @returns {Promise<{status: string, tables?: Array}>}
+ * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function switchDatabase(database) {
   return post(DATABASE.SWITCH_DATABASE, { database });
@@ -73,7 +73,7 @@ export async function switchDatabase(database) {
  * Uses session's db_config, no need to re-send credentials.
  * 
  * @param {string} database - Target database name
- * @returns {Promise<{status: string, db_config?: Object}>}
+ * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function selectDatabase(database) {
   return post(DATABASE.SELECT_DATABASE, { database });
@@ -82,7 +82,7 @@ export async function selectDatabase(database) {
 /**
  * Get available schemas.
  * 
- * @returns {Promise<{status: string, schemas: Array}>}
+ * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function getSchemas() {
   return get(DATABASE.GET_SCHEMAS);
@@ -92,7 +92,7 @@ export async function getSchemas() {
  * Select a schema for AI context.
  * 
  * @param {string} schemaName - Schema name
- * @returns {Promise<{status: string}>}
+ * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function selectSchema(schemaName) {
   return post(DATABASE.SELECT_SCHEMA, { schema_name: schemaName });

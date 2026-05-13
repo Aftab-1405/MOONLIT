@@ -278,13 +278,13 @@ function DatabaseModal({
 
   const fetchDatabases = useCallback(async () => {
     try {
-      const data = await getDatabases();
-      if (data.status === 'success' && data.databases) {
-        setDatabases(data.databases);
-        if (data.is_remote) {
+      const response = await getDatabases();
+      if (response.status === 'success' && response.data.databases) {
+        setDatabases(response.data.databases);
+        if (response.data.is_remote) {
           setIsRemote(true);
-          if (data.db_type) {
-            setDbType(data.db_type);
+          if (response.data.db_type) {
+            setDbType(response.data.db_type);
           }
           setConnectionMode('connection_string');
         }
@@ -345,13 +345,14 @@ function DatabaseModal({
         return;
       }
 
-      const data = await connectDb(payload);
+      const response = await connectDb(payload);
 
-      if (data.status === 'connected') {
-        setSuccess(data.message);
-        setDatabases(data.schemas || []);
-        setIsRemote(data.is_remote || false);
-        onConnect?.({ ...data, db_type: dbType });
+      if (response.status === 'success') {
+        const connectionData = response.data;
+        setSuccess(response.message || 'Database connected successfully');
+        setDatabases(connectionData.schemas || connectionData.databases || connectionData.tables || []);
+        setIsRemote(connectionData.is_remote || false);
+        onConnect?.(connectionData);
 
         if (rememberConnection) {
           setSavedConnection({
@@ -367,7 +368,7 @@ function DatabaseModal({
         }
 
       } else {
-        setError(data.message || 'Failed to connect');
+        setError(response.message || 'Failed to connect');
       }
     } catch (err) {
       setError(err.message || 'Connection failed');
@@ -390,12 +391,12 @@ function DatabaseModal({
     setLoading(true);
     setError(null);
     try {
-      const data = isRemote ? await switchDatabase(dbName) : await selectDatabase(dbName);
-      if (data.status === 'connected') {
+      const response = isRemote ? await switchDatabase(dbName) : await selectDatabase(dbName);
+      if (response.status === 'success') {
         setSuccess(`Switched to ${dbName}`);
-        onConnect?.({ ...data, selectedDatabase: dbName });
+        onConnect?.(response.data);
       } else {
-        setError(data.message);
+        setError(response.message);
       }
     } catch (err) {
       setError(err.message || 'Failed to select database');

@@ -510,7 +510,6 @@ function Auth() {
     setFormLoading(true);
     try {
       await signInWithEmail(email, password);
-      navigate('/chat');
     } catch (err) {
       logger.error('Sign in failed:', err);
     } finally {
@@ -525,7 +524,6 @@ function Auth() {
     setFormLoading(true);
     try {
       await signUpWithEmail(email, password, displayName);
-      navigate('/chat');
     } catch (err) {
       logger.error('Sign up failed:', err);
     } finally {
@@ -536,7 +534,6 @@ function Auth() {
   const handleGoogleSignIn = async () => {
     try {
       await signInWithGoogle();
-      navigate('/chat');
     } catch {
       // surfaced by AuthContext
     }
@@ -545,7 +542,6 @@ function Auth() {
   const handleGitHubSignIn = async () => {
     try {
       await signInWithGitHub();
-      navigate('/chat');
     } catch {
       // surfaced by AuthContext
     }

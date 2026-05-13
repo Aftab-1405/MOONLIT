@@ -64,77 +64,6 @@ def _parse_connection_string(connection_string: str) -> Dict[str, str]:
     }
 
 
-def _sync_context(
-    user_id: str,
-    db_type: str,
-    database: str,
-    host: str,
-    is_remote: bool,
-    schema: str = "public",
-):
-    """Sync connection state to Firestore for AI context."""
-    if not user_id:
-        return
-    try:
-        from services.context_service import ContextService
-
-        ContextService.set_connection(
-            user_id, db_type, database, host, is_remote, schema
-        )
-        logger.info(f"Synced context for user {user_id}: {db_type}/{database}")
-    except Exception as e:
-        logger.warning(f"Failed to sync context: {e}")
-
-
-def _store_schema_context(
-    user_id: str, db_config: dict, database: str, tables: list, db_type: str
-):
-    """Store database schema as AI context in Firestore."""
-    if not user_id:
-        return
-    try:
-        from services.context_service import ContextService
-        from database.connection_manager import get_connection_manager
-        from database.adapters import get_adapter
-        from config import get_config
-
-        config = get_config()
-        max_tables = config.SCHEMA_CONTEXT_MAX_TABLES
-
-        adapter = get_adapter(db_type)
-        manager = get_connection_manager()
-
-        columns = {}
-        tables_subset = tables[:max_tables]
-        query, params = adapter.get_batch_columns_for_tables(database, tables_subset)
-
-        with manager.get_cursor(db_config) as cursor:
-            cursor.execute(query, params)
-            for row in cursor.fetchall():
-                table_name = row[0]
-                column_name = row[1]
-                column_key = row[2] if len(row) > 2 else ""
-
-                if table_name not in columns:
-                    columns[table_name] = []
-
-                columns[table_name].append(
-                    {"name": column_name, "is_primary_key": column_key == "PRI"}
-                )
-
-        # Ensure all tables have entries
-        for table in tables_subset:
-            if table not in columns:
-                columns[table] = []
-
-        ContextService.store_schema_context(user_id, database, tables, columns)
-        logger.info(
-            f"Stored schema context for {database}: {len(tables)} tables (limit: {max_tables})"
-        )
-    except Exception as e:
-        logger.warning(f"Failed to store schema context: {e}")
-
-
 # =============================================================================
 # HOST/PORT CONNECTION FUNCTIONS
 # These support any remote host. Loopback addresses are rejected.
@@ -147,7 +76,6 @@ def connect_mysql(
     user: str,
     password: str,
     database: str = None,
-    user_id: str = None,
 ) -> dict:
     """Connect to a remote MySQL server using host/port credentials."""
     err = _validate_host(host)
@@ -179,23 +107,6 @@ def connect_mysql(
             dbs_result = DatabaseOperations.get_databases(db_config)
 
             if dbs_result.get("status") == "success":
-                _sync_context(user_id, "mysql", database or "mysql", host, False)
-
-                if database and user_id:
-                    try:
-                        tables_query, tables_params = adapter.get_all_tables_for_cache(
-                            database
-                        )
-                        with manager.get_cursor(db_config) as cursor:
-                            cursor.execute(tables_query, tables_params)
-                            tables = [row[0] for row in cursor.fetchall()]
-                        if tables:
-                            _store_schema_context(
-                                user_id, db_config, database, tables, "mysql"
-                            )
-                    except Exception as e:
-                        logger.warning(f"Failed to cache MySQL schema: {e}")
-
                 logger.info(f"Connected to MySQL: {host}:{port}")
                 return {
                     "status": "connected",
@@ -225,7 +136,6 @@ def connect_postgresql(
     user: str,
     password: str,
     database: str = None,
-    user_id: str = None,
 ) -> dict:
     """Connect to a remote PostgreSQL server using host/port credentials."""
     err = _validate_host(host)
@@ -257,25 +167,6 @@ def connect_postgresql(
             dbs_result = DatabaseOperations.get_databases(db_config)
 
             if dbs_result.get("status") == "success":
-                _sync_context(
-                    user_id, "postgresql", database or "postgres", host, False
-                )
-
-                if database and user_id:
-                    try:
-                        tables_query, tables_params = adapter.get_all_tables_for_cache(
-                            database, "public"
-                        )
-                        with manager.get_cursor(db_config) as cursor:
-                            cursor.execute(tables_query, tables_params)
-                            tables = [row[0] for row in cursor.fetchall()]
-                        if tables:
-                            _store_schema_context(
-                                user_id, db_config, database, tables, "postgresql"
-                            )
-                    except Exception as e:
-                        logger.warning(f"Failed to cache PostgreSQL schema: {e}")
-
                 logger.info(f"Connected to PostgreSQL: {host}:{port}")
                 return {
                     "status": "connected",
@@ -305,7 +196,6 @@ def connect_sqlserver(
     user: str,
     password: str,
     database: str = None,
-    user_id: str = None,
 ) -> dict:
     """Connect to a remote SQL Server database using host/port credentials."""
     err = _validate_host(host)
@@ -345,23 +235,6 @@ def connect_sqlserver(
                 if database:
                     databases = [database]
 
-            _sync_context(user_id, "sqlserver", database or "master", host, False)
-
-            if database and user_id:
-                try:
-                    tables_query, tables_params = adapter.get_all_tables_for_cache(
-                        database
-                    )
-                    with manager.get_cursor(db_config) as cursor:
-                        cursor.execute(tables_query, tables_params)
-                        tables = [row[0] for row in cursor.fetchall()]
-                    if tables:
-                        _store_schema_context(
-                            user_id, db_config, database, tables, "sqlserver"
-                        )
-                except Exception as e:
-                    logger.warning(f"Failed to cache SQL Server schema: {e}")
-
             logger.info(f"Connected to SQL Server: {host}:{port}")
             return {
                 "status": "connected",
@@ -383,7 +256,6 @@ def connect_oracle(
     user: str,
     password: str,
     service_name: str = None,
-    user_id: str = None,
 ) -> dict:
     """Connect to a remote Oracle database server using host/port credentials."""
     err = _validate_host(host)
@@ -421,23 +293,6 @@ def connect_oracle(
                 schemas = [user.upper()] if user else []
 
             schema_name = user.upper() if user else "SYSTEM"
-            _sync_context(user_id, "oracle", schema_name, host, False)
-
-            if schema_name and user_id:
-                try:
-                    tables_query, tables_params = adapter.get_all_tables_for_cache(
-                        schema_name
-                    )
-                    with manager.get_cursor(db_config) as cursor:
-                        cursor.execute(tables_query, tables_params)
-                        tables = [row[0] for row in cursor.fetchall()]
-                    if tables:
-                        _store_schema_context(
-                            user_id, db_config, schema_name, tables, "oracle"
-                        )
-                except Exception as e:
-                    logger.warning(f"Failed to cache Oracle schema: {e}")
-
             logger.info(f"Connected to Oracle: {host}:{port}/{service_name}")
             return {
                 "status": "connected",
@@ -458,7 +313,7 @@ def connect_oracle(
 # =============================================================================
 
 
-def connect_remote_postgresql(connection_string: str, user_id: str = None) -> dict:
+def connect_remote_postgresql(connection_string: str) -> dict:
     """Connect to a remote PostgreSQL database using a connection string."""
     from database.adapters import get_adapter
     from database.connection_manager import get_connection_manager
@@ -501,9 +356,6 @@ def connect_remote_postgresql(connection_string: str, user_id: str = None) -> di
             except Exception as e:
                 logger.warning(f"Failed to fetch tables: {e}")
 
-            _sync_context(user_id, "postgresql", db_name, host, True)
-            _store_schema_context(user_id, db_config, db_name, tables, "postgresql")
-
             message = f"Connected to remote PostgreSQL: {db_name}"
             if tables:
                 message += f" ({len(tables)} tables)"
@@ -524,7 +376,7 @@ def connect_remote_postgresql(connection_string: str, user_id: str = None) -> di
         return {"status": "error", "message": str(err)}
 
 
-def connect_remote_mysql(connection_string: str, user_id: str = None) -> dict:
+def connect_remote_mysql(connection_string: str) -> dict:
     """Connect to a remote MySQL database using a connection string."""
     from database.adapters import get_adapter
     from database.connection_manager import get_connection_manager
@@ -577,9 +429,6 @@ def connect_remote_mysql(connection_string: str, user_id: str = None) -> dict:
             except Exception as e:
                 logger.warning(f"Failed to fetch tables: {e}")
 
-            _sync_context(user_id, "mysql", db_name, host, True)
-            _store_schema_context(user_id, db_config, db_name, tables, "mysql")
-
             message = f"Connected to remote MySQL: {db_name}"
             if tables:
                 message += f" ({len(tables)} tables)"
@@ -600,7 +449,7 @@ def connect_remote_mysql(connection_string: str, user_id: str = None) -> dict:
         return {"status": "error", "message": str(err)}
 
 
-def connect_remote_oracle(connection_string: str, user_id: str = None) -> dict:
+def connect_remote_oracle(connection_string: str) -> dict:
     """
     Connect to a remote Oracle database using a connection string.
 
@@ -614,10 +463,9 @@ def connect_remote_oracle(connection_string: str, user_id: str = None) -> dict:
 
     match = _re.match(r"([^/]+)/([^@]+)@([^:]+):?(\d+)?/(.+)", connection_string)
     if match:
-        user, _password, host, port, service_name = match.groups()
+        user, _password, _host, _port, _service_name = match.groups()
         schema_name = user.upper()
     else:
-        host = "remote"
         schema_name = "REMOTE"
 
     db_config = {
@@ -654,10 +502,6 @@ def connect_remote_oracle(connection_string: str, user_id: str = None) -> dict:
             except Exception as e:
                 logger.warning(f"Failed to fetch Oracle tables: {e}")
 
-            _sync_context(user_id, "oracle", schema_name, host, True)
-            if tables:
-                _store_schema_context(user_id, db_config, schema_name, tables, "oracle")
-
             message = f"Connected to remote Oracle: {schema_name}"
             if tables:
                 message += f" ({len(tables)} tables)"
@@ -678,7 +522,7 @@ def connect_remote_oracle(connection_string: str, user_id: str = None) -> dict:
         return {"status": "error", "message": str(err)}
 
 
-def connect_remote_sqlserver(connection_string: str, user_id: str = None) -> dict:
+def connect_remote_sqlserver(connection_string: str) -> dict:
     """
     Connect to a remote SQL Server database using a connection string.
 
@@ -732,10 +576,6 @@ def connect_remote_sqlserver(connection_string: str, user_id: str = None) -> dic
             except Exception as e:
                 logger.warning(f"Failed to fetch SQL Server tables: {e}")
 
-            _sync_context(user_id, "sqlserver", db_name, host, True)
-            if tables:
-                _store_schema_context(user_id, db_config, db_name, tables, "sqlserver")
-
             message = f"Connected to remote SQL Server: {db_name}"
             if tables:
                 message += f" ({len(tables)} tables)"
@@ -761,19 +601,17 @@ def connect_remote_sqlserver(connection_string: str, user_id: str = None) -> dic
 # =============================================================================
 
 
-def select_database(db_config: dict, db_name: str, user_id: str = None) -> dict:
+def select_database(db_config: dict, db_name: str) -> dict:
     """
     Select a database on an existing connection.
 
     Args:
         db_config: Current database configuration
         db_name: Name of database to select
-        user_id: User ID for context tracking
-
-    Returns:
+        Returns:
         Dict with status and updated db_config
     """
-    from database.operations import fetch_database_info, DatabaseOperations
+    from database.operations import fetch_database_info
 
     if not db_name:
         return {"status": "error", "message": "Database name required"}
@@ -785,15 +623,7 @@ def select_database(db_config: dict, db_name: str, user_id: str = None) -> dict:
     new_config["database"] = db_name
 
     try:
-        db_info, detailed_info = fetch_database_info(new_config, db_name)
-
-        db_type = db_config.get("db_type", "mysql")
-        host = db_config.get("host", "remote")
-        _sync_context(user_id, db_type, db_name, host, False)
-
-        tables = DatabaseOperations.get_tables(new_config, db_name)
-        if tables:
-            _store_schema_context(user_id, new_config, db_name, tables, db_type)
+        fetch_database_info(new_config, db_name)
 
         logger.info(f"Selected database: {db_name}")
         return {

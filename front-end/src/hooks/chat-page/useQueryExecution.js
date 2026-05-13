@@ -51,10 +51,11 @@ export function useQueryExecution({
     const signal = abortControllerRef.current.signal;
 
     try {
-      const data = await runQuery({ sql, maxRows, timeout: queryTimeout }, signal);
-      if (data.status === 'success') {
-        const columns = data.result?.fields || [];
-        const rows = data.result?.rows || [];
+      const response = await runQuery({ sql, maxRows, timeout: queryTimeout }, signal);
+      if (response.status === 'success') {
+        const queryData = response.data;
+        const columns = queryData.result?.columns || [];
+        const rows = queryData.result?.rows || [];
 
         const transformedResult = rows.map(row => {
           const obj = {};
@@ -67,14 +68,14 @@ export function useQueryExecution({
         onQueryResults?.({
           columns,
           result: transformedResult,
-          row_count: data.row_count,
-          total_rows: data.total_rows,
-          truncated: data.truncated,
-          execution_time: data.execution_time_ms ? data.execution_time_ms / 1000 : null,
+          row_count: queryData.row_count,
+          total_rows: queryData.total_rows,
+          truncated: queryData.truncated,
+          execution_time: queryData.execution_time_ms ? queryData.execution_time_ms / 1000 : null,
         });
-        showSnackbar(`Query returned ${data.row_count} rows`, 'success');
+        showSnackbar(`Query returned ${queryData.row_count} rows`, 'success');
       } else {
-        showSnackbar(data.message || 'Query failed', 'error');
+        showSnackbar(response.message || 'Query failed', 'error');
       }
     } catch (error) {
       if (error.name === 'AbortError') return; // Ignore abort errors

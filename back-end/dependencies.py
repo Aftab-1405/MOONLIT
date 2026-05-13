@@ -11,9 +11,10 @@ import time
 from typing import Optional
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
-from config import Config
+from config import get_config
 
 logger = logging.getLogger(__name__)
+Config = get_config()
 
 
 async def get_redis():
@@ -97,6 +98,17 @@ async def get_current_user(request: Request) -> dict:
         user = session_data["user"]
         request.state.user = user
         logger.debug(f"Session auth for user: {user.get('uid')}")
+        return user
+
+    if Config.DEBUG and Config.DEV_AUTH_BYPASS:
+        user = {
+            "uid": Config.DEV_AUTH_USER_ID,
+            "email": Config.DEV_AUTH_EMAIL,
+            "name": "Local Dev",
+            "verified": True,
+        }
+        request.state.user = user
+        logger.debug("Development auth bypass for user: %s", user["uid"])
         return user
 
     logger.debug("No valid authentication found")

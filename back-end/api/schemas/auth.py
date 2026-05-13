@@ -1,0 +1,1 @@
+"""Authentication API contract models."""
