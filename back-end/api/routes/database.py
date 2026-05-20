@@ -286,12 +286,6 @@ async def db_status(db_config: Optional[dict] = Depends(get_db_config)):
     )
 
 
-@router.get("/db_heartbeat")
-async def db_heartbeat(db_config: Optional[dict] = Depends(get_db_config)):
-    """Lightweight database connection health check."""
-    return await run_in_threadpool(ConnectionService.check_connection_health, db_config)
-
-
 @router.get(
     "/get_databases",
     response_model=ApiSuccess[DatabaseListData],

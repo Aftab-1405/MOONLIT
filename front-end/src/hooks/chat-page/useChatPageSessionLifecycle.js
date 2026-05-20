@@ -34,13 +34,24 @@ export function useChatPageSessionLifecycle({ isDbConnected, connectionPersisten
   }, []);
 
   useEffect(() => {
+    let closeSent = false;
+
     const handleTabClose = () => {
-      if (!isDbConnected) return;
+      if (!isDbConnected || closeSent) return;
+      closeSent = true;
       const sessionInstanceId = readSessionInstanceId();
       const payload = { connectionPersistenceMinutes, sessionInstanceId };
-      const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+      const body = JSON.stringify(payload);
+      const blob = new Blob([body], { type: 'application/json' });
       const closeUrl = `${window.location.origin}${USER.SESSION_CLOSE}`;
-      navigator.sendBeacon(closeUrl, blob);
+      navigator.sendBeacon?.(closeUrl, blob);
+      void fetch(closeUrl, {
+        method: 'POST',
+        credentials: 'include',
+        keepalive: true,
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      }).catch(() => { });
     };
 
     window.addEventListener('beforeunload', handleTabClose);
@@ -61,7 +72,7 @@ export function useChatPageSessionLifecycle({ isDbConnected, connectionPersisten
     };
 
     ping();
-    const timerId = setInterval(ping, 5000);
+    const timerId = setInterval(ping, 15000);
     return () => {
       clearInterval(timerId);
     };

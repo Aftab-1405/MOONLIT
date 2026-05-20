@@ -23,6 +23,10 @@ from api.schemas.streaming import STREAMING_RESPONSES
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["conversation"])
 
+# Conversation endpoints intentionally keep legacy flat response dictionaries.
+# The frontend conversation hooks consume top-level keys such as `conversation`
+# and `conversations`, unlike newer ApiSuccess(data=...) routes.
+
 
 def _split_csv(raw: str) -> list[str]:
     return [item.strip() for item in (raw or "").split(",") if item.strip()]
@@ -323,6 +327,7 @@ async def get_conversation(
             ConversationService.get_conversation_data, conversation_id, user_id
         )
         if conv_data:
+            # Keep this flat response shape; frontend conversation loaders read `conversation` directly.
             return {"status": "success", "conversation": conv_data}
         raise HTTPException(status_code=404, detail="Conversation not found")
     except PermissionError as e:
@@ -341,6 +346,7 @@ async def get_conversations(user: dict = Depends(get_current_user)):
     conversations = await run_in_threadpool(
         ConversationService.get_user_conversations, user_id
     )
+    # Keep this flat response shape; frontend conversation loaders read `conversations` directly.
     return {"status": "success", "conversations": conversations}
 
 
