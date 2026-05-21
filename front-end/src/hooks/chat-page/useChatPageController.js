@@ -4,7 +4,6 @@ import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
 import { useDatabaseConnection } from '../../contexts/DatabaseContext';
 import { useAuth } from '../../contexts/AuthContext';
 import useAutoScroll from './useAutoScroll';
-import { useIdleDetection } from './useIdleDetection';
 import { useConversations } from './useConversations';
 import { useMessageStreaming } from './useMessageStreaming';
 import { useQueryExecution } from './useQueryExecution';
@@ -288,11 +287,6 @@ export function useChatPageController() {
     connectionPersistenceMinutes: settings.connectionPersistence ?? 0,
   });
 
-  const isIdle = useIdleDetection(30000);
-  const idleAnimationEnabled = settings.idleAnimation ?? true;
-  const idleAnimationIntensity = settings.idleAnimationIntensity ?? 'medium';
-  const starfieldActive = isDarkMode && idleAnimationEnabled && isIdle;
-
   const showWelcomeState = messages.length === 0 && !isConversationLoading;
   const showConversationPanel = messages.length > 0 || isConversationLoading;
 
@@ -481,8 +475,6 @@ export function useChatPageController() {
     theme,
     isDarkMode,
     isNarrowLayout,
-    starfieldActive,
-    idleAnimationIntensity,
     anchorEl,
     user,
     handleMenuClose,

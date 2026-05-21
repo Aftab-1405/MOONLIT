@@ -21,7 +21,7 @@ import { ChatInput, MessageList, WelcomeScreen } from './main';
 import { DatabaseModal } from './main/overlays/database';
 import { SettingsModal } from './main/overlays/settings';
 import ArtifactLoader from './sidebar-right/index.js';
-import { ConfirmDialog, ResizeHandle, StarfieldCanvas } from '../components';
+import { ConfirmDialog, ResizeHandle } from '../components';
 import { getPopoverPaperSx } from '../styles/shared';
 import { useChatPageController } from '../hooks/chat-page/useChatPageController';
 import {
@@ -181,8 +181,6 @@ function MainInterface() {
     handleGuidedConfirm,
     dbModalInitialType,
     settingsInitialSection,
-    starfieldActive,
-    idleAnimationIntensity,
   } = useChatPageController();
 
   return (
@@ -303,8 +301,6 @@ function MainInterface() {
             zIndex: UI_Z_INDEX.mainContentBase,
           }}
         >
-          <StarfieldCanvas active={starfieldActive} intensity={idleAnimationIntensity} />
-
           {isNarrowLayout && (
             <IconButton
               size="small"
@@ -344,7 +340,6 @@ function MainInterface() {
               visible={showWelcomeState}
               user={user}
               chatInputProps={chatInputSharedProps}
-              starfieldFocus={showWelcomeState && starfieldActive}
             />
 
             <Fade in={showConversationPanel} timeout={300} unmountOnExit>

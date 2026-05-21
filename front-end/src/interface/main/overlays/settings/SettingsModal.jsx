@@ -77,10 +77,6 @@ function SettingsModal({
     PaperProps: { sx: getPopoverPaperSx(theme, theme.palette.mode === 'dark') },
   }), [theme]);
 
-  const isDarkTheme = settings.theme === 'dark';
-  const idleAnimationEnabled = isDarkTheme && (settings.idleAnimation ?? true);
-  const idleControlsDisabled = !isDarkTheme || !idleAnimationEnabled;
-
   const sidebarOffset = !isNarrowLayout && !isMobile
     ? (sidebarOpen ? UI_LAYOUT.sidebarExpandedWidth : UI_LAYOUT.sidebarCollapsedWidth)
     : 0;
@@ -136,36 +132,6 @@ function SettingsModal({
                       <DarkModeRoundedIcon sx={{ fontSize: 16, mr: 0.75 }} />
                       Dark
                     </ToggleButton>
-                  </ToggleButtonGroup>
-                </PreferenceRow>
-                <PreferenceRow
-                  label="Idle Animation"
-                  description={isDarkTheme ? 'Show starfield effect when idle' : 'Only available in dark theme'}
-                  disabled={!isDarkTheme}
-                >
-                  <Switch
-                    checked={idleAnimationEnabled}
-                    onChange={(e) => updateSetting('idleAnimation', e.target.checked)}
-                    disabled={!isDarkTheme}
-                    size="small"
-                  />
-                </PreferenceRow>
-                <PreferenceRow
-                  label="Idle Intensity"
-                  description="Control starfield brightness when idle"
-                  disabled={idleControlsDisabled}
-                >
-                  <ToggleButtonGroup
-                    value={settings.idleAnimationIntensity ?? 'medium'}
-                    exclusive
-                    onChange={(e, value) => value && updateSetting('idleAnimationIntensity', value)}
-                    size="small"
-                    disabled={idleControlsDisabled}
-                    sx={toggleGroupSx}
-                  >
-                    <ToggleButton value="low">Low</ToggleButton>
-                    <ToggleButton value="medium">Med</ToggleButton>
-                    <ToggleButton value="high">High</ToggleButton>
                   </ToggleButtonGroup>
                 </PreferenceRow>
               </PreferenceSection>

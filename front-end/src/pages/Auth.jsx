@@ -34,7 +34,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import { useAuth } from '../contexts/AuthContext';
-import { ButtonLoadingSpinner, StarfieldCanvas } from '../components';
+import { ButtonLoadingSpinner } from '../components';
 import {
   useFormValidation,
   signInSchema,
@@ -661,17 +661,6 @@ function Auth() {
             }}
           >
             <Box
-              sx={{
-                position: 'absolute',
-                inset: 0,
-                zIndex: 0,
-                opacity: isDark ? 1 : 0.38,
-              }}
-            >
-              <StarfieldCanvas active />
-            </Box>
-
-            <Box
               aria-hidden
               sx={{
                 position: 'absolute',
@@ -777,19 +766,6 @@ function Auth() {
             overflow: 'hidden',
           }}
         >
-          {isMobile && (
-            <Box
-              sx={{
-                position: 'fixed',
-                inset: 0,
-                zIndex: 0,
-                opacity: isDark ? 1 : 0.3,
-              }}
-            >
-              <StarfieldCanvas active />
-            </Box>
-          )}
-
           <Box
             aria-hidden
             sx={{

@@ -9,7 +9,6 @@ import ValueGrid from './ValueGrid';
 import DemoSection from './DemoSection';
 import StepsGrid from './StepsGrid';
 import FinalCTA from './FinalCTA';
-import { StarfieldCanvas } from '../../components';
 import {
   HOVER_CAPABLE_QUERY as SHARED_HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY as SHARED_REDUCED_MOTION_QUERY,
@@ -91,9 +90,6 @@ export default function Landing() {
   return (
     <>
       {LANDING_GLOBAL_STYLES}
-      {/* Fixed starfield sits outside the scroll container so overflow:auto doesn't
-          trap it — position:fixed is relative to the viewport, not a scroll ancestor. */}
-      <StarfieldCanvas active />
       <Box
         sx={{
           height: '100dvh',
