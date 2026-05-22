@@ -10,6 +10,8 @@
  */
 export { USER } from './endpoints';
 
+export { del } from './client';
+
 export {
   getFirebaseConfig,
   setSession,
@@ -35,12 +37,15 @@ export {
   selectDatabase,
   getSchemas,
   selectSchema,
+  getTables,
+  getTableSchema,
 } from './database';
 
 export { runQuery } from './query';
 
 export {
   getContext as getUserContext,
+  getSettings as getUserSettings,
   saveSettings as saveUserSettings,
   sessionActive,
 } from './user';

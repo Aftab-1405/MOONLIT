@@ -160,7 +160,13 @@ function databaseReducer(state, action) {
 const DatabaseContext = createContext(null);
 
 function getDatabaseList(connectionData = {}) {
-  return connectionData.schemas || connectionData.databases || connectionData.tables || [];
+  const databases = connectionData.databases?.length
+    ? connectionData.databases
+    : connectionData.schemas;
+  if (databases?.length) return databases;
+
+  const selectedDatabase = connectionData.selected_database || connectionData.db_config?.database;
+  return selectedDatabase ? [selectedDatabase] : [];
 }
 
 /**

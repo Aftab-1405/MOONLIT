@@ -19,9 +19,44 @@ from api.request_schemas import (
     CloseSessionRequest,
     SessionActiveRequest,
 )
+from repositories.context_repository import ContextRepository
+from services.user_settings_service import UserSettingsService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["context"])
+
+
+def _user_id(user: dict) -> str:
+    return user.get("uid") or user
+
+
+async def _sync_persistence_to_session(request: Request, prefs: dict) -> None:
+    minutes = UserSettingsService.connection_persistence_minutes(prefs)
+    await update_session_data(
+        request, {"connectionPersistenceMinutes": minutes}
+    )
+
+
+async def _resolve_connection_persistence_minutes(
+    request: Request,
+    user: dict,
+    explicit: int | None = None,
+) -> int:
+    if explicit is not None:
+        return int(explicit)
+
+    session = await get_session_data(request) or {}
+    session_value = session.get("connectionPersistenceMinutes")
+    if session_value is not None:
+        try:
+            return int(session_value)
+        except (TypeError, ValueError):
+            pass
+
+    prefs = await run_in_threadpool(
+        UserSettingsService.get_merged, _user_id(user)
+    )
+    return UserSettingsService.connection_persistence_minutes(prefs)
 
 
 # =============================================================================
@@ -189,12 +224,32 @@ async def reset_context_metrics(user: dict = Depends(get_current_user)):
 
 @router.get("/user/settings")
 async def get_user_settings(
-    user: dict = Depends(get_current_user), session: dict = Depends(get_session_data)
+    request: Request,
+    user: dict = Depends(get_current_user),
 ):
-    """Get user settings from session."""
-    session = session or {}
+    """Get per-user preferences (Firestore) and mirror persistence into the session."""
+    uid = _user_id(user)
+    prefs = await run_in_threadpool(UserSettingsService.get_merged, uid)
+
+    session = await get_session_data(request) or {}
+    doc = await run_in_threadpool(ContextRepository.get, uid)
+    if not doc.get("preferences") and session.get("connectionPersistenceMinutes") is not None:
+        try:
+            legacy_minutes = int(session["connectionPersistenceMinutes"])
+            prefs = await run_in_threadpool(
+                UserSettingsService.save,
+                uid,
+                {"connectionPersistence": legacy_minutes},
+            )
+        except (TypeError, ValueError):
+            pass
+
+    await _sync_persistence_to_session(request, prefs)
+    minutes = UserSettingsService.connection_persistence_minutes(prefs)
     return {
-        "connectionPersistenceMinutes": session.get("connectionPersistenceMinutes", 30)
+        "status": "success",
+        "settings": prefs,
+        "connectionPersistenceMinutes": minutes,
     }
 
 
@@ -204,29 +259,33 @@ async def save_user_settings(
     data: SaveUserSettingsRequest,
     user: dict = Depends(get_current_user),
 ):
-    """Save user settings to session."""
-    await update_session_data(request, data.model_dump(exclude_unset=True))
+    """Save per-user preferences to Firestore and mirror persistence into the session."""
+    patch = data.model_dump(exclude_unset=True)
+    prefs = await run_in_threadpool(
+        UserSettingsService.save, _user_id(user), patch
+    )
+    await _sync_persistence_to_session(request, prefs)
 
-    # Enforce connection persistence immediately if applicable
-    if data.connectionPersistenceMinutes is not None:
+    persistence_minutes = UserSettingsService.connection_persistence_minutes(prefs)
+    if (
+        data.connectionPersistence is not None
+        or data.connectionPersistenceMinutes is not None
+    ):
         session = await get_session_data(request) or {}
         db_config = session.get("db_config")
         if db_config:
             closed_at = session.get("db_config_last_closed_at")
-            if closed_at and data.connectionPersistenceMinutes > 0:
+            if closed_at and persistence_minutes > 0:
                 if time.time() - float(closed_at) > (
-                    data.connectionPersistenceMinutes * 60
+                    persistence_minutes * 60
                 ):
                     await _expire_db_config(request, db_config, "settings_update")
-            elif closed_at and (
-                not data.connectionPersistenceMinutes
-                or data.connectionPersistenceMinutes <= 0
-            ):
+            elif closed_at and persistence_minutes <= 0:
                 await _expire_db_config(
                     request, db_config, "settings_update_no_persistence"
                 )
 
-    return {"status": "success"}
+    return {"status": "success", "settings": prefs}
 
 
 @router.post("/user/session/close")
@@ -251,12 +310,9 @@ async def close_user_session(
     if not db_config:
         return {"status": "success"}
 
-    persistence_minutes = data.connectionPersistenceMinutes
-    if persistence_minutes is None:
-        try:
-            persistence_minutes = int(session.get("connectionPersistenceMinutes"))
-        except (TypeError, ValueError):
-            persistence_minutes = 0
+    persistence_minutes = await _resolve_connection_persistence_minutes(
+        request, user, data.connectionPersistenceMinutes
+    )
 
     if not persistence_minutes or persistence_minutes <= 0:
         await _expire_db_config(request, db_config, "tab_close_no_persistence")
@@ -291,10 +347,9 @@ async def mark_user_session_active(
 
     if incoming_id and stored_id and incoming_id != stored_id and db_config:
         # Treat as a new session instance (e.g., browser reopened)
-        try:
-            persistence_minutes = int(session.get("connectionPersistenceMinutes", 0))
-        except (TypeError, ValueError):
-            persistence_minutes = 0
+        persistence_minutes = await _resolve_connection_persistence_minutes(
+            request, user, None
+        )
         last_active = session.get("session_active_at") or time.time()
         now = time.time()
 

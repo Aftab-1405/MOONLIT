@@ -30,7 +30,7 @@ export const LIGHT = {
   // Backgrounds (lighter → darker)
   bg000:      '#f8f8f8',                    // Alabaster — default canvas
   bg100:      '#ffffff',                    // elevated paper
-  bg200:      '#eeeeee',                    // sunken / input
+  bg200:      '#f0f0f0',                    // sunken / input
   bg300:      '#e4e4e4',                    // hover bg
   bg400:      '#d8d8d8',                    // strongest neutral surface
 
@@ -67,8 +67,8 @@ export const LIGHT = {
 export const DARK = {
   // Backgrounds (lighter → darker)
   bg000:      '#0f0f0f',                    // Cod Gray — default canvas
-  bg100:      '#171717',                    // paper
-  bg200:      '#080808',                    // sunken / input
+  bg100:      '#161616',                    // paper
+  bg200:      '#0a0a0a',                    // sunken / input
   bg300:      '#000000',                    // near black
   bg400:      hslToHex(0,   0,    0),       // #000000
 

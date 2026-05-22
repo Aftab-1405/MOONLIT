@@ -16,8 +16,12 @@ import QuestionAnswerOutlinedIcon from '@mui/icons-material/QuestionAnswerOutlin
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import { TOUCH_DEVICE_QUERY } from '../../../styles/mediaQueries';
-import { getPopoverPaperSx, getUtilityIconButtonSx } from '../../../styles/shared';
+import { HOVER_CAPABLE_QUERY, TOUCH_DEVICE_QUERY } from '../../../styles/mediaQueries';
+import {
+  getPopoverPaperSx,
+  getSelectableMenuItemSx,
+  getUtilityIconButtonSx,
+} from '../../../styles/shared';
 import {
   buildNavRowSx,
   buildConversationRowSx,
@@ -157,12 +161,10 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   isActive = false,
   showStatus = false,
   disabled = false,
-  circularIconBg = false,
   shortcut,
   uiTarget,
 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
 
   return (
     <Tooltip
@@ -184,15 +186,6 @@ export const SidebarNavItem = memo(function SidebarNavItem({
           ...buildNavRowSx(theme, { isActive, disabled }),
           px: 0,
           '&:hover:not(:disabled) .shortcut-hint': { opacity: 1 },
-          ...(circularIconBg && {
-            '&:hover:not(:disabled) .icon-ring': {
-              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.2 : 0.15),
-              transform: 'scale(1.08) rotate(-3deg)',
-            },
-            '&:active:not(:disabled) .icon-ring': {
-              transform: 'scale(0.96) rotate(6deg)',
-            },
-          }),
         }}
       >
         {/* ── Icon column ── always ICON_COL wide, icon centered inside ── */}
@@ -207,31 +200,9 @@ export const SidebarNavItem = memo(function SidebarNavItem({
             position: 'relative',
           }}
         >
-          {circularIconBg ? (
-            <Box
-              className="icon-ring"
-              component="span"
-              sx={{
-                display: 'inline-flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                width: 24,
-                height: 24,
-                borderRadius: '50%',
-                backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
-                color: 'inherit',
-                transition: theme.transitions.create(['background-color', 'transform'], {
-                  duration: theme.transitions.duration.shorter,
-                }),
-              }}
-            >
-              {icon}
-            </Box>
-          ) : (
-            <Box component="span" sx={{ display: 'inline-flex', color: 'inherit' }}>
-              {icon}
-            </Box>
-          )}
+          <Box component="span" sx={{ display: 'inline-flex', color: 'inherit' }}>
+            {icon}
+          </Box>
 
           {showStatus && (
             <Box
@@ -303,6 +274,11 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
   theme,
 }) {
   const utilityIconButtonSx = getUtilityIconButtonSx(theme);
+  const rowSx = getSelectableMenuItemSx(theme, {
+    isActive,
+    columns: 'auto minmax(0, 1fr) auto',
+    minHeight: 32,
+  });
 
   const handleClick = useCallback(() => {
     onClosePopover();
@@ -318,7 +294,15 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
     <ListItemButton
       selected={isActive}
       onClick={handleClick}
-      sx={{ borderRadius: '8px', py: 0.5, px: 1, minHeight: 32 }}
+      sx={{
+        ...rowSx,
+        '&.Mui-selected': {
+          backgroundColor: rowSx.backgroundColor,
+        },
+        '&.Mui-selected:hover': {
+          backgroundColor: rowSx[HOVER_CAPABLE_QUERY]?.['&:hover']?.backgroundColor || rowSx.backgroundColor,
+        },
+      }}
     >
       <ListItemIcon sx={{ minWidth: 26 }}>
         {isActive

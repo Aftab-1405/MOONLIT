@@ -22,13 +22,10 @@ import {
   ToggleButton,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
 import ViewColumnRoundedIcon from '@mui/icons-material/ViewColumnRounded';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import ErrorRoundedIcon from '@mui/icons-material/ErrorRounded';
@@ -37,6 +34,9 @@ import { registerMonacoThemes, getMonacoThemeName } from '../../../../theme';
 import { getUserContext } from '../../../../api';
 import { USER } from '../../../../api/endpoints';
 import { HOVER_CAPABLE_QUERY } from '../../../../styles/mediaQueries';
+import DatabaseIcon from '../../../../components/icons/DatabaseIcon';
+import RecentChatIcon from '../../../../components/icons/RecentChatIcon';
+import SchemaIcon from '../../../../components/icons/SchemaIcon';
 const MONACO_QUERY_BASE_OPTIONS = {
   readOnly: true,
   minimap: { enabled: false },
@@ -315,7 +315,7 @@ function UserDBContextManagerForAI() {
           size="small"
         >
           <ToggleButton value="schemas">
-            <StorageRoundedIcon sx={{ fontSize: 15 }} />
+            <SchemaIcon sx={{ width: 15, height: 15 }} />
             Schemas
             {schemas.length > 0 && (
               <Box
@@ -340,7 +340,7 @@ function UserDBContextManagerForAI() {
             )}
           </ToggleButton>
           <ToggleButton value="queries">
-            <HistoryRoundedIcon sx={{ fontSize: 15 }} />
+            <RecentChatIcon sx={{ width: 15, height: 15 }} />
             Queries
             {queries.length > 0 && (
               <Box
@@ -392,7 +392,7 @@ function UserDBContextManagerForAI() {
         <>
           {schemas.length === 0 ? (
             <EmptyState
-              icon={StorageRoundedIcon}
+              icon={SchemaIcon}
               title="No cached schemas"
               subtitle="Connect to a database to cache its schema"
             />
@@ -409,7 +409,7 @@ function UserDBContextManagerForAI() {
                     sx={{ py: { xs: 1.25, sm: 1.5 }, px: 2, minHeight: 52 }}
                   >
                     <ListItemIcon sx={{ minWidth: 36 }}>
-                      <StorageRoundedIcon sx={{ fontSize: 20, color: 'text.secondary' }} />
+                      <SchemaIcon sx={{ width: 20, height: 20, opacity: 0.78 }} />
                     </ListItemIcon>
                     <ListItemText
                       primary={
@@ -453,8 +453,9 @@ function UserDBContextManagerForAI() {
                         variant="caption"
                         sx={{
                           color: 'text.secondary',
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.5,
+                          ...theme.typography.uiCaptionMd,
+                          textTransform: 'none',
+                          letterSpacing: 0,
                           fontWeight: 600,
                           mb: 1,
                           display: 'block',
@@ -467,7 +468,7 @@ function UserDBContextManagerForAI() {
                           <Chip
                             key={table}
                             size="small"
-                            icon={<TableChartRoundedIcon sx={{ fontSize: 12 }} />}
+                            icon={<SchemaIcon sx={{ width: 12, height: 12 }} />}
                             label={table}
                             sx={{
                               height: 24,
@@ -525,7 +526,7 @@ function UserDBContextManagerForAI() {
         <>
           {queries.length === 0 ? (
             <EmptyState
-              icon={HistoryRoundedIcon}
+              icon={RecentChatIcon}
               title="No queries stored"
               subtitle="Run SQL queries to build history"
             />
@@ -567,7 +568,7 @@ function UserDBContextManagerForAI() {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
                         <Chip
                           size="small"
-                          icon={<StorageRoundedIcon sx={{ fontSize: 12 }} />}
+                          icon={<DatabaseIcon sx={{ width: 12, height: 12 }} />}
                           label={query.database || 'Unknown DB'}
                           sx={{
                             height: 22,
@@ -642,7 +643,7 @@ function UserDBContextManagerForAI() {
           {deleteDialog.type !== 'queries' && (
             <Box sx={{ mb: 2 }}>
               <Chip
-                icon={<StorageRoundedIcon />}
+                icon={<DatabaseIcon />}
                 label={dialogContent.database}
                 sx={{ mr: 1 }}
               />

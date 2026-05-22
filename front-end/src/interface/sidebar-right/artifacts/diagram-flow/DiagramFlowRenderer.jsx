@@ -23,7 +23,7 @@ import {
 import { alpha } from '@mui/material/styles';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
+import MindmapIcon from '../../../../components/icons/MindmapIcon';
 import { ArtifactShell } from '../../artifact-loader';
 import {
   FLOW_NODE_CARD_CLASS,
@@ -404,11 +404,11 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
                 borderRadius: theme.shape.radius?.full ?? '999px',
                 border: '1px solid',
                 fontFamily: theme.typography.fontFamilyMono,
-                fontSize: 9,
+                fontSize: 10.5,
                 fontWeight: 700,
                 lineHeight: 1,
                 letterSpacing: 0,
-                textTransform: 'uppercase',
+                textTransform: 'none',
                 ...getReactFlowStatusSx(theme, status),
               }}
             >
@@ -723,7 +723,7 @@ function DiagramFlowRenderer({
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         <ArtifactShell
           title={graphTitle}
-          icon={<AccountTreeRoundedIcon sx={{ fontSize: 20 }} />}
+          icon={<MindmapIcon sx={{ width: 20, height: 20 }} />}
           chrome={chrome}
           onClose={onClose}
           onRequestClose={onRequestClose}
@@ -783,7 +783,7 @@ function DiagramFlowRenderer({
   const flowContent = (
     <ArtifactShell
       title={graphTitle}
-      icon={<AccountTreeRoundedIcon sx={{ fontSize: 20 }} />}
+      icon={<MindmapIcon sx={{ width: 20, height: 20 }} />}
       chrome={chrome}
       onClose={onClose}
       onRequestClose={onRequestClose}

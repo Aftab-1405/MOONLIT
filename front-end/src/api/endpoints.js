@@ -31,6 +31,8 @@ export const DATABASE = {
   SELECT_DATABASE: '/api/v1/select_database',
   GET_SCHEMAS: '/api/v1/get_schemas',
   SELECT_SCHEMA: '/api/v1/select_schema',
+  GET_TABLES: '/api/v1/get_tables',
+  GET_TABLE_SCHEMA: '/api/v1/get_table_schema',
 };
 
 export const QUERY = {

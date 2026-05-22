@@ -1,4 +1,9 @@
 import { alpha } from '@mui/material/styles';
+import {
+  getPreferencePanelPaperSx,
+  getPreferenceSectionSurfaceSx,
+  INTERFACE_RADIUS,
+} from '../../../styles/interfaceChrome';
 import { getScrollbarStyles, UI_Z_INDEX } from '../../../../styles/shared';
 
 export const PREFERENCE_LAYOUT = Object.freeze({
@@ -17,22 +22,11 @@ export const getPreferenceRootSx = () => ({
   '& .MuiDialog-paper': { pointerEvents: 'auto' },
 });
 
-export const getPreferencePaperSx = (theme, left, width) => ({
-  position: 'fixed',
-  inset: '0 auto auto auto',
-  left,
-  top: 0,
-  width,
-  maxWidth: width,
-  height: '100vh',
-  maxHeight: '100vh',
-  minHeight: '100vh',
-  m: 0,
-  borderRadius: 0,
-  backgroundColor: theme.palette.background.default,
-  backgroundImage: 'none',
-  boxShadow: 'none',
-});
+export const getPreferencePaperSx = (theme, left, width) => (
+  getPreferencePanelPaperSx(theme, left, width)
+);
+
+export { getPreferenceSectionSurfaceSx };
 
 export const getPreferenceBackdropSx = (left, width) => ({
   left,
@@ -59,8 +53,9 @@ export const getPreferenceControlSx = (theme, { minWidth = 132 } = {}) => {
     minWidth,
     '& .MuiInputBase-root': {
       minHeight: PREFERENCE_LAYOUT.controlHeight,
-      borderRadius: '8px',
+      borderRadius: INTERFACE_RADIUS.control,
       backgroundColor: fieldBg,
+      boxShadow: `inset 0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.12 : 0.04)}`,
       transition: theme.transitions.create(['background-color', 'box-shadow'], {
         duration: theme.transitions.duration.shorter,
       }),
@@ -134,8 +129,10 @@ export const getPreferenceToggleGroupSx = (theme) => {
   return {
     p: 0.375,
     gap: 0.25,
-    borderRadius: '10px',
-    backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.035),
+    borderRadius: INTERFACE_RADIUS.row,
+    border: `0.5px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
+    backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.07 : 0.04),
+    boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.05 : 0.5)}`,
     '& .MuiToggleButtonGroup-grouped': {
       minHeight: 30,
       px: 1.25,

@@ -21,10 +21,19 @@ export async function getContext() {
 }
 
 /**
- * Save user settings.
- * 
- * @param {Object} settings - Settings object to save
- * @returns {Promise<{status: string}>}
+ * Load per-user settings (Firestore-backed, synced across browsers).
+ *
+ * @returns {Promise<{ status: string, settings: Object, connectionPersistenceMinutes?: number }>}
+ */
+export async function getSettings() {
+  return get(USER.SETTINGS);
+}
+
+/**
+ * Save per-user settings (partial update).
+ *
+ * @param {Object} settings - Syncable preference fields
+ * @returns {Promise<{ status: string, settings?: Object }>}
  */
 export async function saveSettings(settings) {
   return post(USER.SETTINGS, settings);

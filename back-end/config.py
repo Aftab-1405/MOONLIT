@@ -29,37 +29,7 @@ class Config:
     # Providers: gemini, cerebras, anthropic, openai (via LangGraph / LangChain)
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
 
-    # Provider API keys (supports key rotation/load balancing).
-    # Resolution order per provider:
-    # 1) <PROVIDER>_API_KEYS  (comma-separated, for rotation)
-    # 2) <PROVIDER>_API_KEY   (single key)
-    # 3) LLM_API_KEYS / LLM_API_KEY  (generic fallback)
-    _provider_keys_env = f"{LLM_PROVIDER.upper()}_API_KEYS"
-    _provider_keys_raw = os.getenv(_provider_keys_env, "")
-    LLM_API_KEYS = [k.strip() for k in _provider_keys_raw.split(",") if k.strip()]
-
-    if not LLM_API_KEYS:
-        # Try provider-specific single-key env var
-        _single_key_vars = {
-            "cerebras": ["CEREBRAS_API_KEY"],
-            "gemini": ["GEMINI_API_KEY", "GOOGLE_API_KEY"],
-            "anthropic": ["ANTHROPIC_API_KEY"],
-            "openai": ["OPENAI_API_KEY"],
-        }
-        for _var in _single_key_vars.get(LLM_PROVIDER, []):
-            _val = os.getenv(_var, "").strip()
-            if _val:
-                LLM_API_KEYS = [_val]
-                break
-
-    if not LLM_API_KEYS:
-        _generic_keys_raw = os.getenv("LLM_API_KEYS", "")
-        LLM_API_KEYS = [k.strip() for k in _generic_keys_raw.split(",") if k.strip()]
-
-    if not LLM_API_KEYS:
-        _generic_key = os.getenv("LLM_API_KEY", "").strip()
-        if _generic_key:
-            LLM_API_KEYS = [_generic_key]
+    # Provider API keys are resolved per selected provider in agent.model_factory.
 
     # LLM Rate Limiting
     LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "True").lower() == "true"

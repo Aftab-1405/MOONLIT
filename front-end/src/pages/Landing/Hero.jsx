@@ -52,9 +52,9 @@ function Hero({ onGetStarted }) {
               sx={{
                 color: 'text.secondary',
                 fontWeight: 600,
-                letterSpacing: '0.05em',
-                textTransform: 'uppercase',
-                ...theme.typography.uiCaptionXs,
+                letterSpacing: 0,
+                textTransform: 'none',
+                ...theme.typography.uiCaptionSm,
               }}
             >
               AI-Powered Database Assistant
@@ -228,9 +228,9 @@ function Hero({ onGetStarted }) {
               color="text.secondary"
               sx={{
                 opacity: 0.4,
-                ...theme.typography.uiCaption2xs,
-                letterSpacing: '0.1em',
-                textTransform: 'uppercase',
+                ...theme.typography.uiCaptionSm,
+                letterSpacing: 0,
+                textTransform: 'none',
               }}
             >
               Works with your favorite databases

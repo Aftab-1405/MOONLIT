@@ -17,11 +17,12 @@ import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
 import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
 import PsychologyRoundedIcon from '@mui/icons-material/PsychologyRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
+import DatabaseIcon from '../../../../components/icons/DatabaseIcon';
 import { useTheme as useAppTheme } from '../../../../contexts/ThemeContext';
 import UserDBContextManagerForAI from './UserDBContextManagerForAI';
 import { DialogShell } from '../../../../components';
 import { saveUserSettings } from '../../../../api';
+import { defaultUserSettings, pickSyncableSettings } from '../../../../config/userSettings';
 import { getPopoverPaperSx, UI_LAYOUT } from '../../../../styles/shared';
 import {
   PreferenceFooterActions,
@@ -44,7 +45,7 @@ import logger from '../../../../utils/logger';
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: PaletteRoundedIcon },
   { id: 'ai', label: 'Moonlit', icon: AutoAwesomeRoundedIcon },
-  { id: 'database', label: 'Database', icon: StorageRoundedIcon },
+  { id: 'database', label: 'Database', icon: DatabaseIcon },
   { id: 'context', label: 'AI Context', icon: PsychologyRoundedIcon },
 ];
 
@@ -256,12 +257,7 @@ function SettingsModal({
                     <Select
                       value={settings.connectionPersistence ?? 0}
                       MenuProps={selectMenuProps}
-                      onChange={(e) => {
-                        const value = e.target.value;
-                        updateSetting('connectionPersistence', value);
-                        saveUserSettings({ connectionPersistenceMinutes: value })
-                          .catch((error) => logger.warn('Failed to sync setting:', error));
-                      }}
+                      onChange={(e) => updateSetting('connectionPersistence', Number(e.target.value))}
                     >
                       <MenuItem value={0}>Never</MenuItem>
                       <MenuItem value={5}>5 min</MenuItem>
@@ -294,9 +290,7 @@ function SettingsModal({
           <Fade in key="context">
             <Box>
               <PreferenceSection title="AI Context">
-                <Box sx={{ pt: 2 }}>
-                  <UserDBContextManagerForAI />
-                </Box>
+                <UserDBContextManagerForAI />
               </PreferenceSection>
             </Box>
           </Fade>
@@ -335,7 +329,11 @@ function SettingsModal({
         <PreferenceFooterActions sx={{ justifyContent: 'flex-start' }}>
           <Button
             color="secondary"
-            onClick={resetSettings}
+            onClick={() => {
+              resetSettings();
+              saveUserSettings(pickSyncableSettings(defaultUserSettings))
+                .catch((error) => logger.warn('Failed to reset settings on server:', error));
+            }}
             size="small"
             sx={subtleButtonSx}
           >

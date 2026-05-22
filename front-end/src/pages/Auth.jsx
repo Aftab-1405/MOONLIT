@@ -216,11 +216,11 @@ function QueryMockup({ isDark }) {
         <Box>
           <Typography
             sx={{
-              fontSize: '0.63rem',
+              fontSize: '0.75rem',
               fontWeight: 700,
               color: C.muted,
-              letterSpacing: '0.09em',
-              textTransform: 'uppercase',
+              letterSpacing: 0,
+              textTransform: 'none',
               mb: 0.5,
             }}
           >
@@ -260,11 +260,11 @@ function QueryMockup({ isDark }) {
           <AutoAwesomeIcon sx={{ fontSize: 12, color: C.muted }} />
           <Typography
             sx={{
-              fontSize: '0.63rem',
+              fontSize: '0.75rem',
               fontWeight: 700,
               color: C.muted,
-              letterSpacing: '0.09em',
-              textTransform: 'uppercase',
+              letterSpacing: 0,
+              textTransform: 'none',
             }}
           >
             Moonlit
@@ -304,10 +304,10 @@ function QueryMockup({ isDark }) {
             ))}
             <Typography
               sx={{
-                fontSize: '0.58rem',
+                fontSize: '0.7rem',
                 color: C.muted,
-                letterSpacing: '0.08em',
-                textTransform: 'uppercase',
+                letterSpacing: 0,
+                textTransform: 'none',
                 ml: 0.5,
               }}
             >
@@ -320,7 +320,7 @@ function QueryMockup({ isDark }) {
             sx={{
               m: 0,
               fontFamily: theme.typography.fontFamilyMono || 'monospace',
-              fontSize: '0.6rem',
+              fontSize: '0.7rem',
               lineHeight: 1.7,
               whiteSpace: 'pre-wrap',
               wordBreak: 'break-word',
@@ -349,10 +349,10 @@ function QueryMockup({ isDark }) {
         <Box sx={{ px: 1.4, py: 1.15 }}>
           <Typography
             sx={{
-              fontSize: '0.6rem',
+              fontSize: '0.72rem',
               color: C.muted,
-              letterSpacing: '0.07em',
-              textTransform: 'uppercase',
+              letterSpacing: 0,
+              textTransform: 'none',
               mb: 0.8,
             }}
           >
@@ -365,11 +365,11 @@ function QueryMockup({ isDark }) {
                 key={h}
                 sx={{
                   flex: 1,
-                  fontSize: '0.58rem',
+                  fontSize: '0.7rem',
                   fontWeight: 700,
                   color: C.muted,
-                  letterSpacing: '0.07em',
-                  textTransform: 'uppercase',
+                  letterSpacing: 0,
+                  textTransform: 'none',
                 }}
               >
                 {h}
@@ -824,9 +824,9 @@ function Auth() {
                   sx={{
                     color: 'text.secondary',
                     opacity: 0.55,
-                    ...theme.typography.uiCaptionXs,
-                    letterSpacing: '0.1em',
-                    textTransform: 'uppercase',
+                    ...theme.typography.uiCaptionSm,
+                    letterSpacing: 0,
+                    textTransform: 'none',
                   }}
                 >
                   AI Database Assistant

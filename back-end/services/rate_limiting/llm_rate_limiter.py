@@ -11,6 +11,8 @@ import logging
 from collections import deque
 from dataclasses import dataclass
 
+from agent.model_factory import get_provider_api_keys, get_supported_providers
+
 logger = logging.getLogger(__name__)
 
 
@@ -165,7 +167,58 @@ class MultiKeyRateLimiter:
         return stats
 
 
-def create_rate_limiter(app_config) -> MultiKeyRateLimiter:
+class ProviderRateLimiter:
+    """Provider-aware LLM rate limiter with isolated key pools."""
+
+    def __init__(self, app_config):
+        self.app_config = app_config
+        self.limiters: dict[str, MultiKeyRateLimiter] = {}
+        self.lock = asyncio.Lock()
+
+    async def acquire(self, provider: str) -> tuple[bool, str | None]:
+        limiter = await self._get_limiter(provider)
+        if limiter is None:
+            logger.error("No API keys configured for provider %s", provider)
+            return False, None
+        return await limiter.acquire()
+
+    async def _get_limiter(self, provider: str) -> MultiKeyRateLimiter | None:
+        provider = provider.strip().lower()
+        async with self.lock:
+            if provider in self.limiters:
+                return self.limiters[provider]
+
+            api_keys = get_provider_api_keys(provider)
+            if not api_keys:
+                return None
+
+            config = RateLimiterConfig(
+                enabled=getattr(self.app_config, "LLM_RATELIMIT_ENABLED", True),
+                api_keys=api_keys,
+                max_rpm_per_key=getattr(self.app_config, "LLM_MAX_RPM_PER_KEY", 25),
+                max_concurrent=getattr(self.app_config, "LLM_MAX_CONCURRENT", 5),
+                queue_timeout=getattr(self.app_config, "LLM_QUEUE_TIMEOUT", 60),
+            )
+            limiter = MultiKeyRateLimiter(config)
+            self.limiters[provider] = limiter
+            return limiter
+
+    def release(self, provider: str) -> None:
+        limiter = self.limiters.get(provider.strip().lower())
+        if limiter:
+            limiter.release()
+
+    def configured_provider_count(self) -> int:
+        return len(get_supported_providers())
+
+    def get_stats(self) -> dict:
+        return {
+            provider: limiter.get_stats()
+            for provider, limiter in self.limiters.items()
+        }
+
+
+def create_rate_limiter(app_config) -> ProviderRateLimiter:
     """
     Factory function to create rate limiter from application config.
 
@@ -173,13 +226,6 @@ def create_rate_limiter(app_config) -> MultiKeyRateLimiter:
         app_config: Application configuration class (DevelopmentConfig, ProductionConfig, etc.)
 
     Returns:
-        Configured MultiKeyRateLimiter instance
+        Configured provider-aware rate limiter instance.
     """
-    config = RateLimiterConfig(
-        enabled=getattr(app_config, "LLM_RATELIMIT_ENABLED", True),
-        api_keys=getattr(app_config, "LLM_API_KEYS", []),
-        max_rpm_per_key=getattr(app_config, "LLM_MAX_RPM_PER_KEY", 25),
-        max_concurrent=getattr(app_config, "LLM_MAX_CONCURRENT", 5),
-        queue_timeout=getattr(app_config, "LLM_QUEUE_TIMEOUT", 60),
-    )
-    return MultiKeyRateLimiter(config)
+    return ProviderRateLimiter(app_config)

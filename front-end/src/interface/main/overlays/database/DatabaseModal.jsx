@@ -22,7 +22,7 @@ import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
+import DatabaseIcon from '../../../../components/icons/DatabaseIcon';
 import {
   getDatabases,
   connectDb,
@@ -50,7 +50,6 @@ import {
   getPreferenceBackdropSx,
   getPreferenceBodySx,
   getPreferenceButtonSx,
-  getPreferenceControlSx,
   getPreferencePaperSx,
   getPreferenceRootSx,
   getPreferenceToggleGroupSx,
@@ -61,23 +60,23 @@ const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
-function DatabaseSection({ title, children, sx = {}, noDivider = false }) {
+function DatabaseSection({ title, children, sx = {} }) {
   return (
-    <PreferenceSection title={title} sx={sx} noDivider={noDivider}>
+    <PreferenceSection title={title} sx={sx}>
       {children}
     </PreferenceSection>
   );
 }
 
 function FieldGrid({ children }) {
-  const theme = useTheme();
-
   return (
     <Box
+      component="form"
+      noValidate
+      autoComplete="off"
       sx={{
-        mt: 2,
-        mb: 1,
-        ...getPreferenceControlSx(theme, { minWidth: 0 }),
+        mt: 0.5,
+        mb: 0,
       }}
     >
       {children}
@@ -86,12 +85,33 @@ function FieldGrid({ children }) {
 }
 
 const VisibilityToggleAdornment = memo(({ show, onToggle }) => (
-  <InputAdornment position="end">
+  <InputAdornment position="end" sx={{ mr: 0, alignSelf: 'center' }}>
     <IconButton
       size="small"
       onClick={onToggle}
       edge="end"
       aria-label={show ? 'Hide password' : 'Show password'}
+      disableRipple
+      sx={{
+        width: 32,
+        height: 32,
+        mr: -0.5,
+        color: 'text.secondary',
+        backgroundColor: 'transparent',
+        border: 'none',
+        boxShadow: 'none',
+        '&:hover': {
+          color: 'text.primary',
+          backgroundColor: 'transparent',
+          border: 'none',
+          boxShadow: 'none',
+        },
+        '&:focus-visible': {
+          outline: '2px solid',
+          outlineColor: 'primary.main',
+          outlineOffset: 2,
+        },
+      }}
     >
       {show ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
     </IconButton>
@@ -116,6 +136,27 @@ function EmptyState({ icon, title, subtitle }) {
   );
 }
 
+const DATABASE_TEXT_COLORS = {
+  mysql: '#00758f',
+  postgresql: '#336791',
+  sqlserver: '#a91d22',
+  oracle: '#f80000',
+};
+
+function getDatabaseTextColor(dbValue, theme) {
+  return DATABASE_TEXT_COLORS[dbValue] || theme.palette.text.primary;
+}
+
+function getDatabaseOptions(connectionData = {}) {
+  const databases = connectionData.databases?.length
+    ? connectionData.databases
+    : connectionData.schemas;
+  if (databases?.length) return databases;
+
+  const selectedDatabase = connectionData.selected_database || connectionData.db_config?.database;
+  return selectedDatabase ? [selectedDatabase] : [];
+}
+
 const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -123,7 +164,7 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
   if (databases.length === 0) {
     return (
       <EmptyState
-        icon={StorageRoundedIcon}
+        icon={DatabaseIcon}
         title="No databases found"
         subtitle="Connect to a server first"
       />
@@ -133,8 +174,6 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
   return (
     <Box
       sx={{
-        borderTop: '1px solid',
-        borderColor: 'divider',
         display: 'flex',
         flexDirection: 'column',
       }}
@@ -155,9 +194,9 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
             }}
             aria-pressed={isSelected}
             sx={{
-              px: 0.5,
+              px: { xs: 0.5, sm: 0.75 },
               py: { xs: 1.25, sm: 1.125 },
-              borderRadius: 0,
+              borderRadius: '8px',
               cursor: loading ? 'not-allowed' : 'pointer',
               opacity: loading ? 0.6 : 1,
               transition: 'background-color 120ms ease',
@@ -185,7 +224,7 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
             {isSelected ? (
               <CheckRoundedIcon sx={{ fontSize: 16, color: 'text.primary', flexShrink: 0 }} />
             ) : (
-              <StorageRoundedIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
+              <DatabaseIcon sx={{ width: 16, height: 16, opacity: 0.78 }} />
             )}
             <Typography
               sx={{
@@ -350,7 +389,7 @@ function DatabaseModal({
       if (response.status === 'success') {
         const connectionData = response.data;
         setSuccess(response.message || 'Database connected successfully');
-        setDatabases(connectionData.schemas || connectionData.databases || connectionData.tables || []);
+        setDatabases(getDatabaseOptions(connectionData));
         setIsRemote(connectionData.is_remote || false);
         onConnect?.(connectionData);
 
@@ -439,14 +478,7 @@ function DatabaseModal({
           key={type.value}
           active={dbType === type.value}
           onClick={() => handleDbTypeChange(type.value)}
-          icon={(
-            <Box
-              component="img"
-              src={type.icon}
-              alt=""
-              sx={{ width: 17, height: 17, objectFit: 'contain' }}
-            />
-          )}
+          textColor={getDatabaseTextColor(type.value, theme)}
         >
           {type.label}
         </PreferenceNavItem>
@@ -460,9 +492,6 @@ function DatabaseModal({
         display: 'flex',
         flexDirection: 'column',
         gap: 0,
-        '& .MuiInputBase-input': {
-          ...theme.typography.uiInput,
-        },
       }}
     >
       {supportsConnectionString ? (
@@ -504,7 +533,7 @@ function DatabaseModal({
             type={showConnectionString ? 'text' : 'password'}
             error={!!fieldErrors.connectionString}
             helperText={fieldErrors.connectionString || 'e.g., postgresql://user:pass@host:5432/db'}
-            size="small"
+            variant="standard"
             InputProps={{
               endAdornment: <VisibilityToggleAdornment show={showConnectionString} onToggle={() => setShowConnectionString(!showConnectionString)} />,
             }}
@@ -521,7 +550,7 @@ function DatabaseModal({
                 onChange={handleInputChange}
                 error={!!fieldErrors.host}
                 helperText={fieldErrors.host}
-                size="small"
+                variant="standard"
               />
               <TextField
                 sx={{ width: { xs: '100%', sm: 100 }, flexShrink: 0 }}
@@ -530,7 +559,7 @@ function DatabaseModal({
                 value={formData.port}
                 onChange={handleInputChange}
                 error={!!fieldErrors.port}
-                size="small"
+                variant="standard"
               />
             </Stack>
             <TextField
@@ -541,7 +570,7 @@ function DatabaseModal({
               value={formData.user}
               onChange={handleInputChange}
               error={!!fieldErrors.user}
-              size="small"
+              variant="standard"
             />
             <TextField
               fullWidth
@@ -551,7 +580,7 @@ function DatabaseModal({
               value={formData.password}
               onChange={handleInputChange}
               error={!!fieldErrors.password}
-              size="small"
+              variant="standard"
               InputProps={{
                 endAdornment: <VisibilityToggleAdornment show={showPassword} onToggle={() => setShowPassword(!showPassword)} />,
               }}
@@ -563,7 +592,7 @@ function DatabaseModal({
               value={formData.database}
               onChange={handleInputChange}
               autoCapitalize="none"
-              size="small"
+              variant="standard"
             />
           </Stack>
         )}
@@ -576,7 +605,7 @@ function DatabaseModal({
 
   const renderDatabaseSection = (sx = {}) => (
     <Box sx={{ ...sx }}>
-      <DatabaseSection title="Available Databases" sx={{ mb: 0 }} noDivider>
+      <DatabaseSection title="Available Databases" sx={{ mb: 0 }}>
         <DatabaseList
           databases={databases}
           currentDatabase={currentDatabase}
@@ -626,7 +655,7 @@ function DatabaseModal({
                 Connection
               </ToggleButton>
               <ToggleButton value="databases">
-                <StorageRoundedIcon sx={{ fontSize: 16 }} />
+                <DatabaseIcon sx={{ width: 16, height: 16 }} />
                 Databases
               </ToggleButton>
             </ToggleButtonGroup>

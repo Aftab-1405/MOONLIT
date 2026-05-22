@@ -2,7 +2,6 @@
 """Conversation/chat related API routes."""
 
 import logging
-import os
 from typing import Optional
 
 from fastapi import APIRouter, Request, Depends, HTTPException
@@ -16,6 +15,7 @@ from agent.model_factory import (
     get_supported_providers,
     get_provider_models,
     get_default_model,
+    get_provider_api_keys,
 )
 from api.request_schemas import AgentResumeRequest, ChatRequest
 from api.schemas.streaming import STREAMING_RESPONSES
@@ -28,40 +28,8 @@ router = APIRouter(tags=["conversation"])
 # and `conversations`, unlike newer ApiSuccess(data=...) routes.
 
 
-def _split_csv(raw: str) -> list[str]:
-    return [item.strip() for item in (raw or "").split(",") if item.strip()]
-
-
-def _dedupe(values: list[str]) -> list[str]:
-    seen: set[str] = set()
-    ordered: list[str] = []
-    for value in values:
-        if value and value not in seen:
-            seen.add(value)
-            ordered.append(value)
-    return ordered
-
-
-def _provider_has_dedicated_key(provider_name: str) -> bool:
-    """Check whether *provider_name* has at least one API key configured."""
-    provider = provider_name.strip().lower()
-    if provider == Config.LLM_PROVIDER and Config.LLM_API_KEYS:
-        return True
-
-    key_vars = {
-        "cerebras": ["CEREBRAS_API_KEYS", "CEREBRAS_API_KEY"],
-        "gemini": ["GEMINI_API_KEYS", "GEMINI_API_KEY", "GOOGLE_API_KEY"],
-        "anthropic": ["ANTHROPIC_API_KEYS", "ANTHROPIC_API_KEY"],
-        "openai": ["OPENAI_API_KEYS", "OPENAI_API_KEY"],
-    }
-    for var in key_vars.get(provider, []):
-        if os.getenv(var, "").strip():
-            return True
-    return False
-
-
 def _build_provider_options() -> tuple[list[dict], str]:
-    supported = tuple(_dedupe([*get_supported_providers(), Config.LLM_PROVIDER]))
+    supported = get_supported_providers()
     options = []
     for provider_name in supported:
         models = get_provider_models(provider_name)
@@ -71,15 +39,14 @@ def _build_provider_options() -> tuple[list[dict], str]:
                 "label": provider_name.capitalize(),
                 "models": models,
                 "default_model": models[0] if models else None,
-                "has_api_key": _provider_has_dedicated_key(provider_name),
+                "has_api_key": bool(get_provider_api_keys(provider_name)),
             }
         )
 
-    selected_options = [
-        opt
-        for opt in options
-        if opt["has_api_key"] or opt["name"] == Config.LLM_PROVIDER
-    ] or options
+    selected_options = [opt for opt in options if opt["has_api_key"]]
+    if not selected_options:
+        return [], Config.LLM_PROVIDER
+
     default_provider = (
         Config.LLM_PROVIDER
         if any(opt["name"] == Config.LLM_PROVIDER for opt in selected_options)
@@ -152,12 +119,16 @@ async def pass_user_prompt_to_llm(
             },
         )
 
-    # 2. Acquire global LLM rate limiter slot and get API key
+    # 2. Acquire a provider-specific LLM rate limiter slot and API key
     llm_rate_limiter = request.app.state.llm_rate_limiter
-    success, api_key = await llm_rate_limiter.acquire()
+    success, api_key = await llm_rate_limiter.acquire(provider)
 
     if not success:
-        logger.warning(f"Global rate limit timeout for user {user_id}")
+        logger.warning(
+            "LLM rate limit timeout for user %s on provider %s",
+            user_id,
+            provider,
+        )
         raise HTTPException(
             status_code=429,
             detail={
@@ -179,13 +150,13 @@ async def pass_user_prompt_to_llm(
                     reasoning_effort=reasoning_effort,
                     response_style=response_style,
                     max_rows=max_rows,
-                    api_key=api_key if provider == Config.LLM_PROVIDER else None,
+                    api_key=api_key,
                     provider=provider,
                     model=model,
                 ):
                     yield sse_line
             finally:
-                llm_rate_limiter.release()
+                llm_rate_limiter.release(provider)
 
         headers = ConversationService.get_streaming_headers(conversation_id)
         return StreamingResponse(
@@ -194,7 +165,7 @@ async def pass_user_prompt_to_llm(
             headers=headers,
         )
     except Exception as e:
-        llm_rate_limiter.release()
+        llm_rate_limiter.release(provider)
         logger.error(f"Error initializing chat: {e}")
         if ConversationService.check_quota_error(str(e)):
             raise HTTPException(status_code=429, detail="Rate limit exceeded")
@@ -246,7 +217,7 @@ async def resume_agent(
         )
 
     llm_rate_limiter = request.app.state.llm_rate_limiter
-    success, api_key = await llm_rate_limiter.acquire()
+    success, api_key = await llm_rate_limiter.acquire(provider)
     if not success:
         raise HTTPException(
             status_code=429,
@@ -269,14 +240,14 @@ async def resume_agent(
                     reasoning_effort=data.reasoning_effort,
                     response_style=data.response_style,
                     max_rows=data.max_rows,
-                    api_key=api_key if provider == Config.LLM_PROVIDER else None,
+                    api_key=api_key,
                     provider=provider,
                     model=model,
                     resume=data.resume,
                 ):
                     yield sse_line
             finally:
-                llm_rate_limiter.release()
+                llm_rate_limiter.release(provider)
 
         headers = ConversationService.get_streaming_headers(conversation_id)
         return StreamingResponse(
@@ -285,7 +256,7 @@ async def resume_agent(
             headers=headers,
         )
     except Exception as e:
-        llm_rate_limiter.release()
+        llm_rate_limiter.release(provider)
         logger.error(f"Error resuming agent: {e}")
         if ConversationService.check_quota_error(str(e)):
             raise HTTPException(status_code=429, detail="Rate limit exceeded")

@@ -4,6 +4,7 @@ import { getScrollbarStyles } from '../../../../styles/shared';
 import {
   PREFERENCE_LAYOUT,
   getPreferenceButtonSx,
+  getPreferenceSectionSurfaceSx,
 } from './preferenceSurfaceStyles';
 
 export function PreferencePageHeader({ title, onClose }) {
@@ -29,8 +30,11 @@ export function PreferencePageHeader({ title, onClose }) {
           typography: { xs: 'h4', md: 'h3' },
           color: 'text.primary',
           fontWeight: 700,
-          letterSpacing: 0,
+          letterSpacing: '-0.02em',
           pb: { xs: 0, md: 2 },
+          borderBottom: { md: '1px solid' },
+          borderColor: { md: 'divider' },
+          mb: { md: 0.5 },
         }}
       >
         {title}
@@ -115,7 +119,7 @@ export function PreferenceNavList({ ariaLabel, children }) {
         sx={{
           display: 'flex',
           flexDirection: { xs: 'row', md: 'column' },
-          gap: { xs: 0.25, md: 0.375 },
+          gap: 0.5,
           m: 0,
           p: 0,
           listStyle: 'none',
@@ -128,7 +132,7 @@ export function PreferenceNavList({ ariaLabel, children }) {
   );
 }
 
-export function PreferenceNavItem({ active, onClick, icon, children }) {
+export function PreferenceNavItem({ active, onClick, icon, textColor, children }) {
   return (
     <Box component="li" sx={{ flexShrink: 0 }}>
       <Button
@@ -139,9 +143,9 @@ export function PreferenceNavItem({ active, onClick, icon, children }) {
         disableElevation
         sx={(theme) => {
           const isDark = theme.palette.mode === 'dark';
-          const activeBg = alpha(theme.palette.text.primary, isDark ? 0.11 : 0.075);
-          const activeHoverBg = alpha(theme.palette.text.primary, isDark ? 0.14 : 0.095);
-          const hoverBg = alpha(theme.palette.text.primary, isDark ? 0.07 : 0.05);
+          const activeBg = alpha(theme.palette.text.primary, isDark ? 0.13 : 0.09);
+          const activeHoverBg = alpha(theme.palette.text.primary, isDark ? 0.16 : 0.11);
+          const hoverBg = alpha(theme.palette.text.primary, isDark ? 0.055 : 0.04);
           return {
             height: 36,
             width: { xs: 'auto', md: '100%' },
@@ -150,18 +154,21 @@ export function PreferenceNavItem({ active, onClick, icon, children }) {
             gap: 1,
             px: 1.25,
             py: 0,
-            borderRadius: '8px',
+            borderRadius: '10px',
             border: 0,
-            boxShadow: 'none',
             textTransform: 'none',
             whiteSpace: 'nowrap',
-            color: active ? 'text.primary' : 'text.secondary',
+            backgroundClip: 'padding-box',
+            color: textColor || (active ? 'text.primary' : 'text.secondary'),
             ...theme.typography.uiNavItem,
             fontWeight: active ? 600 : 450,
             backgroundColor: active ? activeBg : 'transparent',
-            transition: theme.transitions.create(['background-color', 'color'], {
+            transition: theme.transitions.create(['background-color', 'box-shadow', 'color'], {
               duration: theme.transitions.duration.shorter,
             }),
+            boxShadow: active
+              ? `inset 0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.035 : 0.045)}`
+              : 'inset 0 0 0 1px transparent',
             '& .MuiButton-startIcon': {
               mr: 0,
               ml: 0,
@@ -176,9 +183,11 @@ export function PreferenceNavItem({ active, onClick, icon, children }) {
             },
             '&:hover': {
               backgroundColor: active ? activeHoverBg : hoverBg,
-              color: 'text.primary',
+              color: textColor || 'text.primary',
               border: 0,
-              boxShadow: 'none',
+              boxShadow: active
+                ? `inset 0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.05 : 0.06)}`
+                : 'inset 0 0 0 1px transparent',
               '& .MuiButton-startIcon': {
                 color: 'text.primary',
                 opacity: 1,
@@ -201,7 +210,7 @@ export function PreferenceNavItem({ active, onClick, icon, children }) {
   );
 }
 
-export function PreferenceSection({ title, description, children, sx = {}, noDivider = false }) {
+export function PreferenceSection({ title, description, children, sx = {} }) {
   return (
     <Box sx={{ mb: { xs: 5, md: 6.5 }, '&:last-of-type': { mb: 0 }, ...sx }}>
       <Typography
@@ -229,11 +238,9 @@ export function PreferenceSection({ title, description, children, sx = {}, noDiv
           {description}
         </Typography>
       ) : null}
-      {noDivider ? children : (
-        <Box sx={{ borderTop: '1px solid', borderColor: 'divider' }}>
-          {children}
-        </Box>
-      )}
+      <Box sx={(theme) => ({ ...getPreferenceSectionSurfaceSx(theme), mt: 0.5 })}>
+        {children}
+      </Box>
     </Box>
   );
 }
@@ -254,10 +261,11 @@ export function PreferenceRow({ label, description, children, disabled = false, 
           duration: theme.transitions.duration.shorter,
         }),
         minHeight: { sm: 62 },
-        py: { xs: 1.75, sm: 1.5 },
+        py: { xs: 1.5, sm: 1.375 },
         borderBottom: '1px solid',
         borderColor: 'divider',
-        '&:last-of-type': { borderBottom: 'none' },
+        '&:first-of-type': { pt: { xs: 0.5, sm: 0.25 } },
+        '&:last-of-type': { borderBottom: 'none', pb: { xs: 0.5, sm: 0.25 } },
         ...sx,
       })}
     >

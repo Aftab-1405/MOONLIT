@@ -20,10 +20,10 @@ function DemoSection() {
             variant="caption"
             fontWeight="bold"
             sx={{
-              textTransform: 'uppercase',
-              letterSpacing: '0.15em',
+              textTransform: 'none',
+              letterSpacing: 0,
               color: 'text.secondary',
-              ...theme.typography.uiCaptionXs,
+              ...theme.typography.uiCaptionSm,
             }}
           >
             See It In Action

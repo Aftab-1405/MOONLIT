@@ -4,25 +4,12 @@
  */
 
 import { createContext, useContext, useCallback, useMemo } from 'react';
+import { defaultUserSettings } from '../config/userSettings';
 import { useLocalStorage } from '../hooks';
 
 const SETTINGS_KEY = 'moonlit-settings';
 
-const defaultSettings = {
-  theme: 'dark',
-  confirmBeforeRun: false,
-  queryTimeout: 30,
-  maxRows: 1000,
-  nullDisplay: 'NULL',
-  rememberConnection: false,
-  defaultDbType: 'postgresql',
-  connectionPersistence: 0,
-  enableReasoning: true,
-  reasoningEffort: 'medium',
-  responseStyle: 'balanced',
-  llmProvider: null,
-  llmModel: null,
-};
+const defaultSettings = defaultUserSettings;
 
 const SettingsContext = createContext(null);
 

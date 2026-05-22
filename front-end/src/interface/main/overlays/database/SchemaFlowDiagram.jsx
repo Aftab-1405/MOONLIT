@@ -14,8 +14,8 @@ import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
-import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
+import DatabaseIcon from '../../../../components/icons/DatabaseIcon';
+import SchemaIcon from '../../../../components/icons/SchemaIcon';
 import {
   FLOW_NODE_CARD_CLASS,
   HIDDEN_FLOW_HANDLE_STYLE,
@@ -71,10 +71,10 @@ const DatabaseNode = memo(({ data }) => {
         },
       }}
     >
-      <StorageRoundedIcon
+      <DatabaseIcon
         sx={{
-          fontSize: { xs: 18, sm: 16 },
-          color: theme.palette.text.primary,
+          width: { xs: 18, sm: 16 },
+          height: { xs: 18, sm: 16 },
         }}
       />
       <Box sx={{ minWidth: 0, flex: 1 }}>
@@ -154,10 +154,11 @@ const TableNode = memo(({ data }) => {
     >
       <Handle type="target" position={Position.Left} style={HIDDEN_FLOW_HANDLE_STYLE} />
       
-      <TableChartRoundedIcon
+      <SchemaIcon
         sx={{
-          fontSize: { xs: 16, sm: 14 },
-          color: data.expanded ? theme.palette.text.primary : 'text.secondary',
+          width: { xs: 16, sm: 14 },
+          height: { xs: 16, sm: 14 },
+          opacity: data.expanded ? 1 : 0.78,
         }}
       />
       

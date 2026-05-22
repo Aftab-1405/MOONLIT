@@ -24,6 +24,7 @@ import ArtifactLoader from './sidebar-right/index.js';
 import { ConfirmDialog, ResizeHandle } from '../components';
 import { getPopoverPaperSx } from '../styles/shared';
 import { useChatPageController } from '../hooks/chat-page/useChatPageController';
+import { getShellWorkspaceSx } from './styles/interfaceChrome';
 import {
   getScrollbarStyles,
   UI_LAYOUT,
@@ -230,13 +231,15 @@ function MainInterface() {
           onClick={handleOpenSettings}
           data-ui-target="settings_button"
           sx={{
-            borderRadius: '8px',
+            borderRadius: '10px',
             px: 1,
             py: 0.875,
-            minHeight: 32,
+            minHeight: 36,
             gap: 1,
-            '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.05) },
-            '&.Mui-focusVisible': { backgroundColor: alpha(theme.palette.text.primary, 0.05) },
+            transition: theme.transitions.create('background-color', { duration: 120 }),
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.05),
+            },
           }}
         >
           <SettingsOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
@@ -247,13 +250,15 @@ function MainInterface() {
         <MenuItem
           onClick={handleLogout}
           sx={{
-            borderRadius: '8px',
+            borderRadius: '10px',
             px: 1,
             py: 0.875,
-            minHeight: 32,
+            minHeight: 36,
             gap: 1,
-            '&:hover': { backgroundColor: alpha(theme.palette.text.primary, 0.05) },
-            '&.Mui-focusVisible': { backgroundColor: alpha(theme.palette.text.primary, 0.05) },
+            transition: theme.transitions.create('background-color', { duration: 120 }),
+            '&:hover': {
+              backgroundColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.05),
+            },
           }}
         >
           <LogoutOutlinedIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
@@ -296,9 +301,9 @@ function MainInterface() {
             minWidth: 0,
             minHeight: 0,
             overflow: 'hidden',
-            backgroundColor: theme.palette.background.default,
             position: 'relative',
             zIndex: UI_Z_INDEX.mainContentBase,
+            ...getShellWorkspaceSx(theme),
           }}
         >
           {isNarrowLayout && (

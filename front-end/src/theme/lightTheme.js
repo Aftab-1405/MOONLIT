@@ -234,17 +234,17 @@ const typography = {
   body1:     { fontSize: '1rem',     lineHeight: 1.75, letterSpacing: '0.008em', color: H.text000 },
   body2:     { fontSize: '0.875rem', lineHeight: 1.7,  letterSpacing: '0.008em', color: H.text000 },
   caption:   { fontSize: '0.75rem',  lineHeight: 1.5,  letterSpacing: '0.02em',  color: H.text200 },
-  overline:  { fontSize: '0.625rem', fontWeight: 600,  letterSpacing: '0.1em',   lineHeight: 1.5, textTransform: 'uppercase', color: H.text200 },
+  overline:  { fontSize: '0.625rem', fontWeight: 600,  letterSpacing: 0,   lineHeight: 1.5, textTransform: 'none', color: H.text200 },
   button:    { fontFamily: FONTS.sans, textTransform: 'none', fontWeight: 500, fontSize: '0.875rem', letterSpacing: '0.01em' },
 
   // Custom semantic variants (accessed as Typography variant="uiBodyMd" etc.)
   mono:           { fontFamily: FONTS.mono, fontSize: '0.875rem', lineHeight: 1.6 },
-  label:          { fontFamily: FONTS.mono, fontSize: '0.6875rem', fontWeight: 500, lineHeight: 1.1, letterSpacing: '0.05em', textTransform: 'uppercase', color: H.text400 },
+  label:          { fontFamily: FONTS.mono, fontSize: '0.6875rem', fontWeight: 500, lineHeight: 1.1, letterSpacing: 0, textTransform: 'none', color: H.text400 },
   uiBodyMd:       { fontSize: { xs: '0.82rem', sm: '0.9rem' },   lineHeight: 1.65, letterSpacing: '0.008em' },
   uiBodySm:       { fontSize: { xs: '0.8rem',  sm: '0.875rem' }, lineHeight: 1.55, letterSpacing: '0.008em' },
   uiCaptionSm:    { fontSize: { xs: '0.72rem', sm: '0.8rem' },   lineHeight: 1.45, letterSpacing: '0.01em' },
   uiCaptionXs:    { fontSize: { xs: '0.68rem', sm: '0.75rem' },  lineHeight: 1.4,  letterSpacing: '0.01em' },
-  uiMonoLabel:    { fontFamily: FONTS.mono, fontSize: { xs: '0.62rem', sm: '0.6875rem' }, fontWeight: 500, lineHeight: 1.1, letterSpacing: '0.05em', textTransform: 'uppercase' },
+  uiMonoLabel:    { fontFamily: FONTS.mono, fontSize: { xs: '0.62rem', sm: '0.6875rem' }, fontWeight: 500, lineHeight: 1.1, letterSpacing: 0, textTransform: 'none' },
   uiInput:        { fontSize: { xs: '1rem', sm: '0.95rem' } },
   uiCaption2xs:   { fontSize: { xs: '0.65rem', sm: '0.7rem' },   lineHeight: 1.4,  letterSpacing: '0.01em' },
   uiCaptionMd:    { fontSize: { xs: '0.75rem', sm: '0.8125rem' },lineHeight: 1.45, letterSpacing: '0.01em' },
@@ -268,7 +268,7 @@ const typography = {
   // Sidebar-specific variants
   uiNavItem:      { fontSize: '0.875rem', lineHeight: 1.3, letterSpacing: '0.008em' },
   uiNavShortcut:  { fontSize: '0.72rem',  lineHeight: 1.4, letterSpacing: '0.01em' },
-  uiSectionLabel: { fontSize: '0.75rem',  fontWeight: 700, lineHeight: 1.25, letterSpacing: '0.04em', textTransform: 'uppercase' },
+  uiSectionLabel: { fontSize: '0.75rem',  fontWeight: 700, lineHeight: 1.25, letterSpacing: 0, textTransform: 'none' },
   // SQL editor button/menu text
   uiButtonSm:     { fontSize: '0.75rem',  fontWeight: 600, letterSpacing: '0.01em' },
   uiMenuItemSm:   { fontSize: '0.8125rem', lineHeight: 1.5 },

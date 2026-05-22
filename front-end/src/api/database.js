@@ -97,3 +97,22 @@ export async function getSchemas() {
 export async function selectSchema(schemaName) {
   return post(DATABASE.SELECT_SCHEMA, { schema_name: schemaName });
 }
+
+/**
+ * Get tables in the current database/schema.
+ *
+ * @returns {Promise<{status: 'success', data: Object, message?: string}>}
+ */
+export async function getTables() {
+  return get(DATABASE.GET_TABLES);
+}
+
+/**
+ * Get columns and metadata for a table.
+ *
+ * @param {string} tableName - Table name
+ * @returns {Promise<{status: 'success', data: Object, message?: string}>}
+ */
+export async function getTableSchema(tableName) {
+  return post(DATABASE.GET_TABLE_SCHEMA, { table_name: tableName });
+}

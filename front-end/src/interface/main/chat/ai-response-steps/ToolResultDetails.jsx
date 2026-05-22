@@ -12,11 +12,10 @@ const getStepTypeScale = (theme) => {
   return {
     sectionLabel: {
       color: alpha(theme.palette.text.secondary, isDark ? 0.58 : 0.52),
-      fontFamily: theme.typography.fontFamilyMono,
-      ...theme.typography.uiMonoLabel,
-      fontWeight: theme.typography.fontWeightMedium,
-      letterSpacing: '0.07em',
-      textTransform: 'uppercase',
+      ...theme.typography.uiCaptionMd,
+      fontWeight: 650,
+      letterSpacing: 0,
+      textTransform: 'none',
     },
     metaLabel: {
       color: alpha(theme.palette.text.secondary, isDark ? 0.6 : 0.54),

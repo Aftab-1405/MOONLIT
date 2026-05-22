@@ -28,7 +28,6 @@ import {
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
-import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import DatasetOutlinedIcon from '@mui/icons-material/DatasetOutlined';
 import DonutLargeRoundedIcon from '@mui/icons-material/DonutLargeRounded';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
@@ -36,6 +35,7 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import PieChartOutlineRoundedIcon from '@mui/icons-material/PieChartOutlineRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
 import TimelineRoundedIcon from '@mui/icons-material/TimelineRounded';
+import CodeEditorIcon from '../../../../components/icons/CodeEditorIcon';
 import { ArtifactEmptyState, ArtifactShell } from '../../artifact-loader';
 
 ChartJS.register(
@@ -456,7 +456,7 @@ function DataVisualizationPanel({
             ? {
                 key: 'editor',
                 label: 'Back to editor',
-                icon: <CodeRoundedIcon sx={{ fontSize: 18 }} />,
+                icon: <CodeEditorIcon sx={{ width: 18, height: 18 }} />,
                 onClick: openEditor,
               }
             : null,

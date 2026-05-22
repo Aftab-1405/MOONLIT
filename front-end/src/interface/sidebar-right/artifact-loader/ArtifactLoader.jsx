@@ -2,6 +2,7 @@ import { Component, Suspense, lazy, memo, useCallback, useMemo, useState } from 
 import { Box, Skeleton, Stack } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
+import { getArtifactPanelChromeSx } from '../../styles/interfaceChrome';
 import { ArtifactEmptyState } from './ArtifactLayout';
 
 const artifactRegistry = {
@@ -74,6 +75,7 @@ function CanvasHost({ open, panelWidth, fullscreen = false, children }) {
           easing: open ? theme.transitions.easing.sharp : theme.transitions.easing.easeOut,
           duration: open ? theme.transitions.duration.enteringScreen : theme.transitions.duration.leavingScreen,
         }),
+        ...(open && !fullscreen ? getArtifactPanelChromeSx(theme) : {}),
       })}
     >
       {children}

@@ -106,7 +106,10 @@ function ArtifactHeader({
         p: isMobile ? 1.5 : 2,
         borderBottom: '1px solid',
         borderColor: theme.palette.border.subtle,
-        bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.5 : 1),
+        bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.55 : 0.98),
+        backgroundImage: theme.palette.mode === 'dark'
+          ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.04)} 0%, transparent 100%)`
+          : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.7)} 0%, transparent 100%)`,
         ...sx,
       }}
     >

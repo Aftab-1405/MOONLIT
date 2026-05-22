@@ -10,7 +10,7 @@
 
 import { useState, useCallback, useMemo, memo } from 'react';
 import { Box } from '@mui/material';
-import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
+import CodeEditorIcon from '../../../../components/icons/CodeEditorIcon';
 import { ArtifactShell } from '../../artifact-loader';
 import SchemaSidebar from './SchemaSidebar';
 import QueryWorkspace from './QueryWorkspace';
@@ -258,7 +258,7 @@ function SqlWorkspace({
     >
       <ArtifactShell
         title={title || 'SQL Editor'}
-        icon={<CodeRoundedIcon sx={{ fontSize: 20 }} />}
+        icon={<CodeEditorIcon sx={{ width: 20, height: 20 }} />}
         chrome={chrome}
         onClose={onClose}
         onRequestClose={onRequestClose}

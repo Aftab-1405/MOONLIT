@@ -4,7 +4,7 @@
  * Displays database schemas, tables, and columns in a collapsible tree structure.
  */
 
-import { useState, memo } from 'react';
+import { useState, memo, useCallback, useEffect, useMemo } from 'react';
 import {
   Box,
   Typography,
@@ -13,33 +13,21 @@ import {
   Tooltip,
 } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
-import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
 import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import HighlightOffRounded from '@mui/icons-material/HighlightOffRounded';
 import { getScrollbarStyles } from '../../../../styles/shared';
+import SchemaIcon from '../../../../components/icons/SchemaIcon';
+import { getTables, getTableSchema } from '../../../../api';
 
-// Mock schema data - replace with actual API call
-const MOCK_SCHEMA = [
-  {
-    name: 'public',
-    tables: [
-      {
-        name: 'users',
-        columns: ['id', 'email', 'name', 'created_at'],
-      },
-      {
-        name: 'orders',
-        columns: ['id', 'user_id', 'total', 'status', 'created_at'],
-      },
-      {
-        name: 'products',
-        columns: ['id', 'name', 'price', 'stock'],
-      },
-    ],
-  },
-];
+function getColumnLabel(column) {
+  if (typeof column === 'string') return column;
+  if (!column || typeof column !== 'object') return '';
+
+  const name = column.name || column.column_name || '';
+  const dataType = column.data_type || column.type || '';
+  return dataType ? `${name} ${dataType}` : name;
+}
 
 function SchemaItem({ schema }) {
   const theme = useTheme();
@@ -67,7 +55,7 @@ function SchemaItem({ schema }) {
         ) : (
           <KeyboardArrowRightRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
         )}
-        <StorageRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
+        <SchemaIcon sx={{ width: 14, height: 14, opacity: 0.78 }} />
         <Typography
           sx={{
             ...theme.typography.uiCaptionMd,
@@ -92,11 +80,36 @@ function SchemaItem({ schema }) {
 function TableItem({ table }) {
   const theme = useTheme();
   const [expanded, setExpanded] = useState(false);
+  const [columns, setColumns] = useState([]);
+  const [columnsLoading, setColumnsLoading] = useState(false);
+  const [columnsError, setColumnsError] = useState('');
+
+  const handleToggle = useCallback(async () => {
+    const nextExpanded = !expanded;
+    setExpanded(nextExpanded);
+
+    if (!nextExpanded || columns.length > 0 || columnsLoading) return;
+
+    setColumnsLoading(true);
+    setColumnsError('');
+    try {
+      const response = await getTableSchema(table.name);
+      if (response.status === 'success') {
+        setColumns(response.data?.columns || []);
+      } else {
+        setColumnsError(response.message || 'Columns unavailable');
+      }
+    } catch (error) {
+      setColumnsError(error.message || 'Columns unavailable');
+    } finally {
+      setColumnsLoading(false);
+    }
+  }, [columns.length, columnsLoading, expanded, table.name]);
 
   return (
     <Box>
       <Box
-        onClick={() => setExpanded((v) => !v)}
+        onClick={handleToggle}
         sx={{
           display: 'flex',
           alignItems: 'center',
@@ -116,7 +129,7 @@ function TableItem({ table }) {
         ) : (
           <KeyboardArrowRightRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
         )}
-        <TableChartRoundedIcon sx={{ fontSize: 13, color: 'text.secondary' }} />
+        <SchemaIcon sx={{ width: 13, height: 13, opacity: 0.78 }} />
         <Typography
           sx={{
             ...theme.typography.uiCaptionSm,
@@ -128,9 +141,45 @@ function TableItem({ table }) {
       </Box>
       <Collapse in={expanded}>
         <Box sx={{ pl: 2.5 }}>
-          {table.columns.map((column) => (
+          {columnsLoading ? (
+            <Box sx={{ px: 1, py: 0.5 }}>
+              <Typography
+                sx={{
+                  ...theme.typography.uiCaptionXs,
+                  color: 'text.disabled',
+                  fontFamily: theme.typography.fontFamilyMono,
+                }}
+              >
+                Loading columns...
+              </Typography>
+            </Box>
+          ) : columnsError ? (
+            <Box sx={{ px: 1, py: 0.5 }}>
+              <Typography
+                sx={{
+                  ...theme.typography.uiCaptionXs,
+                  color: 'error.main',
+                  fontFamily: theme.typography.fontFamilyMono,
+                }}
+              >
+                {columnsError}
+              </Typography>
+            </Box>
+          ) : columns.length === 0 ? (
+            <Box sx={{ px: 1, py: 0.5 }}>
+              <Typography
+                sx={{
+                  ...theme.typography.uiCaptionXs,
+                  color: 'text.disabled',
+                  fontFamily: theme.typography.fontFamilyMono,
+                }}
+              >
+                No columns
+              </Typography>
+            </Box>
+          ) : columns.map((column) => (
             <Box
-              key={column}
+              key={getColumnLabel(column)}
               sx={{
                 px: 1,
                 py: 0.5,
@@ -147,7 +196,7 @@ function TableItem({ table }) {
                   fontFamily: theme.typography.fontFamilyMono,
                 }}
               >
-                {column}
+                {getColumnLabel(column)}
               </Typography>
             </Box>
           ))}
@@ -157,9 +206,82 @@ function TableItem({ table }) {
   );
 }
 
-function SchemaSidebar({ width, isConnected, currentDatabase: _currentDatabase, onClose, onResizeStart }) {
+function SchemaSidebar({ width, isConnected, currentDatabase, onClose, onResizeStart }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
+  const [schemaInfo, setSchemaInfo] = useState(null);
+  const [schemaLoading, setSchemaLoading] = useState(false);
+  const [schemaError, setSchemaError] = useState('');
+
+  const loadSchema = useCallback((isCancelled) => {
+    setSchemaLoading(true);
+    setSchemaError('');
+
+    getTables()
+      .then((response) => {
+        if (isCancelled()) return;
+        if (response.status === 'success') {
+          const tables = (response.data?.tables || []).map((tableName) => ({ name: tableName }));
+          setSchemaInfo({
+            name: response.data?.schema || currentDatabase || 'Schema',
+            tables,
+          });
+        } else {
+          setSchemaError(response.message || 'Schema unavailable');
+        }
+      })
+      .catch((error) => {
+        if (!isCancelled()) setSchemaError(error.message || 'Schema unavailable');
+      })
+      .finally(() => {
+        if (!isCancelled()) setSchemaLoading(false);
+      });
+  }, [currentDatabase]);
+
+  useEffect(() => {
+    if (!isConnected) return undefined;
+
+    let cancelled = false;
+    Promise.resolve().then(() => {
+      if (!cancelled) loadSchema(() => cancelled);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isConnected, loadSchema]);
+
+  const schemaContent = useMemo(() => {
+    if (!isConnected) {
+      return {
+        message: 'Connect to a database to view schema',
+        tone: 'disabled',
+      };
+    }
+
+    if (schemaLoading) {
+      return {
+        message: 'Loading schema...',
+        tone: 'disabled',
+      };
+    }
+
+    if (schemaError) {
+      return {
+        message: schemaError,
+        tone: 'error',
+      };
+    }
+
+    if (!schemaInfo || schemaInfo.tables.length === 0) {
+      return {
+        message: 'No tables found for this database',
+        tone: 'disabled',
+      };
+    }
+
+    return null;
+  }, [isConnected, schemaError, schemaInfo, schemaLoading]);
 
   return (
     <Box
@@ -215,11 +337,7 @@ function SchemaSidebar({ width, isConnected, currentDatabase: _currentDatabase, 
           ...getScrollbarStyles(theme),
         }}
       >
-        {isConnected ? (
-          MOCK_SCHEMA.map((schema) => (
-            <SchemaItem key={schema.name} schema={schema} />
-          ))
-        ) : (
+        {schemaContent ? (
           <Box
             sx={{
               display: 'flex',
@@ -233,13 +351,15 @@ function SchemaSidebar({ width, isConnected, currentDatabase: _currentDatabase, 
             <Typography
               sx={{
                 ...theme.typography.uiCaptionSm,
-                color: 'text.disabled',
+                color: schemaContent.tone === 'error' ? 'error.main' : 'text.disabled',
                 textAlign: 'center',
               }}
             >
-              Connect to a database to view schema
+              {schemaContent.message}
             </Typography>
           </Box>
+        ) : (
+          <SchemaItem schema={schemaInfo} />
         )}
       </Box>
 

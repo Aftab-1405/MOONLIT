@@ -58,13 +58,15 @@ export const getToolbarChipSx = (
   {
     interactive = true,
   } = {},
-) => ({
+) => {
+  const isDark = theme.palette.mode === 'dark';
+  return {
   height: 32,
-  borderRadius: '6px',
-  border: 'none',
-  backgroundColor: 'transparent',
+  borderRadius: '8px',
+  border: `0.5px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
+  backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.025),
   color: 'text.secondary',
-  transition: 'background-color 150ms ease, color 150ms ease',
+  transition: 'background-color 150ms ease, color 150ms ease, border-color 150ms ease, box-shadow 150ms ease',
   '& .MuiChip-label': {
     px: 1.25,
     ...theme.typography.uiCaptionSm,
@@ -87,8 +89,10 @@ export const getToolbarChipSx = (
     ? {
         [HOVER_CAPABLE_QUERY]: {
           '&:hover': {
-            backgroundColor: alpha(theme.palette.text.primary, 0.06),
+            backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.09 : 0.06),
+            borderColor: alpha(theme.palette.text.primary, isDark ? 0.14 : 0.1),
             color: 'text.primary',
+            boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, isDark ? 0.12 : 0.04)}`,
             '& .MuiChip-icon': {
               color: alpha(theme.palette.text.primary, 0.65),
             },
@@ -96,7 +100,8 @@ export const getToolbarChipSx = (
         },
       }
     : {}),
-});
+};
+};
 
 export const getUtilityIconButtonSx = (
   theme,
@@ -126,10 +131,13 @@ export const getPopoverSectionLabelSx = (theme, { pt = 0.5 } = {}) => ({
   px: 1,
   pt,
   pb: 0.25,
-  ...theme.typography.uiMonoLabel,
-  color: 'text.disabled',
+  ...theme.typography.uiMenuItemSm,
+  fontWeight: 650,
+  letterSpacing: 0,
+  textTransform: 'none',
+  color: 'text.secondary',
   display: 'block',
-  lineHeight: 1,
+  lineHeight: 1.35,
 });
 
 export const getSelectableMenuItemSx = (
@@ -142,12 +150,13 @@ export const getSelectableMenuItemSx = (
   } = {},
 ) => {
   const isDark = theme.palette.mode === 'dark';
-  const activeBg = alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07);
-  const hoverBg = alpha(theme.palette.text.primary, isDark ? 0.07 : 0.05);
+  const activeBg = alpha(theme.palette.text.primary, isDark ? 0.105 : 0.07);
+  const hoverBg = alpha(theme.palette.text.primary, isDark ? 0.055 : 0.04);
   const activeHoverBg = alpha(theme.palette.text.primary, isDark ? 0.13 : 0.09);
 
   return {
     borderRadius: '8px',
+    my: 0.125,
     px: 1,
     py: 0.875,
     minHeight,
@@ -157,12 +166,27 @@ export const getSelectableMenuItemSx = (
     gap,
     alignItems: 'center',
     userSelect: 'none',
-    transition: 'background-color 120ms',
+    backgroundClip: 'padding-box',
+    transition: theme.transitions.create(['background-color', 'box-shadow'], {
+      duration: theme.transitions.duration.shorter,
+    }),
     backgroundColor: isActive ? activeBg : 'transparent',
+    boxShadow: isActive
+      ? `inset 0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.025 : 0.035)}`
+      : 'inset 0 0 0 1px transparent',
     [HOVER_CAPABLE_QUERY]: {
       '&:hover': {
         backgroundColor: isActive ? activeHoverBg : hoverBg,
+        boxShadow: isActive
+          ? `inset 0 0 0 1px ${alpha(theme.palette.text.primary, isDark ? 0.04 : 0.05)}`
+          : 'inset 0 0 0 1px transparent',
       },
+    },
+    '&:first-of-type': {
+      mt: 0,
+    },
+    '&:last-of-type': {
+      mb: 0,
     },
   };
 };
@@ -235,18 +259,20 @@ export const getPopoverPaperSx = (theme, isDark, overrides = {}) => ({
   borderRadius: '14px',
   border: `0.5px solid ${
     isDark
-      ? alpha(theme.palette.text.primary, 0.1)
-      : alpha(theme.palette.text.primary, 0.08)
+      ? alpha(theme.palette.text.primary, 0.12)
+      : alpha(theme.palette.text.primary, 0.09)
   }`,
   backgroundColor: isDark
-    ? alpha(theme.palette.background.paper, 0.97)
+    ? alpha(theme.palette.background.paper, 0.96)
     : alpha(theme.palette.background.paper, 0.99),
-  backgroundImage: 'none',
-  backdropFilter: 'blur(20px)',
-  WebkitBackdropFilter: 'blur(20px)',
+  backgroundImage: isDark
+    ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.04)} 0%, transparent 100%)`
+    : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.65)} 0%, transparent 100%)`,
+  backdropFilter: 'blur(24px) saturate(1.15)',
+  WebkitBackdropFilter: 'blur(24px) saturate(1.15)',
   boxShadow: isDark
-    ? `0 2px 8px ${alpha('#000', 0.32)}`
-    : `0 2px 8px ${alpha('#000', 0.08)}`,
+    ? `0 12px 40px ${alpha('#000', 0.42)}, 0 0 0 0.5px ${alpha(theme.palette.common.white, 0.04)}`
+    : `0 12px 36px ${alpha('#000', 0.1)}, 0 0 0 0.5px ${alpha(theme.palette.common.white, 0.8)}`,
   [BACKDROP_FILTER_FALLBACK_QUERY]: {
     backdropFilter: 'none',
     WebkitBackdropFilter: 'none',

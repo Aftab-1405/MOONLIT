@@ -149,7 +149,8 @@ def create_app() -> FastAPI:
     app.state.llm_rate_limiter = create_rate_limiter(AppConfig)
     logger.info(
         f"LLM provider: {AppConfig.LLM_PROVIDER}; "
-        f"LLM rate limiter: {len(AppConfig.LLM_API_KEYS)} keys, "
+        f"LLM rate limiter: "
+        f"{app.state.llm_rate_limiter.configured_provider_count()} providers, "
         f"enabled={AppConfig.LLM_RATELIMIT_ENABLED}"
     )
 

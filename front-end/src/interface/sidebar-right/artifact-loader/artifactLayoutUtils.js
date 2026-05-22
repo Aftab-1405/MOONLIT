@@ -23,8 +23,10 @@ export const getArtifactActionButtonSx = (theme, { active = false, size = 36 } =
   width: size,
   height: size,
   flexShrink: 0,
-  borderRadius: '8px',
-  border: 'none',
+  borderRadius: '10px',
+  border: active
+    ? `0.5px solid ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.35 : 0.25)}`
+    : '0.5px solid transparent',
   color: active ? theme.palette.primary.main : theme.palette.text.secondary,
   bgcolor: active ? alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.16 : 0.1) : 'transparent',
   transition: theme.transitions.create(['background-color', 'color', 'opacity'], {

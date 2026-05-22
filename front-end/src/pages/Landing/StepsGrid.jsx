@@ -35,10 +35,10 @@ function StepsGrid() {
             variant="caption"
             fontWeight="bold"
             sx={{
-              textTransform: 'uppercase',
-              letterSpacing: '0.15em',
+              textTransform: 'none',
+              letterSpacing: 0,
               color: 'text.secondary',
-              ...theme.typography.uiCaptionXs,
+              ...theme.typography.uiCaptionSm,
               display: 'block',
               mb: 1.5,
             }}

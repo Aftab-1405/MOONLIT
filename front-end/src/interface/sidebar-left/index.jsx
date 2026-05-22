@@ -9,12 +9,12 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
-import HistoryOutlinedIcon from '@mui/icons-material/HistoryOutlined';
-import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import StreamOutlinedIcon from '@mui/icons-material/StreamOutlined';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import DatabaseIcon from '../../components/icons/DatabaseIcon';
+import MindmapIcon from '../../components/icons/MindmapIcon';
+import NewChatIcon from '../../components/icons/NewChatIcon';
+import RecentChatIcon from '../../components/icons/RecentChatIcon';
+import SearchIcon from '../../components/icons/SearchIcon';
 import { getUserContext } from '../../api';
 import { getScrollbarStyles } from '../../styles/shared';
 import logger from '../../utils/logger';
@@ -163,19 +163,18 @@ function Sidebar({
       id: 'new-chat',
       label: 'New chat',
       tooltip: 'New chat',
-      icon: <AddRoundedIcon sx={{ fontSize: 16 }} />,
+      icon: <NewChatIcon sx={{ width: 18, height: 18 }} />,
       onClick: () => {
         closeMindmapSurface();
         onNewChat?.();
       },
       shortcut: 'Ctrl+Shift+O',
-      circularIconBg: true,
     },
     {
       id: 'search',
       label: 'Search chats',
       tooltip: 'Search chats',
-      icon: <SearchRoundedIcon sx={{ fontSize: 18 }} />,
+      icon: <SearchIcon sx={{ width: 18, height: 18 }} />,
       onClick: handleSearchClick,
       shortcut: 'Ctrl+K',
     },
@@ -187,7 +186,7 @@ function Sidebar({
         id: 'database',
         label: 'Database',
         tooltip: isConnected ? (currentDatabase || 'Connected') : 'Connect database',
-        icon: <CloudUploadOutlinedIcon sx={{ fontSize: 18 }} />,
+        icon: <DatabaseIcon sx={{ width: 17, height: 17 }} />,
         onClick: handleDatabaseAction,
         showStatus: isConnected,
         uiTarget: 'database_button',
@@ -198,7 +197,7 @@ function Sidebar({
         id: 'mindmap',
         label: 'Mindmap',
         tooltip: 'Mindmap',
-        icon: <StreamOutlinedIcon sx={{ fontSize: 18 }} />,
+        icon: <MindmapIcon sx={{ width: 18, height: 18 }} />,
         onClick: handleOpenMindmap,
       });
     }
@@ -323,7 +322,6 @@ function Sidebar({
           isCollapsed={collapsed}
           showStatus={item.showStatus}
           disabled={item.disabled}
-          circularIconBg={item.circularIconBg}
           shortcut={item.shortcut}
           uiTarget={item.uiTarget}
         />
@@ -365,11 +363,15 @@ function Sidebar({
           },
         }}
       >
-        <Typography
-          component="span"
-          sx={{ ...buildSidebarSectionLabelSx(), px: 0, pt: 0, pb: 0 }}
-        >          Recents
-        </Typography>
+        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.875, minWidth: 0 }}>
+          <RecentChatIcon sx={{ width: 15, height: 15 }} />
+          <Typography
+            component="span"
+            sx={{ ...buildSidebarSectionLabelSx(), px: 0, pt: 0, pb: 0 }}
+          >
+            Recents
+          </Typography>
+        </Box>
         <Typography
           className="toggle-hint"
           component="span"
@@ -571,7 +573,7 @@ function Sidebar({
             <SidebarNavItem
               label="History"
               tooltip="Recent chats"
-              icon={<HistoryOutlinedIcon sx={{ fontSize: 18 }} />}
+              icon={<RecentChatIcon sx={{ width: 18, height: 18 }} />}
               onClick={handleHistoryClick}
               isCollapsed
               disabled={conversations.length === 0}

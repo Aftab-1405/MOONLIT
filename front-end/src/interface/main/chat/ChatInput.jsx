@@ -15,16 +15,20 @@ import { alpha, useTheme } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import StreamOutlinedIcon from '@mui/icons-material/StreamOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
-import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { AppPopover } from '../../../components';
+import CodeEditorIcon from '../../../components/icons/CodeEditorIcon';
+import DatabaseIcon from '../../../components/icons/DatabaseIcon';
+import SchemaIcon from '../../../components/icons/SchemaIcon';
 import { useTheme as useAppTheme } from '../../../contexts/ThemeContext';
 import { getSchemas, selectSchema } from '../../../api';
 import { HOVER_CAPABLE_QUERY } from '../../../styles/mediaQueries';
 import logger from '../../../utils/logger';
+import {
+  getComposerHoverShadow,
+  getComposerSurfaceSx,
+} from '../../styles/interfaceChrome';
 import {
   getPopoverSectionLabelSx,
   getSelectableMenuItemSx,
@@ -82,9 +86,11 @@ function ChatInput({
     message.trim().length > 0,
   [message]);
 
-  const toolbarChipStyles = useMemo(() => (
-    getToolbarChipSx(theme, { isCompactMobile })
-  ), [theme, isCompactMobile]);
+  const toolbarChipStyles = useMemo(() => getToolbarChipSx(theme), [theme]);
+  const composerSurfaceSx = useMemo(
+    () => getComposerSurfaceSx(theme, { isFocused }),
+    [theme, isFocused],
+  );
   const inputPlaceholder = isConnected
     ? 'Ask about your database or anything else...'
     : 'How can I help you today?';
@@ -99,7 +105,6 @@ function ChatInput({
       .map((provider) => ({
         name: provider.name,
         label: provider.label || provider.name,
-        defaultModel: provider.default_model || null,
         models: provider.models,
       }));
   }, [providerOptions]);
@@ -198,17 +203,17 @@ function ChatInput({
   const suggestions = useMemo(() => [
     {
       label: 'Check Connection',
-      icon: <CloudUploadOutlinedIcon sx={{ fontSize: 16 }} />,
+      icon: <DatabaseIcon sx={{ width: 16, height: 16 }} />,
       prompt: 'Check my database connection status and show connection details',
     },
     {
       label: 'Schema Details',
-      icon: <StreamOutlinedIcon sx={{ fontSize: 16 }} />,
+      icon: <SchemaIcon sx={{ width: 16, height: 16 }} />,
       prompt: 'Show me the database schema with all tables and their columns',
     },
     {
       label: 'Open SQL Editor',
-      icon: <CodeRoundedIcon sx={{ fontSize: 16 }} />,
+      icon: <CodeEditorIcon sx={{ width: 16, height: 16 }} />,
       prompt: 'Open the SQL editor and help me write a query',
     },
   ], []);
@@ -342,11 +347,6 @@ function ChatInput({
                         <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary', fontWeight: isActive ? 500 : 400 }}>
                           {model}
                         </Typography>
-                        {model === section.defaultModel && (
-                          <Typography sx={{ ...theme.typography.uiNavShortcut, color: 'text.secondary', mt: 0.25 }}>
-                            Default
-                          </Typography>
-                        )}
                       </Box>
                       {isActive && (
                         <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />
@@ -420,20 +420,10 @@ function ChatInput({
           maxWidth: UI_LAYOUT.chatInputMaxWidth,
           mx: 'auto',
           position: 'relative',
-          borderRadius: '20px',
-          border: '1px solid transparent',
-          backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.94 : 0.98),
-          boxShadow: isFocused
-            ? `0 4px 20px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.075)}, 0 0 0 0.5px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.22 : 0.18)}`
-            : `0 4px 20px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.14 : 0.035)}, 0 0 0 0.5px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.08)}`,
-          transition: theme.transitions.create(['box-shadow', 'background-color'], {
-            duration: theme.transitions.duration.shorter,
-          }),
+          ...composerSurfaceSx,
           [HOVER_CAPABLE_QUERY]: {
             '&:hover': {
-              boxShadow: isFocused
-                ? `0 4px 20px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.075)}, 0 0 0 0.5px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.28 : 0.22)}`
-                : `0 4px 20px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.14 : 0.035)}, 0 0 0 0.5px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.18 : 0.14)}`,
+              boxShadow: getComposerHoverShadow(theme, { isFocused }),
             },
           },
           cursor: 'text',
@@ -508,7 +498,7 @@ function ChatInput({
             {showDatabaseSelector && (
               <Tooltip title={canSwitchDatabase ? `Database: ${currentDatabase} (click to switch)` : `Database: ${currentDatabase}`}>
                 <Chip
-                  icon={<CloudUploadOutlinedIcon />}
+                  icon={<DatabaseIcon />}
                   label={currentDatabase}
                   onClick={canSwitchDatabase ? handleOpenDbMenu : undefined}
                   size="small"
@@ -519,7 +509,7 @@ function ChatInput({
             {showSchemaSelector && (
               <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
                 <Chip
-                  icon={<StreamOutlinedIcon />}
+                  icon={<SchemaIcon />}
                   label={currentSchema}
                   onClick={handleOpenSchemaMenu}
                   size="small"
@@ -530,7 +520,7 @@ function ChatInput({
             {onOpenSqlEditor && (
               <Tooltip title="Open SQL Editor">
                 <Chip
-                  icon={<CodeRoundedIcon />}
+                  icon={<CodeEditorIcon />}
                   label="SQL Editor"
                   onClick={handleOpenSqlEditorClick}
                   size="small"

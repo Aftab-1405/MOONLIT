@@ -12,7 +12,7 @@ export function useChatPageLlmSelection({ settings, updateSettings }) {
 
   const providerOptions = useMemo(() => llmOptions.providers ?? [], [llmOptions.providers]);
   const selectedProvider = useMemo(() => {
-    if (!providerOptions.length) return settings.llmProvider ?? '';
+    if (!providerOptions.length) return '';
     if (settings.llmProvider && providerOptions.some((provider) => provider.name === settings.llmProvider)) {
       return settings.llmProvider;
     }
@@ -23,12 +23,12 @@ export function useChatPageLlmSelection({ settings, updateSettings }) {
   }, [providerOptions, selectedProvider]);
   const modelOptions = useMemo(() => selectedProviderOption?.models || [], [selectedProviderOption]);
   const selectedModel = useMemo(() => {
-    if (!modelOptions.length) return settings.llmModel ?? '';
+    if (!modelOptions.length) return '';
     if (settings.llmModel && modelOptions.includes(settings.llmModel)) {
       return settings.llmModel;
     }
-    return selectedProviderOption?.default_model || llmOptions.default_model || modelOptions[0];
-  }, [modelOptions, settings.llmModel, selectedProviderOption, llmOptions.default_model]);
+    return selectedProviderOption?.default_model || modelOptions[0];
+  }, [modelOptions, settings.llmModel, selectedProviderOption]);
 
   const handleLlmSelection = useCallback((providerName, modelName) => {
     const providerOption = providerOptions.find((provider) => provider.name === providerName);
@@ -69,11 +69,11 @@ export function useChatPageLlmSelection({ settings, updateSettings }) {
         const modelFromSettings = settings.llmModel;
         const validModel = modelFromSettings && candidateModels.includes(modelFromSettings)
           ? modelFromSettings
-          : (providerConfig?.default_model || response.default_model || candidateModels[0] || null);
+          : (providerConfig?.default_model || candidateModels[0] || null);
 
         const patch = {};
         if (validProvider !== settings.llmProvider) patch.llmProvider = validProvider;
-        if (validModel && validModel !== settings.llmModel) patch.llmModel = validModel;
+        if (validModel !== settings.llmModel) patch.llmModel = validModel;
         if (Object.keys(patch).length > 0) updateSettings(patch);
       } catch (error) {
         logger.warn('Failed to fetch LLM options:', error);

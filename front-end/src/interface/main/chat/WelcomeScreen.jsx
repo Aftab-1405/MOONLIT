@@ -2,6 +2,7 @@ import { memo } from 'react';
 import { Box, Fade, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import ChatInput from './ChatInput';
+import { getWelcomeHeroSx } from '../../styles/interfaceChrome';
 import { UI_LAYOUT } from '../../../styles/shared';
 
 function WelcomeScreen({ visible, user, chatInputProps }) {
@@ -45,12 +46,7 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
             <Typography
               component="h1"
               sx={{
-                fontFamily: theme.typography.fontFamily,
-                fontSize: { xs: '2rem', sm: '2.5rem' },
-                fontWeight: 500,
-                lineHeight: 1.15,
-                letterSpacing: '-0.03em',
-                color: 'text.primary',
+                ...getWelcomeHeroSx(theme),
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

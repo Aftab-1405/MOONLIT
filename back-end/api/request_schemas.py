@@ -197,9 +197,40 @@ class RunQueryRequest(BaseModel):
 
 
 class SaveUserSettingsRequest(BaseModel):
-    """Schema for /api/user/settings"""
+    """Schema for /api/user/settings — partial update; stored per user in Firestore."""
 
+    theme: Optional[Literal["light", "dark"]] = None
+    confirmBeforeRun: Optional[bool] = None
+    queryTimeout: Optional[int] = Field(None, ge=10, le=300)
+    maxRows: Optional[int] = Field(None, ge=0, le=100000)
+    nullDisplay: Optional[str] = Field(None, max_length=32)
+    rememberConnection: Optional[bool] = None
+    defaultDbType: Optional[
+        Literal["mysql", "postgresql", "sqlserver", "oracle"]
+    ] = None
+    connectionPersistence: Optional[Literal[0, 5, 15, 30, 60]] = None
     connectionPersistenceMinutes: Optional[Literal[0, 5, 15, 30, 60]] = None
+    enableReasoning: Optional[bool] = None
+    reasoningEffort: Optional[Literal["low", "medium", "high"]] = None
+    responseStyle: Optional[Literal["concise", "balanced", "detailed"]] = None
+    llmProvider: Optional[str] = Field(None, max_length=50)
+    llmModel: Optional[str] = Field(None, max_length=150)
+
+    @field_validator("llmProvider")
+    @classmethod
+    def sanitize_llm_provider(cls, v):
+        if v is None:
+            return None
+        provider = v.strip().lower()
+        return provider or None
+
+    @field_validator("llmModel")
+    @classmethod
+    def sanitize_llm_model(cls, v):
+        if v is None:
+            return None
+        model = v.strip()
+        return model or None
 
 
 class CloseSessionRequest(BaseModel):

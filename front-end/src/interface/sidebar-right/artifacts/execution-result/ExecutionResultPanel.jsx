@@ -20,7 +20,6 @@ import {
 import { alpha, useTheme } from '@mui/material/styles';
 import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import CodeRoundedIcon from '@mui/icons-material/CodeRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import DatasetOutlinedIcon from '@mui/icons-material/DatasetOutlined';
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
@@ -29,6 +28,7 @@ import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRigh
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import TableRowsRoundedIcon from '@mui/icons-material/TableRowsRounded';
 import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
+import CodeEditorIcon from '../../../../components/icons/CodeEditorIcon';
 import { ArtifactEmptyState, ArtifactShell, getArtifactActionButtonSx } from '../../artifact-loader';
 import { useSettings } from '../../../../contexts/SettingsContext';
 import { getScrollbarStyles, UI_Z_INDEX } from '../../../../styles/shared';
@@ -373,7 +373,7 @@ function ExecutionResultPanel({
             ? {
                 key: 'editor',
                 label: 'Back to editor',
-                icon: <CodeRoundedIcon sx={{ fontSize: 18 }} />,
+                icon: <CodeEditorIcon sx={{ width: 18, height: 18 }} />,
                 onClick: openEditor,
               }
             : null,
@@ -444,10 +444,10 @@ function ExecutionResultPanel({
                         onClick={() => handleSort(column)}
                         hideSortIcon={!showSortIcon}
                         sx={{
-                          ...theme.typography.uiCaptionSm,
+                          ...theme.typography.uiCaptionMd,
                           fontWeight: 650,
-                          textTransform: 'uppercase',
-                          letterSpacing: 0.5,
+                          textTransform: 'none',
+                          letterSpacing: 0,
                           color: isActive ? 'text.primary' : 'text.secondary',
                           '&:hover': { color: 'text.primary' },
                           '& .MuiTableSortLabel-icon': {

@@ -1,4 +1,5 @@
 import { alpha } from '@mui/material/styles';
+import { getSidebarChromeSx } from '../../styles/interfaceChrome';
 import { UI_LAYOUT } from '../../../styles/shared';
 
 const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth;   // 260
@@ -33,8 +34,11 @@ export function buildNavRowSx(theme, { isActive = false, disabled = false } = {}
     borderRadius: SIDEBAR_RADIUS,
     boxSizing: 'border-box',
     backgroundColor: isActive
-      ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.065)
+      ? alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08)
       : 'transparent',
+    boxShadow: isActive
+      ? `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.06 : 0.35)}`
+      : 'none',
     color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
     opacity: disabled ? 0.4 : 1,
     transition: theme.transitions.create(['background-color', 'color', 'opacity'], {
@@ -75,10 +79,13 @@ export function buildConversationRowSx(theme, { isActive = false, menuOpen = fal
     borderRadius: SIDEBAR_RADIUS,
     boxSizing: 'border-box',
     backgroundColor: isActive
-      ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07)
+      ? alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08)
       : 'transparent',
     color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
-    transition: theme.transitions.create(['background-color', 'color'], {
+    boxShadow: isActive
+      ? `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.06 : 0.35)}`
+      : 'none',
+    transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
       duration: theme.transitions.duration.shorter,
     }),
     '& .options-btn': { opacity: menuOpen ? 1 : 0 },
@@ -126,10 +133,11 @@ export function buildDesktopNavSx(theme, open) {
         ? theme.transitions.duration.enteringScreen
         : theme.transitions.duration.leavingScreen,
     }),
-    backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.9 : 0.98),
+    backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.94 : 0.99),
     backgroundImage: isDark
-      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.03)} 0%, transparent 18%)`
-      : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.02)} 0%, transparent 18%)`,
+      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.045)} 0%, transparent 22%)`
+      : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.025)} 0%, transparent 22%)`,
+    ...getSidebarChromeSx(theme),
   };
 }
 
@@ -147,8 +155,9 @@ export function buildMobileDrawerPaperStyles(theme) {
     boxSizing: 'border-box',
     backgroundColor: theme.palette.background.paper,
     backgroundImage: theme.palette.mode === 'dark'
-      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.03)} 0%, transparent 18%)`
-      : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.02)} 0%, transparent 18%)`,
+      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.045)} 0%, transparent 22%)`
+      : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.025)} 0%, transparent 22%)`,
+    borderRight: 'none',
   };
 }
 
@@ -160,11 +169,12 @@ export function buildSidebarSectionLabelSx() {
     px: 2,
     pt: 2,
     pb: 0.75,
-    fontSize: '0.75rem',
-    fontWeight: 700,
-    lineHeight: 1.25,
+    fontSize: '0.875rem',
+    fontWeight: 650,
+    lineHeight: 1.3,
     color: 'text.secondary',
-    letterSpacing: '0.04em',
-    textTransform: 'uppercase',
+    letterSpacing: 0,
+    textTransform: 'none',
+    opacity: 0.88,
   };
 }

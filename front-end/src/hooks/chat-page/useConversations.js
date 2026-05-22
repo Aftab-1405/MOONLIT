@@ -58,7 +58,8 @@ export function useConversations() {
           for (let i = 0; i < prev.length; i += 1) {
             if (prev[i]?.id !== nextConversations[i]?.id) return nextConversations;
             if (prev[i]?.title !== nextConversations[i]?.title) return nextConversations;
-            if (prev[i]?.created_at !== nextConversations[i]?.created_at) return nextConversations;
+            if (prev[i]?.timestamp !== nextConversations[i]?.timestamp) return nextConversations;
+            if (prev[i]?.preview !== nextConversations[i]?.preview) return nextConversations;
           }
           return prev;
         });
