@@ -1,8 +1,8 @@
 import { useMemo } from 'react';
 import { Box, Container, Typography, Stack } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
-import { getMoonlitBrandGradients } from '../../styles/themeEffects';
+import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from '@/pages/Landing/index';
+import { getMoonlitBrandGradients } from '@/theme/themeEffects';
 
 function StepsGrid() {
   const theme = useTheme();

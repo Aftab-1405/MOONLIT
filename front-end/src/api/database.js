@@ -11,8 +11,8 @@
  * @module api/database
  */
 
-import { get, post } from './client';
-import { DATABASE } from './endpoints';
+import { get, post } from '@/api/client';
+import { DATABASE } from '@/api/endpoints';
 
 /**
  * Get current database connection status.

@@ -1,4 +1,4 @@
-import { UI_ACTIONS } from './uiActions';
+import { UI_ACTIONS } from '@/config/uiActions';
 
 export const TOOL_ACTIONS = {
   get_connection_status: { running: 'Checking connection status', done: 'Checked connection status' },

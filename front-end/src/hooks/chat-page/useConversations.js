@@ -13,9 +13,10 @@ import {
   getConversations,
   getConversation,
   deleteConversation,
-} from '../../api';
-import logger from '../../utils/logger';
-import { normalizeConversationMessage } from '../../utils/chatMessages';
+  renameConversation,
+} from '@/api';
+import logger from '@/utils/logger';
+import { normalizeConversationMessage } from '@/utils/chatMessages';
 
 /**
  * Hook for managing conversations and messages
@@ -121,6 +122,20 @@ export function useConversations() {
       logger.error('Failed to delete conversation:', error);
     }
   }, [currentConversationId, navigate]);
+  const handleRenameConversation = useCallback(async (convId, title) => {
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) return;
+    try {
+      const data = await renameConversation(convId, trimmedTitle);
+      const savedTitle = data.title || trimmedTitle;
+      setConversations((prev) =>
+        prev.map((c) => (c.id === convId ? { ...c, title: savedTitle } : c))
+      );
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      logger.error('Failed to rename conversation:', error);
+    }
+  }, []);
   useEffect(() => {
     const abortController = new AbortController();
     fetchConversations(abortController.signal);
@@ -165,7 +180,7 @@ export function useConversations() {
     fetchConversations,
     registerStreamingConversation,
     handleDeleteConversation,
+    handleRenameConversation,
     navigate,
   };
 }
-

@@ -17,7 +17,11 @@ from agent.model_factory import (
     get_default_model,
     get_provider_api_keys,
 )
-from api.request_schemas import AgentResumeRequest, ChatRequest
+from api.request_schemas import (
+    AgentResumeRequest,
+    ChatRequest,
+    RenameConversationRequest,
+)
 from api.schemas.streaming import STREAMING_RESPONSES
 
 logger = logging.getLogger(__name__)
@@ -334,4 +338,29 @@ async def delete_conversation(
         return {"status": "success"}
     except Exception as e:
         logger.error(f"Error deleting conversation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/rename_conversation/{conversation_id}")
+async def rename_conversation(
+    conversation_id: str,
+    data: RenameConversationRequest,
+    user: dict = Depends(get_current_user),
+):
+    """Rename a conversation."""
+    try:
+        user_id = user.get("uid") or user
+        title = await run_in_threadpool(
+            ConversationService.rename_user_conversation,
+            conversation_id,
+            user_id,
+            data.title,
+        )
+        return {"status": "success", "title": title}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error renaming conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))

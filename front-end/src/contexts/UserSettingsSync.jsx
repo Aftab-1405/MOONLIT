@@ -4,14 +4,14 @@
  */
 
 import { useEffect, useRef } from 'react';
-import { getUserSettings, saveUserSettings } from '../api';
+import { getUserSettings, saveUserSettings } from '@/api';
 import {
   mapServerSettingsToClient,
   pickSyncableSettings,
-} from '../config/userSettings';
-import { useAuth } from './AuthContext';
-import { useSettings } from './SettingsContext';
-import logger from '../utils/logger';
+} from '@/config/userSettings';
+import { useAuth } from '@/contexts/AuthContext';
+import { useSettings } from '@/contexts/SettingsContext';
+import logger from '@/utils/logger';
 
 const PERSIST_DEBOUNCE_MS = 700;
 

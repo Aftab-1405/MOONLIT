@@ -98,12 +98,14 @@ class ConversationRepository:
                 conv_data = conv.to_dict()
                 if conv_data.get("messages"):
                     first_msg = conv_data["messages"][0]["content"]
+                    title = conv_data.get("title") or first_msg[:40] + (
+                        "..." if len(first_msg) > 40 else ""
+                    )
                     conversation_list.append(
                         {
                             "id": conv.id,
                             "timestamp": conv_data["timestamp"],
-                            "title": first_msg[:40]
-                            + ("..." if len(first_msg) > 40 else ""),
+                            "title": title,
                             "preview": first_msg[:50] + "...",
                         }
                     )
@@ -112,6 +114,49 @@ class ConversationRepository:
             return conversation_list
         except Exception as e:
             logger.error(f"Error retrieving conversations for user {user_id}: {e}")
+            raise
+
+    @staticmethod
+    def rename(conversation_id: str, user_id: str, title: str) -> str:
+        """
+        Rename a conversation. Verifies user ownership.
+
+        Args:
+            conversation_id: The conversation ID
+            user_id: The user ID (must own the conversation)
+            title: New conversation title
+
+        Returns:
+            Sanitized title stored on the conversation
+
+        Raises:
+            PermissionError: If the user doesn't own the conversation
+            ValueError: If conversation is not found
+        """
+        from services.firestore_service import FirestoreService
+
+        try:
+            db = FirestoreService.get_db()
+            conversation_ref = db.collection(
+                ConversationRepository.COLLECTION_NAME
+            ).document(conversation_id)
+            conversation = conversation_ref.get()
+
+            if not conversation.exists:
+                raise ValueError("Conversation not found")
+
+            conv_data = conversation.to_dict()
+            if conv_data["user_id"] != user_id:
+                raise PermissionError("User does not own this conversation")
+
+            sanitized_title = title.strip()
+            conversation_ref.update({"title": sanitized_title})
+            logger.info(f"Conversation {conversation_id} renamed successfully")
+            return sanitized_title
+        except (ValueError, PermissionError):
+            raise
+        except Exception as e:
+            logger.error(f"Error renaming conversation {conversation_id}: {e}")
             raise
 
     @staticmethod

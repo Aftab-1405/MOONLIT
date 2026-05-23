@@ -4,4 +4,4 @@
  * @module hooks
  */
 
-export { useLocalStorage } from './useLocalStorage';
+export { useLocalStorage } from '@/hooks/useLocalStorage';

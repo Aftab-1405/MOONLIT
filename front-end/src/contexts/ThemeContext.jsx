@@ -5,8 +5,8 @@
 
 import { createContext, useContext, useMemo, useLayoutEffect, useRef } from 'react';
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
-import { createDarkTheme, createLightTheme } from '../theme';
-import { useSettings, SettingsProvider } from './SettingsContext';
+import { createDarkTheme, createLightTheme } from '@/theme/index';
+import { useSettings, SettingsProvider } from '@/contexts/SettingsContext';
 
 const ThemeContext = createContext(null);
 

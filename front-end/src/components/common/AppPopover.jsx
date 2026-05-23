@@ -1,7 +1,12 @@
 import { memo } from 'react';
 import { Popover } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { getPopoverPaperSx } from '../../styles/shared';
+import {
+  getPopoverMenuItemSx,
+  getPopoverMenuListSx,
+  getPopoverPaperSx,
+  UI_POPOVER,
+} from '@/styles/shared';
 
 /**
  * AppPopover — shared styled Popover shell.
@@ -10,8 +15,9 @@ import { getPopoverPaperSx } from '../../styles/shared';
  * Each consumer controls positioning via anchorOrigin/transformOrigin,
  * sizing via `width`, and any per-instance overrides via `paperSx`.
  *
- * For MUI Menu or Select MenuProps, import getPopoverPaperSx directly
- * from '../../styles/shared' instead of using this component.
+ * Use this for custom floating surfaces. MUI Menu and Select keep their
+ * native primitives for keyboard/focus semantics, but consume the same
+ * popover tokens through shared helpers and theme overrides.
  *
  * Props:
  *   anchorEl        — anchor DOM element
@@ -50,7 +56,27 @@ const AppPopover = memo(function AppPopover({
         paper: {
           sx: {
             ...getPopoverPaperSx(theme, isDark),
-            p: 0.75,
+            p: UI_POPOVER.paperPadding,
+            '& .MuiList-root': {
+              ...getPopoverMenuListSx(),
+              py: 0,
+              px: 0,
+            },
+            '& .MuiMenuItem-root': {
+              ...getPopoverMenuItemSx(theme),
+            },
+            '& .MuiListItemButton-root': {
+              minHeight: UI_POPOVER.rowMinHeight,
+              borderRadius: UI_POPOVER.rowRadius,
+              px: UI_POPOVER.rowPaddingX,
+              py: UI_POPOVER.rowPaddingY,
+              gap: UI_POPOVER.rowGap,
+            },
+            '& .MuiListItemIcon-root': {
+              minWidth: UI_POPOVER.iconSlotWidth,
+              width: UI_POPOVER.iconSlotWidth,
+              justifyContent: 'center',
+            },
             ...(width !== undefined && {
               width:
                 typeof width === 'number'

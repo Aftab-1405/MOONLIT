@@ -9,7 +9,7 @@
 import { Box, Typography, keyframes } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 
-import { getMoonlitGradient } from '../../theme';
+import { getMoonlitGradient } from '@/theme/index';
 const breathe = keyframes`
   0%, 100% {
     opacity: 0.4;

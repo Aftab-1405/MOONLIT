@@ -1,4 +1,4 @@
-import { MainInterface } from '../interface';
+import { MainInterface } from '@/features';
 
 function Chat() {
   return <MainInterface />;

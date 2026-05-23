@@ -17,9 +17,10 @@
  */
 
 import { createTheme, alpha, responsiveFontSizes } from '@mui/material/styles';
-import { LIGHT, FONTS, SHAPE, BREAKPOINTS } from './tokens';
-import { KEYFRAMES, TRANSITIONS } from '../styles/themeEffects';
-import { MOBILE_SM_QUERY, REDUCED_MOTION_QUERY, BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
+import { LIGHT, FONTS, SHAPE, BREAKPOINTS } from '@/theme/tokens';
+import { KEYFRAMES, TRANSITIONS } from '@/theme/themeEffects';
+import { MOBILE_SM_QUERY, REDUCED_MOTION_QUERY, BACKDROP_FILTER_FALLBACK_QUERY } from '@/styles/mediaQueries';
+import { getPaletteInteractionColors, UI_POPOVER } from '@/styles/shared';
 
 const H = LIGHT; // alias for brevity
 
@@ -67,32 +68,38 @@ const getTextButtonColorStyles = (main) => ({
   },
 });
 
-const neutralOutlinedButtonStyles = {
-  borderColor: alpha(H.border200, 0.18),
-  color: H.text200,
-  backgroundColor: 'transparent',
-  '&:hover': {
-    borderColor: alpha(H.border200, 0.3),
-    backgroundColor: alpha(H.text000, 0.05),
-    color: H.text000,
-  },
-  '&.Mui-focusVisible': {
-    boxShadow: `0 0 0 4px ${alpha(H.border200, 0.12)}`,
-  },
+const getNeutralOutlinedButtonStyles = (paletteForMode) => {
+  const interaction = getPaletteInteractionColors(paletteForMode);
+  return {
+    borderColor: interaction.border,
+    color: interaction.restingColor,
+    backgroundColor: 'transparent',
+    '&:hover': {
+      borderColor: interaction.hoverBorder,
+      backgroundColor: interaction.hoverBackground,
+      color: interaction.hoverColor,
+    },
+    '&.Mui-focusVisible': {
+      boxShadow: `0 0 0 4px ${interaction.focusRing}`,
+    },
+  };
 };
 
-const neutralTextButtonStyles = {
-  borderColor: 'transparent',
-  color: H.text200,
-  backgroundColor: 'transparent',
-  '&:hover': {
+const getNeutralTextButtonStyles = (paletteForMode) => {
+  const interaction = getPaletteInteractionColors(paletteForMode);
+  return {
     borderColor: 'transparent',
-    backgroundColor: alpha(H.text000, 0.05),
-    color: H.text000,
-  },
-  '&.Mui-focusVisible': {
-    boxShadow: `0 0 0 4px ${alpha(H.border200, 0.12)}`,
-  },
+    color: interaction.restingColor,
+    backgroundColor: 'transparent',
+    '&:hover': {
+      borderColor: 'transparent',
+      backgroundColor: interaction.hoverBackground,
+      color: interaction.hoverColor,
+    },
+    '&.Mui-focusVisible': {
+      boxShadow: `0 0 0 4px ${interaction.focusRing}`,
+    },
+  };
 };
 
 const palette = {
@@ -278,21 +285,24 @@ const typography = {
 
 const focusRing = `0 0 0 3px ${alpha(H.text000, 0.08)}`;
 const surfaceGradient = `linear-gradient(180deg, ${alpha('#000000', 0.012)}, transparent)`;
-const groupedButtonBorder = alpha(H.border200, 0.12);
+const neutralInteraction = getPaletteInteractionColors(palette);
+const neutralOutlinedButtonStyles = getNeutralOutlinedButtonStyles(palette);
+const neutralTextButtonStyles = getNeutralTextButtonStyles(palette);
+const groupedButtonBorder = neutralInteraction.border;
 const groupedButtonBg = H.bg100;
-const groupedButtonHoverBg = alpha(H.text000, 0.05);
-const groupedButtonSelectedBg = alpha(H.text000, 0.07);
-const groupedButtonFocusRing = `0 0 0 3px ${alpha(H.text000, 0.1)}`;
+const groupedButtonHoverBg = neutralInteraction.hoverBackground;
+const groupedButtonSelectedBg = neutralInteraction.activeBackground;
+const groupedButtonFocusRing = `0 0 0 3px ${neutralInteraction.focusRing}`;
 const iconButtonFocusRing = `0 0 0 4px ${alpha(H.brand000, 0.18)}`;
 const getIconButtonColorStyles = (main) => ({
   color: main,
-  backgroundColor: H.bg100,
-  borderColor: alpha(main, 0.14),
+  backgroundColor: 'transparent',
+  borderColor: 'transparent',
   boxShadow: 'none',
   '&:hover': {
     color: main,
     backgroundColor: alpha(main, 0.05),
-    borderColor: alpha(main, 0.2),
+    borderColor: 'transparent',
   },
   '&.Mui-focusVisible': {
     boxShadow: `0 0 0 4px ${alpha(main, 0.18)}`,
@@ -476,14 +486,14 @@ const components = {
         borderRadius: SHAPE.borderRadius,
         boxShadow: 'none',
         color: H.text200,
-        backgroundColor: H.bg100,
-        borderColor: alpha(H.border200, 0.12),
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
         transition: TRANSITIONS.default,
         '& .MuiSvgIcon-root': { fontSize: 20 },
         '&:hover': {
           color: H.text000,
-          backgroundColor: alpha(H.text000, 0.05),
-          borderColor: alpha(H.border200, 0.18),
+          backgroundColor: neutralInteraction.hoverBackground,
+          borderColor: 'transparent',
         },
         '&.Mui-focusVisible': {
           outline: 'none',
@@ -492,8 +502,8 @@ const components = {
         '&:active': { transform: 'scale(0.98)' },
         '&.Mui-disabled': {
           color: H.text400,
-          backgroundColor: alpha(H.bg200, 0.72),
-          borderColor: alpha(H.border200, 0.12),
+          backgroundColor: 'transparent',
+          borderColor: 'transparent',
           boxShadow: 'none',
         },
       },
@@ -527,13 +537,13 @@ const components = {
         props: { variant: 'outlined' },
         style: {
           color: H.text200,
-          backgroundColor: H.bg100,
-          borderColor: alpha(H.border200, 0.12),
+          backgroundColor: 'transparent',
+          borderColor: neutralInteraction.border,
           boxShadow: 'none',
           '&:hover': {
             color: H.text000,
-            backgroundColor: alpha(H.text000, 0.05),
-            borderColor: alpha(H.border200, 0.18),
+            backgroundColor: neutralInteraction.hoverBackground,
+            borderColor: neutralInteraction.hoverBorder,
           },
           '&.Mui-focusVisible': {
             boxShadow: `0 0 0 4px ${alpha(H.brand000, 0.14)}`,
@@ -665,13 +675,13 @@ const components = {
         transition: TRANSITIONS.default,
       },
       filled: {
-        backgroundColor: alpha(H.text000, 0.06),
+        backgroundColor: neutralInteraction.activeBackground,
         color: H.text000,
-        '&:hover': { backgroundColor: alpha(H.text000, 0.09) },
+        '&:hover': { backgroundColor: neutralInteraction.activeHoverBackground },
       },
       outlined: {
-        borderColor: alpha(H.border200, 0.2),
-        '&:hover': { backgroundColor: alpha(H.text000, 0.04) },
+        borderColor: neutralInteraction.border,
+        '&:hover': { backgroundColor: neutralInteraction.hoverBackground },
       },
     },
   },
@@ -722,22 +732,43 @@ const components = {
           WebkitBackdropFilter: 'none',
         },
       },
+      list: {
+        py: UI_POPOVER.paperPadding,
+        px: UI_POPOVER.paperPadding,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+      },
     },
   },
 
   MuiMenuItem: {
     styleOverrides: {
       root: {
-        borderRadius: SHAPE.radius.sm,
-        margin: '2px 8px',
-        padding: '10px 16px',
+        ...typography.uiMenuItemSm,
+        minHeight: UI_POPOVER.rowMinHeight,
+        borderRadius: UI_POPOVER.rowRadius,
+        margin: 0,
+        padding: '6px 8px',
+        gap: 8,
         transition: TRANSITIONS.default,
         [MOBILE_SM_QUERY]: { minHeight: 44 },
-        '&:hover': { backgroundColor: alpha(H.text000, 0.04) },
+        '& .MuiListItemIcon-root': {
+          minWidth: UI_POPOVER.iconSlotWidth,
+          width: UI_POPOVER.iconSlotWidth,
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: 'inherit',
+        },
+        '& .MuiSvgIcon-root': {
+          fontSize: UI_POPOVER.iconSize,
+        },
+        '&:hover': { backgroundColor: neutralInteraction.hoverBackground },
         '&.Mui-selected': {
-          backgroundColor: alpha(H.text000, 0.07),
+          backgroundColor: neutralInteraction.activeBackground,
           fontWeight: 600,
-          '&:hover': { backgroundColor: alpha(H.text000, 0.1) },
+          '&:hover': { backgroundColor: neutralInteraction.activeHoverBackground },
         },
       },
     },
@@ -841,7 +872,7 @@ const components = {
         padding: '8px 16px',
         transition: TRANSITIONS.default,
         '&.Mui-selected': { color: H.text000, fontWeight: 600 },
-        '&:hover': { color: H.text000, backgroundColor: alpha(H.text000, 0.04) },
+        '&:hover': { color: H.text000, backgroundColor: neutralInteraction.hoverBackground },
         [MOBILE_SM_QUERY]: { minHeight: 44, padding: '10px 12px' },
       },
     },
@@ -957,10 +988,10 @@ const components = {
       root: {
         borderRadius: SHAPE.radius.sm,
         transition: TRANSITIONS.default,
-        '&:hover': { backgroundColor: alpha(H.text000, 0.04) },
+        '&:hover': { backgroundColor: neutralInteraction.hoverBackground },
         '&.Mui-selected': {
-          backgroundColor: alpha(H.text000, 0.07),
-          '&:hover': { backgroundColor: alpha(H.text000, 0.1) },
+          backgroundColor: neutralInteraction.activeBackground,
+          '&:hover': { backgroundColor: neutralInteraction.activeHoverBackground },
         },
       },
     },
@@ -991,7 +1022,7 @@ const components = {
           fontWeight: 600,
           backgroundColor: groupedButtonSelectedBg,
           borderColor: groupedButtonBorder,
-          '&:hover': { backgroundColor: alpha(H.text000, 0.09) },
+          '&:hover': { backgroundColor: neutralInteraction.activeHoverBackground },
         },
         '&.Mui-focusVisible': {
           position: 'relative',

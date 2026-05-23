@@ -3,16 +3,16 @@ import { Box } from '@mui/material';
 import GlobalStyles from '@mui/material/GlobalStyles';
 import { useNavigate } from 'react-router-dom';
 import { useTheme, alpha } from '@mui/material/styles';
-import { useAuth } from '../../contexts/AuthContext';
-import Hero from './Hero';
-import ValueGrid from './ValueGrid';
-import DemoSection from './DemoSection';
-import StepsGrid from './StepsGrid';
-import FinalCTA from './FinalCTA';
+import { useAuth } from '@/contexts/AuthContext';
+import Hero from '@/pages/Landing/Hero';
+import ValueGrid from '@/pages/Landing/ValueGrid';
+import DemoSection from '@/pages/Landing/DemoSection';
+import StepsGrid from '@/pages/Landing/StepsGrid';
+import FinalCTA from '@/pages/Landing/FinalCTA';
 import {
   HOVER_CAPABLE_QUERY as SHARED_HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY as SHARED_REDUCED_MOTION_QUERY,
-} from '../../styles/mediaQueries';
+} from '@/styles/mediaQueries';
 
 export const REDUCED_MOTION_QUERY = SHARED_REDUCED_MOTION_QUERY;
 export const HOVER_CAPABLE_QUERY = SHARED_HOVER_CAPABLE_QUERY;

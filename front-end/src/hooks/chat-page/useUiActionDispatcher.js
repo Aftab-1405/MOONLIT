@@ -11,7 +11,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
-import { UI_ACTIONS } from '../../config/uiActions';
+import { UI_ACTIONS } from '@/config/uiActions';
 
 const DEDUPE_WINDOW_MS = 1500;
 

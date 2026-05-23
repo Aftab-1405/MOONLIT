@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect } from 'react';
-import { sessionActive, USER } from '../../api';
+import { sessionActive, USER } from '@/api';
 
 const readSessionInstanceId = () => {
   try {

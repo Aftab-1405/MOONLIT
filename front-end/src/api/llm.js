@@ -6,8 +6,8 @@
  * @module api/llm
  */
 
-import { get } from './client';
-import { LLM } from './endpoints';
+import { get } from '@/api/client';
+import { LLM } from '@/api/endpoints';
 
 /**
  * Get provider/model options available in the backend deployment.

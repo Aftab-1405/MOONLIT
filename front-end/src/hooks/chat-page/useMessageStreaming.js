@@ -8,17 +8,17 @@
  */
 
 import { useCallback, useRef } from 'react';
-import { resumeAgent, sendMessage } from '../../api';
-import logger from '../../utils/logger';
-import { parseSSEStream } from '../../utils/streamParser';
+import { resumeAgent, sendMessage } from '@/api';
+import logger from '@/utils/logger';
+import { parseSSEStream } from '@/utils/streamParser';
 import {
   createAssistantMessage,
   createMessageId,
   createUserMessage,
   MESSAGE_STATUS,
-} from '../../utils/chatMessages';
+} from '@/utils/chatMessages';
 
-const UPDATE_THROTTLE_MS = 16;
+const STREAM_RENDER_BATCH_MS = 32;
 
 function getErrorMessage(error) {
   if (!navigator.onLine) {
@@ -118,6 +118,8 @@ export function useMessageStreaming({
     const toolSteps = [];
     let thinkingContent = '';
     let lastUpdateTime = 0;
+    let pendingStatus = null;
+    let streamFlushRafId = 0;
     let interruptedWithoutAssistantContent = false;
 
     const buildMessageData = (isDone = false) => {
@@ -141,13 +143,27 @@ export function useMessageStreaming({
       return { text: `${baseText}${streamedText}`, steps: [...baseSteps, ...steps] };
     };
 
-    const throttledUpdate = (status) => {
-      const now = Date.now();
-      if (now - lastUpdateTime >= UPDATE_THROTTLE_MS) {
-        setMessages((prev) =>
-          upsertAssistantMessage(prev, assistantMessageId, buildMessageData(), status)
-        );
-        lastUpdateTime = now;
+    const flushStreamUpdate = () => {
+      streamFlushRafId = 0;
+      if (pendingStatus === null) return;
+
+      const status = pendingStatus;
+      pendingStatus = null;
+      setMessages((prev) =>
+        upsertAssistantMessage(prev, assistantMessageId, buildMessageData(), status)
+      );
+      lastUpdateTime = performance.now();
+    };
+
+    const scheduleStreamUpdate = (status) => {
+      pendingStatus = status;
+      const now = performance.now();
+      if (now - lastUpdateTime >= STREAM_RENDER_BATCH_MS) {
+        flushStreamUpdate();
+        return;
+      }
+      if (!streamFlushRafId) {
+        streamFlushRafId = requestAnimationFrame(flushStreamUpdate);
       }
     };
 
@@ -155,7 +171,7 @@ export function useMessageStreaming({
       switch (event.type) {
         case 'token':
           contentParts.push(event.content);
-          throttledUpdate(MESSAGE_STATUS.STREAMING);
+          scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
           break;
 
         case 'tool_start':
@@ -165,36 +181,37 @@ export function useMessageStreaming({
             args: event.args,
             result: null,
           });
-          throttledUpdate(MESSAGE_STATUS.STREAMING);
+          scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
           break;
 
         case 'tool_end': {
-          const step = toolSteps.find(
-            (s) => s.name === event.name && s.status === 'running'
-          );
-          if (step) {
-            step.status = 'done';
-            step.args = event.args;
-            step.result = event.result;
+          for (let i = toolSteps.length - 1; i >= 0; i -= 1) {
+            const step = toolSteps[i];
+            if (step.name === event.name && step.status === 'running') {
+              step.status = 'done';
+              step.args = event.args;
+              step.result = event.result;
+              break;
+            }
           }
-          throttledUpdate(MESSAGE_STATUS.STREAMING);
+          scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
           break;
         }
 
         case 'thinking_token':
           thinkingContent += event.content;
-          throttledUpdate(MESSAGE_STATUS.STREAMING);
+          scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
           break;
 
         case 'agent_interrupt':
           interruptedWithoutAssistantContent = true;
           onAgentInterrupt(event, assistantMessageId);
-          throttledUpdate(MESSAGE_STATUS.WAITING);
+          scheduleStreamUpdate(MESSAGE_STATUS.WAITING);
           break;
 
         case 'error':
           contentParts.push(`\n\n**Error**: ${event.message}`);
-          throttledUpdate(MESSAGE_STATUS.ERROR);
+          scheduleStreamUpdate(MESSAGE_STATUS.ERROR);
           break;
 
         case 'ui_action':
@@ -205,6 +222,14 @@ export function useMessageStreaming({
           break;
       }
     });
+
+    if (streamFlushRafId) {
+      cancelAnimationFrame(streamFlushRafId);
+      streamFlushRafId = 0;
+    }
+    if (pendingStatus !== null) {
+      flushStreamUpdate();
+    }
 
     if (
       interruptedWithoutAssistantContent

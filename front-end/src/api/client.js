@@ -5,7 +5,7 @@
 
 const IS_DEV = import.meta.env.DEV;
 
-import logger from '../utils/logger';
+import logger from '@/utils/logger';
 
 /** API error with HTTP status and optional response payload. */
 class ApiError extends Error {
@@ -91,6 +91,15 @@ export function post(endpoint, body, options = {}) {
   return apiClient(endpoint, {
     ...options,
     method: 'POST',
+    body: body ? JSON.stringify(body) : undefined,
+  });
+}
+
+/** PATCH wrapper. */
+export function patch(endpoint, body, options = {}) {
+  return apiClient(endpoint, {
+    ...options,
+    method: 'PATCH',
     body: body ? JSON.stringify(body) : undefined,
   });
 }

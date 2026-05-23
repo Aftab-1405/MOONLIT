@@ -10,9 +10,9 @@ import {
   sendPasswordResetEmail,
   updateProfile
 } from 'firebase/auth';
-import { initializeFirebase, getFirebaseAuth, getGoogleProvider, getGithubProvider } from '../config/firebase';
-import { setSession as setBackendSession, logout as logoutBackend } from '../api';
-import logger from '../utils/logger';
+import { initializeFirebase, getFirebaseAuth, getGoogleProvider, getGithubProvider } from '@/config/firebase';
+import { setSession as setBackendSession, logout as logoutBackend } from '@/api';
+import logger from '@/utils/logger';
 const isMobileDevice = () => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     (window.innerWidth <= 768);

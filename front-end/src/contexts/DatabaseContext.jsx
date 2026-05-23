@@ -30,16 +30,18 @@
  * @module DatabaseContext
  */
 
-import { createContext, useContext, useReducer, useCallback, useEffect } from 'react';
-import logger from '../utils/logger';
-import { useAuth } from './AuthContext';
+import { createContext, useContext, useReducer, useCallback, useEffect, useMemo, useRef } from 'react';
+import logger from '@/utils/logger';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   getDbStatus,
   disconnectDb,
   switchDatabase as switchDatabaseApi,
   selectDatabase,
   sessionActive,
-} from '../api';
+  getTables,
+  getTableSchema as getTableSchemaApi,
+} from '@/api';
 
 const SESSION_INSTANCE_KEY = 'moonlit-session-instance-id';
 
@@ -169,6 +171,14 @@ function getDatabaseList(connectionData = {}) {
   return selectedDatabase ? [selectedDatabase] : [];
 }
 
+function getSchemaCacheKey(database) {
+  return database || '__current__';
+}
+
+function getTableSchemaCacheKey(database, tableName) {
+  return `${getSchemaCacheKey(database)}::${tableName}`;
+}
+
 /**
  * Hook to access database connection state and actions.
  * Must be used within a DatabaseProvider.
@@ -199,6 +209,90 @@ export function useDatabaseConnection() {
 export function DatabaseProvider({ children }) {
   const [state, dispatch] = useReducer(databaseReducer, initialState);
   const { isAuthenticated } = useAuth();
+  const schemaTablesCacheRef = useRef(new Map());
+  const schemaTablesInflightRef = useRef(new Map());
+  const tableSchemaCacheRef = useRef(new Map());
+  const tableSchemaInflightRef = useRef(new Map());
+
+  const invalidateSchemaTables = useCallback((database) => {
+    if (database) {
+      const cacheKey = getSchemaCacheKey(database);
+      schemaTablesCacheRef.current.delete(cacheKey);
+      schemaTablesInflightRef.current.delete(cacheKey);
+      const tablePrefix = `${cacheKey}::`;
+      for (const key of tableSchemaCacheRef.current.keys()) {
+        if (key.startsWith(tablePrefix)) tableSchemaCacheRef.current.delete(key);
+      }
+      for (const key of tableSchemaInflightRef.current.keys()) {
+        if (key.startsWith(tablePrefix)) tableSchemaInflightRef.current.delete(key);
+      }
+      return;
+    }
+
+    schemaTablesCacheRef.current.clear();
+    schemaTablesInflightRef.current.clear();
+    tableSchemaCacheRef.current.clear();
+    tableSchemaInflightRef.current.clear();
+  }, []);
+
+  const fetchSchemaTables = useCallback(async ({ database, force = false } = {}) => {
+    const cacheKey = getSchemaCacheKey(database);
+
+    if (!force && schemaTablesCacheRef.current.has(cacheKey)) {
+      return schemaTablesCacheRef.current.get(cacheKey);
+    }
+
+    if (!force && schemaTablesInflightRef.current.has(cacheKey)) {
+      return schemaTablesInflightRef.current.get(cacheKey);
+    }
+
+    const request = getTables()
+      .then((response) => {
+        if (response.status === 'success') {
+          schemaTablesCacheRef.current.set(cacheKey, response);
+        }
+        return response;
+      })
+      .finally(() => {
+        schemaTablesInflightRef.current.delete(cacheKey);
+      });
+
+    schemaTablesInflightRef.current.set(cacheKey, request);
+    return request;
+  }, []);
+
+  const fetchTableSchema = useCallback(async ({ database, tableName, force = false } = {}) => {
+    if (!tableName) {
+      return {
+        status: 'error',
+        message: 'Table name is required',
+      };
+    }
+
+    const cacheKey = getTableSchemaCacheKey(database, tableName);
+
+    if (!force && tableSchemaCacheRef.current.has(cacheKey)) {
+      return tableSchemaCacheRef.current.get(cacheKey);
+    }
+
+    if (!force && tableSchemaInflightRef.current.has(cacheKey)) {
+      return tableSchemaInflightRef.current.get(cacheKey);
+    }
+
+    const request = getTableSchemaApi(tableName)
+      .then((response) => {
+        if (response.status === 'success') {
+          tableSchemaCacheRef.current.set(cacheKey, response);
+        }
+        return response;
+      })
+      .finally(() => {
+        tableSchemaInflightRef.current.delete(cacheKey);
+      });
+
+    tableSchemaInflightRef.current.set(cacheKey, request);
+    return request;
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -220,33 +314,38 @@ export function DatabaseProvider({ children }) {
   }, [isAuthenticated]);
 
   const connect = useCallback((connectionData) => {
+    const database = connectionData.selected_database || connectionData.db_config?.database;
+    invalidateSchemaTables(database);
     dispatch({
       type: ActionTypes.CONNECT_SUCCESS,
       payload: {
-        database: connectionData.selected_database || connectionData.db_config?.database,
+        database,
         dbType: connectionData.db_type,
         isRemote: connectionData.is_remote ?? false,
         databases: getDatabaseList(connectionData),
       },
     });
-  }, []);
+  }, [invalidateSchemaTables]);
 
   const disconnect = useCallback(async () => {
     try {
       await disconnectDb();
+      invalidateSchemaTables();
       dispatch({ type: ActionTypes.DISCONNECT, payload: {} });
     } catch (error) {
       logger.error('Disconnect failed:', error);
+      invalidateSchemaTables();
       dispatch({
         type: ActionTypes.DISCONNECT,
         payload: { error: 'Failed to disconnect' }
       });
     }
-  }, []);
+  }, [invalidateSchemaTables]);
 
   const resetConnectionState = useCallback(() => {
+    invalidateSchemaTables();
     dispatch({ type: ActionTypes.DISCONNECT, payload: {} });
-  }, []);
+  }, [invalidateSchemaTables]);
 
   const switchDatabase = useCallback(async (dbName) => {
     if (dbName === state.currentDatabase) return { success: true };
@@ -257,6 +356,7 @@ export function DatabaseProvider({ children }) {
         : await selectDatabase(dbName);
 
       if (response.status === 'success') {
+        invalidateSchemaTables(response.data.selected_database || dbName);
         dispatch({
           type: ActionTypes.SWITCH_DATABASE,
           payload: { database: response.data.selected_database }
@@ -276,7 +376,7 @@ export function DatabaseProvider({ children }) {
       });
       return { success: false, error: 'Failed to switch database' };
     }
-  }, [state.currentDatabase, state.isRemote]);
+  }, [invalidateSchemaTables, state.currentDatabase, state.isRemote]);
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -295,7 +395,7 @@ export function DatabaseProvider({ children }) {
     dispatch({ type: ActionTypes.CLEAR_ERROR });
   }, []);
 
-  const value = {
+  const value = useMemo(() => ({
     ...state,
     connect,
     disconnect,
@@ -304,7 +404,22 @@ export function DatabaseProvider({ children }) {
     refreshStatus,
     setError,
     clearError,
-  };
+    fetchSchemaTables,
+    fetchTableSchema,
+    invalidateSchemaTables,
+  }), [
+    state,
+    connect,
+    disconnect,
+    resetConnectionState,
+    switchDatabase,
+    refreshStatus,
+    setError,
+    clearError,
+    fetchSchemaTables,
+    fetchTableSchema,
+    invalidateSchemaTables,
+  ]);
 
   return (
     <DatabaseContext.Provider value={value}>

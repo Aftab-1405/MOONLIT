@@ -1,8 +1,8 @@
 import { Box, Container, Typography } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
-import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
-import { UI_LAYOUT } from '../../styles/shared';
-import { getMoonlitBrandGradients } from '../../styles/themeEffects';
+import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from '@/pages/Landing/index';
+import { UI_LAYOUT } from '@/styles/shared';
+import { getMoonlitBrandGradients } from '@/theme/themeEffects';
 
 function DemoSection() {
   const theme = useTheme();

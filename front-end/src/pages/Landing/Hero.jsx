@@ -2,8 +2,8 @@ import { Box, Container, Stack, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined';
-import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
-import { getMoonlitBrandGradients } from '../../styles/themeEffects';
+import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from '@/pages/Landing/index';
+import { getMoonlitBrandGradients } from '@/theme/themeEffects';
 
 const STATS = [
   { value: '10K+', label: 'Queries/day' },

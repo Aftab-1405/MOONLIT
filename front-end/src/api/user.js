@@ -8,8 +8,8 @@
  * @module api/user
  */
 
-import { get, post } from './client';
-import { USER } from './endpoints';
+import { get, post } from '@/api/client';
+import { USER } from '@/api/endpoints';
 
 /**
  * Get user's database context (schemas, tables, columns).

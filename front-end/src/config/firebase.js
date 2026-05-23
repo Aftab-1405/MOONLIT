@@ -1,7 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth';
-import { getFirebaseConfig } from '../api';
-import logger from '../utils/logger';
+import { getFirebaseConfig } from '@/api';
+import logger from '@/utils/logger';
 let firebaseApp = null;
 let auth = null;
 let googleProvider = null;

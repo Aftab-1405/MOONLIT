@@ -3,7 +3,7 @@
  *
  * Exports:
  *   - createDarkTheme / createLightTheme — Moonlit MUI theme factories
- *   - Re-exports of shared style utilities (backward-compat with ../theme imports)
+ *   - Re-exports of shared style utilities (themeEffects, themeMonaco)
  *
  * NOTE: ThemeContext itself is NOT re-exported here to prevent a circular
  * dependency (ThemeContext imports createDarkTheme/createLightTheme via
@@ -12,9 +12,9 @@
  */
 
 // ─── Moonlit MUI themes ───────────────────────────────────────────────────────
-export { createDarkTheme } from './darkTheme';
-export { createLightTheme } from './lightTheme';
+export { createDarkTheme } from '@/theme/darkTheme';
+export { createLightTheme } from '@/theme/lightTheme';
 
-// ─── Style utilities (backward-compat: consumers import from '../theme') ──────
-export { TRANSITIONS, getMoonlitGradient } from '../styles/themeEffects';
-export { getMonacoThemeName, registerMonacoThemes } from '../styles/themeMonaco';
+// ─── Style utilities ──────────────────────────────────────────────────────────
+export { TRANSITIONS, getMoonlitGradient } from '@/theme/themeEffects';
+export { getMonacoThemeName, registerMonacoThemes } from '@/theme/themeMonaco';

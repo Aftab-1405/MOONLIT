@@ -39,6 +39,14 @@ class ConversationService:
         ConversationRepository.delete(conversation_id, user_id)
 
     @staticmethod
+    def rename_user_conversation(
+        conversation_id: str, user_id: str, title: str
+    ) -> str:
+        from repositories import ConversationRepository
+
+        return ConversationRepository.rename(conversation_id, user_id, title)
+
+    @staticmethod
     def get_user_conversations(user_id: str) -> list:
         from repositories import ConversationRepository
 

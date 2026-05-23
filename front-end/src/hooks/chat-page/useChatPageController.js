@@ -1,20 +1,20 @@
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useTheme as useMuiTheme, alpha } from '@mui/material/styles';
-import { useTheme as useAppTheme } from '../../contexts/ThemeContext';
-import { useDatabaseConnection } from '../../contexts/DatabaseContext';
-import { useAuth } from '../../contexts/AuthContext';
-import useAutoScroll from './useAutoScroll';
-import { useConversations } from './useConversations';
-import { useMessageStreaming } from './useMessageStreaming';
-import { useQueryExecution } from './useQueryExecution';
-import { useWorkspaceCanvas } from './useWorkspaceCanvas';
-import { useResponsive } from './useResponsive';
-import { useChatPageLlmSelection } from './useChatPageLlmSelection';
-import { useChatPageSessionLifecycle } from './useChatPageSessionLifecycle';
-import { useUiActionDispatcher } from './useUiActionDispatcher';
-import { isMessageActive } from '../../utils/chatMessages';
-import { UI_LAYOUT } from '../../styles/shared';
-import { useLocalStorage } from '..';
+import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
+import { useDatabaseConnection } from '@/contexts/DatabaseContext';
+import { useAuth } from '@/contexts/AuthContext';
+import useAutoScroll from '@/hooks/chat-page/useAutoScroll';
+import { useConversations } from '@/hooks/chat-page/useConversations';
+import { useMessageStreaming } from '@/hooks/chat-page/useMessageStreaming';
+import { useQueryExecution } from '@/hooks/chat-page/useQueryExecution';
+import { useWorkspaceCanvas } from '@/hooks/chat-page/useWorkspaceCanvas';
+import { useResponsive } from '@/hooks/chat-page/useResponsive';
+import { useChatPageLlmSelection } from '@/hooks/chat-page/useChatPageLlmSelection';
+import { useChatPageSessionLifecycle } from '@/hooks/chat-page/useChatPageSessionLifecycle';
+import { useUiActionDispatcher } from '@/hooks/chat-page/useUiActionDispatcher';
+import { isMessageActive } from '@/utils/chatMessages';
+import { UI_LAYOUT } from '@/styles/shared';
+import { useLocalStorage } from '@/hooks';
 
 const DRAWER_WIDTH = UI_LAYOUT.sidebarExpandedWidth;
 const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth;
@@ -59,6 +59,7 @@ export function useChatPageController() {
     fetchConversations,
     registerStreamingConversation,
     handleDeleteConversation,
+    handleRenameConversation,
     navigate,
   } = useConversations();
   const [sidebarOpen, setSidebarOpen] = useLocalStorage('moonlit-sidebar-open', true);
@@ -94,6 +95,11 @@ export function useChatPageController() {
   const [deleteConversationDialog, setDeleteConversationDialog] = useState({
     open: false,
     conversationId: null,
+  });
+  const [renameConversationDialog, setRenameConversationDialog] = useState({
+    open: false,
+    conversationId: null,
+    title: '',
   });
   const resumeAgentRef = useRef(null);
   const messagesRef = useRef(messages);
@@ -188,6 +194,41 @@ export function useChatPageController() {
     if (!deleteConversationDialog.conversationId) return;
     await handleDeleteConversation(deleteConversationDialog.conversationId);
   }, [deleteConversationDialog.conversationId, handleDeleteConversation]);
+
+  const handleRenameConversationRequest = useCallback((conversationId, title) => {
+    setRenameConversationDialog({
+      open: true,
+      conversationId,
+      title: title || '',
+    });
+  }, []);
+
+  const handleRenameConversationDialogClose = useCallback(() => {
+    setRenameConversationDialog({
+      open: false,
+      conversationId: null,
+      title: '',
+    });
+  }, []);
+
+  const handleRenameConversationTitleChange = useCallback((event) => {
+    setRenameConversationDialog((prev) => ({
+      ...prev,
+      title: event.target.value,
+    }));
+  }, []);
+
+  const handleRenameConversationConfirm = useCallback(async () => {
+    const title = renameConversationDialog.title.trim();
+    if (!renameConversationDialog.conversationId || !title) return;
+    await handleRenameConversation(renameConversationDialog.conversationId, title);
+    handleRenameConversationDialogClose();
+  }, [
+    handleRenameConversation,
+    handleRenameConversationDialogClose,
+    renameConversationDialog.conversationId,
+    renameConversationDialog.title,
+  ]);
 
   const dispatchUiAction = useUiActionDispatcher({
     open_sql_editor: (payload) => handleOpenSqlEditor(payload?.query || ''),
@@ -437,6 +478,7 @@ export function useChatPageController() {
     isConversationsLoading,
     currentConversationId,
     onDeleteConversation: handleDeleteConversationRequest,
+    onRenameConversation: handleRenameConversationRequest,
     isConnected: isDbConnected,
     currentDatabase,
     dbType,
@@ -448,6 +490,7 @@ export function useChatPageController() {
     isConversationsLoading,
     currentConversationId,
     handleDeleteConversationRequest,
+    handleRenameConversationRequest,
     isDbConnected,
     currentDatabase,
     dbType,
@@ -520,6 +563,10 @@ export function useChatPageController() {
     deleteConversationDialog,
     handleDeleteConversationDialogClose,
     handleDeleteConversationConfirm,
+    renameConversationDialog,
+    handleRenameConversationDialogClose,
+    handleRenameConversationTitleChange,
+    handleRenameConversationConfirm,
     guidedConfirmDialog,
     closeGuidedConfirmDialog,
     handleGuidedCancel,

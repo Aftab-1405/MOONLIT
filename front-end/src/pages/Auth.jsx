@@ -33,18 +33,18 @@ import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import { useAuth } from '../contexts/AuthContext';
-import { ButtonLoadingSpinner } from '../components';
+import { useAuth } from '@/contexts/AuthContext';
+import { ButtonLoadingSpinner } from '@/components';
+import { useFormValidation } from '@/hooks/useFormValidation';
 import {
-  useFormValidation,
   signInSchema,
   signUpSchema,
   resetPasswordSchema,
   authFieldSchemas,
-} from '../validation';
-import { BACKDROP_FILTER_FALLBACK_QUERY } from '../styles/mediaQueries';
-import { getMoonlitBrandGradients } from '../styles/themeEffects';
-import logger from '../utils/logger';
+} from '@/utils/validationSchemas';
+import { BACKDROP_FILTER_FALLBACK_QUERY } from '@/styles/mediaQueries';
+import { getMoonlitBrandGradients } from '@/theme/themeEffects';
+import logger from '@/utils/logger';
 
 // ─── Keyframes ────────────────────────────────────────────────────────────────
 const AUTH_KEYFRAMES = (

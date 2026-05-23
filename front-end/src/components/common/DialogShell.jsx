@@ -5,7 +5,7 @@ import {
   getDialogFooterSx,
   getDialogHeaderSx,
   getDialogPaperSx,
-} from '../../styles/shared';
+} from '@/styles/shared';
 
 function DialogShell({
   open,

@@ -6,8 +6,8 @@
  * @module api/query
  */
 
-import { post } from './client';
-import { QUERY } from './endpoints';
+import { post } from '@/api/client';
+import { QUERY } from '@/api/endpoints';
 
 /**
  * Execute a SQL query.

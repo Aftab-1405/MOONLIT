@@ -2,13 +2,12 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import CssBaseline from '@mui/material/CssBaseline';
 import { BrowserRouter } from 'react-router-dom';
-import { ThemeProvider } from './contexts/ThemeContext';
-import { AuthProvider } from './contexts/AuthContext';
-import { DatabaseProvider } from './contexts/DatabaseContext';
-import { UserSettingsSync } from './contexts/UserSettingsSync';
-import { ErrorBoundary } from './components';
-import App from './App';
-import '@xyflow/react/dist/style.css';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { DatabaseProvider } from '@/contexts/DatabaseContext';
+import { UserSettingsSync } from '@/contexts/UserSettingsSync';
+import { ErrorBoundary } from '@/components';
+import App from '@/App';
 
 /**
  * Application Entry Point

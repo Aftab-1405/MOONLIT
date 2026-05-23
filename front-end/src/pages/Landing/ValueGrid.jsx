@@ -4,8 +4,8 @@ import { useTheme, alpha } from '@mui/material/styles';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SpeedIcon from '@mui/icons-material/Speed';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from './index';
-import { getMoonlitBrandGradients } from '../../styles/themeEffects';
+import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from '@/pages/Landing/index';
+import { getMoonlitBrandGradients } from '@/theme/themeEffects';
 
 function ValueGrid() {
   const theme = useTheme();

@@ -1,8 +1,8 @@
 import { Box, Container, Stack, Typography, Button } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
-import { Section, REDUCED_MOTION_QUERY } from './index';
-import { getMoonlitBrandGradients } from '../../styles/themeEffects';
+import { Section, REDUCED_MOTION_QUERY } from '@/pages/Landing/index';
+import { getMoonlitBrandGradients } from '@/theme/themeEffects';
 
 function FinalCTA({ onGetStarted }) {
   const theme = useTheme();

@@ -8,25 +8,26 @@
  * 
  * @module api
  */
-export { USER } from './endpoints';
+export { USER } from '@/api/endpoints';
 
-export { del } from './client';
+export { del } from '@/api/client';
 
 export {
   getFirebaseConfig,
   setSession,
   logout,
-} from './auth';
+} from '@/api/auth';
 
 export {
   getConversations,
   getConversation,
   deleteConversation,
+  renameConversation,
   sendMessage,
   resumeAgent,
-} from './conversations';
+} from '@/api/conversations';
 
-export { getLlmOptions } from './llm';
+export { getLlmOptions } from '@/api/llm';
 
 export {
   getStatus as getDbStatus,
@@ -39,14 +40,13 @@ export {
   selectSchema,
   getTables,
   getTableSchema,
-} from './database';
+} from '@/api/database';
 
-export { runQuery } from './query';
+export { runQuery } from '@/api/query';
 
 export {
   getContext as getUserContext,
   getSettings as getUserSettings,
   saveSettings as saveUserSettings,
   sessionActive,
-} from './user';
-
+} from '@/api/user';

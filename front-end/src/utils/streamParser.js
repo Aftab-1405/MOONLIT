@@ -4,17 +4,23 @@
  * Parses Server-Sent Events (SSE) from a ReadableStream and dispatches
  * typed event objects to a callback.
  *
- * Event types emitted by the LangGraph agent:
- *   token          – LLM content token
- *   tool_start     – tool invocation begun
- *   tool_end       – tool invocation finished (includes UI result)
- *   ui_action      – guided frontend action for the browser UI
- *   thinking_token – reasoning / chain-of-thought token
- *   error          – recoverable error message
- *   done           – stream complete
- *
  * @module utils/streamParser
  */
+
+const DATA_PREFIX = 'data: ';
+const DONE_PAYLOAD = '[DONE]';
+
+/**
+ * @param {string} line
+ * @returns {string|null}
+ */
+function extractDataPayload(line) {
+  const prefixAt = line.indexOf(DATA_PREFIX);
+  if (prefixAt === -1) return null;
+
+  const payload = line.slice(prefixAt + DATA_PREFIX.length).trim();
+  return payload.length ? payload : null;
+}
 
 /**
  * Read SSE events from a ReadableStream and invoke *onEvent* for each.
@@ -33,19 +39,14 @@ export async function parseSSEStream(reader, decoder, onEvent) {
 
     buffer += decoder.decode(value, { stream: true });
 
-    // SSE lines are delimited by newlines. Split and keep the last
-    // (potentially incomplete) chunk in the buffer.
     const lines = buffer.split('\n');
     buffer = lines.pop() || '';
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed || !trimmed.startsWith('data: ')) continue;
+    for (let i = 0; i < lines.length; i += 1) {
+      const payload = extractDataPayload(lines[i]);
+      if (!payload) continue;
 
-      const payload = trimmed.slice(6).trim();
-
-      // Legacy sentinel — treat as done
-      if (payload === '[DONE]') {
+      if (payload === DONE_PAYLOAD) {
         onEvent({ type: 'done' });
         return;
       }

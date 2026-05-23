@@ -13,12 +13,13 @@ import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import DialogShell from './DialogShell';
-import ButtonLoadingSpinner from './ButtonLoadingSpinner';
+import DialogShell from '@/components/common/DialogShell';
+import ButtonLoadingSpinner from '@/components/common/ButtonLoadingSpinner';
 import {
+  getInteractiveControlSx,
   getInsetPanelSx,
   getScrollbarStyles,
-} from '../../styles/shared';
+} from '@/styles/shared';
 
 const INTENT_CONFIG = {
   default: {
@@ -42,6 +43,8 @@ const INTENT_CONFIG = {
     icon: CheckCircleOutlineRoundedIcon,
   },
 };
+
+const ACTION_BUTTON_HEIGHT = 34;
 
 function getIntentConfig(intent) {
   return INTENT_CONFIG[intent] || INTENT_CONFIG.default;
@@ -191,22 +194,22 @@ function ConfirmDialog({
         <>
           <Button
             {...restSecondaryActionProps}
+            size="small"
             variant="text"
             onClick={handleClose}
             color="inherit"
             disabled={isCloseDisabled}
             fullWidth={isCompactMobile}
             sx={{
-              minWidth: { xs: '100%', sm: 80 },
-              minHeight: 36,
+              minWidth: { xs: '100%', sm: 72 },
+              minHeight: ACTION_BUTTON_HEIGHT,
+              height: ACTION_BUTTON_HEIGHT,
               borderRadius: '8px',
-              px: 1.5,
-              color: 'text.secondary',
-              backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.06 : 0.04),
-              '&:hover': {
-                backgroundColor: alpha(theme.palette.text.primary, isDarkMode ? 0.1 : 0.07),
-                color: 'text.primary',
-              },
+              px: 1.25,
+              py: 0,
+              ...theme.typography.uiNavItem,
+              fontWeight: 500,
+              ...getInteractiveControlSx(theme, { size: ACTION_BUTTON_HEIGHT, radius: '8px' }),
               ...secondaryActionSx,
             }}
           >
@@ -214,6 +217,7 @@ function ConfirmDialog({
           </Button>
           <Button
             {...restPrimaryActionProps}
+            size="small"
             variant="contained"
             onClick={handleConfirm}
             disabled={isActionDisabled}
@@ -221,11 +225,20 @@ function ConfirmDialog({
             fullWidth={isCompactMobile}
             startIcon={isLoading ? <ButtonLoadingSpinner /> : null}
             sx={{
-              minWidth: { xs: '100%', sm: 86 },
-              minHeight: 36,
+              minWidth: { xs: '100%', sm: 78 },
+              minHeight: ACTION_BUTTON_HEIGHT,
+              height: ACTION_BUTTON_HEIGHT,
               borderRadius: '8px',
+              px: 1.25,
+              py: 0,
+              ...theme.typography.uiNavItem,
+              fontWeight: 500,
               boxShadow: 'none',
               '&:hover': { boxShadow: 'none' },
+              '& .MuiButton-startIcon': {
+                ml: 0,
+                mr: 0.75,
+              },
               ...primaryActionSx,
             }}
           >

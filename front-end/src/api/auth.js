@@ -9,8 +9,8 @@
  * @module api/auth
  */
 
-import { get, post } from './client';
-import { AUTH } from './endpoints';
+import { get, post } from '@/api/client';
+import { AUTH } from '@/api/endpoints';
 
 /**
  * Fetch Firebase configuration from backend.

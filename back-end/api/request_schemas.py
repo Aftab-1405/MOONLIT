@@ -92,6 +92,20 @@ class AgentResumeRequest(BaseModel):
         return model or None
 
 
+class RenameConversationRequest(BaseModel):
+    """Schema for renaming a saved conversation."""
+
+    title: str = Field(..., min_length=1, max_length=80)
+
+    @field_validator("title")
+    @classmethod
+    def title_not_empty(cls, v):
+        title = v.strip()
+        if not title:
+            raise ValueError("Conversation title cannot be empty")
+        return title
+
+
 # =============================================================================
 # DATABASE CONNECTION SCHEMAS
 # =============================================================================

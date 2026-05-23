@@ -4,8 +4,8 @@
  */
 
 import { createContext, useContext, useCallback, useMemo } from 'react';
-import { defaultUserSettings } from '../config/userSettings';
-import { useLocalStorage } from '../hooks';
+import { defaultUserSettings } from '@/config/userSettings';
+import { useLocalStorage } from '@/hooks';
 
 const SETTINGS_KEY = 'moonlit-settings';
 

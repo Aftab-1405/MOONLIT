@@ -4,14 +4,15 @@
  * Handles conversation-related API calls:
  * - List conversations
  * - Get single conversation
+ * - Rename conversation
  * - Delete conversation
  * - Send message to LLM (streaming)
  * 
  * @module api/conversations
  */
 
-import { get, del, postRaw } from './client';
-import { CONVERSATIONS } from './endpoints';
+import { get, del, patch, postRaw } from '@/api/client';
+import { CONVERSATIONS } from '@/api/endpoints';
 
 /**
  * Get all conversations for current user.
@@ -42,6 +43,17 @@ export async function getConversation(id, signal) {
  */
 export async function deleteConversation(id) {
   return del(CONVERSATIONS.DELETE(id));
+}
+
+/**
+ * Rename a conversation by ID.
+ *
+ * @param {string} id - Conversation ID
+ * @param {string} title - New conversation title
+ * @returns {Promise<{status: string, title: string}>}
+ */
+export async function renameConversation(id, title) {
+  return patch(CONVERSATIONS.RENAME(id), { title });
 }
 
 /**

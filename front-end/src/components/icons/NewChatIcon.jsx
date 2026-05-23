@@ -1,24 +1,7 @@
-import { Box } from '@mui/material';
-import newChatIcon from './new_chat.png';
+import AddCommentOutlinedIcon from '@mui/icons-material/AddCommentOutlined';
 
-function NewChatIcon({ sx = {}, alt = '', ...props }) {
-  return (
-    <Box
-      component="img"
-      src={newChatIcon}
-      alt={alt}
-      draggable={false}
-      sx={{
-        width: '1em',
-        height: '1em',
-        objectFit: 'contain',
-        display: 'inline-block',
-        flexShrink: 0,
-        ...sx,
-      }}
-      {...props}
-    />
-  );
+function NewChatIcon(props) {
+  return <AddCommentOutlinedIcon fontSize="inherit" {...props} />;
 }
 
 export default NewChatIcon;
