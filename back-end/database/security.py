@@ -200,7 +200,9 @@ class DatabaseSecurity:
     @staticmethod
     def _detect_dangerous_keywords(query_upper: str):
         """Return set of dangerous keywords found in the query."""
-        query_words = set(query_upper.split())
+        # Use regex to extract purely alphabetical words, bypassing any
+        # punctuation or comment evasion tactics like `DELETE/**/FROM`
+        query_words = set(re.findall(r'\b[A-Z]+\b', query_upper))
         return query_words & DatabaseSecurity.DANGEROUS_KEYWORDS
 
     @staticmethod

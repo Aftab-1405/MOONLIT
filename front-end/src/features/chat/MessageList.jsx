@@ -7,7 +7,6 @@ import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { StepsAccordion } from '@/features/chat/ai-response-steps';
 import MarkdownRenderer from '@/features/chat/MarkdownRenderer';
 import { MESSAGE_STATUS } from '@/utils/chatMessages';
-import { useCharacterPacing } from '@/hooks/useCharacterPacing';
 import {
   HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY,
@@ -240,7 +239,7 @@ const AIMessage = memo(function AIMessage({
   const isStreaming = status === MESSAGE_STATUS.STREAMING;
   const isWaiting = status === MESSAGE_STATUS.WAITING;
 
-  const displayText = useCharacterPacing(text || '', isStreaming);
+  const displayText = text || '';
   const chatDisplayText = useMemo(() => stripCanvasCodeArtifacts(displayText), [displayText]);
   const displaySteps = useMemo(() => (Array.isArray(steps) ? steps : []), [steps]);
 
@@ -339,7 +338,6 @@ const AIMessage = memo(function AIMessage({
                 pr: { xs: 2, sm: 4 },
                 minWidth: 0,
                 py: 0.5,
-                contain: 'layout paint style',
                 overflowAnchor: 'none',
               }}
             >

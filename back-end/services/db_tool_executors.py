@@ -702,6 +702,61 @@ class AIToolExecutor:
             return {"error": str(e)}
 
     @staticmethod
+    def _get_schema_overview(
+        user_id: str, target_tables: Optional[List[str]] = None, db_config: dict = None
+    ) -> Dict:
+        """Get an overview of the schema including columns and foreign keys for specific or all tables."""
+        from services.context_service import ContextService
+        
+        connection = ContextService.get_connection(user_id)
+        if not connection.get("connected"):
+            return {"error": "Not connected to any database"}
+            
+        database = connection.get("database")
+        db_type = connection.get("db_type", "postgresql")
+        
+        try:
+            # 1. Get Tables
+            if not target_tables:
+                tables = AIToolExecutor._fetch_tables_with_config(db_config, db_type, db_name=database)
+                
+                # SAFETY LIMIT: Prevent context window blowouts on massive databases
+                if len(tables) > 50:
+                    return {
+                        "error": "Context Window Protection",
+                        "message": f"This database contains {len(tables)} tables. Visualizing or fetching the entire schema at once will exceed context limits. Please specify a focused list of 'target_tables' to explore."
+                    }
+            else:
+                tables = target_tables
+                
+            if not tables:
+                return {"database": database, "tables": [], "columns": {}, "foreign_keys": [], "message": "No tables found"}
+                
+            # 2. Get Columns
+            columns = AIToolExecutor._batch_fetch_columns(db_config, tables, db_type, db_name=database)
+            
+            # 3. Get Foreign Keys
+            all_foreign_keys_result = AIToolExecutor._get_foreign_keys(user_id, db_config=db_config)
+            
+            fks = all_foreign_keys_result.get("foreign_keys", [])
+            # Filter foreign keys if target_tables is provided
+            if target_tables:
+                target_set = set(target_tables)
+                fks = [fk for fk in fks if fk.get("table_name") in target_set or fk.get("referenced_table") in target_set]
+                
+            return {
+                "database": database,
+                "tables": tables,
+                "columns": columns,
+                "foreign_keys": fks,
+                "table_count": len(tables),
+                "foreign_key_count": len(fks)
+            }
+        except Exception as e:
+            logger.exception("Error getting schema overview")
+            return {"error": str(e)}
+
+    @staticmethod
     def _get_foreign_keys(
         user_id: str, table_name: str = None, db_config: dict = None
     ) -> Dict:

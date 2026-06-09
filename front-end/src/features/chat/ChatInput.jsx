@@ -14,7 +14,7 @@ import {
 import { alpha, useTheme } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
+
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { AppPopover } from '@/components';
@@ -59,8 +59,7 @@ function ChatInput({
   const [isFocused, setIsFocused] = useState(false);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { settings, updateSetting } = useAppTheme();
-  const reasoningEnabled = settings.enableReasoning ?? true;
+  useAppTheme();
   const [schemas, setSchemas] = useState([]);
   const [currentSchema, setCurrentSchema] = useState('public');
   const [schemaLoading, setSchemaLoading] = useState(false);
@@ -153,7 +152,7 @@ function ChatInput({
       backgroundColor: 'transparent',
     },
   }), [neutralInteraction, theme]);
-  const successInteraction = useMemo(() => getInteractionColors(theme, { tone: 'success' }), [theme]);
+
   const errorInteraction = useMemo(() => getInteractionColors(theme, { tone: 'error' }), [theme]);
   const composerSurfaceSx = useMemo(
     () => getComposerSurfaceSx(theme, { isFocused }),
@@ -182,9 +181,7 @@ function ChatInput({
   const handleCloseSchemaMenu = useCallback(() => setSchemaAnchor(null), []);
   const handleCloseLlmPopover = useCallback(() => setLlmAnchor(null), []);
 
-  const toggleReasoning = useCallback(() => {
-    updateSetting('enableReasoning', !reasoningEnabled);
-  }, [updateSetting, reasoningEnabled]);
+
 
   const fetchSchemas = useCallback(async () => {
     setSchemaLoading(true);
@@ -436,49 +433,6 @@ function ChatInput({
           )}
         </Box>
 
-        {/* Separator */}
-        <Box sx={{ height: '0.5px', backgroundColor: alpha(theme.palette.text.primary, 0.07), my: 0.75, mx: 0.5 }} />
-
-        {/* Extended thinking row */}
-        <Box
-          sx={{
-            ...getSelectableMenuItemSx(theme, {
-              isActive: reasoningEnabled,
-              columns: 'minmax(0, 1fr) auto',
-              gap: 1.5,
-            }),
-            gap: 1.5,
-            transition: 'background-color 150ms, border-color 150ms',
-            border: '1px solid',
-            borderColor: reasoningEnabled
-              ? alpha(theme.palette.success.main, theme.palette.mode === 'dark' ? 0.3 : 0.25)
-              : 'transparent',
-            backgroundColor: reasoningEnabled
-              ? successInteraction.activeBackground
-              : 'transparent',
-            '&:hover': {
-              backgroundColor: reasoningEnabled
-                ? successInteraction.activeHoverBackground
-                : neutralInteraction.hoverBackground,
-            },
-          }}
-          onClick={toggleReasoning}
-        >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography sx={{ ...theme.typography.uiNavItem, color: reasoningEnabled ? 'success.main' : 'text.primary', fontWeight: reasoningEnabled ? 500 : 400, transition: 'color 150ms' }}>
-              Extended thinking
-            </Typography>
-            <Typography sx={{ ...theme.typography.uiNavShortcut, color: 'text.secondary', mt: 0.25 }}>
-              Think longer for complex tasks
-            </Typography>
-          </Box>
-          <Switch
-            checked={reasoningEnabled}
-            onChange={toggleReasoning}
-            onClick={(e) => e.stopPropagation()}
-            inputProps={{ 'aria-label': 'Toggle extended thinking' }}
-          />
-        </Box>
       </AppPopover>
       <Box
         sx={{
@@ -541,36 +495,7 @@ function ChatInput({
 
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: 1, overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
-            <Tooltip title="Attach file (coming soon)">
-              <span>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  disabled
-                  aria-label="Attach file (coming soon)"
-                  startIcon={<AddRoundedIcon />}
-                  sx={{
-                    ...toolbarActionButtonStyles,
-                    maxWidth: { xs: 32, sm: 96 },
-                    px: { xs: 0, sm: 1.25 },
-                    justifyContent: 'center',
-                    '& .MuiButton-startIcon': {
-                      ...toolbarActionButtonStyles['& .MuiButton-startIcon'],
-                      mr: { xs: 0, sm: 0.5 },
-                    },
-                    '&.Mui-disabled': {
-                      opacity: 0.45,
-                      borderColor: 'transparent',
-                      backgroundColor: 'transparent',
-                    },
-                  }}
-                >
-                  <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
-                    Attach
-                  </Box>
-                </Button>
-              </span>
-            </Tooltip>
+
             {showDatabaseSelector && (
               <Tooltip title={canSwitchDatabase ? `Database: ${currentDatabase} (click to switch)` : `Database: ${currentDatabase}`}>
                 <span>
@@ -675,27 +600,37 @@ function ChatInput({
                   disabled={!isStreaming && (!hasText || disabled)}
                   aria-label={isStreaming ? 'Stop generating response' : 'Send message'}
                   sx={{
-                    width: 32,
-                    height: 32,
+                    width: 36,
+                    height: 36,
                     flexShrink: 0,
-                    borderRadius: '8px',
+                    borderRadius: '10px',
                     color: isStreaming
                       ? theme.palette.error.main
-                      : (hasText ? theme.palette.getContrastText(theme.palette.primary.main) : alpha(theme.palette.text.primary, 0.28)),
+                      : (hasText ? '#ffffff' : alpha(theme.palette.text.primary, 0.28)),
                     backgroundColor: isStreaming
                       ? errorInteraction.activeBackground
                       : (hasText ? theme.palette.primary.main : alpha(theme.palette.text.primary, 0.05)),
+                    backgroundImage: (!isStreaming && hasText)
+                      ? `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`
+                      : 'none',
                     border: '1px solid',
                     borderColor: isStreaming
                       ? alpha(theme.palette.error.main, 0.2)
-                      : (hasText ? alpha(theme.palette.primary.main, 0.6) : alpha(theme.palette.text.primary, 0.07)),
-                    transition: theme.transitions.create(['background-color', 'border-color', 'color'], { duration: theme.transitions.duration.shorter }),
+                      : (hasText ? 'transparent' : alpha(theme.palette.text.primary, 0.07)),
+                    boxShadow: (!isStreaming && hasText)
+                      ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.35)}`
+                      : 'none',
+                    transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
                     '&:hover': {
+                      transform: (!isStreaming && hasText) ? 'scale(1.06)' : 'none',
                       backgroundColor: isStreaming
                         ? errorInteraction.activeHoverBackground
                         : (hasText ? theme.palette.primary.dark : alpha(theme.palette.text.primary, 0.08)),
+                      boxShadow: (!isStreaming && hasText)
+                        ? `0 6px 16px ${alpha(theme.palette.primary.main, 0.45)}`
+                        : 'none',
                     },
-                    '&:active': { transform: 'scale(0.96)' },
+                    '&:active': { transform: 'scale(0.92)' },
                     '&.Mui-disabled': {
                       backgroundColor: alpha(theme.palette.text.primary, 0.04),
                       borderColor: alpha(theme.palette.text.primary, 0.06),

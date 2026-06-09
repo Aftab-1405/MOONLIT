@@ -133,6 +133,13 @@ class ConnectDBRequest(BaseModel):
             return v.replace(";", "").replace("--", "").strip()
         return v
 
+    @field_validator("connection_string")
+    @classmethod
+    def sanitize_connection_string(cls, v):
+        if v:
+            return v.strip(' "\'')
+        return v
+
 
 class SwitchDatabaseRequest(BaseModel):
     """Schema for /switch_remote_database"""
@@ -162,7 +169,10 @@ class SelectSchemaRequest(BaseModel):
     def sanitize_schema(cls, v):
         if not v or not v.strip():
             raise ValueError("Schema name is required")
-        return v.replace(";", "").replace("--", "").strip()
+        import re
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", v.strip()):
+            raise ValueError("Invalid schema name. Only alphanumeric characters and underscores are allowed.")
+        return v.strip()
 
 
 # =============================================================================

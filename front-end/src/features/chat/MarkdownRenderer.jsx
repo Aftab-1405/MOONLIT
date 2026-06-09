@@ -77,9 +77,6 @@ const CodeBlock = memo(function CodeBlock({
     borderColor: theme.palette.border.subtle,
     minWidth: 0, // CRITICAL: Prevents flexbox overflow issues during streaming
     width: '100%',
-    contain: 'layout paint style',
-    contentVisibility: 'auto',
-    containIntrinsicSize: '180px',
     transition: 'border-color 0.18s ease',
     '&:hover': {
       borderColor: alpha(theme.palette.text.secondary, isDarkMode ? 0.18 : 0.14),
@@ -163,9 +160,6 @@ const CodeBlock = memo(function CodeBlock({
         sx={{
           overflowX: 'auto',
           minHeight: 56,
-          contain: 'layout paint',
-          contentVisibility: 'auto',
-          containIntrinsicSize: '140px',
         }}
       >
         <SyntaxHighlighter
@@ -256,9 +250,6 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
           border: '1px solid',
           borderColor: theme.palette.border.subtle,
           minHeight: 96,
-          contain: 'layout paint style',
-          contentVisibility: 'auto',
-          containIntrinsicSize: '260px',
           transition: 'border-color 0.18s ease',
           '&:hover': {
             borderColor: alpha(theme.palette.text.secondary, isDarkMode ? 0.18 : 0.14),
@@ -280,9 +271,6 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
     '& ul, & ol': {
       pl: 3,
       my: 1.5,
-      contain: 'layout paint style',
-      contentVisibility: 'auto',
-      containIntrinsicSize: '96px',
     },
     '& li': { mb: 0.5, minHeight: '1.45em' },
     '& a': { color: 'primary.main', textDecoration: 'none', '&:hover': { textDecoration: 'underline' } },
@@ -302,9 +290,6 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
       color: theme.palette.text.secondary,
       backgroundColor: theme.palette.action.hover,
       borderRadius: 6,
-      contain: 'layout paint style',
-      contentVisibility: 'auto',
-      containIntrinsicSize: '120px',
     },
     '& hr': {
       border: 'none',

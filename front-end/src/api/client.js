@@ -4,6 +4,8 @@
  */
 
 const IS_DEV = import.meta.env.DEV;
+const CSRF_COOKIE_NAME = 'csrf_token';
+const CSRF_HEADER_NAME = 'x-csrf-token';
 
 import logger from '@/utils/logger';
 
@@ -17,6 +19,25 @@ class ApiError extends Error {
   }
 }
 
+function readCookie(name) {
+  const prefix = `${name}=`;
+  const cookie = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix));
+
+  return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
+}
+
+function csrfHeaders(method) {
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    return {};
+  }
+
+  const token = readCookie(CSRF_COOKIE_NAME);
+  return token ? { [CSRF_HEADER_NAME]: token } : {};
+}
+
 /**
  * Base fetch wrapper with consistent error handling.
  * 
@@ -26,17 +47,19 @@ class ApiError extends Error {
  * @throws {ApiError} On non-2xx responses
  */
 async function apiClient(endpoint, options = {}) {
+  const method = options.method || 'GET';
   const config = {
     ...options,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...csrfHeaders(method),
       ...options.headers,
     },
   };
 
   if (IS_DEV) {
-    logger.api(config.method || 'GET', endpoint);
+    logger.api(method, endpoint);
   }
 
   try {
@@ -116,6 +139,7 @@ export async function postRaw(endpoint, body, options = {}) {
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
+      ...csrfHeaders('POST'),
       ...options.headers,
     },
     body: body ? JSON.stringify(body) : undefined,

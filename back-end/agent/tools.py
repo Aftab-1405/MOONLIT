@@ -27,10 +27,8 @@ logger = logging.getLogger(__name__)
 CACHEABLE_TOOLS = {
     "get_connection_status",
     "get_database_list",
-    "get_database_schema",
-    "get_table_columns",
     "get_table_indexes",
-    "get_foreign_keys",
+    "get_schema_overview",
 }
 
 
@@ -162,6 +160,8 @@ def _execute_tool(
     raw_args: dict,
     config: RunnableConfig,
     executor_fn,
+    *,
+    _pre_validated: dict | None = None,
 ) -> str:
     """
     Shared execution pipeline used by every tool function.
@@ -170,12 +170,21 @@ def _execute_tool(
     is a callable that performs the actual DB work for each specific tool.
 
     Returns the LLM-efficient summary string (becomes ``ToolMessage.content``).
+
+    Args:
+        _pre_validated: Pass already-validated args to skip redundant Pydantic
+            validation. Used by ``execute_query`` which validates before the
+            human-in-the-loop interrupt and must not re-validate on resume.
     """
     cfg = _cfg(config)
     writer = _try_writer()
 
-    # 1. Validate with Pydantic schemas
-    validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
+    # 1. Validate with Pydantic schemas (skip if caller already validated)
+    validated = (
+        _pre_validated
+        if _pre_validated is not None
+        else ToolExecutor.validate_and_parse_args(tool_name, raw_args)
+    )
 
     # 2. Display args (show effective max_rows for execute_query)
     display_args = dict(validated)
@@ -258,41 +267,6 @@ def get_database_list(rationale: str, *, config: RunnableConfig) -> str:
     )
 
 
-@tool
-def get_database_schema(
-    rationale: str,
-    database: Optional[str] = None,
-    *,
-    config: RunnableConfig,
-) -> str:
-    """Get all tables and their columns for the current database or a specified database."""
-    return _execute_tool(
-        "get_database_schema",
-        {"rationale": rationale, "database": database},
-        config,
-        lambda v, uid, db_cfg, mx: DBTools._get_database_schema(
-            uid, v.get("database"), db_config=db_cfg
-        ),
-    )
-
-
-@tool
-def get_table_columns(
-    table_name: str,
-    rationale: str,
-    *,
-    config: RunnableConfig,
-) -> str:
-    """Get detailed column information for a specific table including column names and data types."""
-    return _execute_tool(
-        "get_table_columns",
-        {"table_name": table_name, "rationale": rationale},
-        config,
-        lambda v, uid, db_cfg, mx: DBTools._get_table_columns(
-            uid, v["table_name"], db_config=db_cfg
-        ),
-    )
-
 
 @tool
 def execute_query(
@@ -336,6 +310,7 @@ def execute_query(
         lambda v, uid, db_cfg, mx: DBTools._execute_query(
             uid, v["query"], _effective_max_rows(mx), db_config=db_cfg
         ),
+        _pre_validated=validated,  # reuse the validated args from before interrupt()
     )
 
 
@@ -358,21 +333,22 @@ def get_table_indexes(
 
 
 @tool
-def get_foreign_keys(
+def get_schema_overview(
     rationale: str,
-    table_name: Optional[str] = None,
+    target_tables: Optional[list[str]] = None,
     *,
     config: RunnableConfig,
 ) -> str:
-    """Get foreign key relationships for a table or all tables in the database. Returns the FK column, referenced table, and referenced column."""
+    """Get an overview of the database schema including tables, columns, and foreign keys in a single call. Use this instead of making multiple calls to get_table_columns and get_foreign_keys."""
     return _execute_tool(
-        "get_foreign_keys",
-        {"rationale": rationale, "table_name": table_name},
+        "get_schema_overview",
+        {"rationale": rationale, "target_tables": target_tables},
         config,
-        lambda v, uid, db_cfg, mx: DBTools._get_foreign_keys(
-            uid, v.get("table_name"), db_config=db_cfg
+        lambda v, uid, db_cfg, mx: DBTools._get_schema_overview(
+            uid, v.get("target_tables"), db_config=db_cfg
         ),
     )
+
 
 
 @tool
@@ -382,10 +358,12 @@ def web_search(query: str, rationale: str, *, config: RunnableConfig) -> str:
     writer({"type": "tool_start", "name": "web_search", "args": {"query": query}})
 
     try:
-        from langchain_tavily import TavilySearch
-
-        searcher = TavilySearch(max_results=5, topic="general")
-        raw = searcher.invoke({"query": query})
+        global _tavily_searcher
+        if '_tavily_searcher' not in globals():
+            from langchain_tavily import TavilySearch
+            _tavily_searcher = TavilySearch(max_results=5, topic="general")
+        
+        raw = _tavily_searcher.invoke({"query": query})
 
         # Normalize: may return a list of result dicts or a dict with a 'results' key
         if isinstance(raw, list):
@@ -472,26 +450,6 @@ def open_sql_editor(
         intent="prepare",
     )
 
-
-@tool
-def write_sql_editor_query(
-    query: str,
-    rationale: str,
-    *,
-    config: RunnableConfig,
-) -> str:
-    """Writes a SQL query directly into the SQL editor panel, opening it if not already open."""
-    tool_name = "write_sql_editor_query"
-    validated = ToolExecutor.validate_and_parse_args(tool_name, {"query": query, "rationale": rationale})
-    return _emit_ui_action_tool(
-        tool_name,
-        {"query": query, "rationale": rationale},
-        {"query": validated["query"]},
-        "Wrote the SQL query into the editor.",
-        title="Query prepared",
-        message="Review the query before running it.",
-        intent="prepare",
-    )
 
 
 @tool
@@ -598,19 +556,71 @@ def navigate_new_chat(
     return summary
 
 
+@tool
+def get_query_history(rationale: str, *, config: RunnableConfig) -> str:
+    """Retrieve the 10 most recently executed SQL queries from your long-term episodic memory. Use this tool if the user asks about a past query, requests a modification to a previous query, or refers to context that is no longer visible in your active conversation history."""
+    writer = _try_writer()
+    writer({"type": "tool_start", "name": "get_query_history", "args": {"rationale": rationale}})
+    
+    uid = config["configurable"]["user_id"]
+    from services.context_service import ContextService
+    import json
+    
+    queries = ContextService.get_full_context(uid).get("recent_queries", [])
+    if not queries:
+        return "No recent queries found in long-term memory."
+        
+    writer({"type": "tool_end", "name": "get_query_history", "args": {"rationale": rationale}, "result": {"count": len(queries)}})
+    return json.dumps(queries, indent=2)
+
+
+@tool
+def get_conversation_summary(rationale: str, *, config: RunnableConfig) -> str:
+    """CRITICAL MEMORY TOOL: You DO have access to older parts of this conversation! Retrieve compressed summaries of conversation history that no longer fits in your active memory window (~20 messages). You MUST call this tool when the user asks about past context, their name, earlier decisions, or anything you cannot see in the current message history. Never tell the user you don't have access to past history."""
+    writer = _try_writer()
+    writer({"type": "tool_start", "name": "get_conversation_summary", "args": {"rationale": rationale}})
+
+    uid = config["configurable"]["user_id"]
+    namespaced_thread_id = config["configurable"]["thread_id"]
+    cid = namespaced_thread_id.split(":")[-1] if ":" in namespaced_thread_id else namespaced_thread_id
+
+    from repositories.conversation_repository import ConversationRepository
+    from services.conversation_service import format_summaries_for_tool
+
+    conv = ConversationRepository.get_for_user(cid, uid)
+    if not conv:
+        return "Conversation not found."
+
+    summaries = conv.get("summaries", [])
+    if not summaries:
+        return "No older conversation summaries exist yet."
+
+    writer(
+        {
+            "type": "tool_end",
+            "name": "get_conversation_summary",
+            "args": {"rationale": rationale},
+            "result": {"count": len(summaries)},
+        }
+    )
+
+    return (
+      format_summaries_for_tool(summaries)
+    )
+
+
 # ── public list ──────────────────────────────────────────────────────
 
 ALL_TOOLS = [
     get_connection_status,
     get_database_list,
-    get_database_schema,
-    get_table_columns,
     execute_query,
     get_table_indexes,
-    get_foreign_keys,
+    get_schema_overview,
     web_search,
+    get_query_history,
+    get_conversation_summary,
     open_sql_editor,
-    write_sql_editor_query,
     open_database_modal,
     open_settings_modal,
     navigate_new_chat,

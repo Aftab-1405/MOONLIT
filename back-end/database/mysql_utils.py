@@ -106,7 +106,7 @@ def get_mysql_connect_kwargs(db_config: Dict, for_pool: bool = False) -> Dict:
             "password": parsed["password"],
             "charset": "utf8mb4",
             "use_unicode": True,
-            "connect_timeout": 30,  # Longer timeout for remote
+            "connect_timeout": 5,  # Short timeout to prevent DoS via slow IPs
             "use_pure": True,  # Force pure Python implementation for better cross-platform support
         }
 
@@ -137,7 +137,7 @@ def get_mysql_connect_kwargs(db_config: Dict, for_pool: bool = False) -> Dict:
             "password": db_config.get("password", ""),
             "charset": "utf8mb4",
             "use_unicode": True,
-            "connect_timeout": 10,
+            "connect_timeout": 5,
             "use_pure": True,  # Force pure Python for cross-platform
         }
 

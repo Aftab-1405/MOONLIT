@@ -64,7 +64,7 @@ def _build_provider_options() -> tuple[list[dict], str]:
     response_class=StreamingResponse,
     responses=STREAMING_RESPONSES,
 )
-async def pass_user_prompt_to_llm(
+async def chat(
     request: Request,
     data: ChatRequest,
     user: dict = Depends(get_current_user),
@@ -104,7 +104,9 @@ async def pass_user_prompt_to_llm(
     # Ownership check for existing conversation IDs
     if data.conversation_id:
         try:
-            _ = ConversationService.get_conversation_data(conversation_id, user_id)
+            _ = await run_in_threadpool(
+                ConversationService.get_conversation_data, conversation_id, user_id
+            )
         except PermissionError as e:
             raise HTTPException(status_code=403, detail=str(e))
 
@@ -163,6 +165,7 @@ async def pass_user_prompt_to_llm(
                 llm_rate_limiter.release(provider)
 
         headers = ConversationService.get_streaming_headers(conversation_id)
+
         return StreamingResponse(
             sse_generator(),
             media_type="text/event-stream",
@@ -204,7 +207,9 @@ async def resume_agent(
         )
 
     try:
-        _ = ConversationService.get_conversation_data(conversation_id, user_id)
+        _ = await run_in_threadpool(
+            ConversationService.get_conversation_data, conversation_id, user_id
+        )
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
 
@@ -254,6 +259,7 @@ async def resume_agent(
                 llm_rate_limiter.release(provider)
 
         headers = ConversationService.get_streaming_headers(conversation_id)
+
         return StreamingResponse(
             sse_generator(),
             media_type="text/event-stream",
@@ -336,6 +342,10 @@ async def delete_conversation(
             ConversationService.delete_user_conversation, conversation_id, user_id
         )
         return {"status": "success"}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error(f"Error deleting conversation: {e}")
         raise HTTPException(status_code=500, detail=str(e))

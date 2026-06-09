@@ -26,8 +26,12 @@ class Config:
         )
 
     # LLM API Configuration (Provider-based)
-    # Providers: gemini, cerebras, anthropic, openai (via LangGraph / LangChain)
-    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "gemini").strip().lower()
+    # Providers: bedrock (via langchain-aws)
+    LLM_PROVIDER = os.getenv("LLM_PROVIDER", "bedrock").strip().lower()
+
+    # Models supporting native Bedrock thinking API
+    _native_thinking_models_raw = os.getenv("BEDROCK_NATIVE_THINKING_MODELS", "")
+    BEDROCK_NATIVE_THINKING_MODELS = [m.strip().lower() for m in _native_thinking_models_raw.split(",") if m.strip()]
 
     # Provider API keys are resolved per selected provider in agent.model_factory.
 
@@ -151,7 +155,7 @@ class Config:
 
     # CORS Configuration
     _cors_origins_raw = os.getenv("CORS_ORIGINS")
-    CORS_ORIGINS = _cors_origins_raw.split(",") if _cors_origins_raw else None
+    CORS_ORIGINS = [o.strip() for o in _cors_origins_raw.split(",") if o.strip()] if _cors_origins_raw else None
 
     # Rate Limiting Configuration
     RATELIMIT_ENABLED = os.getenv("RATELIMIT_ENABLED", "True").lower() == "true"
@@ -183,6 +187,12 @@ class Config:
     DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS", "False").lower() == "true"
     DEV_AUTH_USER_ID = os.getenv("DEV_AUTH_USER_ID", "local-dev-user")
     DEV_AUTH_EMAIL = os.getenv("DEV_AUTH_EMAIL", "local-dev@moonlit.local")
+    SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "firebase_session")
+    CSRF_COOKIE_NAME = os.getenv("CSRF_COOKIE_NAME", "csrf_token")
+    CSRF_HEADER_NAME = os.getenv("CSRF_HEADER_NAME", "x-csrf-token")
+    FIREBASE_SESSION_CHECK_REVOKED = (
+        os.getenv("FIREBASE_SESSION_CHECK_REVOKED", "True").lower() == "true"
+    )
     SESSION_COOKIE_SECURE = False  # Override in production
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "lax"

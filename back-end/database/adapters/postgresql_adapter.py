@@ -23,6 +23,14 @@ except ImportError:
 
 
 class PostgreSQLAdapter(BaseDatabaseAdapter):
+
+    def _sanitize_schema(self, schema: str) -> str:
+        if not schema: return "public"
+        import re
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", schema):
+            raise ValueError(f"Invalid schema name: {schema}")
+        return schema
+
     """PostgreSQL database adapter."""
 
     def __init__(self):
@@ -66,7 +74,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                 db_name = db_match.group(1) if db_match else "unknown"
 
                 connection_pool = pool.ThreadedConnectionPool(
-                    minconn=1, maxconn=20, dsn=connection_string
+                    minconn=1, maxconn=20, dsn=connection_string, connect_timeout=5
                 )
                 logger.info(
                     f"Created PostgreSQL connection pool using connection string for database: {db_name}"
@@ -81,6 +89,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                     "password": config["password"],
                     "minconn": 1,
                     "maxconn": 20,
+                    "connect_timeout": 5,  # Important for preventing DoS
                 }
 
                 # Add SSL mode if specified (for remote DBs)
@@ -174,6 +183,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     def get_tables_query(self, schema: str = "public") -> str:
         """SQL query to list PostgreSQL tables in a specific schema."""
+        schema = self._sanitize_schema(schema)
         # Use format to inject schema name safely (schema names are identifiers)
         return f"""
             SELECT table_name
@@ -184,6 +194,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     def get_table_schema_query(self, schema: str = "public") -> str:
         """SQL query to get PostgreSQL table schema in a specific schema."""
+        schema = self._sanitize_schema(schema)
         return f"""
             SELECT
                 column_name,
@@ -232,6 +243,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         Returns:
             dict with 'tables' and 'columns' SQL queries
         """
+        schema = self._sanitize_schema(schema)
         return {
             "tables": f"""
                 SELECT table_name 
@@ -308,6 +320,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> tuple:
         """Return SQL query and params to get all tables for schema caching."""
+        schema = self._sanitize_schema(schema)
         query = f"""
             SELECT table_name 
             FROM information_schema.tables 
@@ -320,6 +333,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         self, db_name: str, table_name: str, schema: str = "public"
     ) -> tuple:
         """Return SQL query and params to get column names for a table."""
+        schema = self._sanitize_schema(schema)
         query = f"""
             SELECT column_name
             FROM information_schema.columns
@@ -332,6 +346,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         self, db_name: str, table_name: str, schema: str = "public"
     ) -> tuple:
         """Return SQL query and params to get full column details for a table."""
+        schema = self._sanitize_schema(schema)
         query = f"""
             SELECT column_name, data_type, is_nullable, column_default
             FROM information_schema.columns
@@ -367,6 +382,10 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
         Returns (table_name, column_name, column_key) where column_key is 'PRI' for primary keys.
         """
+        import re
+        if schema and not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", schema):
+            raise ValueError(f"Invalid schema name: {schema}")
+
         if not tables:
             return None, []
 
@@ -399,6 +418,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         self, table_name: str, db_name: str = None, schema: str = "public"
     ) -> tuple:
         """Return SQL query and params to get indexes for a PostgreSQL table."""
+        schema = self._sanitize_schema(schema)
         query = f"""
             SELECT 
                 i.relname AS index_name,
@@ -420,6 +440,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         self, table_name: str, db_name: str = None, schema: str = "public"
     ) -> tuple:
         """Return SQL query and params to get constraints for a PostgreSQL table."""
+        schema = self._sanitize_schema(schema)
         query = f"""
             SELECT 
                 tc.constraint_name,
@@ -439,6 +460,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         self, table_name: str = None, db_name: str = None, schema: str = "public"
     ) -> tuple:
         """Return SQL query and params to get foreign key relationships in PostgreSQL."""
+        schema = self._sanitize_schema(schema)
         if table_name:
             query = f"""
                 SELECT 

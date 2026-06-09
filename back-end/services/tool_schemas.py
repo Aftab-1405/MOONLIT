@@ -134,6 +134,15 @@ class GetForeignKeysArgs(BaseToolArgs):
     )
 
 
+class GetSchemaOverviewArgs(BaseToolArgs):
+    """Arguments for get_schema_overview tool."""
+
+    target_tables: Optional[List[str]] = Field(
+        None,
+        description="Optional list of table names to fetch the overview for. If not provided, fetches all tables.",
+    )
+
+
 class OpenSqlEditorArgs(BaseToolArgs):
     """Arguments for open_sql_editor tool."""
 
@@ -218,6 +227,7 @@ TOOL_ARG_SCHEMAS = {
     "execute_query": ExecuteQueryArgs,
     "get_table_indexes": GetTableIndexesArgs,
     "get_foreign_keys": GetForeignKeysArgs,
+    "get_schema_overview": GetSchemaOverviewArgs,
     "open_sql_editor": OpenSqlEditorArgs,
     "write_sql_editor_query": WriteSqlEditorQueryArgs,
     "open_database_modal": OpenDatabaseModalArgs,
@@ -314,6 +324,17 @@ class ForeignKeysResult(ToolResultBase):
     table: Optional[str] = None
     count: int = 0
     foreign_keys: List[Dict[str, Any]] = []
+
+
+class SchemaOverviewResult(ToolResultBase):
+    """Structured result for schema overview."""
+
+    database: Optional[str] = None
+    table_count: int = 0
+    foreign_key_count: int = 0
+    tables: List[str] = Field(default_factory=list)
+    columns: Dict[str, List[Any]] = Field(default_factory=dict)
+    foreign_keys: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class UiActionResult(ToolResultBase):
@@ -445,6 +466,18 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
             fks = raw_result.get("foreign_keys", [])
             return ForeignKeysResult(
                 table=raw_result.get("table"), count=len(fks), foreign_keys=fks
+            ).model_dump()
+
+        elif tool_name == "get_schema_overview":
+            tables = raw_result.get("tables", [])
+            fks = raw_result.get("foreign_keys", [])
+            return SchemaOverviewResult(
+                database=raw_result.get("database"),
+                table_count=len(tables),
+                foreign_key_count=len(fks),
+                tables=tables,
+                columns=raw_result.get("columns", {}),
+                foreign_keys=fks,
             ).model_dump()
 
         elif tool_name in SUPPORTED_UI_ACTIONS:

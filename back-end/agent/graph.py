@@ -14,6 +14,8 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
+from agent.memory_config import ACTIVE_MESSAGE_WINDOW
+
 
 def build_react_agent(
     chat_model: BaseChatModel,
@@ -27,10 +29,43 @@ def build_react_agent(
 
     ``version='v2'`` selects the current prebuilt graph schema (LangGraph >= 1.1).
     """
+    from langchain_core.messages import SystemMessage
+
+    def state_modifier(state):
+        messages = list(state["messages"])
+        if len(messages) > ACTIVE_MESSAGE_WINDOW:
+            original_start_idx = len(messages) - ACTIVE_MESSAGE_WINDOW
+            start_idx = original_start_idx
+            # Walk backwards to find a clean conversational boundary (HumanMessage).
+            # This prevents slicing the array exactly between a ToolCall and a ToolResult,
+            # which would cause a hard crash on the LLM provider API (orphaned tool calls).
+            while start_idx > 0:
+                if messages[start_idx].type == "human":
+                    break
+                start_idx -= 1
+            
+            # If we walked all the way back to 0 and still didn't find a HumanMessage,
+            # we must cut the history to prevent infinite growth. We jump back to the target
+            # boundary and walk forward until we find a safe starting message.
+            if start_idx == 0 and messages[0].type != "human":
+                start_idx = original_start_idx
+                while start_idx < len(messages):
+                    msg = messages[start_idx]
+                    if msg.type == "human":
+                        break
+                    # An AI message without pending tool calls is also a safe starting point
+                    if msg.type == "ai" and not getattr(msg, "tool_calls", None):
+                        break
+                    start_idx += 1
+
+            messages = messages[start_idx:]
+
+        return [SystemMessage(content=system_prompt)] + messages
+
     return create_react_agent(
         chat_model,
         list(tools),
         checkpointer=checkpointer,
-        prompt=system_prompt,
+        prompt=state_modifier,
         version="v2",
     )

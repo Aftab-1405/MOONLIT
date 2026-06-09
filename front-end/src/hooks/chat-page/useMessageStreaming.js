@@ -124,8 +124,13 @@ export function useMessageStreaming({
 
     const buildMessageData = (isDone = false) => {
       const steps = [];
-      if (thinkingContent) {
-        steps.push({ type: 'thinking', content: thinkingContent, isComplete: isDone });
+      let currentThinkingContent = thinkingContent;
+      let streamedText = contentParts.join('');
+
+
+
+      if (currentThinkingContent) {
+        steps.push({ type: 'thinking', content: currentThinkingContent, isComplete: isDone });
       }
       toolSteps.forEach((tool, index) => {
         steps.push({
@@ -137,7 +142,6 @@ export function useMessageStreaming({
           result: tool.result,
         });
       });
-      const streamedText = contentParts.join('');
       const baseText = baseMessageData?.text || '';
       const baseSteps = Array.isArray(baseMessageData?.steps) ? baseMessageData.steps : [];
       return { text: `${baseText}${streamedText}`, steps: [...baseSteps, ...steps] };

@@ -49,9 +49,9 @@ export function getSidebarChromeSx(theme) {
 export function getComposerSurfaceSx(theme, { isFocused = false } = {}) {
   const isDark = theme.palette.mode === 'dark';
   const ring = alpha(theme.palette.text.primary, isDark ? 0.2 : 0.16);
-  const ringFocus = alpha(theme.palette.text.primary, isDark ? 0.28 : 0.22);
+  const ringFocus = alpha(theme.palette.text.primary, isDark ? 0.35 : 0.25);
   const shadowBase = isDark ? 0.16 : 0.04;
-  const shadowFocus = isDark ? 0.26 : 0.09;
+  const shadowFocus = isDark ? 0.28 : 0.08;
 
   return {
     borderRadius: INTERFACE_RADIUS.composer,
@@ -65,21 +65,19 @@ export function getComposerSurfaceSx(theme, { isFocused = false } = {}) {
     boxShadow: isFocused
       ? `0 8px 32px ${alpha(theme.palette.common.black, shadowFocus)}, 0 0 0 0.5px ${ringFocus}`
       : `0 6px 24px ${alpha(theme.palette.common.black, shadowBase)}, 0 0 0 0.5px ${ring}`,
-    transition: theme.transitions.create(['box-shadow', 'background-color'], {
-      duration: theme.transitions.duration.shorter,
-    }),
+    transition: 'box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease',
   };
 }
 
 export function getComposerHoverShadow(theme, { isFocused = false } = {}) {
   const isDark = theme.palette.mode === 'dark';
   const ring = alpha(theme.palette.text.primary, isDark ? 0.24 : 0.2);
-  const ringFocus = alpha(theme.palette.text.primary, isDark ? 0.32 : 0.26);
-  const shadowBase = isDark ? 0.16 : 0.05;
-  const shadowFocus = isDark ? 0.26 : 0.1;
+  const ringFocus = alpha(theme.palette.text.primary, isDark ? 0.4 : 0.3);
+  const shadowBase = isDark ? 0.2 : 0.06;
+  const shadowFocus = isDark ? 0.32 : 0.1;
   return isFocused
-    ? `0 8px 32px ${alpha(theme.palette.common.black, shadowFocus)}, 0 0 0 0.5px ${ringFocus}`
-    : `0 6px 24px ${alpha(theme.palette.common.black, shadowBase)}, 0 0 0 0.5px ${ring}`;
+    ? `0 10px 40px ${alpha(theme.palette.common.black, shadowFocus)}, 0 0 0 0.5px ${ringFocus}`
+    : `0 8px 28px ${alpha(theme.palette.common.black, shadowBase)}, 0 0 0 0.5px ${ring}`;
 }
 
 export function getArtifactPanelChromeSx(theme) {

@@ -9,12 +9,78 @@ See: https://docs.langchain.com/oss/python/langgraph/streaming
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import AsyncGenerator, Optional
 
 from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langchain_core.messages.utils import merge_message_runs
 from langgraph.types import Command
 from fastapi.concurrency import run_in_threadpool
+
+class ThinkTagParser:
+    """Parses <think> tags out of streamed text and emits them as thinking tokens."""
+    def __init__(self):
+        self.in_think_block = False
+        self.buffer = ""
+
+    def process_chunk(self, chunk: str) -> list[tuple[str, str]]:
+        if not chunk:
+            return []
+        self.buffer += chunk
+        results = []
+        while self.buffer:
+            if not self.in_think_block:
+                think_idx = self.buffer.find("<think>")
+                if think_idx != -1:
+                    if think_idx > 0:
+                        results.append(("token", self.buffer[:think_idx]))
+                    self.in_think_block = True
+                    self.buffer = self.buffer[think_idx + 7:]
+                    continue
+                else:
+                    partial_match = False
+                    for i in range(1, min(7, len(self.buffer)) + 1):
+                        if self.buffer.endswith("<think>"[:i]):
+                            if len(self.buffer) > i:
+                                results.append(("token", self.buffer[:-i]))
+                                self.buffer = self.buffer[-i:]
+                            partial_match = True
+                            break
+                    if not partial_match:
+                        results.append(("token", self.buffer))
+                        self.buffer = ""
+                    break
+            else:
+                end_idx = self.buffer.find("</think>")
+                if end_idx != -1:
+                    if end_idx > 0:
+                        results.append(("thinking_token", self.buffer[:end_idx]))
+                    self.in_think_block = False
+                    self.buffer = self.buffer[end_idx + 8:]
+                    continue
+                else:
+                    partial_match = False
+                    for i in range(1, min(8, len(self.buffer)) + 1):
+                        if self.buffer.endswith("</think>"[:i]):
+                            if len(self.buffer) > i:
+                                results.append(("thinking_token", self.buffer[:-i]))
+                                self.buffer = self.buffer[-i:]
+                            partial_match = True
+                            break
+                    if not partial_match:
+                        results.append(("thinking_token", self.buffer))
+                        self.buffer = ""
+                    break
+        return results
+
+    def flush(self) -> list[tuple[str, str]]:
+        if not self.buffer:
+            return []
+        token_type = "thinking_token" if self.in_think_block else "token"
+        res = [(token_type, self.buffer)]
+        self.buffer = ""
+        return res
 
 from .checkpointing import get_checkpointer
 from .graph import build_react_agent
@@ -25,8 +91,15 @@ from .tools import ALL_TOOLS
 
 logger = logging.getLogger(__name__)
 
-# Safety limit — prevents runaway tool loops
-MAX_AGENT_STEPS = 25
+# Process-wide compiled-agent cache — avoids recompiling the LangGraph state
+# machine on every request. Key: (provider, model, enable_reasoning,
+# reasoning_effort, response_style). api_key is excluded because Bedrock
+# resolves credentials from AWS env vars, not the key argument.
+_agent_cache: dict[tuple, object] = {}
+
+
+# Safety limit — prevents runaway tool loops (applies to node transitions)
+MAX_AGENT_STEPS = 50
 
 
 async def stream_conversation(
@@ -38,7 +111,7 @@ async def stream_conversation(
     response_style: str = "balanced",
     max_rows: Optional[int] = None,
     api_key: Optional[str] = None,
-    provider: str = "gemini",
+    provider: str = "bedrock",
     model: Optional[str] = None,
     enable_reasoning: bool = True,
     reasoning_effort: str = "medium",
@@ -52,35 +125,58 @@ async def stream_conversation(
     ``thinking_token``, ``error``, ``done``.
     """
     last_completed_tool: dict | None = None
+    think_parser = ThinkTagParser()
 
     try:
         selected_model = model or get_default_model(provider)
-        chat_model = get_chat_model(
-            provider,
-            selected_model,
-            api_key,
-            enable_reasoning=enable_reasoning,
-            reasoning_effort=reasoning_effort,
-        )
-        logger.info(
-            "Agent invocation: provider=%s, model=%s, conversation=%s",
-            provider,
-            selected_model,
-            conversation_id,
-        )
 
-        system_prompt = PromptBuilder.build_system_prompt(response_style)
-        checkpointer = get_checkpointer()
-        agent = build_react_agent(
-            chat_model,
-            ALL_TOOLS,
-            system_prompt=system_prompt,
-            checkpointer=checkpointer,
-        )
+        # Compile the ReAct graph once per unique configuration,
+        # then reuse it for every subsequent request with the same settings.
+        # Compiling involves schema resolution, tool binding, and edge wiring
+        # (50–200 ms) so doing it per-request wastes time and memory.
+        cache_key = (provider, selected_model, enable_reasoning, reasoning_effort, response_style)
+
+        if cache_key not in _agent_cache:
+            chat_model = get_chat_model(
+                provider,
+                selected_model,
+                api_key,
+                enable_reasoning=enable_reasoning,
+                reasoning_effort=reasoning_effort,
+            )
+            system_prompt = PromptBuilder.build_system_prompt(response_style)
+            checkpointer = get_checkpointer()
+            compiled_agent = build_react_agent(
+                chat_model,
+                ALL_TOOLS,
+                system_prompt=system_prompt,
+                checkpointer=checkpointer,
+            )
+            _agent_cache[cache_key] = compiled_agent
+            logger.info(
+                "Compiled and cached new agent: provider=%s, model=%s, conversation=%s",
+                provider,
+                selected_model,
+                conversation_id,
+            )
+        else:
+            logger.info(
+                "Cache hit — reusing compiled agent: provider=%s, model=%s, conversation=%s",
+                provider,
+                selected_model,
+                conversation_id,
+            )
+
+        agent = _agent_cache[cache_key]
+
+        # Namespace thread_id by user_id to prevent unauthenticated
+        # checkpoint access. Without this, anyone guessing a conversation UUID
+        # could access its Redis thread state via the stream endpoint.
+        namespaced_thread_id = f"{user_id}:{conversation_id}"
 
         config = {
             "configurable": {
-                "thread_id": conversation_id,
+                "thread_id": namespaced_thread_id,
                 "user_id": user_id,
                 "db_config": db_config,
                 "max_rows": max_rows,
@@ -91,10 +187,20 @@ async def stream_conversation(
 
         graph_input = None
         if resume is not None:
-            graph_input = Command(resume=resume)
-        elif not await _has_checkpoint(checkpointer, conversation_id):
+            if isinstance(resume, dict) and resume.get("interrupt_id"):
+                # Strip interrupt_id from the payload before passing to Command(resume=...).
+                # LangGraph forwards the value directly to the interrupt() call-site inside the tool,
+                # so it must be the clean decision dict (e.g. {"approved": True}),
+                # not the full SSE envelope that also contains interrupt_id.
+                interrupt_id = resume["interrupt_id"]
+                clean_payload = {k: v for k, v in resume.items() if k != "interrupt_id"}
+                graph_input = Command(resume={interrupt_id: clean_payload})
+            else:
+                graph_input = Command(resume=resume)
+        elif not await _has_checkpoint(get_checkpointer(), namespaced_thread_id):
             history = await _load_firestore_history(conversation_id)
-            initial_messages = history + [HumanMessage(content=message)]
+            initial_messages = history + [HumanMessage(content=message or "")]
+            initial_messages = merge_message_runs(initial_messages)
             if history:
                 logger.info(
                     "Seeded %s messages from Firestore for conversation %s",
@@ -103,7 +209,7 @@ async def stream_conversation(
                 )
             graph_input = {"messages": initial_messages}
         else:
-            initial_messages = [HumanMessage(content=message)]
+            initial_messages = [HumanMessage(content=message or "")]
             graph_input = {"messages": initial_messages}
 
         async for part in agent.astream(
@@ -132,18 +238,32 @@ async def stream_conversation(
                             thinking = block.get("thinking", "")
                             if thinking:
                                 yield sse_encode(
-                                    {"type": "thinking_token", "content": thinking}
+                                    {"type": "thinking_token", "content": str(thinking)}
                                 )
+                        elif block_type == "reasoning_content":
+                            # Check Bedrock specific LangChain mapping
+                            reasoning_data = block.get("reasoning_content", {})
+                            if isinstance(reasoning_data, dict):
+                                # LangChain currently uses 'text', but AWS native uses 'reasoningText'
+                                thinking = reasoning_data.get("text") or reasoning_data.get("reasoningText") or ""
+                                if thinking:
+                                    yield sse_encode(
+                                        {"type": "thinking_token", "content": str(thinking)}
+                                    )
                         elif block_type == "text":
                             text = block.get("text", "")
                             if text:
-                                yield sse_encode({"type": "token", "content": text})
-                elif content:
-                    yield sse_encode({"type": "token", "content": content})
+                                for token_type, content in think_parser.process_chunk(str(text)):
+                                    yield sse_encode({"type": token_type, "content": content})
+                elif isinstance(content, str) and content:
+                    for token_type, text_content in think_parser.process_chunk(content):
+                        yield sse_encode({"type": token_type, "content": text_content})
 
             elif part["type"] == "custom":
                 custom_event = part["data"]
-                if isinstance(custom_event, dict) and custom_event.get("type") == "tool_end":
+                if not isinstance(custom_event, dict):
+                    continue
+                if custom_event.get("type") == "tool_end":
                     result = custom_event.get("result")
                     if isinstance(result, dict) and result.get("success", True):
                         last_completed_tool = custom_event
@@ -153,6 +273,10 @@ async def stream_conversation(
                 interrupt_event = _extract_interrupt_event(part.get("data"))
                 if interrupt_event:
                     yield sse_encode(interrupt_event)
+
+        # Flush any remaining text in the think parser
+        for token_type, content in think_parser.flush():
+            yield sse_encode({"type": token_type, "content": content})
 
         yield sse_done()
 
@@ -191,12 +315,24 @@ async def _load_firestore_history(conversation_id: str) -> list:
     try:
         from repositories import ConversationRepository
 
-        conv_data = await run_in_threadpool(ConversationRepository.get, conversation_id)
+        # Guard the synchronous Firestore call with a timeout.
+        # run_in_threadpool occupies one of the MAX_WORKERS slots. Under high
+        # concurrency, all slots can be held by active DB queries, causing this
+        # await to deadlock the event loop indefinitely. A 5-second timeout
+        # releases the event loop immediately on saturation — the thread
+        # continues running to completion but its result is simply discarded.
+        conv_data = await asyncio.wait_for(
+            run_in_threadpool(ConversationRepository.get, conversation_id),
+            timeout=5.0,
+        )
         if not conv_data or not conv_data.get("messages"):
             return []
 
+        last_summarized_idx = conv_data.get("last_summarized_idx", 0)
+        recent_messages = conv_data["messages"][last_summarized_idx:]
+
         lc_messages = []
-        for msg in conv_data["messages"]:
+        for msg in recent_messages:
             sender = msg.get("sender")
             content = msg.get("content", "")
             if not content:

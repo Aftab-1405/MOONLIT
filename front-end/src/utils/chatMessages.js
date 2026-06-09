@@ -98,9 +98,13 @@ export function isMessageActive(message) {
  */
 function parseAssistantContent(text, thinkingField = null, toolsField = null) {
   const steps = [];
+  let currentThinking = thinkingField ? String(thinkingField).trim() : '';
+  let parsedText = String(text || '').trim();
 
-  if (thinkingField && thinkingField.trim()) {
-    steps.push({ type: 'thinking', content: thinkingField.trim(), isComplete: true });
+
+
+  if (currentThinking && currentThinking.trim()) {
+    steps.push({ type: 'thinking', content: currentThinking.trim(), isComplete: true });
   }
 
   if (Array.isArray(toolsField) && toolsField.length > 0) {
@@ -116,7 +120,5 @@ function parseAssistantContent(text, thinkingField = null, toolsField = null) {
     });
   }
 
-  const parsedText = String(text || '').trim();
-
-  return { text: parsedText, steps };
+  return { text: parsedText.trim(), steps };
 }

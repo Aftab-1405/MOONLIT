@@ -17,6 +17,7 @@ import {
   DialogContent,
   DialogTitle,
   TextField,
+  Chip,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
@@ -211,7 +212,34 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
       />
 
       <Fade in={showConversationPanel} timeout={300} unmountOnExit>
-        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, position: 'relative' }}>
+          {messages.length > 0 && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: { xs: 8, sm: 16 },
+                right: { xs: 8, sm: 24 },
+                zIndex: UI_Z_INDEX.mainContentControl,
+                pointerEvents: 'none',
+              }}
+            >
+              <Chip
+                label={`Turns: ${Math.floor(messages.length / 2)}`}
+                size="small"
+                variant="outlined"
+                sx={{
+                  height: 26,
+                  fontSize: '0.7rem',
+                  fontWeight: 600,
+                  backgroundColor: alpha(theme.palette.background.paper, 0.6),
+                  backdropFilter: 'blur(8px)',
+                  borderColor: alpha(theme.palette.divider, 0.4),
+                  color: 'text.secondary',
+                  boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, 0.05)}`,
+                }}
+              />
+            </Box>
+          )}
           <Box
             ref={setScrollContainerRef}
             sx={{
@@ -256,6 +284,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
             <ChatInput
               {...chatInputSharedProps}
               showSuggestions={false}
+              messageCount={messages.length}
             />
           </Box>
         </Box>

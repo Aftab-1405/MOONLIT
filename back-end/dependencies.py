@@ -1,20 +1,29 @@
 """
-FastAPI Dependencies
+FastAPI dependencies for authentication and per-session application state.
 
-Centralized dependency injection for authentication, database config, and Redis.
-These replace Flask's global session and g object patterns.
+Authentication is backed by Firebase Admin session cookies. Redis stores only
+application state tied to the current Firebase session cookie, such as database
+connection metadata.
 """
 
+from __future__ import annotations
+
+import hashlib
 import json
 import logging
 import time
 from typing import Optional
+
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
+from firebase_admin import auth
+
 from config import get_config
 
 logger = logging.getLogger(__name__)
 Config = get_config()
+
+_memory_state: dict[str, tuple[dict, float]] = {}
 
 
 async def get_redis():
@@ -24,26 +33,101 @@ async def get_redis():
     return get_redis_client()
 
 
-async def get_session_data(request: Request) -> Optional[dict]:
-    """
-    Get session data from Redis.
-
-    Returns:
-        Session data dict or None if no valid session
-    """
-    session_id = request.cookies.get("session_id")
-    if not session_id:
+def _state_key_from_cookie(request: Request) -> Optional[str]:
+    session_cookie = request.cookies.get(Config.SESSION_COOKIE_NAME)
+    if not session_cookie:
         return None
 
-    redis_client = await get_redis()
-    try:
-        session_data = await redis_client.get(f"session:{session_id}")
-        if session_data:
-            return json.loads(session_data)
-    except Exception as e:
-        logger.warning(f"Error reading session from Redis: {e}")
+    return state_key_from_session_cookie(session_cookie)
 
-    return None
+
+def state_key_from_session_cookie(session_cookie: str) -> str:
+    digest = hashlib.sha256(session_cookie.encode("utf-8")).hexdigest()
+    return f"session_state:{digest}"
+
+
+def _user_from_decoded_session(decoded: dict) -> dict:
+    return {
+        "uid": decoded["uid"],
+        "email": decoded.get("email"),
+        "name": decoded.get("name"),
+        "picture": decoded.get("picture"),
+        "verified": bool(decoded.get("email_verified", True)),
+    }
+
+
+def verify_session_cookie_value(session_cookie: str) -> dict:
+    """Verify a Firebase session cookie and return the app user payload."""
+    decoded = auth.verify_session_cookie(
+        session_cookie,
+        check_revoked=Config.FIREBASE_SESSION_CHECK_REVOKED,
+    )
+    return _user_from_decoded_session(decoded)
+
+
+def verify_csrf(request: Request) -> None:
+    """Validate the double-submit CSRF token for cookie-authenticated writes."""
+    cookie_token = request.cookies.get(Config.CSRF_COOKIE_NAME)
+    header_token = request.headers.get(Config.CSRF_HEADER_NAME)
+
+    if not cookie_token or not header_token or cookie_token != header_token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid CSRF token",
+        )
+
+
+async def _read_state(key: str) -> Optional[dict]:
+    redis_client = await get_redis()
+    if redis_client:
+        raw = await redis_client.get(key)
+        return json.loads(raw) if raw else None
+
+    record = _memory_state.get(key)
+    if not record:
+        return None
+
+    data, expires_at = record
+    if expires_at <= time.time():
+        _memory_state.pop(key, None)
+        return None
+    return dict(data)
+
+
+async def _write_state(key: str, data: dict, expire_seconds: int) -> None:
+    redis_client = await get_redis()
+    if redis_client:
+        await redis_client.set(key, json.dumps(data), ex=expire_seconds)
+        return
+
+    _memory_state[key] = (dict(data), time.time() + expire_seconds)
+
+
+async def _delete_state(key: str) -> None:
+    redis_client = await get_redis()
+    if redis_client:
+        await redis_client.delete(key)
+        return
+
+    _memory_state.pop(key, None)
+
+
+async def get_session_data(request: Request) -> Optional[dict]:
+    """
+    Get per-Firebase-session application state.
+
+    This is not an authentication source. Authentication is always verified from
+    the Firebase session cookie by get_current_user().
+    """
+    key = _state_key_from_cookie(request)
+    if not key:
+        return None
+
+    try:
+        return await _read_state(key)
+    except Exception as e:
+        logger.warning(f"Error reading session state: {e}")
+        return None
 
 
 def _get_connection_persistence_minutes(session_data: dict) -> Optional[int]:
@@ -80,25 +164,29 @@ async def _expire_db_config(request: Request, db_config: dict, reason: str) -> N
             },
         )
     except Exception as e:
-        logger.warning(f"Failed to clear expired DB config from session: {e}")
+        logger.warning(f"Failed to clear expired DB config from session state: {e}")
 
 
 async def get_current_user(request: Request) -> dict:
     """
-    Authenticate request via Redis session cookie.
+    Authenticate request via Firebase Admin session cookie.
 
     Returns:
-        User dict with uid, email, name, verified flag
+        User dict with uid, email, name, picture, verified flag
 
     Raises:
         HTTPException 401 if not authenticated
     """
-    session_data = await get_session_data(request)
-    if session_data and "user" in session_data:
-        user = session_data["user"]
-        request.state.user = user
-        logger.debug(f"Session auth for user: {user.get('uid')}")
-        return user
+    session_cookie = request.cookies.get(Config.SESSION_COOKIE_NAME)
+    if session_cookie:
+        try:
+            user = await run_in_threadpool(verify_session_cookie_value, session_cookie)
+            request.state.user = user
+            request.state.session_state_key = _state_key_from_cookie(request)
+            logger.debug(f"Firebase session auth for user: {user.get('uid')}")
+            return user
+        except Exception as e:
+            logger.debug(f"Invalid Firebase session cookie: {e}")
 
     if Config.DEBUG and Config.DEV_AUTH_BYPASS:
         user = {
@@ -111,7 +199,6 @@ async def get_current_user(request: Request) -> dict:
         logger.debug("Development auth bypass for user: %s", user["uid"])
         return user
 
-    logger.debug("No valid authentication found")
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
     )
@@ -130,20 +217,11 @@ async def get_current_user_optional(request: Request) -> Optional[dict]:
 
 async def get_db_config(request: Request) -> Optional[dict]:
     """
-    Get database configuration from request state or Redis session.
-
-    The db_config is set either:
-    1. Directly in request.state by a prior middleware/dependency
-    2. From Redis session storage
-
-    Returns:
-        Database configuration dict or None if not configured
+    Get database configuration from request state or per-session state.
     """
-    # Check request state first (set by connect_db endpoint)
     if hasattr(request.state, "db_config") and request.state.db_config:
         return request.state.db_config
 
-    # Fall back to session
     session_data = await get_session_data(request)
     if session_data and "db_config" in session_data:
         db_config = session_data["db_config"]
@@ -155,7 +233,7 @@ async def get_db_config(request: Request) -> Optional[dict]:
         active_at = session_data.get("session_active_at")
         now = time.time()
 
-        # If no explicit close event and heartbeat stopped, treat as implicit close
+        # If no explicit close event and heartbeat stopped, treat as implicit close.
         if closed_at is None and active_at is not None:
             try:
                 if now - float(active_at) > Config.SESSION_ACTIVITY_GRACE_SECONDS:
@@ -170,7 +248,6 @@ async def get_db_config(request: Request) -> Optional[dict]:
                 pass
 
         if closed_at is not None:
-            # Tab was closed; enforce persistence window on reopen
             if not persistence_minutes or persistence_minutes <= 0:
                 await _expire_db_config(request, db_config, "tab_closed_no_persistence")
                 return None
@@ -179,7 +256,6 @@ async def get_db_config(request: Request) -> Optional[dict]:
                 await _expire_db_config(request, db_config, "tab_closed_expired")
                 return None
 
-            # Reopened within persistence window - clear closed marker
             await update_session_data(
                 request,
                 {
@@ -189,7 +265,6 @@ async def get_db_config(request: Request) -> Optional[dict]:
                 },
             )
         else:
-            # Active session - update last-used for observability
             await update_session_data(
                 request,
                 {
@@ -198,7 +273,6 @@ async def get_db_config(request: Request) -> Optional[dict]:
                 },
             )
 
-        # Cache in request state for this request
         request.state.db_config = db_config
         return db_config
 
@@ -218,91 +292,47 @@ async def require_db_config(db_config: Optional[dict] = Depends(get_db_config)) 
     return db_config
 
 
-async def get_conversation_id(request: Request) -> Optional[str]:
-    """Get conversation ID from session."""
-    session_data = await get_session_data(request)
-    if session_data:
-        return session_data.get("conversation_id")
-    return None
-
-
-# Session management utilities
-
-
-async def set_session_data(
-    request: Request,
-    data: dict,
-    session_id: str = None,
-    expire_seconds: int = 86400,
-) -> str:
-    """
-    Store session data in Redis.
-
-    Args:
-        request: FastAPI request
-        data: Session data to store
-        session_id: Optional session ID (generates new if not provided)
-        expire_seconds: Session expiry in seconds
-
-    Returns:
-        Session ID
-    """
-    import uuid
-
-    if not session_id:
-        session_id = str(uuid.uuid4())
-
-    data = dict(data)
-    data.setdefault("session_active_at", time.time())
-
-    redis_client = await get_redis()
-    await redis_client.set(f"session:{session_id}", json.dumps(data), ex=expire_seconds)
-    return session_id
-
-
 async def update_session_data(
-    request: Request, updates: dict, expire_seconds: int = 86400
+    request: Request, updates: dict, expire_seconds: int | None = None
 ) -> bool:
     """
-    Update existing session data in Redis.
-
-    Args:
-        request: FastAPI request
-        updates: Dict of fields to update
-        expire_seconds: Reset expiry to this value
+    Update per-Firebase-session application state.
 
     Returns:
-        True if updated, False if no session exists
+        True if updated, False if no Firebase session cookie exists
     """
-    session_id = request.cookies.get("session_id")
-    if not session_id:
+    key = _state_key_from_cookie(request)
+    if not key:
         return False
 
-    session_data = await get_session_data(request)
-    if not session_data:
-        return False
-
+    expire_seconds = expire_seconds or Config.SESSION_EXPIRE_SECONDS
+    session_data = await get_session_data(request) or {}
     session_data.update(updates)
     session_data["session_active_at"] = time.time()
 
-    redis_client = await get_redis()
-    await redis_client.set(
-        f"session:{session_id}", json.dumps(session_data), ex=expire_seconds
-    )
+    await _write_state(key, session_data, expire_seconds)
     return True
 
 
-async def clear_session(request: Request) -> bool:
-    """
-    Clear session data from Redis.
+async def replace_session_data_for_cookie(
+    session_cookie: str, data: dict, expire_seconds: int | None = None
+) -> None:
+    """Write application state for a freshly issued Firebase session cookie."""
+    expire_seconds = expire_seconds or Config.SESSION_EXPIRE_SECONDS
+    session_data = dict(data)
+    session_data["session_active_at"] = time.time()
+    await _write_state(
+        state_key_from_session_cookie(session_cookie), session_data, expire_seconds
+    )
 
-    Returns:
-        True if cleared, False if no session existed
+
+async def clear_session_state(request: Request) -> bool:
     """
-    session_id = request.cookies.get("session_id")
-    if not session_id:
+    Clear per-Firebase-session application state.
+    """
+    key = _state_key_from_cookie(request)
+    if not key:
         return False
 
-    redis_client = await get_redis()
-    await redis_client.delete(f"session:{session_id}")
+    await _delete_state(key)
     return True

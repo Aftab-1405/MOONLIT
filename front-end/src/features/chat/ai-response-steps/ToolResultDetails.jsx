@@ -601,7 +601,7 @@ export function ToolResultDetails({ stepName, result, args, isError }) {
     return <GenericResultDetails stepName={stepName} result={result} isError={isError} />;
 
   switch (stepName) {
-    case 'get_database_schema':
+    case 'get_schema_overview':
       return <SchemaResultDetails result={result} />;
     case 'get_table_columns':
       return <TableColumnsResultDetails result={result} args={args} />;

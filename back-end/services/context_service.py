@@ -184,8 +184,8 @@ class ContextService:
         """
         Get current connection state from Firestore.
 
-        Note: In FastAPI, session validation is handled by the caller
-        via Redis session. This method just returns Firestore data.
+        Note: In FastAPI, authentication is handled by the caller.
+        This method just returns Firestore data.
 
         Args:
             user_id: The user ID to check connection for

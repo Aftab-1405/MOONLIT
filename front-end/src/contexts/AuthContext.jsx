@@ -139,7 +139,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const auth = getFirebaseAuth();
-      if (!auth) throw new Error('Firebase not initialized');
+      if (!auth) throw new Error('Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.');
 
       const result = await createUserWithEmailAndPassword(auth, email, password);
 
@@ -158,7 +158,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const auth = getFirebaseAuth();
-      if (!auth) throw new Error('Firebase not initialized');
+      if (!auth) throw new Error('Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.');
 
       const result = await signInWithEmailAndPassword(auth, email, password);
       return result.user;
@@ -172,7 +172,7 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const auth = getFirebaseAuth();
-      if (!auth) throw new Error('Firebase not initialized');
+      if (!auth) throw new Error('Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.');
 
       await sendPasswordResetEmail(auth, email);
       return true;
@@ -189,7 +189,7 @@ export const AuthProvider = ({ children }) => {
       const provider = getGoogleProvider();
 
       if (!auth || !provider) {
-        throw new Error('Firebase not initialized');
+        throw new Error('Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.');
       }
 
       if (isMobileDevice()) {
@@ -212,7 +212,7 @@ export const AuthProvider = ({ children }) => {
       const provider = getGithubProvider();
 
       if (!auth || !provider) {
-        throw new Error('Firebase not initialized');
+        throw new Error('Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.');
       }
 
       if (isMobileDevice()) {

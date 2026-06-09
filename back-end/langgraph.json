@@ -1,7 +1,0 @@
-{
-  "dependencies": ["."],
-  "graphs": {
-    "moonlit": "./moonlit_langgraph.py:graph"
-  },
-  "env": "./.env"
-}

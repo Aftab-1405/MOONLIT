@@ -22,7 +22,16 @@ from api.schemas.common import ApiError
 
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("backend.log"),
+        logging.StreamHandler()
+    ]
+)
+logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
+logging.getLogger("watchfiles").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Get environment-specific configuration
@@ -87,10 +96,10 @@ async def lifespan(app: FastAPI):
 
         checkpoint_redis_url = redis_url
         redis_client = redis.from_url(redis_url, decode_responses=True)
-        logger.info("✅ Redis session storage enabled (Upstash)")
+        logger.info("✅ Redis application state storage enabled (Upstash)")
     else:
         logger.warning(
-            "⚠️ UPSTASH_REDIS_URL not set, using in-memory sessions (not recommended for production)"
+            "⚠️ UPSTASH_REDIS_URL not set, using in-memory application state"
         )
 
     # LangGraph thread persistence (Redis in staging/production; in-memory in dev)
@@ -138,6 +147,64 @@ def create_app() -> FastAPI:
             allow_headers=["*"],
         )
         logger.info(f"CORS enabled for origins: {AppConfig.CORS_ORIGINS}")
+
+    @app.middleware("http")
+    async def log_requests(request: Request, call_next):
+        logger.debug(f"Incoming request: {request.method} {request.url}")
+        
+        # Redact sensitive headers
+        sensitive_headers = {"cookie", "authorization", "x-csrf-token"}
+        safe_headers = {
+            k: ("***REDACTED***" if k.lower() in sensitive_headers else v)
+            for k, v in request.headers.items()
+        }
+        logger.debug(f"Headers: {safe_headers}")
+        
+        try:
+            body = await request.body()
+            if body:
+                body_str = body.decode('utf-8')
+                # Truncate large bodies to prevent log bombing / disk exhaustion
+                if len(body_str) > 200:
+                    body_str = body_str[:200] + f"... [TRUNCATED {len(body_str) - 200} bytes]"
+                logger.debug(f"Body: {body_str}")
+        except Exception:
+            pass
+        
+        response = await call_next(request)
+        logger.debug(f"Response status: {response.status_code}")
+        return response
+
+    @app.middleware("http")
+    async def add_security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        response.headers["Referrer-Policy"] = "no-referrer-when-downgrade"
+        response.headers["Permissions-Policy"] = "geolocation=()"
+        return response
+
+    @app.middleware("http")
+    async def csrf_middleware(request: Request, call_next):
+        if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
+            if request.url.path not in {"/api/v1/user/session/close"}:
+                try:
+                    from dependencies import verify_csrf
+    
+                    verify_csrf(request)
+                except HTTPException as exc:
+                    return JSONResponse(
+                        status_code=exc.status_code,
+                        content={
+                            "error": "FORBIDDEN",
+                            "message": str(exc.detail),
+                            "details": {},
+                        },
+                    )
+
+        return await call_next(request)
 
     # Configure rate limiting
     if AppConfig.RATELIMIT_ENABLED:

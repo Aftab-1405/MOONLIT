@@ -1,91 +1,113 @@
-"""Authentication routes - FastAPI Router"""
+"""Authentication routes - FastAPI Router."""
 
 import logging
-from fastapi import APIRouter, Request, Response, HTTPException, status
-from pydantic import BaseModel
-from typing import Optional
+import secrets
+from datetime import timedelta
 
-from config import Config
+from fastapi import APIRouter, HTTPException, Request, Response, status
+from fastapi.concurrency import run_in_threadpool
+from firebase_admin import auth
+from pydantic import BaseModel, Field
+
+from config import get_config
 from dependencies import (
+    clear_session_state,
+    get_current_user,
+    get_current_user_optional,
     get_session_data,
-    set_session_data,
-    clear_session,
+    replace_session_data_for_cookie,
+    verify_csrf,
 )
 
+Config = get_config()
 router = APIRouter(tags=["auth"])
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
-# REQUEST SCHEMAS
-# =============================================================================
-
-
 class SetSessionRequest(BaseModel):
-    """Request body for /set_session"""
+    """Request body for /set_session."""
 
-    idToken: str
-    user: Optional[dict] = None
+    idToken: str = Field(..., min_length=1)
 
 
-# =============================================================================
-# ROUTES
-# =============================================================================
+def _set_csrf_cookie(response: Response) -> str:
+    token = secrets.token_urlsafe(32)
+    response.set_cookie(
+        key=Config.CSRF_COOKIE_NAME,
+        value=token,
+        httponly=False,
+        secure=Config.SESSION_COOKIE_SECURE,
+        samesite=Config.SESSION_COOKIE_SAMESITE,
+        max_age=Config.SESSION_EXPIRE_SECONDS,
+        path="/",
+    )
+    return token
+
+
+def _delete_cookie(response: Response, name: str, *, httponly: bool) -> None:
+    response.delete_cookie(
+        key=name,
+        path="/",
+        secure=Config.SESSION_COOKIE_SECURE,
+        httponly=httponly,
+        samesite=Config.SESSION_COOKIE_SAMESITE,
+    )
 
 
 @router.post("/set_session")
 async def set_session(request: Request, response: Response, data: SetSessionRequest):
     """
-    Verify Firebase ID token and establish session.
-
-    Expects JSON body:
-    {
-        "idToken": "...",  // Firebase ID token for verification
-        "user": {...}      // Optional user data
-    }
+    Verify a Firebase ID token and establish a Firebase Admin session cookie.
     """
+    verify_csrf(request)
+
     try:
-        from firebase_admin import auth
+        decoded_token = await run_in_threadpool(
+            auth.verify_id_token,
+            data.idToken,
+            check_revoked=Config.FIREBASE_SESSION_CHECK_REVOKED,
+        )
+        expires_in = timedelta(seconds=Config.SESSION_EXPIRE_SECONDS)
+        session_cookie = await run_in_threadpool(
+            auth.create_session_cookie,
+            data.idToken,
+            expires_in=expires_in,
+        )
 
-        # Verify the token cryptographically with Firebase
-        decoded_token = auth.verify_id_token(data.idToken)
+        existing_user = await get_current_user_optional(request)
+        existing_state = {}
+        if existing_user and existing_user.get("uid") == decoded_token["uid"]:
+            existing_state = await get_session_data(request) or {}
 
-        # Token is valid - create session data
+        response.set_cookie(
+            key=Config.SESSION_COOKIE_NAME,
+            value=session_cookie,
+            httponly=Config.SESSION_COOKIE_HTTPONLY,
+            secure=Config.SESSION_COOKIE_SECURE,
+            samesite=Config.SESSION_COOKIE_SAMESITE,
+            max_age=Config.SESSION_EXPIRE_SECONDS,
+            path="/",
+        )
+
         user_data = {
             "uid": decoded_token["uid"],
             "email": decoded_token.get("email"),
             "name": decoded_token.get("name"),
             "picture": decoded_token.get("picture"),
-            "verified": True,
+            "verified": bool(decoded_token.get("email_verified", True)),
         }
+        request.state.user = user_data
 
-        # Preserve existing session data (especially db_config) on re-login
-        existing_session = await get_session_data(request)
-        session_data = {
-            **(existing_session or {}),
-            "user": user_data,
-        }
+        if existing_state:
+            await replace_session_data_for_cookie(session_cookie, existing_state)
 
-        # Reuse existing session_id to keep the same cookie on re-login
-        existing_session_id = request.cookies.get("session_id")
-        session_id = await set_session_data(
-            request, session_data, session_id=existing_session_id
-        )
-
-        response.set_cookie(
-            key="session_id",
-            value=session_id,
-            httponly=Config.SESSION_COOKIE_HTTPONLY,
-            secure=Config.SESSION_COOKIE_SECURE,
-            samesite=Config.SESSION_COOKIE_SAMESITE,
-            max_age=Config.SESSION_EXPIRE_SECONDS,
-        )
-
-        logger.info(f"Session established for verified user: {decoded_token['uid']}")
+        logger.info("Firebase session established for user: %s", decoded_token["uid"])
         return {"status": "success", "user": user_data}
 
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Token verification failed: {e}")
+        logger.warning("Token verification failed: %s", e)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
         )
@@ -93,32 +115,32 @@ async def set_session(request: Request, response: Response, data: SetSessionRequ
 
 @router.get("/check_session")
 async def check_session(request: Request):
-    """Check if user has active session."""
-    session_data = await get_session_data(request)
-
-    if session_data and "user" in session_data:
-        return {"status": "session_active"}
+    """Check whether the request has a valid Firebase session cookie."""
+    user = await get_current_user_optional(request)
+    if user:
+        return {"status": "session_active", "user": user}
     return {"status": "no_session"}
 
 
 @router.post("/logout")
 async def logout(request: Request, response: Response):
-    """Clear user session and cleanup."""
-    await clear_session(request)
+    """Clear Firebase session cookie and per-session application state."""
+    verify_csrf(request)
+    await clear_session_state(request)
 
-    # Clear the session cookie
-    response.delete_cookie(key="session_id")
+    _delete_cookie(response, Config.SESSION_COOKIE_NAME, httponly=True)
 
     logger.debug("User session cleared on /logout")
     return {"status": "success", "message": "Logged out successfully"}
 
 
 @router.get("/firebase-config")
-async def get_firebase_config():
-    """Serve Firebase web client configuration."""
+async def get_firebase_config(response: Response):
+    """Serve Firebase web client configuration and issue a CSRF token."""
     try:
         config = Config.get_firebase_web_config()
-        return {"status": "success", "config": config}
+        csrf_token = _set_csrf_cookie(response)
+        return {"status": "success", "config": config, "csrfToken": csrf_token}
     except Exception as e:
         logger.error(f"Error getting Firebase config: {e}")
         raise HTTPException(

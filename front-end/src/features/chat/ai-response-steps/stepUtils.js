@@ -31,7 +31,7 @@ function isSemanticFailure(name, result) {
       return result.connected === false;
     case 'get_database_list':
       return (result.count ?? result.databases?.length ?? 0) === 0;
-    case 'get_database_schema':
+    case 'get_schema_overview':
       return (result.table_count ?? result.tables?.length ?? 0) === 0;
     case 'get_table_columns':
       return (result.column_count ?? result.columns?.length ?? 0) === 0;
@@ -57,7 +57,7 @@ export function getDetailedResult(name, result) {
       const count = result.count ?? result.databases?.length ?? 0;
       return `Found ${count} database${count !== 1 ? 's' : ''} available`;
     },
-    get_database_schema: () => {
+    get_schema_overview: () => {
       const count = result.table_count ?? result.tables?.length ?? 0;
       const database = result.database ? ` from ${result.database}` : '';
       return `Retrieved ${count} table${count !== 1 ? 's' : ''}${database}`;

@@ -94,51 +94,95 @@ class UserQuotaService:
         usage_data = {}
         exceeded_timeframe = None
 
-        # Check all timeframes
+        # Atomic Increment first (eliminates TOCTOU race condition)
+        pipe = self.redis.pipeline()
         for timeframe, (limit, ttl) in self.limits.items():
             key = self._get_key(user_id, timeframe)
+            pipe.incr(key)
+        
+        try:
+            incr_results = await pipe.execute()
+        except Exception:
+            # Fallback for synchronous mock redis (in tests)
+            incr_results = []
+            for timeframe in self.limits.keys():
+                key = self._get_key(user_id, timeframe)
+                val = await self.redis.incr(key)
+                incr_results.append(val)
 
-            # Get current count
-            current = await self.redis.get(key)
-            current_count = int(current) if current else 0
-
-            # Get TTL for reset time
-            remaining_ttl = await self.redis.ttl(key)
-            if remaining_ttl < 0:
-                remaining_ttl = ttl
+        # Check if any limit was exceeded
+        for i, (timeframe, (limit, ttl)) in enumerate(self.limits.items()):
+            current_count = incr_results[i]
+            if current_count > limit:
+                exceeded_timeframe = timeframe
 
             usage_data[timeframe] = {
                 "used": current_count,
                 "limit": limit,
-                "resets_in": remaining_ttl,
             }
 
-            # Check if exceeded
-            if current_count >= limit:
-                exceeded_timeframe = timeframe
+        if exceeded_timeframe:
+            # Revert the increments since the request is denied
+            pipe = self.redis.pipeline()
+            for timeframe in self.limits.keys():
+                key = self._get_key(user_id, timeframe)
+                pipe.decr(key)
+            try:
+                await pipe.execute()
+            except Exception:
+                for timeframe in self.limits.keys():
+                    key = self._get_key(user_id, timeframe)
+                    await self.redis.decr(key)
+
+            logger.warning(f"User {user_id} exceeded {exceeded_timeframe} quota")
+            # We don't have exact TTLs here for the rejected payload, but 0 is fine
+            for tf in self.limits.keys():
+                usage_data[tf]["used"] -= 1
+                usage_data[tf]["resets_in"] = 0
+            
+            return False, QuotaUsage(
+                minute=usage_data.get("minute", {}),
+                hour=usage_data.get("hour", {}),
+                day=usage_data.get("day", {}),
+            )
+
+        # Set expirations for newly created keys
+        pipe = self.redis.pipeline()
+        for i, (timeframe, (limit, ttl)) in enumerate(self.limits.items()):
+            key = self._get_key(user_id, timeframe)
+            current_count = incr_results[i]
+            if current_count == 1:
+                pipe.expire(key, ttl)
+            pipe.ttl(key)
+            
+        try:
+            ttl_results = await pipe.execute()
+        except Exception:
+            ttl_results = []
+            for i, (timeframe, (limit, ttl)) in enumerate(self.limits.items()):
+                key = self._get_key(user_id, timeframe)
+                if incr_results[i] == 1:
+                    await self.redis.expire(key, ttl)
+                ttl_results.append(await self.redis.ttl(key))
+                
+        # ttl_results will contain the results of expire and ttl commands.
+        # Since expire returns a bool and ttl returns an int, the ttl is always the last result for each timeframe.
+        # If current_count == 1, there are 2 commands (expire, ttl). If > 1, only 1 command (ttl).
+        result_idx = 0
+        for i, (timeframe, (limit, ttl)) in enumerate(self.limits.items()):
+            if incr_results[i] == 1:
+                result_idx += 1 # Skip expire result
+            remaining_ttl = ttl_results[result_idx]
+            result_idx += 1
+            if remaining_ttl < 0:
+                remaining_ttl = ttl
+            usage_data[timeframe]["resets_in"] = remaining_ttl
 
         usage = QuotaUsage(
             minute=usage_data.get("minute", {}),
             hour=usage_data.get("hour", {}),
             day=usage_data.get("day", {}),
         )
-
-        if exceeded_timeframe:
-            logger.warning(f"User {user_id} exceeded {exceeded_timeframe} quota")
-            return False, usage
-
-        # Increment all counters (atomic pipeline)
-        pipe = self.redis.pipeline()
-        for timeframe, (limit, ttl) in self.limits.items():
-            key = self._get_key(user_id, timeframe)
-            pipe.incr(key)
-            pipe.expire(key, ttl)
-        await pipe.execute()
-
-        # Update usage with incremented values
-        usage.minute["used"] += 1
-        usage.hour["used"] += 1
-        usage.day["used"] += 1
 
         logger.debug(
             f"User {user_id} quota: {usage.minute['used']}/min, {usage.hour['used']}/hr"

@@ -23,7 +23,7 @@ import UserDBContextManagerForAI from '@/features/overlays/settings/UserDBContex
 import { DialogShell } from '@/components';
 import { saveUserSettings } from '@/api';
 import { defaultUserSettings, pickSyncableSettings } from '@/config/userSettings';
-import { getPopoverPaperSx } from '@/styles/shared';
+import { getPopoverPaperSx, UI_Z_INDEX } from '@/styles/shared';
 import {
   PreferenceFooterActions,
   PreferenceLayout,
@@ -74,6 +74,7 @@ function SettingsModal({
 
   const selectMenuProps = useMemo(() => ({
     PaperProps: { sx: getPopoverPaperSx(theme, theme.palette.mode === 'dark') },
+    sx: { zIndex: UI_Z_INDEX.mainContentModal + 10 },
   }), [theme]);
 
   const settingsSurfaceLeft = '0px';
@@ -135,28 +136,7 @@ function SettingsModal({
           <Fade in key="ai">
             <Box>
               <PreferenceSection title="AI Settings">
-                <PreferenceRow label="Enable Thinking" description="Show AI's reasoning process">
-                  <Switch
-                    checked={settings.enableReasoning ?? true}
-                    onChange={(e) => updateSetting('enableReasoning', e.target.checked)}
-                    size="small"
-                  />
-                </PreferenceRow>
-                {settings.enableReasoning ? (
-                  <PreferenceRow label="Thinking Depth" description="Higher = more thorough but slower">
-                    <ToggleButtonGroup
-                      value={settings.reasoningEffort ?? 'medium'}
-                      exclusive
-                      onChange={(e, value) => value && updateSetting('reasoningEffort', value)}
-                      size="small"
-                      sx={toggleGroupSx}
-                    >
-                      <ToggleButton value="low">Low</ToggleButton>
-                      <ToggleButton value="medium">Med</ToggleButton>
-                      <ToggleButton value="high">High</ToggleButton>
-                    </ToggleButtonGroup>
-                  </PreferenceRow>
-                ) : null}
+
                 <PreferenceRow label="Response Style" description="How AI formats responses">
                   <FormControl size="small" sx={controlSx}>
                     <Select
@@ -167,6 +147,20 @@ function SettingsModal({
                       <MenuItem value="concise">Concise</MenuItem>
                       <MenuItem value="balanced">Balanced</MenuItem>
                       <MenuItem value="detailed">Detailed</MenuItem>
+                    </Select>
+                  </FormControl>
+                </PreferenceRow>
+
+                <PreferenceRow label="Reasoning Effort" description="Token budget for models that support reasoning">
+                  <FormControl size="small" sx={controlSx}>
+                    <Select
+                      value={settings.reasoningEffort ?? 'medium'}
+                      onChange={(e) => updateSetting('reasoningEffort', e.target.value)}
+                      MenuProps={selectMenuProps}
+                    >
+                      <MenuItem value="low">Low (1,024 Tokens)</MenuItem>
+                      <MenuItem value="medium">Medium (5,000 Tokens)</MenuItem>
+                      <MenuItem value="high">High (16,000 Tokens)</MenuItem>
                     </Select>
                   </FormControl>
                 </PreferenceRow>

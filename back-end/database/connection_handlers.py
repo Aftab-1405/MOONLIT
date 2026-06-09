@@ -10,6 +10,8 @@ backend cannot reach a user's locally-running DBMS.
 """
 
 import re
+import socket
+import ipaddress
 import logging
 from typing import Dict
 
@@ -36,32 +38,78 @@ def _clear_cache():
 
 def _validate_host(host: str) -> dict | None:
     """
-    Return an error dict if *host* is a loopback address, otherwise None.
+    Return an error dict if *host* resolves to a private or loopback address, otherwise None.
 
-    The app runs in the cloud — a loopback address would resolve to the
-    server's own localhost, not the user's machine, so the connection
-    would never reach the intended database.
+    The app runs in the cloud — a private/loopback address would resolve to the
+    cloud's internal network or localhost, not the user's machine, posing an SSRF risk
+    and failing to reach the intended database.
     """
-    if not host or host.strip().lower() in _LOOPBACK:
+    if not host:
+        return {"status": "error", "message": "Host is required."}
+
+    # First simple text check
+    if host.strip().lower() in _LOOPBACK or host.strip().lower() == "[::1]":
         return {
             "status": "error",
             "message": (
                 f"Host '{host}' is a loopback address and cannot be used. "
-                "Please provide a publicly accessible remote host (e.g. a cloud database URL)."
+                "Please provide a publicly accessible remote host."
             ),
         }
+
+    try:
+        clean_host = host.strip()
+        if clean_host.startswith("[") and clean_host.endswith("]"):
+            clean_host = clean_host[1:-1]
+            
+        addr_infos = socket.getaddrinfo(clean_host, None)
+        for family, _, _, _, sockaddr in addr_infos:
+            ip_str = sockaddr[0]
+            ip = ipaddress.ip_address(ip_str)
+            if ip.is_private or ip.is_loopback or ip.is_link_local:
+                return {
+                    "status": "error",
+                    "message": (
+                        f"Host '{host}' resolves to a private internal IP ({ip_str}) "
+                        "and cannot be used for security reasons. "
+                        "Please provide a publicly accessible remote host."
+                    ),
+                }
+    except Exception:
+        # If it fails to resolve here, we let it pass to let the DB adapter handle DNS errors natively
+        pass
+
     return None
 
 
 def _parse_connection_string(connection_string: str) -> Dict[str, str]:
     """Parse connection string to extract database name and host."""
-    db_match = re.search(r"/([^/?]+)(\?|$)", connection_string)
-    host_match = re.search(r"@([^/:]+)", connection_string)
-
-    return {
-        "database": db_match.group(1) if db_match else "remote_db",
-        "host": host_match.group(1) if host_match else "remote",
-    }
+    from urllib.parse import urlparse
+    try:
+        # standard urlparse
+        parsed = urlparse(connection_string)
+        host = parsed.hostname
+        if not host:
+            # Fallback to regex if hostname is empty (e.g. invalid URL structure)
+            host_match = re.search(r"@([^/:]+)", connection_string)
+            host = host_match.group(1) if host_match else "remote"
+            
+        db = parsed.path.lstrip('/')
+        if not db:
+            db_match = re.search(r"/([^/?]+)(\?|$)", connection_string)
+            db = db_match.group(1) if db_match else "remote_db"
+            
+        return {
+            "database": db,
+            "host": host,
+        }
+    except Exception:
+        db_match = re.search(r"/([^/?]+)(\?|$)", connection_string)
+        host_match = re.search(r"@([^/:]+)", connection_string)
+        return {
+            "database": db_match.group(1) if db_match else "remote_db",
+            "host": host_match.group(1) if host_match else "remote",
+        }
 
 
 # =============================================================================
@@ -324,6 +372,10 @@ def connect_remote_postgresql(connection_string: str) -> dict:
     db_name = parsed["database"]
     host = parsed["host"]
 
+    err = _validate_host(host)
+    if err:
+        return err
+
     db_config = {
         "db_type": "postgresql",
         "connection_string": connection_string,
@@ -386,6 +438,10 @@ def connect_remote_mysql(connection_string: str) -> dict:
     parsed = _parse_connection_string(connection_string)
     db_name = parsed["database"]
     host = parsed["host"]
+
+    err = _validate_host(host)
+    if err:
+        return err
 
     db_config = {
         "db_type": "mysql",
@@ -467,6 +523,12 @@ def connect_remote_oracle(connection_string: str) -> dict:
         schema_name = user.upper()
     else:
         schema_name = "REMOTE"
+        _host = ""
+
+    if _host:
+        err = _validate_host(_host)
+        if err:
+            return err
 
     db_config = {
         "db_type": "oracle",
@@ -539,6 +601,10 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
 
     db_name = db_match.group(1) if db_match else "master"
     host = server_match.group(1) if server_match else "remote"
+
+    err = _validate_host(host)
+    if err:
+        return err
 
     db_config = {
         "db_type": "sqlserver",

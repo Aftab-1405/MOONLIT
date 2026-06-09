@@ -9,6 +9,19 @@ const readSessionInstanceId = () => {
   }
 };
 
+const readCsrfToken = () => {
+  try {
+    const prefix = 'csrf_token=';
+    const cookie = document.cookie
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(prefix));
+    return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : null;
+  } catch {
+    return null;
+  }
+};
+
 export function useChatPageSessionLifecycle({ isDbConnected, connectionPersistenceMinutes }) {
   useEffect(() => {
     document.title = 'Moonlit - Chat';
@@ -42,14 +55,19 @@ export function useChatPageSessionLifecycle({ isDbConnected, connectionPersisten
       const sessionInstanceId = readSessionInstanceId();
       const payload = { connectionPersistenceMinutes, sessionInstanceId };
       const body = JSON.stringify(payload);
-      const blob = new Blob([body], { type: 'application/json' });
+
       const closeUrl = `${window.location.origin}${USER.SESSION_CLOSE}`;
-      navigator.sendBeacon?.(closeUrl, blob);
+      const csrfToken = readCsrfToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (csrfToken) {
+        headers['x-csrf-token'] = csrfToken;
+      }
+      
       void fetch(closeUrl, {
         method: 'POST',
         credentials: 'include',
         keepalive: true,
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body,
       }).catch(() => { });
     };

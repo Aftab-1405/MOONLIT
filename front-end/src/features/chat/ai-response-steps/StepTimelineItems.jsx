@@ -130,11 +130,13 @@ export const ThinkingStep = memo(function ThinkingStep({
                 borderRadius: '3px 7px 7px 3px',
                 borderLeft: '2px solid',
                 borderColor: alpha(theme.palette.text.secondary, isDark ? 0.18 : 0.14),
-                // No background — transparent, blends with page
-                bgcolor: 'transparent',
+                bgcolor: alpha(theme.palette.background.paper, isDark ? 0.4 : 0.6),
+                backdropFilter: 'blur(12px)',
+                boxShadow: `0 4px 16px ${alpha(theme.palette.common.black, isDark ? 0.2 : 0.05)}`,
                 transition: TRANSITIONS.default,
                 '&:hover': {
                   borderColor: alpha(theme.palette.text.secondary, isDark ? 0.3 : 0.24),
+                  boxShadow: `0 6px 20px ${alpha(theme.palette.common.black, isDark ? 0.25 : 0.08)}`,
                 },
               }}
             >
@@ -220,9 +222,9 @@ export const ToolStep = memo(function ToolStep({
       ? ErrorOutlineRoundedIcon
       : CheckCircleOutlineRoundedIcon;
 
-  // Keep semantic colors for status — muted so they don't shout
+  // Use vibrant primary color for running state to give a state-of-the-art feel
   const nodeColor = isRunning
-    ? alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.55)
+    ? theme.palette.primary.main
     : isError
       ? alpha(theme.palette.error.main, isDark ? 0.65 : 0.55)
       : alpha(theme.palette.success.main, isDark ? 0.55 : 0.48);
@@ -234,7 +236,7 @@ export const ToolStep = memo(function ToolStep({
         color: nodeColor,
         isCurrent,
         shadowColor: isRunning
-          ? theme.palette.text.secondary
+          ? theme.palette.primary.main
           : isError
             ? theme.palette.error.main
             : theme.palette.success.main,
@@ -246,6 +248,7 @@ export const ToolStep = memo(function ToolStep({
       isError,
       isRunning,
       nodeColor,
+      theme.palette.primary.main,
       theme.palette.error.main,
       theme.palette.text.secondary,
       theme.palette.success.main,

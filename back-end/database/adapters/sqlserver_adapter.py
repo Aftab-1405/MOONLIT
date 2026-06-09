@@ -85,7 +85,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             if not conn_str:
                 raise ValueError("No connection string found in pool config")
 
-            connection = pyodbc.connect(conn_str, timeout=30)
+            connection = pyodbc.connect(conn_str, timeout=5)
             return connection
         except Exception as err:
             logger.error(f"Failed to get SQL Server connection: {err}")

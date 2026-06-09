@@ -161,10 +161,12 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
               width: '1px',
               background: `linear-gradient(180deg,
                 transparent,
-                ${alpha(theme.palette.text.secondary, isDark ? 0.14 : 0.1)} 12%,
-                ${alpha(theme.palette.text.secondary, isDark ? 0.14 : 0.1)} 85%,
+                ${alpha(theme.palette.primary.main, isDark ? 0.5 : 0.3)} 15%,
+                ${alpha(theme.palette.primary.light, isDark ? 0.3 : 0.15)} 50%,
+                ${alpha(theme.palette.primary.main, isDark ? 0.5 : 0.3)} 85%,
                 transparent
               )`,
+              boxShadow: `0 0 8px ${alpha(theme.palette.primary.main, isDark ? 0.2 : 0.1)}`,
             },
           }}
         >

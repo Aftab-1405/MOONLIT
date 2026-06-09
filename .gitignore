@@ -13,6 +13,8 @@
 *.key
 secrets/
 credentials/
+moonlit-auth-credentials.json
+firebase-credentials.json
 
 # ==========================================
 # PYTHON (Back-end)
