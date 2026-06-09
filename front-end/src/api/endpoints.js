@@ -46,6 +46,8 @@ export const USER = {
   CONTEXT_DELETE_SCHEMA: (name) => `/api/v1/user/context/schema/${encodeURIComponent(name)}`,
   CONTEXT_DELETE_ALL_SCHEMAS: '/api/v1/user/context/schemas',
   CONTEXT_DELETE_QUERIES: '/api/v1/user/context/queries',
+  CONTEXT_METRICS: '/api/v1/context/metrics',
+  CONTEXT_METRICS_STREAM: '/api/v1/context/metrics/stream',
   SETTINGS: '/api/v1/user/settings',
   SESSION_CLOSE: '/api/v1/user/session/close',
   SESSION_ACTIVE: '/api/v1/user/session/active',

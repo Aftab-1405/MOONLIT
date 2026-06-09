@@ -7,6 +7,8 @@ import Landing from '@/pages/Landing';
 import Auth from '@/pages/Auth';
 const Chat = lazy(() => import('@/pages/Chat'));
 
+import AdminDashboard from '@/pages/AdminDashboard';
+
 function App() {
   return (
     <Box
@@ -38,6 +40,14 @@ function App() {
             element={
               <ProtectedRoute>
                 <Chat />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <AdminDashboard />
               </ProtectedRoute>
             }
           />

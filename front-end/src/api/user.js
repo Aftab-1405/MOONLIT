@@ -50,3 +50,10 @@ export async function sessionActive(sessionInstanceId) {
   });
 }
 
+/**
+ * Get context cache metrics for admin dashboard.
+ * @returns {Promise<{status: string, metrics: Object}>}
+ */
+export async function getContextMetrics() {
+  return get(USER.CONTEXT_METRICS);
+}

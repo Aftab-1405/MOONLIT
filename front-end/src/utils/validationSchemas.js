@@ -76,11 +76,7 @@ export const credentialsSchema = z.object({
 export const connectionStringSchema = z.object({
   connectionString: z
     .string()
-    .min(1, 'Connection string is required')
-    .regex(
-      /^(postgresql|mysql|sqlserver|oracle):\/\/.+/i,
-      'Invalid connection string format'
-    ),
+    .min(1, 'Connection string is required'),
 });
 
 export const dbFieldSchemas = {

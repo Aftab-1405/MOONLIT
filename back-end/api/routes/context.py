@@ -3,9 +3,13 @@
 
 import logging
 import time
+import asyncio
+import json
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 
 from dependencies import (
     get_current_user,
@@ -28,6 +32,77 @@ router = APIRouter(tags=["context"])
 
 def _user_id(user: dict) -> str:
     return user.get("uid") or user
+
+
+def _parse_cache_time(cached_at):
+    if hasattr(cached_at, "timestamp"):
+        return datetime.fromtimestamp(cached_at.timestamp(), tz=timezone.utc)
+    if hasattr(cached_at, "isoformat"):
+        return cached_at
+    return datetime.fromisoformat(str(cached_at).replace("Z", "+00:00"))
+
+
+def _build_context_metrics_payload(context: dict) -> dict:
+    from config import get_config
+
+    config = get_config()
+    telemetry = context.get("metrics_telemetry", {})
+    hits = telemetry.get("hits", 0)
+    misses = telemetry.get("misses", 0)
+    stores = telemetry.get("stores", 0)
+    clears = telemetry.get("clears", 0)
+    total = hits + misses
+    hit_rate = (hits / total * 100) if total > 0 else 0.0
+
+    ttl_remaining = None
+    active_table_count = 0
+    connected_database = None
+    connection = context.get("current_connection", {})
+
+    if connection.get("connected"):
+        connected_database = connection.get("database")
+        if connected_database:
+            schemas = context.get("database_schemas", {})
+            cached = schemas.get(connected_database)
+            if cached:
+                active_table_count = len(cached.get("tables", []))
+                cached_at = cached.get("cached_at")
+                if cached_at:
+                    try:
+                        cache_time = _parse_cache_time(cached_at)
+                        now = (
+                            datetime.now(cache_time.tzinfo)
+                            if cache_time.tzinfo
+                            else datetime.now()
+                        )
+                        age_seconds = (now - cache_time).total_seconds()
+                        ttl_remaining = max(
+                            0,
+                            int(config.SCHEMA_CONTEXT_TTL_SECONDS - age_seconds),
+                        )
+                    except Exception:
+                        pass
+
+    return {
+        "hits": hits,
+        "misses": misses,
+        "stores": stores,
+        "clears": clears,
+        "total_lookups": total,
+        "hit_rate_percent": round(hit_rate, 2),
+        "metrics_enabled": config.CONTEXT_METRICS_ENABLED,
+        "config": {
+            "schema_context_ttl_seconds": config.SCHEMA_CONTEXT_TTL_SECONDS,
+            "schema_context_max_tables": config.SCHEMA_CONTEXT_MAX_TABLES,
+            "connection_context_ttl_seconds": config.CONNECTION_CONTEXT_TTL_SECONDS,
+            "ttl_remaining": ttl_remaining,
+            "active_table_count": active_table_count,
+            "connected_database": connected_database,
+            "remaining_tables": max(
+                0, config.SCHEMA_CONTEXT_MAX_TABLES - active_table_count
+            ),
+        },
+    }
 
 
 async def _sync_persistence_to_session(request: Request, prefs: dict) -> None:
@@ -184,62 +259,69 @@ async def get_context_metrics(user: dict = Depends(get_current_user)):
         - hit_rate_percent: Hit rate percentage
         - metrics_enabled: Whether metrics tracking is enabled
     """
-    from services.context_service import ContextMetrics
-    from config import get_config
-
-    config = get_config()
     from services.context_service import ContextService
-    from datetime import datetime
+
+    def build_metrics_payload(user_id: str):
+        context = ContextService._get_context(user_id)
+        return _build_context_metrics_payload(context)
+
+    stats = await run_in_threadpool(build_metrics_payload, _user_id(user))
+    return {"status": "success", "metrics": stats}
+
+
+@router.get("/context/metrics/stream")
+async def stream_context_metrics(
+    request: Request, user: dict = Depends(get_current_user)
+):
+    """Stream per-user context metrics whenever the Firestore context document changes."""
+    from repositories import ContextRepository
 
     user_id = _user_id(user)
-    stats = ContextMetrics.get_stats(user_id)
-    
-    # Calculate remaining cache TTL seconds
-    connection = ContextService.get_connection(user_id)
-    ttl_remaining = None
-    active_table_count = 0
-    connected_database = None
-    if connection.get("connected"):
-        connected_database = connection.get("database")
-        if connected_database:
-            context = ContextService._get_context(user_id)
-            schemas = context.get("database_schemas", {})
-            cached = schemas.get(connected_database)
-            if cached:
-                active_table_count = len(cached.get("tables", []))
-                cached_at = cached.get("cached_at")
-                if cached_at:
+
+    async def event_stream():
+        loop = asyncio.get_running_loop()
+        queue: asyncio.Queue[dict | None] = asyncio.Queue(maxsize=20)
+
+        def publish(payload: dict):
+            def put_latest():
+                if queue.full():
                     try:
-                        if hasattr(cached_at, "isoformat"):
-                            if hasattr(cached_at, "timestamp"):
-                                cache_time = datetime.fromtimestamp(cached_at.timestamp())
-                            else:
-                                cache_time = cached_at
-                        else:
-                            cache_time = datetime.fromisoformat(
-                                str(cached_at).replace("Z", "+00:00")
-                            )
-                        if cache_time.tzinfo:
-                            cache_time = cache_time.replace(tzinfo=None)
-                        
-                        age_seconds = (datetime.now() - cache_time).total_seconds()
-                        ttl = config.SCHEMA_CONTEXT_TTL_SECONDS
-                        ttl_remaining = max(0, int(ttl - age_seconds))
-                    except Exception:
+                        queue.get_nowait()
+                    except asyncio.QueueEmpty:
                         pass
+                queue.put_nowait(payload)
 
-    # Add config values for reference
-    stats["config"] = {
-        "schema_context_ttl_seconds": config.SCHEMA_CONTEXT_TTL_SECONDS,
-        "schema_context_max_tables": config.SCHEMA_CONTEXT_MAX_TABLES,
-        "connection_context_ttl_seconds": config.CONNECTION_CONTEXT_TTL_SECONDS,
-        "ttl_remaining": ttl_remaining,
-        "active_table_count": active_table_count,
-        "connected_database": connected_database,
-        "remaining_tables": max(0, config.SCHEMA_CONTEXT_MAX_TABLES - active_table_count),
-    }
+            loop.call_soon_threadsafe(put_latest)
 
-    return {"status": "success", "metrics": stats}
+        def on_snapshot(doc_snapshot, _changes, _read_time):
+            snapshot = doc_snapshot[0] if isinstance(doc_snapshot, list) else doc_snapshot
+            context = snapshot.to_dict() if snapshot and snapshot.exists else {}
+            publish(_build_context_metrics_payload(context))
+
+        watch = await run_in_threadpool(
+            lambda: ContextRepository.get_ref(user_id).on_snapshot(on_snapshot)
+        )
+
+        try:
+            while not await request.is_disconnected():
+                try:
+                    payload = await asyncio.wait_for(queue.get(), timeout=25)
+                    if payload is None:
+                        break
+                    yield f"event: metrics\ndata: {json.dumps(payload, default=str)}\n\n"
+                except asyncio.TimeoutError:
+                    yield "event: heartbeat\ndata: {}\n\n"
+        finally:
+            await run_in_threadpool(watch.unsubscribe)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/context/metrics/reset")
