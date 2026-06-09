@@ -7,6 +7,7 @@ Implements database operations for PostgreSQL using psycopg2.
 import logging
 from typing import Any, Dict, Optional
 from contextlib import contextmanager
+from config import Config
 from .base_adapter import BaseDatabaseAdapter
 
 logger = logging.getLogger(__name__)
@@ -74,7 +75,10 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                 db_name = db_match.group(1) if db_match else "unknown"
 
                 connection_pool = pool.ThreadedConnectionPool(
-                    minconn=1, maxconn=20, dsn=connection_string, connect_timeout=5
+                    minconn=1,
+                    maxconn=min(Config.MAX_WORKERS * 2, 32),
+                    dsn=connection_string,
+                    connect_timeout=5,
                 )
                 logger.info(
                     f"Created PostgreSQL connection pool using connection string for database: {db_name}"
@@ -88,7 +92,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                     "user": config["user"],
                     "password": config["password"],
                     "minconn": 1,
-                    "maxconn": 20,
+                    "maxconn": min(Config.MAX_WORKERS * 2, 32),
                     "connect_timeout": 5,  # Important for preventing DoS
                 }
 

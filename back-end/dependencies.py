@@ -199,6 +199,8 @@ async def get_current_user(request: Request) -> dict:
         logger.debug("Development auth bypass for user: %s", user["uid"])
         return user
 
+    print(f"\n[DEBUG] get_current_user: Config={Config}, id(Config)={id(Config)}, DEBUG={Config.DEBUG}, DEV_AUTH_BYPASS={Config.DEV_AUTH_BYPASS}, APP_ENV={Config.APP_ENV}\n")
+
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
     )

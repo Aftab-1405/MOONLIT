@@ -135,6 +135,7 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
         docs_url="/docs" if AppConfig.DEBUG else None,
         redoc_url="/redoc" if AppConfig.DEBUG else None,
+        openapi_url="/openapi.json" if AppConfig.DEBUG else None,
     )
 
     # Configure CORS
@@ -184,6 +185,12 @@ def create_app() -> FastAPI:
         response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         response.headers["Referrer-Policy"] = "no-referrer-when-downgrade"
         response.headers["Permissions-Policy"] = "geolocation=()"
+        
+        # Mask server header to prevent information disclosure
+        response.headers["Server"] = "Moonlit"
+        if "x-powered-by" in response.headers:
+            del response.headers["x-powered-by"]
+            
         return response
 
     @app.middleware("http")

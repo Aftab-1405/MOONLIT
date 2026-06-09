@@ -23,57 +23,89 @@ _config = get_config()
 class ContextMetrics:
     """Tracks context hit/miss metrics for monitoring effectiveness."""
 
-    _hits = 0
-    _misses = 0
-    _stores = 0
-    _clears = 0
-
     @classmethod
-    def record_hit(cls):
+    def record_hit(cls, user_id: str):
         """Record a context hit (data found and fresh)."""
         if _config.CONTEXT_METRICS_ENABLED:
-            cls._hits += 1
+            cls._increment_counter(user_id, "hits")
 
     @classmethod
-    def record_miss(cls):
+    def record_miss(cls, user_id: str):
         """Record a context miss (data not found or stale)."""
         if _config.CONTEXT_METRICS_ENABLED:
-            cls._misses += 1
+            cls._increment_counter(user_id, "misses")
 
     @classmethod
-    def record_store(cls):
+    def record_store(cls, user_id: str):
         """Record a context store operation."""
         if _config.CONTEXT_METRICS_ENABLED:
-            cls._stores += 1
+            cls._increment_counter(user_id, "stores")
 
     @classmethod
-    def record_clear(cls):
+    def record_clear(cls, user_id: str):
         """Record a context clear operation."""
         if _config.CONTEXT_METRICS_ENABLED:
-            cls._clears += 1
+            cls._increment_counter(user_id, "clears")
 
     @classmethod
-    def get_stats(cls) -> Dict:
+    def _increment_counter(cls, user_id: str, field: str):
+        """Increment a counter in Firestore under metrics_telemetry field."""
+        from firebase_admin import firestore
+        from repositories import ContextRepository
+        try:
+            ref = ContextRepository.get_ref(user_id)
+            ref.set({
+                "metrics_telemetry": {
+                    field: firestore.Increment(1)
+                }
+            }, merge=True)
+        except Exception as e:
+            logger.error(f"Error incrementing metric {field} for user {user_id}: {e}")
+
+    @classmethod
+    def get_stats(cls, user_id: str) -> Dict:
         """Get current metrics statistics."""
-        total = cls._hits + cls._misses
-        hit_rate = (cls._hits / total * 100) if total > 0 else 0.0
+        from repositories import ContextRepository
+        try:
+            context = ContextRepository.get(user_id)
+            telemetry = context.get("metrics_telemetry", {})
+        except Exception as e:
+            logger.error(f"Error getting metrics stats for user {user_id}: {e}")
+            telemetry = {}
+
+        hits = telemetry.get("hits", 0)
+        misses = telemetry.get("misses", 0)
+        stores = telemetry.get("stores", 0)
+        clears = telemetry.get("clears", 0)
+
+        total = hits + misses
+        hit_rate = (hits / total * 100) if total > 0 else 0.0
         return {
-            "hits": cls._hits,
-            "misses": cls._misses,
-            "stores": cls._stores,
-            "clears": cls._clears,
+            "hits": hits,
+            "misses": misses,
+            "stores": stores,
+            "clears": clears,
             "total_lookups": total,
             "hit_rate_percent": round(hit_rate, 2),
             "metrics_enabled": _config.CONTEXT_METRICS_ENABLED,
         }
 
     @classmethod
-    def reset(cls):
-        """Reset all metrics (useful for testing)."""
-        cls._hits = 0
-        cls._misses = 0
-        cls._stores = 0
-        cls._clears = 0
+    def reset(cls, user_id: str):
+        """Reset all metrics."""
+        from repositories import ContextRepository
+        try:
+            ref = ContextRepository.get_ref(user_id)
+            ref.set({
+                "metrics_telemetry": {
+                    "hits": 0,
+                    "misses": 0,
+                    "stores": 0,
+                    "clears": 0
+                }
+            }, merge=True)
+        except Exception as e:
+            logger.error(f"Error resetting metrics for user {user_id}: {e}")
 
 
 class ContextService:
@@ -252,7 +284,7 @@ class ContextService:
         cached = schemas.get(database)
 
         if not cached:
-            ContextMetrics.record_miss()
+            ContextMetrics.record_miss(user_id)
             return None
 
         # Check TTL using config value
@@ -283,14 +315,14 @@ class ContextService:
                     logger.debug(
                         f"Schema context stale for {database} (age: {age_seconds:.0f}s, TTL: {ttl}s), will refresh"
                     )
-                    ContextMetrics.record_miss()
+                    ContextMetrics.record_miss(user_id)
                     return None
             except (ValueError, TypeError, AttributeError) as e:
                 logger.warning(f"Could not parse cached_at timestamp: {e}")
-                ContextMetrics.record_miss()
+                ContextMetrics.record_miss(user_id)
                 return None
 
-        ContextMetrics.record_hit()
+        ContextMetrics.record_hit(user_id)
         return cached
 
     @staticmethod
@@ -313,7 +345,7 @@ class ContextService:
         schemas = context.get("database_schemas", {})
         schemas[database] = schema_data
 
-        ContextMetrics.record_store()
+        ContextMetrics.record_store(user_id)
         logger.info(
             f"Stored schema context for user {user_id}, database {database}: {len(tables)} tables"
         )
@@ -342,7 +374,7 @@ class ContextService:
             user_id, f"database_schemas.{database}"
         )
         if success:
-            ContextMetrics.record_clear()
+            ContextMetrics.record_clear(user_id)
             logger.info(f"Cleared schema context for {database}")
         return success
 

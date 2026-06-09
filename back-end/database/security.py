@@ -14,9 +14,9 @@ class DatabaseSecurity:
 
     # Pre-compiled regex patterns for better performance
     # Use concise character class \w for readability; first char must be letter or underscore
-    _TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_]\w{0,63}$")
-    _DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z_]\w{0,63}$")
-    _COLUMN_NAME_PATTERN = re.compile(r"^[A-Za-z_]\w*$")
+    _TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
+    _DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
+    _COLUMN_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]+$")
 
     # Optimized keyword sets - READ-ONLY FOCUSED
     ALLOWED_KEYWORDS = frozenset(

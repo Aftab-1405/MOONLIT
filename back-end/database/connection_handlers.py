@@ -596,11 +596,11 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
 
     _clear_cache()
 
-    db_match = _re.search(r"Database=([^;]+)", connection_string, _re.IGNORECASE)
-    server_match = _re.search(r"Server=([^;,]+)", connection_string, _re.IGNORECASE)
+    db_match = _re.search(r"(?:Database|Initial Catalog)=([^;]+)", connection_string, _re.IGNORECASE)
+    server_match = _re.search(r"(?:Server|Data Source)=([^;,]+)", connection_string, _re.IGNORECASE)
 
-    db_name = db_match.group(1) if db_match else "master"
-    host = server_match.group(1) if server_match else "remote"
+    db_name = db_match.group(1).strip() if db_match else "master"
+    host = server_match.group(1).strip() if server_match else "remote"
 
     err = _validate_host(host)
     if err:

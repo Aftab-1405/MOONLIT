@@ -188,13 +188,55 @@ async def get_context_metrics(user: dict = Depends(get_current_user)):
     from config import get_config
 
     config = get_config()
-    stats = ContextMetrics.get_stats()
+    from services.context_service import ContextService
+    from datetime import datetime
+
+    user_id = _user_id(user)
+    stats = ContextMetrics.get_stats(user_id)
+    
+    # Calculate remaining cache TTL seconds
+    connection = ContextService.get_connection(user_id)
+    ttl_remaining = None
+    active_table_count = 0
+    connected_database = None
+    if connection.get("connected"):
+        connected_database = connection.get("database")
+        if connected_database:
+            context = ContextService._get_context(user_id)
+            schemas = context.get("database_schemas", {})
+            cached = schemas.get(connected_database)
+            if cached:
+                active_table_count = len(cached.get("tables", []))
+                cached_at = cached.get("cached_at")
+                if cached_at:
+                    try:
+                        if hasattr(cached_at, "isoformat"):
+                            if hasattr(cached_at, "timestamp"):
+                                cache_time = datetime.fromtimestamp(cached_at.timestamp())
+                            else:
+                                cache_time = cached_at
+                        else:
+                            cache_time = datetime.fromisoformat(
+                                str(cached_at).replace("Z", "+00:00")
+                            )
+                        if cache_time.tzinfo:
+                            cache_time = cache_time.replace(tzinfo=None)
+                        
+                        age_seconds = (datetime.now() - cache_time).total_seconds()
+                        ttl = config.SCHEMA_CONTEXT_TTL_SECONDS
+                        ttl_remaining = max(0, int(ttl - age_seconds))
+                    except Exception:
+                        pass
 
     # Add config values for reference
     stats["config"] = {
         "schema_context_ttl_seconds": config.SCHEMA_CONTEXT_TTL_SECONDS,
         "schema_context_max_tables": config.SCHEMA_CONTEXT_MAX_TABLES,
         "connection_context_ttl_seconds": config.CONNECTION_CONTEXT_TTL_SECONDS,
+        "ttl_remaining": ttl_remaining,
+        "active_table_count": active_table_count,
+        "connected_database": connected_database,
+        "remaining_tables": max(0, config.SCHEMA_CONTEXT_MAX_TABLES - active_table_count),
     }
 
     return {"status": "success", "metrics": stats}
@@ -213,7 +255,8 @@ async def reset_context_metrics(user: dict = Depends(get_current_user)):
             detail="Context metrics reset is disabled in this environment",
         )
 
-    ContextMetrics.reset()
+    user_id = _user_id(user)
+    ContextMetrics.reset(user_id)
     return {"status": "success", "message": "Context metrics reset"}
 
 

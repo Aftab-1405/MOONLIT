@@ -17,6 +17,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 from contextlib import contextmanager
+from config import Config
 from .base_adapter import BaseDatabaseAdapter
 
 logger = logging.getLogger(__name__)
@@ -137,8 +138,8 @@ class OracleAdapter(BaseDatabaseAdapter):
                 password=password,
                 dsn=dsn,
                 min=2,  # Minimum connections always maintained
-                max=10,  # Maximum connections under load
-                increment=1,  # Grow pool by 1 when needed
+                max=min(Config.MAX_WORKERS * 2, 32),  # Maximum connections under load
+                increment=1,  # Number of connections to add when pool is exhausteded
                 timeout=60,  # Wait up to 60s for available connection
                 getmode=oracledb.POOL_GETMODE_WAIT,  # Wait for connection if pool exhausted
             )

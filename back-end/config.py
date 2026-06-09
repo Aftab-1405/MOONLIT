@@ -171,11 +171,11 @@ class Config:
 
     # AI Context Configuration (Firestore-based schema context for AI agent)
     SCHEMA_CONTEXT_TTL_SECONDS = int(
-        os.getenv("SCHEMA_CONTEXT_TTL_SECONDS", 300)
-    )  # 5 min TTL
+        os.getenv("SCHEMA_CONTEXT_TTL_SECONDS", 86400)
+    )  # 24 hour TTL (UI Cache)
     SCHEMA_CONTEXT_MAX_TABLES = int(
-        os.getenv("SCHEMA_CONTEXT_MAX_TABLES", 20)
-    )  # Max tables to store
+        os.getenv("SCHEMA_CONTEXT_MAX_TABLES", 1000)
+    )  # Max tables to store (UI Cache)
     CONNECTION_CONTEXT_TTL_SECONDS = int(
         os.getenv("CONNECTION_CONTEXT_TTL_SECONDS", 300)
     )  # 5 min

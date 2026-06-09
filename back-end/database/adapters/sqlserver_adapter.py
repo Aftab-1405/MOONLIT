@@ -1,8 +1,8 @@
 """
 SQL Server Database Adapter
 
-Implements database operations for SQL Server using pyodbc.
-Supports local SQL Server instances and cloud providers (Azure SQL, AWS RDS, Google Cloud SQL).
+Implements database operations for SQL Server using pymssql.
+Supports local SQL Server instances and cloud providers (Azure SQL, AWS RDS, Google Cloud SQL, Somee.com).
 """
 
 import logging
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class SQLServerAdapter(BaseDatabaseAdapter):
-    """SQL Server database adapter using pyodbc."""
+    """SQL Server database adapter using pymssql."""
 
     @property
     def db_type(self) -> str:
@@ -40,34 +40,26 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         """
 
         try:
+            import re
             connection_string = config.get("connection_string")
 
             if connection_string:
                 # Remote connection via connection string
-                # Expected format: Driver={ODBC Driver 17};Server=xxx;Database=xxx;UID=xxx;PWD=xxx
-                conn_str = connection_string
-                logger.info("Creating SQL Server connection using connection string")
+                logger.info("Parsing SQL Server connection string for pymssql")
+                
+                db_match = re.search(r"(?:Database|Initial Catalog)=([^;]+)", connection_string, re.IGNORECASE)
+                server_match = re.search(r"(?:Server|Data Source)=([^;,]+)", connection_string, re.IGNORECASE)
+                user_match = re.search(r"(?:UID|User ID)=([^;]+)", connection_string, re.IGNORECASE)
+                pwd_match = re.search(r"(?:PWD|Password)=([^;]+)", connection_string, re.IGNORECASE)
+
+                config["host"] = server_match.group(1).strip() if server_match else "localhost"
+                config["database"] = db_match.group(1).strip() if db_match else "master"
+                config["user"] = user_match.group(1).strip() if user_match else ""
+                config["password"] = pwd_match.group(1).strip() if pwd_match else ""
+
             else:
                 # Local connection via individual parameters
-                host = config.get("host", "localhost")
-                port = config.get("port", 1433)
-                user = config.get("user", "")
-                password = config.get("password", "")
-                database = config.get("database", "master")
-                driver = config.get("driver", "ODBC Driver 17 for SQL Server")
-
-                conn_str = (
-                    f"Driver={{{driver}}};"
-                    f"Server={host},{port};"
-                    f"Database={database};"
-                    f"UID={user};"
-                    f"PWD={password};"
-                    f"TrustServerCertificate=yes;"
-                )
-                logger.info(f"Creating SQL Server connection for {user}@{host}:{port}")
-
-            # Store connection string in config for later use
-            config["_connection_string"] = conn_str
+                logger.info(f"Creating SQL Server config for {config.get('user')}@{config.get('host')}:{config.get('port', 1433)}")
 
             # Return config as "pool" - we'll create connections on demand
             return config
@@ -78,14 +70,24 @@ class SQLServerAdapter(BaseDatabaseAdapter):
 
     def get_connection_from_pool(self, pool: Any) -> Any:
         """Get SQL Server connection from pool (creates new connection)."""
-        import pyodbc
+        import pymssql
 
         try:
-            conn_str = pool.get("_connection_string")
-            if not conn_str:
-                raise ValueError("No connection string found in pool config")
-
-            connection = pyodbc.connect(conn_str, timeout=5)
+            host = pool.get("host", "localhost")
+            port = pool.get("port", 1433)
+            user = pool.get("user", "")
+            password = pool.get("password", "")
+            database = pool.get("database", "master")
+            
+            connection = pymssql.connect(
+                server=host,
+                port=str(port) if port else "1433",
+                user=user,
+                password=password,
+                database=database,
+                timeout=5,
+                login_timeout=5
+            )
             return connection
         except Exception as err:
             logger.error(f"Failed to get SQL Server connection: {err}")
@@ -128,6 +130,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             SELECT name 
             FROM sys.databases 
             WHERE name NOT IN ('master', 'tempdb', 'model', 'msdb')
+              AND HAS_DBACCESS(name) = 1
             ORDER BY name
         """
 
@@ -136,7 +139,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         return """
             SELECT TABLE_NAME
             FROM INFORMATION_SCHEMA.TABLES
-            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_CATALOG = ?
+            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_CATALOG = %s
             ORDER BY TABLE_NAME
         """
 
@@ -149,7 +152,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                 IS_NULLABLE,
                 COLUMN_DEFAULT
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_CATALOG = ? AND TABLE_NAME = ?
+            WHERE TABLE_CATALOG = %s AND TABLE_NAME = %s
             ORDER BY ORDINAL_POSITION
         """
 
@@ -201,7 +204,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         query = """
             SELECT TABLE_NAME 
             FROM INFORMATION_SCHEMA.TABLES 
-            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_CATALOG = ?
+            WHERE TABLE_TYPE = 'BASE TABLE' AND TABLE_CATALOG = %s
             ORDER BY TABLE_NAME
         """
         return query, (db_name,)
@@ -213,7 +216,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         query = """
             SELECT COLUMN_NAME
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_CATALOG = ? AND TABLE_NAME = ?
+            WHERE TABLE_CATALOG = %s AND TABLE_NAME = %s
             ORDER BY ORDINAL_POSITION
         """
         return query, (db_name, table_name)
@@ -225,7 +228,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         query = """
             SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
             FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_CATALOG = ? AND TABLE_NAME = ?
+            WHERE TABLE_CATALOG = %s AND TABLE_NAME = %s
             ORDER BY ORDINAL_POSITION
         """
         return query, (db_name, table_name)
@@ -255,7 +258,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         if not tables:
             return None, []
 
-        placeholders = ",".join(["?"] * len(tables))
+        placeholders = ",".join(["%s"] * len(tables))
         query = f"""
             SELECT 
                 c.TABLE_NAME, 
@@ -269,9 +272,9 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                     ON tc.CONSTRAINT_NAME = ccu.CONSTRAINT_NAME
                     AND tc.TABLE_CATALOG = ccu.TABLE_CATALOG
                 WHERE tc.CONSTRAINT_TYPE = 'PRIMARY KEY'
-                AND tc.TABLE_CATALOG = ?
+                AND tc.TABLE_CATALOG = %s
             ) pk ON c.TABLE_NAME = pk.TABLE_NAME AND c.COLUMN_NAME = pk.COLUMN_NAME
-            WHERE c.TABLE_CATALOG = ?
+            WHERE c.TABLE_CATALOG = %s
             AND c.TABLE_NAME IN ({placeholders})
             ORDER BY c.TABLE_NAME, c.ORDINAL_POSITION
         """
@@ -296,7 +299,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             JOIN sys.index_columns ic ON i.object_id = ic.object_id AND i.index_id = ic.index_id
             JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
             JOIN sys.tables t ON i.object_id = t.object_id
-            WHERE t.name = ?
+            WHERE t.name = %s
             ORDER BY i.name, ic.key_ordinal
         """
         return query, (table_name,)
@@ -314,7 +317,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
                 ON tc.CONSTRAINT_NAME = ccu.CONSTRAINT_NAME
                 AND tc.TABLE_CATALOG = ccu.TABLE_CATALOG
-            WHERE tc.TABLE_NAME = ?
+            WHERE tc.TABLE_NAME = %s
             ORDER BY tc.CONSTRAINT_TYPE, tc.CONSTRAINT_NAME
         """
         return query, (table_name,)
@@ -332,7 +335,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                     COL_NAME(fc.referenced_object_id, fc.referenced_column_id) AS referenced_column
                 FROM sys.foreign_keys fk
                 JOIN sys.foreign_key_columns fc ON fk.object_id = fc.constraint_object_id
-                WHERE OBJECT_NAME(fk.parent_object_id) = ?
+                WHERE OBJECT_NAME(fk.parent_object_id) = %s
                 ORDER BY fk.name
             """
             return query, (table_name,)

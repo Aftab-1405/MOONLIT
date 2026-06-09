@@ -129,14 +129,9 @@ class ConnectionService:
                     db_config, database, db_type
                 )
 
-            should_store_empty_remote_schema = is_remote and db_type in {
-                "mysql",
-                "postgresql",
-            }
-            if tables or should_store_empty_remote_schema:
-                ConnectionService._store_schema_context(
-                    user_id, db_config, database, tables, db_type
-                )
+            ConnectionService._store_schema_context(
+                user_id, db_config, database, tables or [], db_type
+            )
 
     @staticmethod
     def _context_database(result: dict, db_config: dict, db_type: str) -> str:
@@ -208,19 +203,20 @@ class ConnectionService:
             tables_subset = tables[:max_tables]
             query, params = adapter.get_batch_columns_for_tables(database, tables_subset)
 
-            with manager.get_cursor(db_config) as cursor:
-                cursor.execute(query, params)
-                for row in cursor.fetchall():
-                    table_name = row[0]
-                    column_name = row[1]
-                    column_key = row[2] if len(row) > 2 else ""
+            if query:
+                with manager.get_cursor(db_config) as cursor:
+                    cursor.execute(query, params)
+                    for row in cursor.fetchall():
+                        table_name = row[0]
+                        column_name = row[1]
+                        column_key = row[2] if len(row) > 2 else ""
 
-                    if table_name not in columns:
-                        columns[table_name] = []
+                        if table_name not in columns:
+                            columns[table_name] = []
 
-                    columns[table_name].append(
-                        {"name": column_name, "is_primary_key": column_key == "PRI"}
-                    )
+                        columns[table_name].append(
+                            {"name": column_name, "is_primary_key": column_key == "PRI"}
+                        )
 
             for table in tables_subset:
                 if table not in columns:

@@ -716,30 +716,75 @@ class AIToolExecutor:
         db_type = connection.get("db_type", "postgresql")
         
         try:
-            # 1. Get Tables
-            if not target_tables:
-                tables = AIToolExecutor._fetch_tables_with_config(db_config, db_type, db_name=database)
+            # 1. Try to get from stored context cache first (with TTL check)
+            schema_context = ContextService.get_schema_context(user_id, database)
+            if schema_context:
+                cached_tables = schema_context.get("tables", [])
+                cached_columns = schema_context.get("columns", {})
                 
-                # SAFETY LIMIT: Prevent context window blowouts on massive databases
+                # Determine tables to process
+                tables = target_tables if target_tables else cached_tables
+                
+                # Safety checks
                 if len(tables) > 50:
                     return {
                         "error": "Context Window Protection",
-                        "message": f"This database contains {len(tables)} tables. Visualizing or fetching the entire schema at once will exceed context limits. Please specify a focused list of 'target_tables' to explore."
+                        "message": f"You requested {len(tables)} tables, which exceeds the safe limit of 50. Please narrow down your target_tables list further.",
+                        "available_tables": cached_tables
+                    }
+                
+                columns = {t: cached_columns[t] for t in tables if t in cached_columns}
+                
+                # Fetch foreign keys
+                all_foreign_keys_result = AIToolExecutor._get_foreign_keys(user_id, db_config=db_config)
+                fks = all_foreign_keys_result.get("foreign_keys", [])
+                if target_tables:
+                    target_set = set(target_tables)
+                    fks = [fk for fk in fks if fk.get("table_name") in target_set or fk.get("referenced_table") in target_set]
+                
+                return {
+                    "database": database,
+                    "tables": tables,
+                    "columns": columns,
+                    "foreign_keys": fks,
+                    "table_count": len(tables),
+                    "foreign_key_count": len(fks),
+                    "source": "context"
+                }
+
+            # 2. If not cached or stale, fetch fresh (and store in context cache)
+            all_tables = AIToolExecutor._fetch_tables_with_config(db_config, db_type, db_name=database)
+            
+            if not all_tables:
+                return {"database": database, "tables": [], "columns": {}, "foreign_keys": [], "message": "No tables found"}
+
+            # Determine tables to process
+            if target_tables:
+                tables = target_tables
+                if len(tables) > 50:
+                    return {
+                        "error": "Context Window Protection",
+                        "message": f"You requested {len(tables)} tables, which exceeds the safe limit of 50. Please narrow down your target_tables list further.",
+                        "available_tables": all_tables
                     }
             else:
-                tables = target_tables
+                if len(all_tables) > 50:
+                    return {
+                        "error": "Context Window Protection",
+                        "message": f"This database contains {len(all_tables)} tables. Visualizing or fetching the entire schema at once will exceed context limits. Please specify a focused list of 'target_tables' to explore.",
+                        "available_tables": all_tables
+                    }
+                tables = all_tables
                 
-            if not tables:
-                return {"database": database, "tables": [], "columns": {}, "foreign_keys": [], "message": "No tables found"}
-                
-            # 2. Get Columns
+            # Get Columns
             columns = AIToolExecutor._batch_fetch_columns(db_config, tables, db_type, db_name=database)
             
-            # 3. Get Foreign Keys
-            all_foreign_keys_result = AIToolExecutor._get_foreign_keys(user_id, db_config=db_config)
+            # Store fresh tables and columns in context cache (this will also record a store operation)
+            ContextService.store_schema_context(user_id, database, all_tables, columns)
             
+            # Get Foreign Keys
+            all_foreign_keys_result = AIToolExecutor._get_foreign_keys(user_id, db_config=db_config)
             fks = all_foreign_keys_result.get("foreign_keys", [])
-            # Filter foreign keys if target_tables is provided
             if target_tables:
                 target_set = set(target_tables)
                 fks = [fk for fk in fks if fk.get("table_name") in target_set or fk.get("referenced_table") in target_set]
@@ -750,7 +795,8 @@ class AIToolExecutor:
                 "columns": columns,
                 "foreign_keys": fks,
                 "table_count": len(tables),
-                "foreign_key_count": len(fks)
+                "foreign_key_count": len(fks),
+                "source": "fresh"
             }
         except Exception as e:
             logger.exception("Error getting schema overview")
