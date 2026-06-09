@@ -1,1 +1,0 @@
-"""Quota API contract models."""

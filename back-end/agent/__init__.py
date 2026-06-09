@@ -3,8 +3,6 @@ Moonlit LangGraph agent package (no FastAPI dependency).
 
 Consumed by ``services/conversation_service``. Checkpointing is initialized from
 ``main.lifespan`` via ``agent.checkpointing.init_checkpointer``.
-
-Optional CLI graph: ``moonlit_langgraph.py`` + ``langgraph.json`` at the backend root.
 """
 
 from .agent import stream_conversation
