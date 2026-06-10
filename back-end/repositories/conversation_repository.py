@@ -168,6 +168,7 @@ class ConversationRepository:
         tools: List[Dict] = None,
         *,
         thinking: Optional[str] = None,
+        append: bool = False,
     ) -> None:
         """
         Store a message in a conversation.
@@ -181,6 +182,7 @@ class ConversationRepository:
             user_id: The user ID (owner)
             tools: Optional list of tools used (for AI messages)
             thinking: Optional reasoning text (AI messages)
+            append: If True, merges content/thinking/tools into the last message if it is from the same sender
         """
         from services.firestore_service import FirestoreService
         from firebase_admin import firestore
@@ -204,6 +206,42 @@ class ConversationRepository:
                         "messages": [],
                     }
                 )
+                conv_data = {"user_id": user_id, "messages": []}
+
+            # If append is requested, modify the last message in-place if sender matches
+            if append and existing_doc.exists and conv_data.get("messages"):
+                messages_list = conv_data["messages"]
+                last_message = messages_list[-1]
+                if last_message.get("sender") == sender:
+                    # Append text content
+                    orig_content = last_message.get("content", "")
+                    new_content = (message or "").strip()
+                    if orig_content and new_content:
+                        # Smart spacing: if both boundary characters are alphanumeric, insert a space
+                        if orig_content[-1].isalnum() and new_content[0].isalnum():
+                            last_message["content"] = orig_content + " " + new_content
+                        else:
+                            last_message["content"] = orig_content + new_content
+                    elif new_content:
+                        last_message["content"] = new_content
+
+                    # Append thinking content
+                    if thinking and thinking.strip():
+                        orig_thinking = last_message.get("thinking", "")
+                        new_thinking = thinking.strip()
+                        if orig_thinking:
+                            last_message["thinking"] = orig_thinking + "\n" + new_thinking
+                        else:
+                            last_message["thinking"] = new_thinking
+
+                    # Append tools list
+                    if tools:
+                        orig_tools = last_message.get("tools", [])
+                        last_message["tools"] = orig_tools + tools
+
+                    conversation_ref.update({"messages": messages_list})
+                    logger.debug(f"Conversation {conversation_id} updated successfully by appending to last {sender} message")
+                    return
 
             content = (message or "").strip()
 

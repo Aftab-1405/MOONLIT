@@ -4,7 +4,9 @@
  */
 
 import { useEffect, useRef } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { getUserSettings, saveUserSettings } from '@/api';
+import { queryKeys } from '@/api/queryClient';
 import {
   mapServerSettingsToClient,
   pickSyncableSettings,
@@ -20,6 +22,15 @@ export function UserSettingsSync() {
   const { settings, updateSettings } = useSettings();
   const hydratedRef = useRef(false);
   const skipPersistRef = useRef(true);
+  const settingsQuery = useQuery({
+    queryKey: queryKeys.userSettings,
+    queryFn: getUserSettings,
+    enabled: isAuthenticated && !loading,
+    staleTime: 5 * 60 * 1000,
+  });
+  const { mutate: saveSettings } = useMutation({
+    mutationFn: saveUserSettings,
+  });
 
   useEffect(() => {
     if (!isAuthenticated || loading) {
@@ -28,47 +39,53 @@ export function UserSettingsSync() {
       return undefined;
     }
 
-    let cancelled = false;
+    if (settingsQuery.isLoading || settingsQuery.isFetching) return undefined;
 
-    const load = async () => {
-      try {
-        const data = await getUserSettings();
-        if (cancelled) return;
+    if (settingsQuery.isError) {
+      logger.warn('Failed to load user settings from server:', settingsQuery.error);
+      hydratedRef.current = true;
+      skipPersistRef.current = false;
+      return undefined;
+    }
 
-        const patch = mapServerSettingsToClient(data);
-        if (Object.keys(patch).length > 0) {
-          updateSettings(patch);
-        }
-      } catch (error) {
-        logger.warn('Failed to load user settings from server:', error);
-      } finally {
-        if (!cancelled) {
-          hydratedRef.current = true;
-          skipPersistRef.current = false;
-        }
-      }
-    };
-
-    load();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthenticated, loading, updateSettings]);
+    const patch = mapServerSettingsToClient(settingsQuery.data);
+    if (Object.keys(patch).length > 0) {
+      skipPersistRef.current = true;
+      updateSettings(patch);
+    } else {
+      skipPersistRef.current = false;
+    }
+    hydratedRef.current = true;
+    return undefined;
+  }, [
+    isAuthenticated,
+    loading,
+    settingsQuery.data,
+    settingsQuery.error,
+    settingsQuery.isError,
+    settingsQuery.isFetching,
+    settingsQuery.isLoading,
+    updateSettings,
+  ]);
 
   useEffect(() => {
     if (!isAuthenticated || loading || !hydratedRef.current || skipPersistRef.current) {
+      if (isAuthenticated && !loading && hydratedRef.current && skipPersistRef.current) {
+        skipPersistRef.current = false;
+      }
       return undefined;
     }
 
     const timer = window.setTimeout(() => {
-      saveUserSettings(pickSyncableSettings(settings)).catch((error) => {
+      saveSettings(pickSyncableSettings(settings), {
+        onError: (error) => {
         logger.warn('Failed to save user settings to server:', error);
+        },
       });
     }, PERSIST_DEBOUNCE_MS);
 
     return () => window.clearTimeout(timer);
-  }, [settings, isAuthenticated, loading]);
+  }, [settings, isAuthenticated, loading, saveSettings]);
 
   return null;
 }

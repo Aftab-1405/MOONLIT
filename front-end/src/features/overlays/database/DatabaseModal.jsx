@@ -31,6 +31,7 @@ import {
   switchDatabase,
   selectDatabase,
 } from '@/api';
+import { queryClient, queryKeys } from '@/api/queryClient';
 import { useFormValidation } from '@/hooks/useFormValidation';
 import {
   credentialsSchema,
@@ -251,6 +252,7 @@ function DatabaseModal({
   onConnect,
   isConnected,
   currentDatabase,
+  availableDatabases = [],
   initialDbType = null,
 }) {
   const theme = useTheme();
@@ -276,10 +278,20 @@ function DatabaseModal({
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [databases, setDatabases] = useState([]);
+  const sharedDatabasesKey = useMemo(() => availableDatabases.join('\u001f'), [availableDatabases]);
+
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess(null);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [success]);
   const [isRemote, setIsRemote] = useState(false);
   const [connectionActive, setConnectionActive] = useState(isConnected);
   const [selectedDatabase, setSelectedDatabase] = useState(currentDatabase);
-  const { errors: fieldErrors, validateForm, clearError } = useFormValidation(dbFieldSchemas);
+  const { errors: fieldErrors, validateField, validateForm, clearError } = useFormValidation(dbFieldSchemas);
   const currentDbConfig = useMemo(() => DB_TYPES.find((db) => db.value === dbType) || DB_TYPES[1], [dbType]);
   const supportsConnectionString = currentDbConfig.supportsConnectionString;
   const hasDatabases = databases.length > 0;
@@ -291,18 +303,42 @@ function DatabaseModal({
     if (open) {
       setConnectionActive(isConnected);
       setSelectedDatabase(currentDatabase);
-    }
-  }, [currentDatabase, isConnected, open]);
-
-  useEffect(() => {
-    if (rememberConnection && open && savedConnection) {
-      if (savedConnection.dbType) setDbType(savedConnection.dbType);
-      if (savedConnection.connectionMode) setConnectionMode(savedConnection.connectionMode);
-      if (savedConnection.formData) {
-        setFormData((prev) => ({ ...prev, ...savedConnection.formData }));
+      if (availableDatabases.length > 0) {
+        setDatabases(availableDatabases);
       }
     }
-  }, [open, rememberConnection, savedConnection]);
+  }, [availableDatabases, currentDatabase, isConnected, open]);
+
+  useEffect(() => {
+    if (open) {
+      const targetDbType = initialDbType || settings.defaultDbType || 'postgresql';
+      setDbType(targetDbType);
+    }
+  }, [open, initialDbType, settings.defaultDbType]);
+
+  // Watch for dbType changes to restore saved connections or set default ports
+  useEffect(() => {
+    if (open && dbType) {
+      if (rememberConnection && savedConnection && savedConnection.dbType === dbType) {
+        if (savedConnection.connectionMode) setConnectionMode(savedConnection.connectionMode);
+        if (savedConnection.formData) {
+          setFormData((prev) => ({ ...prev, ...savedConnection.formData }));
+        }
+      } else {
+        // Not a saved connection tab, completely clear previous form data 
+        // to prevent bleeding credentials from one provider to another.
+        const dbConfig = DB_TYPES.find((db) => db.value === dbType);
+        setFormData({ 
+          host: '',
+          user: '',
+          password: '',
+          database: '',
+          port: dbConfig?.defaultPort?.toString() || '' 
+        });
+        setConnectionString(''); // Clear connection string as well
+      }
+    }
+  }, [open, dbType, rememberConnection, savedConnection]);
 
   useEffect(() => {
     if (open && initialDbType) {
@@ -320,12 +356,16 @@ function DatabaseModal({
 
   const fetchDatabases = useCallback(async () => {
     try {
-      const response = await getDatabases();
-      if (response.status === 'success' && response.data.databases) {
+      const response = await queryClient.fetchQuery({
+        queryKey: queryKeys.dbDatabases,
+        queryFn: getDatabases,
+        staleTime: 5 * 60 * 1000,
+      });
+      if (response.status === 'success' && response.data?.databases) {
         setDatabases(response.data.databases);
-        if (response.data.is_remote) {
+        if (response.data?.is_remote) {
           setIsRemote(true);
-          if (response.data.db_type) {
+          if (response.data?.db_type) {
             setDbType(response.data.db_type);
           }
           setConnectionMode('connection_string');
@@ -337,10 +377,15 @@ function DatabaseModal({
   }, []);
 
   useEffect(() => {
+    if (open && availableDatabases.length > 0) {
+      setDatabases(availableDatabases);
+      return;
+    }
+
     if (open && connectionActive && databases.length === 0) {
       fetchDatabases();
     }
-  }, [open, connectionActive, databases.length, fetchDatabases]);
+  }, [availableDatabases, connectionActive, databases.length, fetchDatabases, open, sharedDatabasesKey]);
 
   useEffect(() => {
     if (!hasDatabases && mobileSection === 'databases') {
@@ -350,11 +395,6 @@ function DatabaseModal({
 
   const handleDbTypeChange = useCallback((newValue) => {
     setDbType(newValue);
-    const dbConfig = DB_TYPES.find((db) => db.value === newValue);
-    setFormData((prev) => ({
-      ...prev,
-      port: dbConfig?.defaultPort?.toString() || '',
-    }));
     setError(null);
   }, []);
 
@@ -538,6 +578,7 @@ function DatabaseModal({
               setConnectionString(event.target.value);
               clearError('connectionString');
             }}
+            onBlur={(e) => validateField('connectionString', e.target.value)}
             type={showConnectionString ? 'text' : 'password'}
             error={!!fieldErrors.connectionString}
             helperText={fieldErrors.connectionString || 'e.g., postgresql://user:pass@host:5432/db'}
@@ -556,6 +597,7 @@ function DatabaseModal({
                 placeholder="e.g., db.example.com"
                 value={formData.host}
                 onChange={handleInputChange}
+                onBlur={(e) => validateField('host', e.target.value)}
                 error={!!fieldErrors.host}
                 helperText={fieldErrors.host}
                 variant="standard"
@@ -566,7 +608,9 @@ function DatabaseModal({
                 label="Port"
                 value={formData.port}
                 onChange={handleInputChange}
+                onBlur={(e) => validateField('port', e.target.value)}
                 error={!!fieldErrors.port}
+                helperText={fieldErrors.port}
                 variant="standard"
               />
             </Stack>
@@ -577,7 +621,9 @@ function DatabaseModal({
               autoCapitalize="none"
               value={formData.user}
               onChange={handleInputChange}
+              onBlur={(e) => validateField('user', e.target.value)}
               error={!!fieldErrors.user}
+              helperText={fieldErrors.user}
               variant="standard"
             />
             <TextField
@@ -587,7 +633,9 @@ function DatabaseModal({
               type={showPassword ? 'text' : 'password'}
               value={formData.password}
               onChange={handleInputChange}
+              onBlur={(e) => validateField('password', e.target.value)}
               error={!!fieldErrors.password}
+              helperText={fieldErrors.password}
               variant="standard"
               InputProps={{
                 endAdornment: <VisibilityToggleAdornment show={showPassword} onToggle={() => setShowPassword(!showPassword)} />,
@@ -599,6 +647,9 @@ function DatabaseModal({
               label="Database (Optional)"
               value={formData.database}
               onChange={handleInputChange}
+              onBlur={(e) => validateField('database', e.target.value)}
+              error={!!fieldErrors.database}
+              helperText={fieldErrors.database}
               autoCapitalize="none"
               variant="standard"
             />

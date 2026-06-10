@@ -8,7 +8,7 @@
  * - Resizable panels and clean workspace layout
  */
 
-import { useState, useCallback, useMemo, memo } from 'react';
+import { useState, useCallback, useMemo, memo, useEffect } from 'react';
 import { Box, Collapse } from '@mui/material';
 import logger from '@/utils/logger';
 import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
@@ -21,6 +21,9 @@ const SCHEMA_PANEL_MOTION = {
   duration: 220,
   easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
 };
+
+let cachedTabs = null;
+let cachedActiveTabId = null;
 
 function SqlWorkspace({
   title,
@@ -43,17 +46,54 @@ function SqlWorkspace({
   const [schemaSidebarWidth, setSchemaSidebarWidth] = useState(260);
 
   // Query state
-  const [activeTabId, setActiveTabId] = useState('query-1');
-  const [tabs, setTabs] = useState([
-    {
-      id: 'query-1',
-      title: 'Query 1',
-      query: initialQuery,
-      isDirty: false,
-      results: initialResults,
-      error: null,
-    },
-  ]);
+  const [activeTabId, setActiveTabId] = useState(() => cachedActiveTabId || 'query-1');
+  const [tabs, setTabs] = useState(() => {
+    if (cachedTabs && cachedTabs.length > 0) {
+      return cachedTabs;
+    }
+    return [
+      {
+        id: 'query-1',
+        title: 'Query 1',
+        query: initialQuery,
+        isDirty: false,
+        results: initialResults,
+        error: null,
+      },
+    ];
+  });
+
+  // Sync state with cache
+  useEffect(() => {
+    cachedTabs = tabs;
+    cachedActiveTabId = activeTabId;
+  }, [tabs, activeTabId]);
+
+  // Handle incoming query/results updates
+  useEffect(() => {
+    if (initialQuery) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTabs((prev) => {
+        const exists = prev.some((t) => t.query === initialQuery);
+        if (exists) {
+          const existingTab = prev.find((t) => t.query === initialQuery);
+          if (existingTab) setActiveTabId(existingTab.id);
+          return prev;
+        }
+        const newId = `query-${Date.now()}`;
+        const newTab = {
+          id: newId,
+          title: `Query ${prev.length + 1}`,
+          query: initialQuery,
+          isDirty: false,
+          results: initialResults,
+          error: null,
+        };
+        setActiveTabId(newId);
+        return [...prev, newTab];
+      });
+    }
+  }, [initialQuery, initialResults]);
 
   // Resizing state
   const [resizingSidebar, setResizingSidebar] = useState(false);
@@ -190,9 +230,6 @@ function SqlWorkspace({
     }),
     []
   );
-  const schemaPanelTransition = resizingSidebar
-    ? 'none'
-    : `width ${SCHEMA_PANEL_MOTION.duration}ms ${SCHEMA_PANEL_MOTION.easing}`;
 
   const workspaceContent = (
     <Box
@@ -226,8 +263,6 @@ function SqlWorkspace({
             flexShrink: 0,
             minHeight: 0,
             height: '100%',
-            width: schemaSidebarOpen ? schemaSidebarWidth : 0,
-            transition: schemaPanelTransition,
             willChange: resizingSidebar ? 'auto' : 'width',
             contain: 'layout paint style',
             '& .MuiCollapse-wrapper': {

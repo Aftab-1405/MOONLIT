@@ -3,11 +3,12 @@ import { Routes, Route } from 'react-router-dom';
 import { Box } from '@mui/material';
 import { PageLoader } from '@/components';
 import ProtectedRoute from '@/guards/ProtectedRoute';
-import Landing from '@/pages/Landing';
-import Auth from '@/pages/Auth';
-const Chat = lazy(() => import('@/pages/Chat'));
+import AdminRoute from '@/guards/AdminRoute';
 
-import AdminDashboard from '@/pages/AdminDashboard';
+const Landing = lazy(() => import('@/pages/Landing'));
+const Auth = lazy(() => import('@/pages/Auth'));
+const Chat = lazy(() => import('@/pages/Chat'));
+const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
 
 function App() {
   return (
@@ -46,9 +47,9 @@ function App() {
           <Route
             path="/admin"
             element={
-              <ProtectedRoute>
+              <AdminRoute>
                 <AdminDashboard />
-              </ProtectedRoute>
+              </AdminRoute>
             }
           />
         </Routes>

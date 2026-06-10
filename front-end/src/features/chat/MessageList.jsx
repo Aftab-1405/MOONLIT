@@ -3,6 +3,7 @@ import { alpha } from '@mui/material/styles';
 import Fade from '@mui/material/Fade';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { StepsAccordion } from '@/features/chat/ai-response-steps';
 import MarkdownRenderer from '@/features/chat/MarkdownRenderer';
@@ -230,6 +231,7 @@ const AIMessage = memo(function AIMessage({
   onOpenCanvasArtifact,
 }) {
   const { copied, copyRich } = useCopyToClipboard();
+  const theme = useTheme();
   const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
   const contentRef = useRef(null);
   const sqlEditorTimeoutRef = useRef(null);
@@ -239,9 +241,17 @@ const AIMessage = memo(function AIMessage({
   const isStreaming = status === MESSAGE_STATUS.STREAMING;
   const isWaiting = status === MESSAGE_STATUS.WAITING;
 
+  const wasStreamingOrWaitingRef = useRef(false);
+  useEffect(() => {
+    if (isStreaming || isWaiting) {
+      wasStreamingOrWaitingRef.current = true;
+    }
+  }, [isStreaming, isWaiting]);
+
   const displayText = text || '';
   const chatDisplayText = useMemo(() => stripCanvasCodeArtifacts(displayText), [displayText]);
   const displaySteps = useMemo(() => (Array.isArray(steps) ? steps : []), [steps]);
+  const artifacts = useMemo(() => extractCanvasCodeArtifacts(displayText), [displayText]);
 
   useEffect(() => {
     return () => {
@@ -284,8 +294,12 @@ const AIMessage = memo(function AIMessage({
 
   useEffect(() => {
     if (!onOpenCanvasArtifact || isWaiting || isStreaming) return;
-    const artifacts = extractCanvasCodeArtifacts(text);
-    artifacts.forEach((artifact) => {
+    
+    // Only auto-trigger the artifact loader if the message was actively streamed/generated in this session
+    if (!wasStreamingOrWaitingRef.current) return;
+
+    const artifactsList = extractCanvasCodeArtifacts(text);
+    artifactsList.forEach((artifact) => {
       const artifactKey = `${id}-${artifact.key}`;
       if (openedArtifactsRef.current.has(artifactKey)) return;
       openedArtifactsRef.current.add(artifactKey);
@@ -342,6 +356,77 @@ const AIMessage = memo(function AIMessage({
               }}
             >
               <MarkdownRenderer content={chatDisplayText} onRunQuery={onRunQuery} />
+            </Box>
+          )}
+
+          {artifacts.length > 0 && (
+            <Box
+              sx={{
+                pl: 1,
+                pr: { xs: 2, sm: 4 },
+                mt: 1.5,
+                mb: 1.5,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 1.25,
+              }}
+            >
+              {artifacts.map((artifact) => (
+                <Box
+                  key={artifact.key}
+                  sx={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 2,
+                    p: 1.75,
+                    borderRadius: '10px',
+                    border: '1px solid',
+                    borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
+                    bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.04 : 0.02),
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': {
+                      borderColor: theme.palette.primary.main,
+                      bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.07 : 0.035),
+                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.08)}`,
+                    },
+                  }}
+                >
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+                    <AccountTreeOutlinedIcon sx={{ color: 'primary.main', fontSize: 22, flexShrink: 0 }} />
+                    <Box sx={{ minWidth: 0 }}>
+                      <Typography sx={{ fontSize: '0.875rem', fontWeight: 650, color: 'text.primary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {artifact.title || 'React Flow Diagram'}
+                      </Typography>
+                      <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        Interactive node graph visualization
+                      </Typography>
+                    </Box>
+                  </Box>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    color="primary"
+                    onClick={() => onOpenCanvasArtifact(artifact)}
+                    sx={{
+                      borderRadius: '6px',
+                      textTransform: 'none',
+                      fontSize: '0.75rem',
+                      fontWeight: 650,
+                      flexShrink: 0,
+                      px: 2.25,
+                      py: 0.5,
+                      borderColor: alpha(theme.palette.primary.main, 0.3),
+                      '&:hover': {
+                        borderColor: 'primary.main',
+                        bgcolor: alpha(theme.palette.primary.main, 0.04),
+                      },
+                    }}
+                  >
+                    View Diagram
+                  </Button>
+                </Box>
+              ))}
             </Box>
           )}
         </Box>

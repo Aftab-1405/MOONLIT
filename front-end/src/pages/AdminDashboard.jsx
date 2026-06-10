@@ -29,6 +29,7 @@ import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
 import { USER } from '@/api/endpoints';
 import { getContextMetrics } from '@/api/user';
 import { useAuth } from '@/contexts/AuthContext';
+import logger from '@/utils/logger';
 
 const SYSTEM_FONT_MONO = '"JetBrains Mono", "Fira Code", Monaco, Consolas, monospace';
 const SYSTEM_FONT_SANS = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
@@ -474,6 +475,7 @@ function AdminDashboard() {
   const { user } = useAuth();
 
   const applyMetrics = useCallback((nextMetrics) => {
+    if (!nextMetrics) return;
     metricsRef.current = nextMetrics;
     setMetrics(nextMetrics);
 
@@ -532,7 +534,7 @@ function AdminDashboard() {
       })
       .catch((err) => {
         if (!active) return;
-        console.error('Error fetching initial metrics:', err);
+        logger.error('Error fetching initial metrics:', err);
         setMetricsError(
           err.status
             ? `Initial metrics request failed with HTTP ${err.status}.`
@@ -561,7 +563,7 @@ function AdminDashboard() {
         setMetricsError(null);
         setLoading(false);
       } catch (err) {
-        console.error('Live telemetry payload error:', err);
+        logger.error('Live telemetry payload error:', err);
         setMetricsError('Live telemetry payload could not be read.');
       }
     });
@@ -575,17 +577,15 @@ function AdminDashboard() {
   }, [applyMetrics, user?.uid]);
 
   useEffect(() => {
-    if (ttlRemaining === null || ttlRemaining <= 0) return undefined;
-
     const timer = setInterval(() => {
       setTtlRemaining((prev) => {
         if (prev !== null && prev > 0) return prev - 1;
-        return 0;
+        return prev;
       });
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [ttlRemaining]);
+  }, []);
 
   const dashboardData = useMemo(() => {
     const hitRate = metrics ? Math.round(metrics.hit_rate_percent || 0) : 0;

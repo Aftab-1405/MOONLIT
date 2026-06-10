@@ -834,6 +834,9 @@ const components = {
   },
 
   MuiSkeleton: {
+    defaultProps: {
+      animation: 'wave',
+    },
     styleOverrides: {
       root: {
         backgroundColor: alpha(H.text200, 0.08),

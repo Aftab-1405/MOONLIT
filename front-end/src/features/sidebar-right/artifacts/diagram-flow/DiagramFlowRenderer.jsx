@@ -68,6 +68,8 @@ const STYLE_KEYS = new Set([
 const PREMIUM_NODE_TYPE = 'premium';
 const NODE_STATUSES = new Set(['ready', 'active', 'pending', 'blocked', 'disabled']);
 
+
+
 const normalizeTags = (tags) => {
   if (!Array.isArray(tags)) return [];
   return tags
@@ -614,10 +616,7 @@ function DiagramFlowRenderer({
     setEdges(flowElements.edges);
   }, [flowElements, setNodes, setEdges]);
 
-  const flowKey = useMemo(
-    () => `${stableCode.length}`,
-    [stableCode.length],
-  );
+
 
   const fitDiagramViewport = useCallback((instance = flowInstanceRef.current) => {
     if (!instance || nodes.length === 0) return false;
@@ -838,11 +837,10 @@ function DiagramFlowRenderer({
               zIndex: 0,
               isolation: 'isolate',
               opacity: viewportReady ? 1 : 0,
-              transition: viewportReady ? 'opacity 120ms ease' : 'none',
+              transition: 'none',
             }}
           >
             <ReactFlow
-              key={flowKey}
               aria-label="Diagram flow"
               nodes={nodes}
               edges={edges}

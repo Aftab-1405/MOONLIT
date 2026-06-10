@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useCallback, useMemo, memo } from 'react';
 import {
   Box,
   TextField,
@@ -11,7 +11,7 @@ import {
   Skeleton,
   useMediaQuery,
 } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
+import { alpha, useTheme, keyframes } from '@mui/material/styles';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
 import StopRoundedIcon from '@mui/icons-material/StopRounded';
 
@@ -21,8 +21,8 @@ import { AppPopover } from '@/components';
 import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import SchemaIcon from '@/components/icons/SchemaIcon';
+import { useDatabaseConnection } from '@/contexts/DatabaseContext';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
-import { getSchemas, selectSchema } from '@/api';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import logger from '@/utils/logger';
 import {
@@ -37,6 +37,19 @@ import {
 } from '@/styles/shared';
 
 
+const blurReveal = keyframes`
+  0% {
+    opacity: 0;
+    filter: blur(12px);
+    transform: translateY(8px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0px);
+    transform: translateY(0) scale(1);
+  }
+`;
+
 function ChatInput({
   onSend,
   onStop,
@@ -47,36 +60,44 @@ function ChatInput({
   currentDatabase = null,
   availableDatabases = [],
   onDatabaseSwitch,
-  showSuggestions = true,
   onOpenSqlEditor,
   selectedProvider = '',
   selectedModel = '',
   providerOptions = [],
   llmOptionsLoading = false,
   onSelectLlm,
+  children,
 }) {
   const [message, setMessage] = useState('');
   const [isFocused, setIsFocused] = useState(false);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   useAppTheme();
-  const [schemas, setSchemas] = useState([]);
-  const [currentSchema, setCurrentSchema] = useState('public');
-  const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaAnchor, setSchemaAnchor] = useState(null);
   const [dbAnchor, setDbAnchor] = useState(null);
   const [llmAnchor, setLlmAnchor] = useState(null);
+  const {
+    availableSchemas = [],
+    currentSchema = null,
+    selectSchema,
+  } = useDatabaseConnection();
 
   const isPostgreSQL = useMemo(() =>
     dbType?.toLowerCase() === 'postgresql',
   [dbType]);
 
+  const connectionMetadataReady = useMemo(() =>
+    Boolean(isConnected && currentDatabase && dbType),
+  [isConnected, currentDatabase, dbType]);
+  const connectionChipKey = useMemo(() =>
+    `${dbType || 'unknown'}:${currentDatabase || ''}`,
+  [dbType, currentDatabase]);
   const showSchemaSelector = useMemo(() =>
-    isConnected && isPostgreSQL && schemas.length > 0,
-  [isConnected, isPostgreSQL, schemas.length]);
+    connectionMetadataReady && isPostgreSQL && Boolean(currentSchema),
+  [connectionMetadataReady, isPostgreSQL, currentSchema]);
   const showDatabaseSelector = useMemo(() =>
-    isConnected && currentDatabase,
-  [isConnected, currentDatabase]);
+    connectionMetadataReady,
+  [connectionMetadataReady]);
   const canSwitchDatabase = useMemo(() =>
     availableDatabases.length > 1,
   [availableDatabases.length]);
@@ -181,39 +202,15 @@ function ChatInput({
   const handleCloseSchemaMenu = useCallback(() => setSchemaAnchor(null), []);
   const handleCloseLlmPopover = useCallback(() => setLlmAnchor(null), []);
 
-
-
-  const fetchSchemas = useCallback(async () => {
-    setSchemaLoading(true);
-    try {
-      const response = await getSchemas();
-      if (response.status === 'success') {
-        setSchemas(response.data.schemas || []);
-        setCurrentSchema(response.data.current_schema || 'public');
-      }
-    } catch (err) {
-      logger.error('Failed to fetch schemas:', err);
-    } finally {
-      setSchemaLoading(false);
-    }
-  }, []);
-
   const handleSchemaChange = useCallback(async (schema) => {
     setSchemaAnchor(null);
     if (schema === currentSchema) return;
 
-    setSchemaLoading(true);
-    try {
-      const response = await selectSchema(schema);
-      if (response.status === 'success') {
-        setCurrentSchema(schema);
-      }
-    } catch (err) {
-      logger.error('Failed to select schema:', err);
-    } finally {
-      setSchemaLoading(false);
+    const result = await selectSchema?.(schema);
+    if (result && !result.success) {
+      logger.error('Failed to select schema:', result.error);
     }
-  }, [currentSchema]);
+  }, [currentSchema, selectSchema]);
 
   const handleDatabaseChange = useCallback((dbName) => {
     setDbAnchor(null);
@@ -264,37 +261,6 @@ function ChatInput({
     onSelectLlm?.(providerName, modelName);
     setLlmAnchor(null);
   }, [onSelectLlm]);
-
-  const suggestions = useMemo(() => [
-    {
-      label: 'Check Connection',
-      icon: <DatabaseIcon sx={{ width: 16, height: 16 }} />,
-      prompt: 'Check my database connection status and show connection details',
-    },
-    {
-      label: 'Schema Details',
-      icon: <SchemaIcon sx={{ width: 16, height: 16 }} />,
-      prompt: 'Show me the database schema with all tables and their columns',
-    },
-    {
-      label: 'Open SQL Editor',
-      icon: <CodeEditorIcon sx={{ width: 16, height: 16 }} />,
-      prompt: 'Open the SQL editor and help me write a query',
-    },
-  ], []);
-
-  const handleSuggestionClick = useCallback((prompt) => {
-    onSend?.(prompt);
-  }, [onSend]);
-
-  useEffect(() => {
-    if (isConnected && currentDatabase && isPostgreSQL) {
-      fetchSchemas();
-    } else {
-      setSchemas([]);
-      setCurrentSchema('public');
-    }
-  }, [isConnected, currentDatabase, isPostgreSQL, fetchSchemas]);
 
   return (
     <Box
@@ -351,7 +317,7 @@ function ChatInput({
           PostgreSQL Schema
         </Typography>
         <Box sx={{ maxHeight: 260, overflowY: 'auto', mt: 0.5 }}>
-          {schemas.map((schema) => {
+          {availableSchemas.map((schema) => {
             const isActive = schema === currentSchema;
             return (
               <Box
@@ -497,45 +463,87 @@ function ChatInput({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: 1, overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
 
             {showDatabaseSelector && (
-              <Tooltip title={canSwitchDatabase ? `Database: ${currentDatabase} (click to switch)` : `Database: ${currentDatabase}`}>
-                <span>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<DatabaseIcon />}
-                  onClick={canSwitchDatabase ? handleOpenDbMenu : undefined}
-                  disabled={!canSwitchDatabase}
-                  sx={{
-                    ...toolbarActionButtonStyles,
-                    '&.Mui-disabled': {
-                      opacity: 1,
-                      borderColor: neutralInteraction.border,
-                      color: 'text.secondary',
-                      backgroundColor: 'transparent',
-                    },
-                  }}
-                >
-                  <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {currentDatabase}
-                  </Box>
-                </Button>
-                </span>
-              </Tooltip>
+              <Box
+                key={`database-${connectionChipKey}`}
+                sx={{
+                  display: 'inline-flex',
+                  flexShrink: 0,
+                  animation: `${blurReveal} 0.65s cubic-bezier(0.16, 1, 0.3, 1) both`,
+                  animationDelay: '0ms',
+                  '@media (prefers-reduced-motion: reduce)': {
+                    animation: 'none',
+                  },
+                }}
+              >
+                <Tooltip title={canSwitchDatabase ? `Database: ${currentDatabase} (click to switch)` : `Database: ${currentDatabase}`}>
+                  <span>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<DatabaseIcon />}
+                    onClick={canSwitchDatabase ? handleOpenDbMenu : undefined}
+                    disabled={!canSwitchDatabase}
+                    sx={{
+                      ...toolbarActionButtonStyles,
+                      borderColor: alpha(theme.palette.success.main, 0.35),
+                      [HOVER_CAPABLE_QUERY]: {
+                        '&:hover': {
+                          borderColor: alpha(theme.palette.success.main, 0.6),
+                          backgroundColor: alpha(theme.palette.success.main, 0.04),
+                        },
+                      },
+                      '&.Mui-disabled': {
+                        opacity: 1,
+                        borderColor: alpha(theme.palette.success.main, 0.35),
+                        color: 'text.secondary',
+                        backgroundColor: 'transparent',
+                      },
+                    }}
+                  >
+                    <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {currentDatabase}
+                    </Box>
+                  </Button>
+                  </span>
+                </Tooltip>
+              </Box>
             )}
             {showSchemaSelector && (
-              <Tooltip title={`Schema: ${schemaLoading ? '...' : currentSchema}`}>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<SchemaIcon />}
-                  onClick={handleOpenSchemaMenu}
-                  sx={toolbarActionButtonStyles}
-                >
-                  <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {schemaLoading ? '...' : currentSchema}
-                  </Box>
-                </Button>
-              </Tooltip>
+              <Box
+                key={`schema-${connectionChipKey}`}
+                sx={{
+                  display: 'inline-flex',
+                  flexShrink: 0,
+                  animation: `${blurReveal} 0.65s cubic-bezier(0.16, 1, 0.3, 1) both`,
+                  animationDelay: '60ms',
+                  '@media (prefers-reduced-motion: reduce)': {
+                    animation: 'none',
+                  },
+                }}
+              >
+                <Tooltip title={`Schema: ${currentSchema}`}>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<SchemaIcon />}
+                    onClick={handleOpenSchemaMenu}
+                    sx={{
+                      ...toolbarActionButtonStyles,
+                      borderColor: alpha(theme.palette.success.main, 0.35),
+                      [HOVER_CAPABLE_QUERY]: {
+                        '&:hover': {
+                          borderColor: alpha(theme.palette.success.main, 0.6),
+                          backgroundColor: alpha(theme.palette.success.main, 0.04),
+                        },
+                      },
+                    }}
+                  >
+                    <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {currentSchema}
+                    </Box>
+                  </Button>
+                </Tooltip>
+              </Box>
             )}
             {onOpenSqlEditor && (
               <Tooltip title="Open SQL Editor">
@@ -648,61 +656,7 @@ function ChatInput({
         </Box>
         </Box>
       </Box>
-      {showSuggestions && (
-        <Box sx={{ maxWidth: UI_LAYOUT.chatInputMaxWidth, mx: 'auto', mt: 1.25, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
-          {suggestions.map((chip) => (
-            <Chip
-              key={chip.label}
-              icon={chip.icon}
-              label={chip.label}
-              onClick={() => handleSuggestionClick(chip.prompt)}
-              size="small"
-              sx={{
-                height: 32,
-                borderRadius: '8px',
-                border: '1px solid',
-                borderColor: neutralInteraction.border,
-                color: 'text.secondary',
-                backgroundColor: 'transparent',
-                cursor: 'pointer',
-                transition: theme.transitions.create(['background-color', 'border-color', 'color', 'transform'], {
-                  duration: theme.transitions.duration.shorter,
-                }),
-                '&:active': { transform: 'scale(0.995)' },
-                '& .MuiChip-label': {
-                  px: 1.25,
-                  ...theme.typography.uiCaptionSm,
-                  lineHeight: 1,
-                  display: 'flex',
-                  alignItems: 'center',
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                },
-                '& .MuiChip-icon': {
-                  color: alpha(theme.palette.text.primary, 0.45),
-                  ml: 1,
-                  mr: -0.25,
-                  fontSize: 16,
-                  flexShrink: 0,
-                  display: 'flex',
-                  alignItems: 'center',
-                },
-                [HOVER_CAPABLE_QUERY]: {
-                  '&:hover': {
-                    borderColor: neutralInteraction.hoverBorder,
-                    backgroundColor: neutralInteraction.hoverBackground,
-                    color: 'text.primary',
-                    '& .MuiChip-icon': {
-                      color: alpha(theme.palette.text.primary, 0.65),
-                    },
-                  },
-                },
-              }}
-            />
-          ))}
-        </Box>
-      )}
+      {children}
       <Typography
         variant="caption"
         sx={{
@@ -728,7 +682,6 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.isConnected !== nextProps.isConnected) return false;
   if (prevProps.dbType !== nextProps.dbType) return false;
   if (prevProps.currentDatabase !== nextProps.currentDatabase) return false;
-  if (prevProps.showSuggestions !== nextProps.showSuggestions) return false;
   if (prevProps.selectedProvider !== nextProps.selectedProvider) return false;
   if (prevProps.selectedModel !== nextProps.selectedModel) return false;
   if (prevProps.llmOptionsLoading !== nextProps.llmOptionsLoading) return false;
@@ -738,6 +691,7 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.onOpenSqlEditor !== nextProps.onOpenSqlEditor) return false;
   if (prevProps.onDatabaseSwitch !== nextProps.onDatabaseSwitch) return false;
   if (prevProps.onSelectLlm !== nextProps.onSelectLlm) return false;
+  if (prevProps.children !== nextProps.children) return false;
   if (prevProps.availableDatabases?.length !== nextProps.availableDatabases?.length) return false;
   return true;
 }

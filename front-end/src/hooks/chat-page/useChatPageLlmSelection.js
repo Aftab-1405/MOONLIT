@@ -1,14 +1,19 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { getLlmOptions } from '@/api';
+import { queryClient, queryKeys } from '@/api/queryClient';
 import logger from '@/utils/logger';
 
 export function useChatPageLlmSelection({ settings, updateSettings }) {
-  const [llmOptions, setLlmOptions] = useState({
-    providers: [],
-    default_provider: null,
-    default_model: null,
-  });
-  const [llmOptionsLoading, setLlmOptionsLoading] = useState(true);
+  const [llmOptions, setLlmOptions] = useState(() =>
+    queryClient.getQueryData(queryKeys.llmOptions) || {
+      providers: [],
+      default_provider: null,
+      default_model: null,
+    }
+  );
+  const [llmOptionsLoading, setLlmOptionsLoading] = useState(() =>
+    !queryClient.getQueryData(queryKeys.llmOptions)
+  );
 
   const providerOptions = useMemo(() => llmOptions.providers ?? [], [llmOptions.providers]);
   const selectedProvider = useMemo(() => {
@@ -42,56 +47,56 @@ export function useChatPageLlmSelection({ settings, updateSettings }) {
   }, [providerOptions, updateSettings]);
 
   useEffect(() => {
-    let isMounted = true;
-    const controller = new AbortController();
+    let cancelled = false;
 
-    const loadLlmOptions = async () => {
-      try {
-        const response = await getLlmOptions(controller.signal);
-        if (!isMounted || response?.status !== 'success') return;
-
-        const providers = response.providers || [];
-        setLlmOptions({
-          providers,
-          default_provider: response.default_provider || null,
-          default_model: response.default_model || null,
-        });
-
-        if (!providers.length) return;
-
-        const providerFromSettings = settings.llmProvider;
-        const validProvider = providerFromSettings && providers.some((provider) => provider.name === providerFromSettings)
-          ? providerFromSettings
-          : (response.default_provider || providers[0].name);
-
-        const providerConfig = providers.find((provider) => provider.name === validProvider) || providers[0];
-        const candidateModels = providerConfig?.models || [];
-        const modelFromSettings = settings.llmModel;
-        const validModel = modelFromSettings && candidateModels.includes(modelFromSettings)
-          ? modelFromSettings
-          : (providerConfig?.default_model || candidateModels[0] || null);
-
-        const patch = {};
-        if (validProvider !== settings.llmProvider) patch.llmProvider = validProvider;
-        if (validModel !== settings.llmModel) patch.llmModel = validModel;
-        if (Object.keys(patch).length > 0) updateSettings(patch);
-      } catch (error) {
-        logger.warn('Failed to fetch LLM options:', error);
-      } finally {
-        if (isMounted) {
-          setLlmOptionsLoading(false);
+    queryClient.fetchQuery({
+      queryKey: queryKeys.llmOptions,
+      queryFn: ({ signal }) => getLlmOptions(signal),
+      staleTime: 10 * 60 * 1000,
+      gcTime: 30 * 60 * 1000,
+    })
+      .then((response) => {
+        if (!cancelled && response?.status === 'success') {
+          setLlmOptions(response);
         }
-      }
-    };
+      })
+      .catch((error) => {
+        logger.warn('Failed to fetch LLM options:', error);
+      })
+      .finally(() => {
+        if (!cancelled) setLlmOptionsLoading(false);
+      });
 
-    loadLlmOptions();
     return () => {
-      isMounted = false;
-      controller.abort();
+      cancelled = true;
     };
-    // Only initialize from backend once on first load.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [updateSettings]);
+  }, []);
+
+  useEffect(() => {
+    if (llmOptions.status !== 'success' || !providerOptions.length) return;
+
+    const validProvider = settings.llmProvider && providerOptions.some((provider) => provider.name === settings.llmProvider)
+      ? settings.llmProvider
+      : (llmOptions.default_provider || providerOptions[0].name);
+
+    const providerConfig = providerOptions.find((provider) => provider.name === validProvider) || providerOptions[0];
+    const candidateModels = providerConfig?.models || [];
+    const validModel = settings.llmModel && candidateModels.includes(settings.llmModel)
+      ? settings.llmModel
+      : (providerConfig?.default_model || candidateModels[0] || null);
+
+    const patch = {};
+    if (validProvider !== settings.llmProvider) patch.llmProvider = validProvider;
+    if (validModel !== settings.llmModel) patch.llmModel = validModel;
+    if (Object.keys(patch).length > 0) updateSettings(patch);
+  }, [
+    llmOptions.default_provider,
+    llmOptions.status,
+    providerOptions,
+    settings.llmModel,
+    settings.llmProvider,
+    updateSettings,
+  ]);
 
   return {
     providerOptions,

@@ -76,12 +76,25 @@ export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
 
   useEffect(() => {
     if (!workspaceCanvasOpen) return undefined;
+    let resizeFrame = null;
+
     const sync = () => {
       setWorkspaceCanvasWidth((prev) => clampCanvasWidth(prev, sidebarWidth));
     };
+    const scheduleSync = () => {
+      if (resizeFrame !== null) return;
+      resizeFrame = requestAnimationFrame(() => {
+        resizeFrame = null;
+        sync();
+      });
+    };
+
     sync();
-    window.addEventListener('resize', sync);
-    return () => window.removeEventListener('resize', sync);
+    window.addEventListener('resize', scheduleSync);
+    return () => {
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame);
+      window.removeEventListener('resize', scheduleSync);
+    };
   }, [workspaceCanvasOpen, sidebarWidth]);
 
   return {

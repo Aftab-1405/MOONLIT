@@ -17,6 +17,7 @@ import RecentChatIcon from '@/components/icons/RecentChatIcon';
 import SearchIcon from '@/components/icons/SearchIcon';
 import SidebarPanelIcon from '@/components/icons/SidebarPanelIcon';
 import { getUserContext } from '@/api';
+import { queryClient, queryKeys } from '@/api/queryClient';
 import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 import logger from '@/utils/logger';
 import { ConversationItem, SidebarNavItem, HistoryListSkeleton } from '@/features/sidebar-left/components/SidebarPrimitives';
@@ -107,7 +108,11 @@ function Sidebar({
     if (!isConnected || !currentDatabase) return;
     setSchemaLoading(true);
     try {
-      const data = await getUserContext();
+      const data = await queryClient.fetchQuery({
+        queryKey: queryKeys.userContext,
+        queryFn: getUserContext,
+        staleTime: 60 * 1000,
+      });
       if (data.status === 'success') {
         setSchemaData(data.schemas?.find((s) => s.database === currentDatabase) || null);
       }
@@ -118,7 +123,7 @@ function Sidebar({
       setSchemaLoading(false);
       setMindmapOpen(true);
     }
-  }, [isConnected, currentDatabase]);
+  }, [currentDatabase, isConnected]);
 
   const handleCloseMindmap = useCallback(() => setMindmapOpen(false), []);
   const toggleRecentsCollapsed = useCallback(() => setRecentsCollapsed((p) => !p), []);

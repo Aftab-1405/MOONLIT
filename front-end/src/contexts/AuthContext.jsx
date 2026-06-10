@@ -60,6 +60,25 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
+  if (typeof window !== 'undefined' && window.__MOCK_AUTH__) {
+    const mockValue = useMemo(() => ({
+      loading: false,
+      isAuthenticated: true,
+      user: { uid: 'mock-user-123', email: 'mock@example.com', displayName: 'Mock User' },
+      logout: () => Promise.resolve(),
+      signInWithGoogle: () => Promise.resolve({ uid: 'mock-user-123' }),
+      signInWithEmail: () => Promise.resolve({ uid: 'mock-user-123' }),
+      signUpWithEmail: () => Promise.resolve({ uid: 'mock-user-123' }),
+      resetPassword: () => Promise.resolve(true),
+    }), []);
+
+    return (
+      <AuthContext.Provider value={mockValue}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
+
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);

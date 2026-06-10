@@ -30,15 +30,19 @@
  * @module DatabaseContext
  */
 
-import { createContext, useContext, useReducer, useCallback, useEffect, useMemo, useRef } from 'react';
+import { createContext, useContext, useReducer, useCallback, useEffect, useMemo } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import logger from '@/utils/logger';
 import { useAuth } from '@/contexts/AuthContext';
+import { queryKeys } from '@/api/queryClient';
 import {
   getDbStatus,
   disconnectDb,
   switchDatabase as switchDatabaseApi,
   selectDatabase,
+  selectSchema as selectSchemaApi,
   sessionActive,
+  getSchemas as getSchemasApi,
   getTables,
   getTableSchema as getTableSchemaApi,
 } from '@/api';
@@ -66,6 +70,8 @@ const initialState = {
   dbType: null,
   isRemote: false,
   availableDatabases: [],
+  availableSchemas: [],
+  currentSchema: null,
   lastConnectedAt: null,
 };
 
@@ -75,6 +81,7 @@ const ActionTypes = {
   CONNECT_FAILURE: 'CONNECT_FAILURE',
   DISCONNECT: 'DISCONNECT',
   SWITCH_DATABASE: 'SWITCH_DATABASE',
+  SELECT_SCHEMA: 'SELECT_SCHEMA',
   SET_AVAILABLE_DATABASES: 'SET_AVAILABLE_DATABASES',
   SYNC_STATUS: 'SYNC_STATUS',
   SET_ERROR: 'SET_ERROR',
@@ -100,6 +107,8 @@ function databaseReducer(state, action) {
         dbType: action.payload.dbType,
         isRemote: action.payload.isRemote ?? false,
         availableDatabases: action.payload.databases ?? [],
+        availableSchemas: action.payload.schemas ?? [],
+        currentSchema: action.payload.currentSchema ?? null,
         lastConnectedAt: new Date().toISOString(),
       };
 
@@ -121,6 +130,16 @@ function databaseReducer(state, action) {
       return {
         ...state,
         currentDatabase: action.payload.database,
+        availableSchemas: action.payload.schemas ?? [],
+        currentSchema: action.payload.currentSchema ?? null,
+        error: null,
+      };
+
+    case ActionTypes.SELECT_SCHEMA:
+      return {
+        ...state,
+        availableSchemas: action.payload.schemas ?? state.availableSchemas,
+        currentSchema: action.payload.currentSchema,
         error: null,
       };
 
@@ -138,6 +157,8 @@ function databaseReducer(state, action) {
         dbType: action.payload.db_type ?? null,
         isRemote: action.payload.is_remote ?? false,
         availableDatabases: action.payload.databases ?? [],
+        availableSchemas: action.payload.schemas ?? [],
+        currentSchema: action.payload.current_schema ?? null,
       };
 
     case ActionTypes.SET_ERROR:
@@ -171,12 +192,13 @@ function getDatabaseList(connectionData = {}) {
   return selectedDatabase ? [selectedDatabase] : [];
 }
 
-function getSchemaCacheKey(database) {
-  return database || '__current__';
+function getSchemaList(connectionData = {}) {
+  return connectionData.db_type?.toLowerCase() === 'postgresql' ? (connectionData.schemas ?? []) : [];
 }
 
-function getTableSchemaCacheKey(database, tableName) {
-  return `${getSchemaCacheKey(database)}::${tableName}`;
+function getCurrentSchema(connectionData = {}) {
+  if (connectionData.db_type?.toLowerCase() !== 'postgresql') return null;
+  return connectionData.current_schema || connectionData.db_config?.schema || null;
 }
 
 /**
@@ -209,57 +231,44 @@ export function useDatabaseConnection() {
 export function DatabaseProvider({ children }) {
   const [state, dispatch] = useReducer(databaseReducer, initialState);
   const { isAuthenticated } = useAuth();
-  const schemaTablesCacheRef = useRef(new Map());
-  const schemaTablesInflightRef = useRef(new Map());
-  const tableSchemaCacheRef = useRef(new Map());
-  const tableSchemaInflightRef = useRef(new Map());
+  const queryClient = useQueryClient();
 
   const invalidateSchemaTables = useCallback((database) => {
     if (database) {
-      const cacheKey = getSchemaCacheKey(database);
-      schemaTablesCacheRef.current.delete(cacheKey);
-      schemaTablesInflightRef.current.delete(cacheKey);
-      const tablePrefix = `${cacheKey}::`;
-      for (const key of tableSchemaCacheRef.current.keys()) {
-        if (key.startsWith(tablePrefix)) tableSchemaCacheRef.current.delete(key);
-      }
-      for (const key of tableSchemaInflightRef.current.keys()) {
-        if (key.startsWith(tablePrefix)) tableSchemaInflightRef.current.delete(key);
-      }
+      queryClient.removeQueries({ queryKey: queryKeys.dbSchemas(database) });
+      queryClient.removeQueries({ queryKey: queryKeys.dbTables(database) });
+      queryClient.removeQueries({ queryKey: ['db', 'tableSchema', database] });
       return;
     }
 
-    schemaTablesCacheRef.current.clear();
-    schemaTablesInflightRef.current.clear();
-    tableSchemaCacheRef.current.clear();
-    tableSchemaInflightRef.current.clear();
-  }, []);
+    queryClient.removeQueries({ queryKey: ['db'] });
+  }, [queryClient]);
+
+  const fetchSchemas = useCallback(async ({ database, force = false } = {}) => {
+    const queryKey = queryKeys.dbSchemas(database);
+    if (force) {
+      await queryClient.invalidateQueries({ queryKey });
+    }
+
+    return queryClient.fetchQuery({
+      queryKey,
+      queryFn: getSchemasApi,
+      staleTime: 5 * 60 * 1000,
+    });
+  }, [queryClient]);
 
   const fetchSchemaTables = useCallback(async ({ database, force = false } = {}) => {
-    const cacheKey = getSchemaCacheKey(database);
-
-    if (!force && schemaTablesCacheRef.current.has(cacheKey)) {
-      return schemaTablesCacheRef.current.get(cacheKey);
+    const queryKey = queryKeys.dbTables(database);
+    if (force) {
+      await queryClient.invalidateQueries({ queryKey });
     }
 
-    if (!force && schemaTablesInflightRef.current.has(cacheKey)) {
-      return schemaTablesInflightRef.current.get(cacheKey);
-    }
-
-    const request = getTables()
-      .then((response) => {
-        if (response.status === 'success') {
-          schemaTablesCacheRef.current.set(cacheKey, response);
-        }
-        return response;
-      })
-      .finally(() => {
-        schemaTablesInflightRef.current.delete(cacheKey);
-      });
-
-    schemaTablesInflightRef.current.set(cacheKey, request);
-    return request;
-  }, []);
+    return queryClient.fetchQuery({
+      queryKey,
+      queryFn: getTables,
+      staleTime: 5 * 60 * 1000,
+    });
+  }, [queryClient]);
 
   const fetchTableSchema = useCallback(async ({ database, tableName, force = false } = {}) => {
     if (!tableName) {
@@ -269,30 +278,17 @@ export function DatabaseProvider({ children }) {
       };
     }
 
-    const cacheKey = getTableSchemaCacheKey(database, tableName);
-
-    if (!force && tableSchemaCacheRef.current.has(cacheKey)) {
-      return tableSchemaCacheRef.current.get(cacheKey);
+    const queryKey = queryKeys.dbTableSchema(database, tableName);
+    if (force) {
+      await queryClient.invalidateQueries({ queryKey });
     }
 
-    if (!force && tableSchemaInflightRef.current.has(cacheKey)) {
-      return tableSchemaInflightRef.current.get(cacheKey);
-    }
-
-    const request = getTableSchemaApi(tableName)
-      .then((response) => {
-        if (response.status === 'success') {
-          tableSchemaCacheRef.current.set(cacheKey, response);
-        }
-        return response;
-      })
-      .finally(() => {
-        tableSchemaInflightRef.current.delete(cacheKey);
-      });
-
-    tableSchemaInflightRef.current.set(cacheKey, request);
-    return request;
-  }, []);
+    return queryClient.fetchQuery({
+      queryKey,
+      queryFn: () => getTableSchemaApi(tableName),
+      staleTime: 5 * 60 * 1000,
+    });
+  }, [queryClient]);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -303,7 +299,11 @@ export function DatabaseProvider({ children }) {
         if (sessionInstanceId) {
           await sessionActive(sessionInstanceId);
         }
-        const response = await getDbStatus();
+        const response = await queryClient.fetchQuery({
+          queryKey: queryKeys.dbStatus,
+          queryFn: getDbStatus,
+          staleTime: 30 * 1000,
+        });
         dispatch({ type: ActionTypes.SYNC_STATUS, payload: response.data });
       } catch (error) {
         logger.error('Failed to check DB status:', error);
@@ -311,11 +311,31 @@ export function DatabaseProvider({ children }) {
     };
 
     checkDbStatus();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, queryClient]);
 
   const connect = useCallback((connectionData) => {
     const database = connectionData.selected_database || connectionData.db_config?.database;
     invalidateSchemaTables(database);
+    queryClient.setQueryData(queryKeys.dbStatus, {
+      status: 'success',
+      data: {
+        connected: true,
+        db_type: connectionData.db_type,
+        current_database: database,
+        is_remote: connectionData.is_remote ?? false,
+        databases: getDatabaseList(connectionData),
+        schemas: getSchemaList(connectionData),
+        current_schema: getCurrentSchema(connectionData),
+      },
+    });
+    queryClient.setQueryData(queryKeys.dbDatabases, {
+      status: 'success',
+      data: {
+        databases: getDatabaseList(connectionData),
+        db_type: connectionData.db_type,
+        is_remote: connectionData.is_remote ?? false,
+      },
+    });
     dispatch({
       type: ActionTypes.CONNECT_SUCCESS,
       payload: {
@@ -323,29 +343,34 @@ export function DatabaseProvider({ children }) {
         dbType: connectionData.db_type,
         isRemote: connectionData.is_remote ?? false,
         databases: getDatabaseList(connectionData),
+        schemas: getSchemaList(connectionData),
+        currentSchema: getCurrentSchema(connectionData),
       },
     });
-  }, [invalidateSchemaTables]);
+  }, [invalidateSchemaTables, queryClient]);
 
   const disconnect = useCallback(async () => {
     try {
       await disconnectDb();
       invalidateSchemaTables();
+      queryClient.removeQueries({ queryKey: ['db'] });
       dispatch({ type: ActionTypes.DISCONNECT, payload: {} });
     } catch (error) {
       logger.error('Disconnect failed:', error);
       invalidateSchemaTables();
+      queryClient.removeQueries({ queryKey: ['db'] });
       dispatch({
         type: ActionTypes.DISCONNECT,
         payload: { error: 'Failed to disconnect' }
       });
     }
-  }, [invalidateSchemaTables]);
+  }, [invalidateSchemaTables, queryClient]);
 
   const resetConnectionState = useCallback(() => {
     invalidateSchemaTables();
+    queryClient.removeQueries({ queryKey: ['db'] });
     dispatch({ type: ActionTypes.DISCONNECT, payload: {} });
-  }, [invalidateSchemaTables]);
+  }, [invalidateSchemaTables, queryClient]);
 
   const switchDatabase = useCallback(async (dbName) => {
     if (dbName === state.currentDatabase) return { success: true };
@@ -357,9 +382,15 @@ export function DatabaseProvider({ children }) {
 
       if (response.status === 'success') {
         invalidateSchemaTables(response.data.selected_database || dbName);
+        queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
+        queryClient.invalidateQueries({ queryKey: queryKeys.dbDatabases });
         dispatch({
           type: ActionTypes.SWITCH_DATABASE,
-          payload: { database: response.data.selected_database }
+          payload: {
+            database: response.data.selected_database,
+            schemas: getSchemaList(response.data),
+            currentSchema: getCurrentSchema(response.data),
+          }
         });
         return { success: true };
       } else {
@@ -376,16 +407,55 @@ export function DatabaseProvider({ children }) {
       });
       return { success: false, error: 'Failed to switch database' };
     }
-  }, [invalidateSchemaTables, state.currentDatabase, state.isRemote]);
+  }, [invalidateSchemaTables, queryClient, state.currentDatabase, state.isRemote]);
+
+  const selectSchema = useCallback(async (schemaName) => {
+    if (schemaName === state.currentSchema) return { success: true };
+
+    try {
+      const response = await selectSchemaApi(schemaName);
+
+      if (response.status === 'success') {
+        invalidateSchemaTables(state.currentDatabase);
+        queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
+        dispatch({
+          type: ActionTypes.SELECT_SCHEMA,
+          payload: {
+            schemas: response.data.schemas?.length ? response.data.schemas : state.availableSchemas,
+            currentSchema: response.data.current_schema || response.data.schema || schemaName,
+          },
+        });
+        return { success: true };
+      }
+
+      dispatch({
+        type: ActionTypes.SET_ERROR,
+        payload: { error: response.message || 'Schema switch failed' }
+      });
+      return { success: false, error: response.message };
+    } catch {
+      dispatch({
+        type: ActionTypes.SET_ERROR,
+        payload: { error: 'Failed to switch schema' }
+      });
+      return { success: false, error: 'Failed to switch schema' };
+    }
+  }, [invalidateSchemaTables, queryClient, state.availableSchemas, state.currentDatabase, state.currentSchema]);
 
   const refreshStatus = useCallback(async () => {
     try {
-      const response = await getDbStatus();
+      await queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
+      const response = await queryClient.fetchQuery({
+        queryKey: queryKeys.dbStatus,
+        queryFn: getDbStatus,
+        staleTime: 30 * 1000,
+      });
+      queryClient.setQueryData(queryKeys.dbStatus, response);
       dispatch({ type: ActionTypes.SYNC_STATUS, payload: response.data });
     } catch (error) {
       logger.error('Failed to refresh DB status:', error);
     }
-  }, []);
+  }, [queryClient]);
 
   const setError = useCallback((error) => {
     dispatch({ type: ActionTypes.SET_ERROR, payload: { error } });
@@ -401,9 +471,11 @@ export function DatabaseProvider({ children }) {
     disconnect,
     resetConnectionState,
     switchDatabase,
+    selectSchema,
     refreshStatus,
     setError,
     clearError,
+    fetchSchemas,
     fetchSchemaTables,
     fetchTableSchema,
     invalidateSchemaTables,
@@ -413,9 +485,11 @@ export function DatabaseProvider({ children }) {
     disconnect,
     resetConnectionState,
     switchDatabase,
+    selectSchema,
     refreshStatus,
     setError,
     clearError,
+    fetchSchemas,
     fetchSchemaTables,
     fetchTableSchema,
     invalidateSchemaTables,

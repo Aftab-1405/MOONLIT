@@ -21,8 +21,6 @@ import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import UserDBContextManagerForAI from '@/features/overlays/settings/UserDBContextManagerForAI';
 import { DialogShell } from '@/components';
-import { saveUserSettings } from '@/api';
-import { defaultUserSettings, pickSyncableSettings } from '@/config/userSettings';
 import { getPopoverPaperSx, UI_Z_INDEX } from '@/styles/shared';
 import {
   PreferenceFooterActions,
@@ -40,7 +38,6 @@ import {
   getPreferenceRootSx,
   getPreferenceToggleGroupSx,
 } from '@/features/overlays/preference-surface';
-import logger from '@/utils/logger';
 
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: PaletteRoundedIcon },
@@ -137,9 +134,10 @@ function SettingsModal({
             <Box>
               <PreferenceSection title="AI Settings">
 
-                <PreferenceRow label="Response Style" description="How AI formats responses">
+                <PreferenceRow label="Response Style" description="How AI formats responses" htmlFor="setting-response-style">
                   <FormControl size="small" sx={controlSx}>
                     <Select
+                      id="setting-response-style"
                       value={settings.responseStyle ?? 'balanced'}
                       onChange={(e) => updateSetting('responseStyle', e.target.value)}
                       MenuProps={selectMenuProps}
@@ -151,9 +149,10 @@ function SettingsModal({
                   </FormControl>
                 </PreferenceRow>
 
-                <PreferenceRow label="Reasoning Effort" description="Token budget for models that support reasoning">
+                <PreferenceRow label="Reasoning Effort" description="Token budget for models that support reasoning" htmlFor="setting-reasoning-effort">
                   <FormControl size="small" sx={controlSx}>
                     <Select
+                      id="setting-reasoning-effort"
                       value={settings.reasoningEffort ?? 'medium'}
                       onChange={(e) => updateSetting('reasoningEffort', e.target.value)}
                       MenuProps={selectMenuProps}
@@ -173,16 +172,23 @@ function SettingsModal({
           <Fade in key="database">
             <Box>
               <PreferenceSection title="Database Settings">
-                <PreferenceRow label="Confirm Before Running" description="Show dialog before executing SQL">
+                <PreferenceRow 
+                  label="Confirm Before Running" 
+                  description="Show dialog before executing SQL"
+                  onClick={() => updateSetting('confirmBeforeRun', !(settings.confirmBeforeRun ?? true))}
+                >
                   <Switch
+                    inputProps={{ id: 'setting-confirm-run' }}
                     checked={settings.confirmBeforeRun ?? true}
                     onChange={(e) => updateSetting('confirmBeforeRun', e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
                     size="small"
                   />
                 </PreferenceRow>
-                <PreferenceRow label="Query Timeout" description="Max wait time for results">
+                <PreferenceRow label="Query Timeout" description="Max wait time for results" htmlFor="setting-query-timeout">
                   <FormControl size="small" sx={controlSx}>
                     <Select
+                      id="setting-query-timeout"
                       value={settings.queryTimeout ?? 30}
                       onChange={(e) => updateSetting('queryTimeout', e.target.value)}
                       MenuProps={selectMenuProps}
@@ -198,9 +204,11 @@ function SettingsModal({
                 <PreferenceRow
                   label="Max Rows"
                   description={settings.maxRows === 0 ? '⚠️ No limit — may slow down' : 'Limit results to prevent slowdown'}
+                  htmlFor="setting-max-rows"
                 >
                   <FormControl size="small" sx={controlSx}>
                     <Select
+                      id="setting-max-rows"
                       value={settings.maxRows ?? 1000}
                       onChange={(e) => updateSetting('maxRows', e.target.value)}
                       MenuProps={selectMenuProps}
@@ -214,9 +222,10 @@ function SettingsModal({
                     </Select>
                   </FormControl>
                 </PreferenceRow>
-                <PreferenceRow label="NULL Display" description="How to show NULL values">
+                <PreferenceRow label="NULL Display" description="How to show NULL values" htmlFor="setting-null-display">
                   <FormControl size="small" sx={controlSx}>
                     <Select
+                      id="setting-null-display"
                       value={settings.nullDisplay ?? 'NULL'}
                       onChange={(e) => updateSetting('nullDisplay', e.target.value)}
                       MenuProps={selectMenuProps}
@@ -230,16 +239,23 @@ function SettingsModal({
                 </PreferenceRow>
               </PreferenceSection>
               <PreferenceSection title="Connection">
-                <PreferenceRow label="Remember Connection" description="Auto-fill on next visit">
+                <PreferenceRow 
+                  label="Remember Connection" 
+                  description="Auto-fill on next visit"
+                  onClick={() => updateSetting('rememberConnection', !(settings.rememberConnection ?? false))}
+                >
                   <Switch
+                    inputProps={{ id: 'setting-remember-connection' }}
                     checked={settings.rememberConnection ?? false}
                     onChange={(e) => updateSetting('rememberConnection', e.target.checked)}
+                    onClick={(e) => e.stopPropagation()}
                     size="small"
                   />
                 </PreferenceRow>
-                <PreferenceRow label="Connection Persistence" description="Keep alive after closing tab">
+                <PreferenceRow label="Connection Persistence" description="Keep alive after closing tab" htmlFor="setting-connection-persistence">
                   <FormControl size="small" sx={controlSx}>
                     <Select
+                      id="setting-connection-persistence"
                       value={settings.connectionPersistence ?? 0}
                       MenuProps={selectMenuProps}
                       onChange={(e) => updateSetting('connectionPersistence', Number(e.target.value))}
@@ -252,9 +268,10 @@ function SettingsModal({
                     </Select>
                   </FormControl>
                 </PreferenceRow>
-                <PreferenceRow label="Default Database Type" description="Pre-selected when connecting">
+                <PreferenceRow label="Default Database Type" description="Pre-selected when connecting" htmlFor="setting-default-db-type">
                   <FormControl size="small" sx={controlSx}>
                     <Select
+                      id="setting-default-db-type"
                       value={settings.defaultDbType ?? 'postgresql'}
                       onChange={(e) => updateSetting('defaultDbType', e.target.value)}
                       MenuProps={selectMenuProps}
@@ -315,8 +332,6 @@ function SettingsModal({
             color="secondary"
             onClick={() => {
               resetSettings();
-              saveUserSettings(pickSyncableSettings(defaultUserSettings))
-                .catch((error) => logger.warn('Failed to reset settings on server:', error));
             }}
             size="small"
             sx={subtleButtonSx}

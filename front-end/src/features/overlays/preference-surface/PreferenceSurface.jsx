@@ -241,11 +241,12 @@ export function PreferenceSection({ title, description, children, sx = {} }) {
   );
 }
 
-export function PreferenceRow({ label, description, children, disabled = false, sx = {} }) {
+export function PreferenceRow({ label, description, children, disabled = false, sx = {}, onClick = undefined }) {
   return (
     <Box
       role="group"
       aria-label={label}
+      onClick={disabled ? undefined : onClick}
       sx={(theme) => ({
         display: 'flex',
         alignItems: { xs: 'stretch', sm: 'center' },
@@ -260,12 +261,19 @@ export function PreferenceRow({ label, description, children, disabled = false, 
         py: { xs: 1.5, sm: 1.375 },
         borderBottom: '1px solid',
         borderColor: 'divider',
+        cursor: onClick ? 'pointer' : 'default',
         '&:first-of-type': { pt: { xs: 0.5, sm: 0.25 } },
         '&:last-of-type': { borderBottom: 'none', pb: { xs: 0.5, sm: 0.25 } },
         ...sx,
       })}
     >
-      <Box sx={{ flex: 1, minWidth: 0 }}>
+      <Box 
+        sx={{ 
+          flex: 1, 
+          minWidth: 0, 
+          display: 'block' 
+        }}
+      >
         <Typography
           sx={(theme) => ({
             ...theme.typography.uiBodySm,
@@ -278,11 +286,9 @@ export function PreferenceRow({ label, description, children, disabled = false, 
         {description ? (
           <Typography
             sx={(theme) => ({
-              ...theme.typography.uiCaptionMd,
-              display: 'block',
-              mt: 0.25,
+              ...theme.typography.uiBodyXs,
               color: 'text.secondary',
-              lineHeight: 1.45,
+              mt: 0.25,
             })}
           >
             {description}

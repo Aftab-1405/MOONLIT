@@ -1,13 +1,17 @@
-import { Component, Suspense, lazy, memo, useCallback, useMemo, useState } from 'react';
-import { Box, Skeleton, Stack } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { Component, memo, useCallback, useMemo, useState } from 'react';
+import { Box } from '@mui/material';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import { getArtifactPanelChromeSx } from '@/features/styles/interfaceChrome';
 import { ArtifactEmptyState } from '@/features/sidebar-right/artifact-loader/ArtifactLayout';
+import { UI_Z_INDEX } from '@/styles/shared';
+import SqlWorkspace from '@/features/sidebar-right/artifacts/sql-workspace';
+import ExecutionResultPanel from '@/features/sidebar-right/artifacts/execution-result';
+import DataVisualizationPanel from '@/features/sidebar-right/artifacts/data-visualization';
+import DiagramFlowRenderer from '@/features/sidebar-right/artifacts/diagram-flow';
 
 const artifactRegistry = {
   'sql-editor': {
-    loader: lazy(() => import('@/features/sidebar-right/artifacts/sql-workspace')),
+    loader: SqlWorkspace,
     getProps: ({ artifact, common }) => ({
       ...artifact.props,
       ...common,
@@ -17,7 +21,7 @@ const artifactRegistry = {
     }),
   },
   results: {
-    loader: lazy(() => import('@/features/sidebar-right/artifacts/execution-result')),
+    loader: ExecutionResultPanel,
     getProps: ({ artifact, common }) => ({
       data: artifact.props?.data,
       title: artifact.title,
@@ -27,7 +31,7 @@ const artifactRegistry = {
     }),
   },
   visualization: {
-    loader: lazy(() => import('@/features/sidebar-right/artifacts/data-visualization')),
+    loader: DataVisualizationPanel,
     getProps: ({ artifact, common }) => ({
       data: artifact.props?.data,
       title: artifact.title,
@@ -37,7 +41,7 @@ const artifactRegistry = {
     }),
   },
   'react-flow': {
-    loader: lazy(() => import('@/features/sidebar-right/artifacts/diagram-flow')),
+    loader: DiagramFlowRenderer,
     getProps: ({ artifact, common }) => ({
       code: artifact.props?.code || '',
       title: artifact.title,
@@ -57,7 +61,7 @@ function getArtifactSignature(artifact) {
   return `${artifact.type}-${props.data?.row_count || 0}-${props.data?.columns?.join('|') || ''}`;
 }
 
-function CanvasHost({ open, panelWidth, fullscreen = false, children }) {
+function CanvasHost({ open, panelWidth, fullscreen = false, isResizing = false, children }) {
   return (
     <Box
       component="aside"
@@ -67,15 +71,32 @@ function CanvasHost({ open, panelWidth, fullscreen = false, children }) {
         flexShrink: 0,
         minWidth: 0,
         minHeight: 0,
-        width: fullscreen ? '100%' : open ? panelWidth : 0,
+        width: fullscreen ? 'auto' : open ? panelWidth : 0,
         height: '100%',
         overflow: 'hidden',
         boxSizing: 'border-box',
-        transition: theme.transitions.create('width', {
-          easing: open ? theme.transitions.easing.sharp : theme.transitions.easing.easeOut,
-          duration: open ? theme.transitions.duration.enteringScreen : theme.transitions.duration.leavingScreen,
-        }),
+        transition: isResizing || fullscreen
+          ? 'none'
+          : theme.transitions.create('width', {
+              easing: theme.transitions.easing.sharp,
+              duration: open
+                ? theme.transitions.duration.enteringScreen
+                : theme.transitions.duration.leavingScreen,
+            }),
         ...(open && !fullscreen ? getArtifactPanelChromeSx(theme) : {}),
+        ...(fullscreen ? {
+          position: 'absolute',
+          left: 0,
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: 'auto !important',
+          height: 'auto !important',
+          zIndex: UI_Z_INDEX.artifactFullscreen,
+          bgcolor: 'background.default',
+          borderLeft: 'none',
+          boxShadow: 'none',
+        } : {}),
       })}
     >
       {children}
@@ -114,23 +135,7 @@ class ArtifactErrorBoundary extends Component {
   }
 }
 
-function ArtifactLoadingFallback() {
-  return (
-    <Stack
-      spacing={1.5}
-      sx={(theme) => ({
-        height: '100%',
-        minHeight: 0,
-        p: 2,
-        bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.28 : 0.44),
-      })}
-    >
-      <Skeleton variant="rounded" width="42%" height={28} />
-      <Skeleton variant="rounded" width="100%" height={42} />
-      <Skeleton variant="rounded" sx={{ flex: 1, minHeight: 120 }} />
-    </Stack>
-  );
-}
+
 
 function UnknownArtifactFallback({ type }) {
   return (
@@ -194,6 +199,7 @@ function ArtifactLoader({
   fullscreen = false,
   isDbConnected = false,
   currentDatabase = null,
+  isResizing = false,
   workspaceContainerRef,
 }) {
   const [isArtifactFullscreen, setIsArtifactFullscreen] = useState(false);
@@ -225,7 +231,12 @@ function ArtifactLoader({
   }, [isArtifactFullscreen, onOpenArtifact]);
 
   return (
-    <CanvasHost open={isOpen} panelWidth={panelWidth} fullscreen={fullscreen}>
+    <CanvasHost
+      open={isOpen}
+      panelWidth={panelWidth}
+      fullscreen={effectiveFullscreen || fullscreen}
+      isResizing={isResizing}
+    >
       <Box
         key={artifactSignature}
         sx={{
@@ -238,22 +249,20 @@ function ArtifactLoader({
         }}
       >
         <ArtifactErrorBoundary resetKey={artifactSignature}>
-          <Suspense fallback={<ArtifactLoadingFallback />}>
-            <ArtifactRenderer
-              artifact={artifact}
-              isDbConnected={isDbConnected}
-              currentDatabase={currentDatabase}
-              onClose={handleRequestClose}
-              onOpenArtifact={handleRequestOpenArtifact}
-              onRequestClose={handleRequestClose}
-              onRequestOpenArtifact={handleRequestOpenArtifact}
-              isFullscreen={effectiveFullscreen}
-              onEnterFullscreen={handleEnterFullscreen}
-              onExitFullscreen={handleExitFullscreen}
-              onToggleFullscreen={handleToggleFullscreen}
-              workspaceContainerRef={workspaceContainerRef}
-            />
-          </Suspense>
+          <ArtifactRenderer
+            artifact={artifact}
+            isDbConnected={isDbConnected}
+            currentDatabase={currentDatabase}
+            onClose={handleRequestClose}
+            onOpenArtifact={handleRequestOpenArtifact}
+            onRequestClose={handleRequestClose}
+            onRequestOpenArtifact={handleRequestOpenArtifact}
+            isFullscreen={effectiveFullscreen}
+            onEnterFullscreen={handleEnterFullscreen}
+            onExitFullscreen={handleExitFullscreen}
+            onToggleFullscreen={handleToggleFullscreen}
+            workspaceContainerRef={workspaceContainerRef}
+          />
         </ArtifactErrorBoundary>
       </Box>
     </CanvasHost>

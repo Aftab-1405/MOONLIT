@@ -103,7 +103,7 @@ function SchemaItem({ schema, currentDatabase, fetchTableSchema }) {
         <Box sx={{ pl: 1.5 }}>
           {schema.tables.map((table) => (
             <TableItem
-              key={table.name}
+              key={`${currentDatabase || 'db'}-${table.name}`}
               table={table}
               currentDatabase={currentDatabase}
               fetchTableSchema={fetchTableSchema}
@@ -212,7 +212,7 @@ function TableItem({ table, currentDatabase, fetchTableSchema }) {
   );
 }
 
-function SchemaSidebar({ width, open = true, isConnected, currentDatabase, onClose, onResizeStart, resizing = false }) {
+function SchemaSidebar({ width, _open = true, isConnected, currentDatabase, onClose, onResizeStart, _resizing = false }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
   const { fetchSchemaTables, fetchTableSchema, invalidateSchemaTables } = useDatabaseConnection();
@@ -314,15 +314,7 @@ function SchemaSidebar({ width, open = true, isConnected, currentDatabase, onClo
         borderColor: theme.palette.border.subtle,
         bgcolor: 'background.paper',
         position: 'relative',
-        opacity: open ? 1 : 0,
-        transform: open ? 'translateX(0)' : 'translateX(-8px)',
-        transition: resizing
-          ? 'none'
-          : theme.transitions.create(['opacity', 'transform'], {
-              duration: theme.transitions.duration.shorter,
-              easing: theme.transitions.easing.easeOut,
-            }),
-        willChange: resizing ? 'auto' : 'opacity, transform',
+        transition: 'none',
       }}
     >
       {/* Header */}

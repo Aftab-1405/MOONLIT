@@ -821,9 +821,12 @@ const components = {
   },
 
   MuiSkeleton: {
+    defaultProps: {
+      animation: 'wave',
+    },
     styleOverrides: {
       root: {
-        backgroundColor: alpha(H.text200, 0.1),
+        backgroundColor: alpha(H.text200, 0.08),
         borderRadius: SHAPE.radius.sm,
       },
     },

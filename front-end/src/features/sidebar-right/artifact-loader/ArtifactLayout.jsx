@@ -4,7 +4,6 @@ import {
   Card,
   Fade,
   IconButton,
-  Portal,
   Stack,
   Tooltip,
   Typography,
@@ -22,19 +21,7 @@ import {
   useArtifactActions,
 } from '@/features/sidebar-right/artifact-loader/artifactLayoutUtils';
 
-let detachedFullscreenContainer = null;
 
-function getWorkspacePortalContainer(workspaceContainerRef) {
-  if (workspaceContainerRef?.current) return workspaceContainerRef.current;
-  if (typeof document === 'undefined') return null;
-  const mainContent = document.getElementById('main-content');
-  if (mainContent) return mainContent;
-
-  if (!detachedFullscreenContainer) {
-    detachedFullscreenContainer = document.createElement('div');
-  }
-  return detachedFullscreenContainer;
-}
 
 function ArtifactActionButton({
   label,
@@ -76,7 +63,7 @@ function ArtifactToolbar({ children, sx = {} }) {
         p: isMobile ? 1.5 : 2,
         borderBottom: '1px solid',
         borderColor: theme.palette.border.subtle,
-        bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.02 : 0.01),
+        bgcolor: theme.palette.background.paper,
         ...sx,
       }}
     >
@@ -231,50 +218,7 @@ export function ArtifactEmptyState({
   );
 }
 
-function WorkspaceScopedFullscreen({
-  open,
-  workspaceContainerRef,
-  children,
-}) {
-  if (!open) return null;
 
-  const overlay = (
-    <Fade in={open} timeout={200} appear>
-      <Box
-        data-artifact-fullscreen
-        sx={{
-          position: 'absolute',
-          inset: 0,
-          width: '100%',
-          height: '100%',
-          zIndex: UI_Z_INDEX.artifactFullscreen,
-          display: 'flex',
-          flexDirection: 'column',
-          minWidth: 0,
-          minHeight: 0,
-          overflow: 'hidden',
-          bgcolor: 'background.default',
-          p: 0,
-          boxSizing: 'border-box',
-          willChange: 'opacity',
-          transform: 'translateZ(0)',
-        }}
-      >
-        {children}
-      </Box>
-    </Fade>
-  );
-
-  if (!workspaceContainerRef) return overlay;
-
-  return (
-    <Portal
-      container={() => getWorkspacePortalContainer(workspaceContainerRef)}
-    >
-      {overlay}
-    </Portal>
-  );
-}
 
 function ArtifactShell({
   title,
@@ -283,7 +227,7 @@ function ArtifactShell({
   chrome = 'standalone',
   onClose,
   onRequestClose,
-  workspaceContainerRef,
+  _workspaceContainerRef,
   fullscreenMode = 'workspace',
   isFullscreen = false,
   onEnterFullscreen,
@@ -364,30 +308,7 @@ function ArtifactShell({
     </Box>
   ) : card;
 
-  if (!isFullscreen) return shell;
-
-  return (
-    <>
-      <Box
-        sx={{
-          ...ARTIFACT_ROOT_SX,
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'text.disabled',
-          bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.02 : 0.01),
-        }}
-      >
-        <Fade in timeout={160} appear>
-          <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.disabled' }}>
-            Viewing in fullscreen
-          </Typography>
-        </Fade>
-      </Box>
-      <WorkspaceScopedFullscreen open workspaceContainerRef={workspaceContainerRef}>
-        {shell}
-      </WorkspaceScopedFullscreen>
-    </>
-  );
+  return shell;
 }
 
 export default memo(ArtifactShell);

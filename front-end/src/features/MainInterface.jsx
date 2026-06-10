@@ -1,6 +1,6 @@
 // Main Interface - Logged-in application shell
 
-import { lazy, memo, Suspense, useRef } from 'react';
+import { lazy, memo, Suspense, useRef, useState } from 'react';
 import {
   Box,
   Typography,
@@ -164,7 +164,6 @@ const MobileSidebarOpenButton = memo(function MobileSidebarOpenButton({
         boxShadow: `0 6px 18px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.18 : 0.08)}`,
         opacity: 0.82,
         transition: 'opacity 0.15s ease',
-        willChange: 'opacity',
         '&:hover': {
           opacity: 1,
           backgroundColor: getInteractionColors(theme).hoverBackground,
@@ -283,7 +282,6 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
             />
             <ChatInput
               {...chatInputSharedProps}
-              showSuggestions={false}
               messageCount={messages.length}
             />
           </Box>
@@ -299,6 +297,7 @@ const WorkspaceOverlayLayer = memo(function WorkspaceOverlayLayer({
   handleDbConnect,
   isDbConnected,
   currentDatabase,
+  availableDatabases,
   dbModalInitialType,
   settingsOpen,
   handleCloseSettings,
@@ -313,6 +312,7 @@ const WorkspaceOverlayLayer = memo(function WorkspaceOverlayLayer({
           onConnect={handleDbConnect}
           isConnected={isDbConnected}
           currentDatabase={currentDatabase}
+          availableDatabases={availableDatabases}
           initialDbType={dbModalInitialType}
         />
       </Suspense>
@@ -327,7 +327,10 @@ const WorkspaceOverlayLayer = memo(function WorkspaceOverlayLayer({
   );
 }, (prev, next) => (
   prev.dbModalOpen === next.dbModalOpen &&
-  prev.settingsOpen === next.settingsOpen
+  prev.settingsOpen === next.settingsOpen &&
+  prev.isDbConnected === next.isDbConnected &&
+  prev.currentDatabase === next.currentDatabase &&
+  prev.availableDatabases === next.availableDatabases
 ));
 
 function MainInterface() {
@@ -390,6 +393,8 @@ function MainInterface() {
     dbModalInitialType,
     settingsInitialSection,
   } = useChatPageController();
+
+  const [isResizingCanvas, setIsResizingCanvas] = useState(false);
 
   return (
     <Box
@@ -533,7 +538,12 @@ function MainInterface() {
             }}
             aria-label="Workspace canvas"
           >
-            <ResizeHandle onResize={handleCanvasResize} disabled={!workspaceCanvasOpen} />
+            <ResizeHandle
+              onResize={handleCanvasResize}
+              onResizeStart={() => setIsResizingCanvas(true)}
+              onResizeEnd={() => setIsResizingCanvas(false)}
+              disabled={!workspaceCanvasOpen}
+            />
             <ArtifactLoader
               artifact={workspaceCanvasArtifact}
               onOpenArtifact={handleOpenCanvasArtifact}
@@ -542,6 +552,7 @@ function MainInterface() {
               currentDatabase={currentDatabase}
               isOpen={workspaceCanvasOpen}
               panelWidth={workspaceCanvasWidth}
+              isResizing={isResizingCanvas}
               workspaceContainerRef={workspaceContainerRef}
             />
           </Box>
@@ -580,6 +591,7 @@ function MainInterface() {
         handleDbConnect={handleDbConnect}
         isDbConnected={isDbConnected}
         currentDatabase={currentDatabase}
+        availableDatabases={commonSidebarProps.availableDatabases}
         dbModalInitialType={dbModalInitialType}
         settingsOpen={settingsOpen}
         handleCloseSettings={handleCloseSettings}

@@ -32,9 +32,9 @@ export const signInSchema = z.object({
 export const signUpSchema = z.object({
   displayName: z.string().optional(),
   email: emailRule,
-  password: passwordWithLengthRule,
+  passwordSignUp: passwordWithLengthRule,
   confirmPassword: z.string().min(1, 'Please confirm your password'),
-}).refine((data) => data.password === data.confirmPassword, {
+}).refine((data) => data.passwordSignUp === data.confirmPassword, {
   message: 'Passwords do not match',
   path: ['confirmPassword'],
 });

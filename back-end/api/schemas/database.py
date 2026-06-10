@@ -32,6 +32,7 @@ class ConnectDatabaseData(BaseModel):
     db_type: DbType
     selected_database: str | None = None
     schemas: list[str] = Field(default_factory=list)
+    current_schema: str | None = None
     databases: list[str] = Field(default_factory=list)
     tables: list[str] = Field(default_factory=list)
     is_remote: bool = False
@@ -51,6 +52,8 @@ class DatabaseStatusData(BaseModel):
     current_database: str | None = None
     is_remote: bool = False
     databases: list[str] = Field(default_factory=list)
+    schemas: list[str] = Field(default_factory=list)
+    current_schema: str | None = None
 
 
 class DatabaseListData(BaseModel):
@@ -69,6 +72,8 @@ class DatabaseSelectionData(BaseModel):
     tables: list[str] = Field(default_factory=list)
     db_type: DbType
     is_remote: bool = False
+    schemas: list[str] = Field(default_factory=list)
+    current_schema: str | None = None
 
 
 class SchemaListData(BaseModel):
@@ -84,6 +89,8 @@ class SelectSchemaData(BaseModel):
     schema_name: str = Field(serialization_alias="schema")
     tables: list[str] = Field(default_factory=list)
     db_config: DatabaseConfigPublic
+    schemas: list[str] = Field(default_factory=list)
+    current_schema: str | None = None
 
 
 class TableListData(BaseModel):

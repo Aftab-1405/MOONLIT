@@ -24,19 +24,13 @@ export const getPreferenceRootSx = () => ({
   zIndex: UI_Z_INDEX.mainContentModal,
   '& .MuiBackdrop-root': {
     pointerEvents: 'auto',
-    willChange: 'opacity',
-    transform: 'translateZ(0)',
   },
   '& .MuiDialog-container': {
     pointerEvents: 'none',
-    willChange: 'opacity',
-    transform: 'translateZ(0)',
     transition: 'opacity 300ms ease',
   },
   '& .MuiDialog-paper': {
     pointerEvents: 'auto',
-    willChange: 'opacity, transform',
-    transform: 'translateZ(0)',
     transition: 'opacity 300ms ease',
   },
 });

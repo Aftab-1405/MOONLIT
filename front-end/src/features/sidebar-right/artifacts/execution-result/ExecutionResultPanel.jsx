@@ -18,7 +18,7 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
-import BarChartRoundedIcon from '@mui/icons-material/BarChartRounded';
+import AnalyticsOutlinedIcon from '@mui/icons-material/AnalyticsOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import DatasetOutlinedIcon from '@mui/icons-material/DatasetOutlined';
@@ -107,21 +107,32 @@ function ExecutionResultPanel({
   const sortedData = useMemo(() => {
     if (!orderBy) return filteredData;
 
+    const isNumeric = columnConfig[orderBy]?.isNumeric;
+
     return [...filteredData].sort((a, b) => {
       const aVal = a?.[orderBy];
       const bVal = b?.[orderBy];
 
       if (aVal == null) return 1;
       if (bVal == null) return -1;
+
+      if (isNumeric) {
+        const aNum = Number(aVal);
+        const bNum = Number(bVal);
+        if (!isNaN(aNum) && !isNaN(bNum)) {
+          return order === 'asc' ? aNum - bNum : bNum - aNum;
+        }
+      }
+
       if (typeof aVal === 'number' && typeof bVal === 'number') {
         return order === 'asc' ? aVal - bVal : bVal - aVal;
       }
 
       return order === 'asc'
-        ? String(aVal).localeCompare(String(bVal))
-        : String(bVal).localeCompare(String(aVal));
+        ? String(aVal).localeCompare(String(bVal), undefined, { numeric: true, sensitivity: 'base' })
+        : String(bVal).localeCompare(String(aVal), undefined, { numeric: true, sensitivity: 'base' });
     });
-  }, [filteredData, order, orderBy]);
+  }, [filteredData, order, orderBy, columnConfig]);
 
   const visibleRowCount = searchQuery ? filteredData.length : row_count;
   const maxPage = Math.max(0, Math.ceil(visibleRowCount / ROWS_PER_PAGE) - 1);
@@ -145,12 +156,20 @@ function ExecutionResultPanel({
     const header = columns.join(',');
     const rows = result.map((row) =>
       columns.map((column) => {
-        const value = row?.[column];
+        let value = row?.[column];
         if (value == null) return '';
-        if (typeof value === 'string' && (value.includes(',') || value.includes('"'))) {
-          return `"${value.replace(/"/g, '""')}"`;
+        if (typeof value === 'object') {
+          try {
+            value = JSON.stringify(value);
+          } catch {
+            value = String(value);
+          }
         }
-        return value;
+        const strValue = String(value);
+        if (strValue.includes(',') || strValue.includes('"') || strValue.includes('\n') || strValue.includes('\r')) {
+          return `"${strValue.replace(/"/g, '""')}"`;
+        }
+        return strValue;
       }).join(','),
     );
 
@@ -194,10 +213,10 @@ function ExecutionResultPanel({
     }, { preserveFullscreen: isFullscreen });
   }, [data, isFullscreen, requestOpenArtifact, sourceQuery]);
 
-  const openChart = useCallback(() => {
+  const openAnalysis = useCallback(() => {
     requestOpenArtifact?.({
       type: 'visualization',
-      title: 'Data Visualization',
+      title: 'Data Analysis',
       props: { data, sourceQuery, sourceType },
     }, { preserveFullscreen: isFullscreen });
   }, [data, isFullscreen, requestOpenArtifact, sourceQuery, sourceType]);
@@ -287,6 +306,8 @@ function ExecutionResultPanel({
           ),
         }}
         sx={{
+          position: 'relative',
+          zIndex: 2,
           minWidth: isMobile ? '100%' : 240,
           maxWidth: isMobile ? '100%' : 360,
           '& .MuiOutlinedInput-root': {
@@ -391,10 +412,10 @@ function ExecutionResultPanel({
           },
           requestOpenArtifact
             ? {
-                key: 'chart',
-                label: 'Open as chart',
-                icon: <BarChartRoundedIcon sx={{ fontSize: 18 }} />,
-                onClick: openChart,
+                key: 'analysis',
+                label: 'Open analysis',
+                icon: <AnalyticsOutlinedIcon sx={{ fontSize: 18 }} />,
+                onClick: openAnalysis,
               }
             : null,
         ]}
@@ -423,15 +444,17 @@ function ExecutionResultPanel({
                   return (
                     <TableCell
                       key={column}
+                      onClick={() => handleSort(column)}
                       onMouseEnter={() => setHoveredColumn(column)}
                       onMouseLeave={() => setHoveredColumn(null)}
                       sx={{
                         minWidth: config.minWidth,
                         px: 2,
                         py: 1.5,
-                        bgcolor: alpha(theme.palette.text.primary, isDark ? 0.03 : 0.02),
+                        bgcolor: theme.palette.background.paper,
                         borderBottom: '2px solid',
                         borderColor: theme.palette.border.subtle,
+                        textAlign: 'center',
                         whiteSpace: 'nowrap',
                         userSelect: 'none',
                         cursor: 'pointer',
@@ -441,13 +464,15 @@ function ExecutionResultPanel({
                       <TableSortLabel
                         active={isActive}
                         direction={isActive ? order : 'asc'}
-                        onClick={() => handleSort(column)}
                         hideSortIcon={!showSortIcon}
                         sx={{
                           ...theme.typography.uiCaptionMd,
                           fontWeight: 650,
                           textTransform: 'none',
                           letterSpacing: 0,
+                          display: 'inline-flex',
+                          justifyContent: 'center',
+                          width: '100%',
                           color: isActive ? 'text.primary' : 'text.secondary',
                           '&:hover': { color: 'text.primary' },
                           '& .MuiTableSortLabel-icon': {
@@ -478,14 +503,13 @@ function ExecutionResultPanel({
                   {columns.map((column, colIndex) => {
                     const cellKey = `${rowIndex}-${colIndex}`;
                     const isCellCopied = cellCopied === cellKey;
-                    const config = columnConfig[column];
                     const value = row?.[column];
 
                     return (
                       <TableCell
                         key={column}
                         onClick={() => handleCellClick(value, rowIndex, colIndex)}
-                        align={config.isNumeric ? 'right' : 'left'}
+                        align="center"
                         sx={{
                           px: 2,
                           py: 1.5,
@@ -535,6 +559,7 @@ function ExecutionResultPanel({
                               display: 'block',
                               overflow: 'hidden',
                               textOverflow: 'ellipsis',
+                              textAlign: 'center',
                               whiteSpace: 'nowrap',
                             }}
                           >

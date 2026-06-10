@@ -22,6 +22,7 @@ export const UI_Z_INDEX = Object.freeze({
   artifactStickyHeader: 2,
   artifactFullscreen: 1310,
   mainContentModal: 1320,
+  confirmModal: 1400,
 });
 
 export const UI_POPOVER = Object.freeze({

@@ -7,7 +7,7 @@
  * @module hooks/useMessageStreaming
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { resumeAgent, sendMessage } from '@/api';
 import logger from '@/utils/logger';
 import { parseSSEStream } from '@/utils/streamParser';
@@ -91,6 +91,10 @@ export function useMessageStreaming({
   getMessages = () => [],
 }) {
   const abortControllerRef = useRef(null);
+
+  useEffect(() => () => {
+    abortControllerRef.current?.abort();
+  }, []);
 
   const streamAssistantResponse = useCallback(async ({
     response,
@@ -247,7 +251,7 @@ export function useMessageStreaming({
         upsertAssistantMessage(prev, assistantMessageId, buildMessageData(true), MESSAGE_STATUS.DONE)
       );
     }
-    fetchConversations(undefined, { showLoading: false });
+    fetchConversations(undefined, { showLoading: false, force: true });
   }, [
     currentConversationId,
     dispatchUiAction,
@@ -283,6 +287,7 @@ export function useMessageStreaming({
     const provider = overrides?.provider ?? settings.llmProvider ?? null;
     const model = overrides?.model ?? settings.llmModel ?? null;
 
+    abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
 
     try {
@@ -371,6 +376,7 @@ export function useMessageStreaming({
     const provider = overrides?.provider ?? settings.llmProvider ?? null;
     const model = overrides?.model ?? settings.llmModel ?? null;
 
+    abortControllerRef.current?.abort();
     abortControllerRef.current = new AbortController();
 
     try {

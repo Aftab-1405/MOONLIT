@@ -67,12 +67,21 @@ export const ConversationItem = memo(function ConversationItem({
     onRename(conv.id, conv.title || 'New Conversation');
   }, [onRename, conv.id, conv.title]);
 
+  const handleKeyDown = useCallback((e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      handleClick();
+    }
+  }, [handleClick]);
+
   return (
     <Box component="li" sx={{ listStyle: 'none' }}>
       <Box
-        component="button"
-        type="button"
+        component="div"
+        role="button"
+        tabIndex={0}
         onClick={handleClick}
+        onKeyDown={handleKeyDown}
         aria-current={isActive ? 'true' : undefined}
         sx={{
           ...buildConversationRowSx(theme, { isActive, menuOpen }),

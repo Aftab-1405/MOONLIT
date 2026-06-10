@@ -29,6 +29,7 @@ import Editor from '@monaco-editor/react';
 import { registerMonacoThemes, getMonacoThemeName } from '@/theme/index';
 import { del, getUserContext } from '@/api';
 import { USER } from '@/api/endpoints';
+import { queryClient, queryKeys } from '@/api/queryClient';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { getInteractionColors, getUtilityIconButtonSx } from '@/styles/shared';
 import { ConfirmDialog } from '@/components';
@@ -192,7 +193,11 @@ function UserDBContextManagerForAI() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getUserContext();
+      const data = await queryClient.fetchQuery({
+        queryKey: queryKeys.userContext,
+        queryFn: getUserContext,
+        staleTime: 60 * 1000,
+      });
       if (data.status === 'success') {
         setSchemas(data.schemas || []);
         setQueries(data.recent_queries || []);
@@ -224,11 +229,12 @@ function UserDBContextManagerForAI() {
       }
       if (!url) return;
       await del(url);
+      await queryClient.invalidateQueries({ queryKey: queryKeys.userContext });
       fetchContext();
     } catch (err) {
       setError(err.message || 'Failed to delete');
     }
-  }, [deleteDialog, fetchContext, closeDeleteDialog]);
+  }, [closeDeleteDialog, deleteDialog, fetchContext]);
 
   const openDeleteDialog = useCallback((type, target = null) => {
     setDeleteDialog({ open: true, type, target });
@@ -649,4 +655,3 @@ function UserDBContextManagerForAI() {
 }
 
 export default memo(UserDBContextManagerForAI);
-

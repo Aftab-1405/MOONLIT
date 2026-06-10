@@ -72,7 +72,47 @@ def _selected_database(result: dict, db_config: DatabaseConfigPublic | None = No
     )
 
 
-def _normalize_connect_response(result: dict) -> ConnectDatabaseData:
+async def _schema_metadata_for_config(raw_config: dict | None) -> dict[str, Any]:
+    if not raw_config or raw_config.get("db_type") != "postgresql":
+        return {"schemas": [], "current_schema": None}
+
+    try:
+        result = await run_in_threadpool(DatabaseService.get_schemas, raw_config)
+        if result.get("status") == "success":
+            return {
+                "schemas": result.get("schemas") or [],
+                "current_schema": result.get("current_schema") or raw_config.get("schema", "public"),
+            }
+    except Exception as e:
+        logger.warning(f"Failed to fetch schemas for connection metadata: {e}")
+
+    return {
+        "schemas": [],
+        "current_schema": raw_config.get("schema", "public"),
+    }
+
+
+def _schema_metadata_from_result(
+    result: dict,
+    db_config: DatabaseConfigPublic,
+    schema_metadata: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    metadata = schema_metadata or {}
+    return {
+        "schemas": metadata.get("schemas") or result.get("schemas") or [],
+        "current_schema": (
+            metadata.get("current_schema")
+            or result.get("current_schema")
+            or result.get("schema")
+            or db_config.schema_name
+        ),
+    }
+
+
+def _normalize_connect_response(
+    result: dict,
+    schema_metadata: dict[str, Any] | None = None,
+) -> ConnectDatabaseData:
     db_config = _public_db_config(result.get("db_config"), result.get("db_type"))
     if not db_config:
         raise HTTPException(
@@ -83,11 +123,17 @@ def _normalize_connect_response(result: dict) -> ConnectDatabaseData:
             },
         )
 
+    normalized_schema_metadata = _schema_metadata_from_result(
+        result,
+        db_config,
+        schema_metadata,
+    )
     return ConnectDatabaseData(
         db_config=db_config,
         db_type=db_config.db_type,
         selected_database=_selected_database(result, db_config),
-        schemas=result.get("schemas") or [],
+        schemas=normalized_schema_metadata["schemas"],
+        current_schema=normalized_schema_metadata["current_schema"],
         databases=result.get("databases") or [],
         tables=result.get("tables") or [],
         is_remote=db_config.is_remote,
@@ -103,7 +149,9 @@ def _normalize_database_list_response(result: dict) -> DatabaseListData:
 
 
 def _normalize_database_selection_response(
-    result: dict, requested_database: str
+    result: dict,
+    requested_database: str,
+    schema_metadata: dict[str, Any] | None = None,
 ) -> DatabaseSelectionData:
     db_config = _public_db_config(result.get("db_config"))
     if not db_config:
@@ -116,12 +164,19 @@ def _normalize_database_selection_response(
         )
 
     selected_database = _selected_database(result, db_config) or requested_database
+    normalized_schema_metadata = _schema_metadata_from_result(
+        result,
+        db_config,
+        schema_metadata,
+    )
     return DatabaseSelectionData(
         db_config=db_config,
         selected_database=selected_database,
         tables=result.get("tables") or [],
         db_type=db_config.db_type,
         is_remote=db_config.is_remote,
+        schemas=normalized_schema_metadata["schemas"],
+        current_schema=normalized_schema_metadata["current_schema"],
     )
 
 
@@ -198,8 +253,9 @@ async def connect_db(
         logger.error(f"Connection failed: {result.get('message')}")
         _raise_service_error(result)
 
+    schema_metadata = await _schema_metadata_for_config(result.get("db_config"))
     return ApiSuccess(
-        data=_normalize_connect_response(result),
+        data=_normalize_connect_response(result, schema_metadata),
         message=result.get("message"),
     )
 
@@ -261,12 +317,15 @@ async def db_status(db_config: Optional[dict] = Depends(get_db_config)):
                 current_database=None,
                 is_remote=False,
                 databases=[],
+                schemas=[],
+                current_schema=None,
             ),
             message=None,
         )
 
     # Fetch available databases for the switcher chip
     databases = []
+    schema_metadata = await _schema_metadata_for_config(db_config)
     try:
         result = await run_in_threadpool(DatabaseService.get_databases, db_config)
         if result.get("status") == "success":
@@ -281,6 +340,8 @@ async def db_status(db_config: Optional[dict] = Depends(get_db_config)):
             current_database=db_config.get("database"),
             is_remote=db_config.get("is_remote", False),
             databases=databases,
+            schemas=schema_metadata["schemas"],
+            current_schema=schema_metadata["current_schema"],
         ),
         message=None,
     )
@@ -328,8 +389,9 @@ async def switch_remote_database(
         )
 
     _raise_service_error(result)
+    schema_metadata = await _schema_metadata_for_config(result.get("db_config"))
     return ApiSuccess(
-        data=_normalize_database_selection_response(result, data.database),
+        data=_normalize_database_selection_response(result, data.database, schema_metadata),
         message=result.get("message"),
     )
 
@@ -363,8 +425,9 @@ async def select_database(
         )
 
     _raise_service_error(result)
+    schema_metadata = await _schema_metadata_for_config(result.get("db_config"))
     return ApiSuccess(
-        data=_normalize_database_selection_response(result, data.database),
+        data=_normalize_database_selection_response(result, data.database, schema_metadata),
         message=result.get("message"),
     )
 

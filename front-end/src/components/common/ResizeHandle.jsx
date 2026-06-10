@@ -9,7 +9,7 @@ import { useTheme as useMuiTheme } from '@mui/material/styles';
  * @param {Function} onResizeEnd - Callback fired when drag ends
  * @param {boolean} disabled - When true, hides the handle completely
  */
-function ResizeHandle({ onResize, onResizeEnd, disabled = false }) {
+function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }) {
   const theme = useMuiTheme();
   const isDragging = useRef(false);
   const startX = useRef(0);
@@ -21,7 +21,8 @@ function ResizeHandle({ onResize, onResizeEnd, disabled = false }) {
     startX.current = e.clientX;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
-  }, [disabled]);
+    onResizeStart?.();
+  }, [disabled, onResizeStart]);
 
   const handleMouseMove = useCallback((e) => {
     if (!isDragging.current) return;
@@ -49,6 +50,9 @@ function ResizeHandle({ onResize, onResizeEnd, disabled = false }) {
 
   return (
     <Box
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize panels"
       onMouseDown={handleMouseDown}
       sx={{
         width: 6,
@@ -83,4 +87,3 @@ function ResizeHandle({ onResize, onResizeEnd, disabled = false }) {
 }
 
 export default memo(ResizeHandle);
-

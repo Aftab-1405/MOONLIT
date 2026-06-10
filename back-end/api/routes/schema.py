@@ -109,8 +109,12 @@ def _normalize_table_schema_response(
     )
 
 
-def _normalize_select_schema_response(result: dict) -> SelectSchemaData:
+def _normalize_select_schema_response(
+    result: dict,
+    schema_metadata: dict[str, Any] | None = None,
+) -> SelectSchemaData:
     db_config = result.get("db_config") or {}
+    metadata = schema_metadata or {}
     return SelectSchemaData(
         schema_name=result.get("schema", ""),
         tables=result.get("tables") or [],
@@ -126,6 +130,8 @@ def _normalize_select_schema_response(result: dict) -> SelectSchemaData:
             schema_name=db_config.get("schema"),
             service_name=db_config.get("service_name"),
         ),
+        schemas=metadata.get("schemas") or [],
+        current_schema=metadata.get("current_schema") or result.get("schema"),
     )
 
 
@@ -182,8 +188,23 @@ async def select_schema(
         )
 
     _raise_service_error(result)
+    schema_metadata = {"schemas": [], "current_schema": result.get("schema")}
+    if result.get("status") == "success" and "db_config" in result:
+        try:
+            schema_result = await run_in_threadpool(
+                DatabaseService.get_schemas,
+                result["db_config"],
+            )
+            if schema_result.get("status") == "success":
+                schema_metadata = {
+                    "schemas": schema_result.get("schemas") or [],
+                    "current_schema": schema_result.get("current_schema") or result.get("schema"),
+                }
+        except Exception as e:
+            logger.warning(f"Failed to fetch schemas after schema selection: {e}")
+
     return ApiSuccess(
-        data=_normalize_select_schema_response(result),
+        data=_normalize_select_schema_response(result, schema_metadata),
         message=result.get("message"),
     )
 

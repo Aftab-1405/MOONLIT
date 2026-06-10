@@ -30,19 +30,13 @@ const schemaDialogRootSx = {
   pointerEvents: 'none',
   '& .MuiBackdrop-root': {
     pointerEvents: 'auto',
-    willChange: 'opacity',
-    transform: 'translateZ(0)',
   },
   '& .MuiDialog-container': {
     pointerEvents: 'none',
-    willChange: 'opacity',
-    transform: 'translateZ(0)',
     transition: 'opacity 300ms ease',
   },
   '& .MuiDialog-paper': {
     pointerEvents: 'auto',
-    willChange: 'opacity, transform',
-    transform: 'translateZ(0)',
     transition: 'opacity 300ms ease',
   },
   '&.MuiModal-hidden .react-flow': {
@@ -101,8 +95,6 @@ const SchemaMindmapDialog = memo(function SchemaMindmapDialog({
           backgroundColor: theme.palette.background.default,
           boxShadow: 'none',
           opacity: open ? 1 : 0,
-          willChange: 'opacity, transform',
-          transform: 'translateZ(0)',
           transition: 'opacity 300ms ease',
         },
       }}
@@ -396,4 +388,3 @@ function SidebarOverlays({
 }
 
 export default memo(SidebarOverlays);
-

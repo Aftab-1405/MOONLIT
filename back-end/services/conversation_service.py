@@ -223,6 +223,7 @@ class ConversationService:
                         user_id,
                         tools=tools_used if tools_used else None,
                         thinking=thinking_text or None,
+                        append=(resume is not None),
                     )
                     response_stored = True
                     status = "partial (aborted)" if was_aborted else "complete"

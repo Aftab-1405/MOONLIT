@@ -519,7 +519,7 @@ function Auth() {
 
   const handleEmailSignUp = async (e) => {
     e.preventDefault();
-    if (!validateForm(signUpSchema, { email, password, confirmPassword, displayName })) return;
+    if (!validateForm(signUpSchema, { email, passwordSignUp: password, confirmPassword, displayName })) return;
 
     setFormLoading(true);
     try {

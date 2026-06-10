@@ -19,6 +19,7 @@ import {
   getInteractiveControlSx,
   getInsetPanelSx,
   getScrollbarStyles,
+  UI_Z_INDEX,
 } from '@/styles/shared';
 
 const INTENT_CONFIG = {
@@ -119,6 +120,7 @@ function ConfirmDialog({
   contentSx = {},
   footerSx = {},
   paperSx = {},
+  rootSx = {},
 }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
@@ -175,6 +177,7 @@ function ConfirmDialog({
       transitionDuration={{ enter: 200, exit: 140 }}
       ariaLabelledBy={title ? titleId : undefined}
       ariaDescribedBy={description ? descriptionId : undefined}
+      rootSx={{ zIndex: UI_Z_INDEX.confirmModal, ...rootSx }}
       paperSx={{
         width: 'calc(100% - 32px)',
         maxWidth: getPaperMaxWidth(maxWidth),

@@ -145,6 +145,7 @@ function MonacoEditorSurface({
       {/* Error toast */}
       {error && (
         <Box
+          role="alert"
           sx={{
             position: 'absolute',
             bottom: 24,

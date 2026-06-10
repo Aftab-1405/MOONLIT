@@ -2,6 +2,10 @@ import { DARK, LIGHT } from '@/theme/tokens';
 
 const MONACO_THEME_PREFIX = 'moonlit';
 const TRANSPARENT_MONACO_BG = '#00000000';
+const registeredThemeVariants = {
+  opaque: false,
+  transparent: false,
+};
 
 export const getMonacoThemeName = (mode, transparent = false) =>
   `${MONACO_THEME_PREFIX}-${mode}${transparent ? '-transparent' : ''}`;
@@ -23,6 +27,9 @@ const createMonacoTheme = (mode, transparent = false) => {
 };
 
 export const registerMonacoThemes = (monaco, { transparent = false } = {}) => {
+  const variant = transparent ? 'transparent' : 'opaque';
+  if (registeredThemeVariants[variant]) return;
+
   monaco.editor.defineTheme(
     getMonacoThemeName('dark', transparent),
     createMonacoTheme('dark', transparent)
@@ -31,4 +38,5 @@ export const registerMonacoThemes = (monaco, { transparent = false } = {}) => {
     getMonacoThemeName('light', transparent),
     createMonacoTheme('light', transparent)
   );
+  registeredThemeVariants[variant] = true;
 };

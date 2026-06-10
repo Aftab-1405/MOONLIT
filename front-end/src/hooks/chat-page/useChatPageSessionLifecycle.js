@@ -89,7 +89,6 @@ export function useChatPageSessionLifecycle({ isDbConnected, connectionPersisten
       sessionActive(sessionInstanceId).catch(() => { });
     };
 
-    ping();
     const timerId = setInterval(ping, 15000);
     return () => {
       clearInterval(timerId);

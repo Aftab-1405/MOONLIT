@@ -15,6 +15,7 @@ import {
   deleteConversation,
   renameConversation,
 } from '@/api';
+import { queryClient, queryKeys } from '@/api/queryClient';
 import logger from '@/utils/logger';
 import { normalizeConversationMessage } from '@/utils/chatMessages';
 
@@ -45,13 +46,20 @@ export function useConversations() {
   }, []);
   const fetchConversations = useCallback(async (signal, options = {}) => {
     const showLoading = options.showLoading ?? true;
+    if (options.force) {
+      await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+    }
     const requestSeq = conversationsLoadSeqRef.current + 1;
     conversationsLoadSeqRef.current = requestSeq;
     if (showLoading) {
       setIsConversationsLoading(true);
     }
     try {
-      const data = await getConversations(signal);
+      const data = await queryClient.fetchQuery({
+        queryKey: queryKeys.conversations,
+        queryFn: ({ signal: querySignal }) => getConversations(signal ?? querySignal),
+        staleTime: 15 * 1000,
+      });
       if (data.status === 'success') {
         const nextConversations = data.conversations || [];
         setConversations((prev) => {
@@ -87,17 +95,34 @@ export function useConversations() {
     setIsConversationLoading(false);
   }, []);
   const handleSelectConversation = useCallback(async (convId) => {
+    const cachedConversation = queryClient.getQueryData(queryKeys.conversation(convId));
+    if (cachedConversation?.messages) {
+      setCurrentConversationId(convId);
+      setMessages(cachedConversation.messages);
+      lastLoadedConversationIdRef.current = convId;
+      setIsConversationLoading(false);
+      return;
+    }
+
     const signal = getAbortSignal();
     const requestSeq = conversationLoadSeqRef.current + 1;
     conversationLoadSeqRef.current = requestSeq;
     setIsConversationLoading(true);
     try {
-      const data = await getConversation(convId, signal);
+      const data = await queryClient.fetchQuery({
+        queryKey: queryKeys.conversation(convId),
+        queryFn: ({ signal: querySignal }) => getConversation(convId, signal ?? querySignal),
+        staleTime: 5 * 60 * 1000,
+      });
       if (data.status === 'success' && data.conversation) {
         setCurrentConversationId(convId);
         const formattedMessages = (data.conversation.messages || []).map((msg, index) =>
           normalizeConversationMessage(msg, index)
         );
+        queryClient.setQueryData(queryKeys.conversation(convId), {
+          ...data,
+          messages: formattedMessages,
+        });
         setMessages(formattedMessages);
         lastLoadedConversationIdRef.current = convId;
       }
@@ -113,6 +138,8 @@ export function useConversations() {
   const handleDeleteConversation = useCallback(async (convId) => {
     try {
       await deleteConversation(convId);
+      queryClient.removeQueries({ queryKey: queryKeys.conversation(convId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
       setConversations((prev) => prev.filter((c) => c.id !== convId));
       if (currentConversationId === convId) {
         navigate('/chat');
@@ -128,6 +155,7 @@ export function useConversations() {
     try {
       const data = await renameConversation(convId, trimmedTitle);
       const savedTitle = data.title || trimmedTitle;
+      queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
       setConversations((prev) =>
         prev.map((c) => (c.id === convId ? { ...c, title: savedTitle } : c))
       );
@@ -137,12 +165,14 @@ export function useConversations() {
     }
   }, []);
   useEffect(() => {
-    const abortController = new AbortController();
-    fetchConversations(abortController.signal);
-    
-    return () => {
-      abortController.abort();
-    };
+    if (!currentConversationId) return;
+    queryClient.setQueryData(queryKeys.conversation(currentConversationId), (prev) => ({
+      ...(prev || { status: 'success' }),
+      messages,
+    }));
+  }, [currentConversationId, messages]);
+  useEffect(() => {
+    fetchConversations();
   }, [fetchConversations]);
   useEffect(() => {
     return () => {

@@ -250,7 +250,6 @@ export const ToolStep = memo(function ToolStep({
       nodeColor,
       theme.palette.primary.main,
       theme.palette.error.main,
-      theme.palette.text.secondary,
       theme.palette.success.main,
     ]
   );

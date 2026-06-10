@@ -66,7 +66,27 @@ async function apiClient(endpoint, options = {}) {
     const response = await fetch(endpoint, config);
 
     const contentType = response.headers.get('content-type');
+    if (response.status === 204) {
+      if (!response.ok) {
+        throw new ApiError(
+          `Request failed: ${response.statusText}`,
+          response.status
+        );
+      }
+      return null;
+    }
+
     if (contentType && !contentType.includes('application/json')) {
+      if (!response.ok) {
+        throw new ApiError(
+          `Request failed: ${response.statusText}`,
+          response.status
+        );
+      }
+      return response;
+    }
+
+    if (!contentType) {
       if (!response.ok) {
         throw new ApiError(
           `Request failed: ${response.statusText}`,
@@ -150,15 +170,31 @@ export async function postRaw(endpoint, body, options = {}) {
     logger.api('POST (raw)', endpoint);
   }
 
-  const response = await fetch(endpoint, config);
+  try {
+    const response = await fetch(endpoint, config);
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new ApiError(
+        text || `Request failed: ${response.statusText}`,
+        response.status
+      );
+    }
   
-  if (!response.ok) {
-    const text = await response.text();
+    return response;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+
+    if (error.name === 'AbortError') {
+      throw error;
+    }
+
     throw new ApiError(
-      text || `Request failed: ${response.statusText}`,
-      response.status
+      error.message || 'Network error',
+      0,
+      null
     );
   }
-
-  return response;
 }
