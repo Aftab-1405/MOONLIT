@@ -60,18 +60,47 @@ export const useAuth = () => {
 };
 
 export const AuthProvider = ({ children }) => {
-  if (typeof window !== 'undefined' && window.__MOCK_AUTH__) {
-    const mockValue = useMemo(() => ({
-      loading: false,
-      isAuthenticated: true,
-      user: { uid: 'mock-user-123', email: 'mock@example.com', displayName: 'Mock User' },
-      logout: () => Promise.resolve(),
-      signInWithGoogle: () => Promise.resolve({ uid: 'mock-user-123' }),
-      signInWithEmail: () => Promise.resolve({ uid: 'mock-user-123' }),
-      signUpWithEmail: () => Promise.resolve({ uid: 'mock-user-123' }),
-      resetPassword: () => Promise.resolve(true),
-    }), []);
+  const isMock = typeof window !== 'undefined' && window.__MOCK_AUTH__;
 
+  const [mockUser, setMockUser] = useState(() => {
+    if (!isMock) return null;
+    if (window.__MOCK_AUTH_FLOW__) return null;
+    const uid = window.__MOCK_AUTH_ADMIN__ ? 'arLB46aCTxSU4DNHvjrdvctBUjK2' : 'mock-user-123';
+    return { uid, email: 'mock@example.com', displayName: 'Mock User' };
+  });
+
+  const mockValue = useMemo(() => {
+    if (!isMock) return null;
+    return {
+      loading: false,
+      isAuthenticated: !!mockUser,
+      user: mockUser,
+      logout: () => {
+        setMockUser(null);
+        return Promise.resolve();
+      },
+      signInWithGoogle: () => {
+        const u = { uid: 'mock-user-123', email: 'google-mock@example.com', displayName: 'Mock Google User' };
+        setMockUser(u);
+        return Promise.resolve(u);
+      },
+      signInWithEmail: (email) => {
+        const isAdmin = email && email.includes('admin');
+        const uid = isAdmin ? 'arLB46aCTxSU4DNHvjrdvctBUjK2' : 'mock-user-123';
+        const u = { uid, email: email || 'mock@example.com', displayName: isAdmin ? 'Admin User' : 'Mock User' };
+        setMockUser(u);
+        return Promise.resolve(u);
+      },
+      signUpWithEmail: (email, password, displayName) => {
+        const u = { uid: 'mock-user-123', email: email || 'mock@example.com', displayName: displayName || 'Mock User' };
+        setMockUser(u);
+        return Promise.resolve(u);
+      },
+      resetPassword: () => Promise.resolve(true),
+    };
+  }, [isMock, mockUser]);
+
+  if (isMock) {
     return (
       <AuthContext.Provider value={mockValue}>
         {children}
