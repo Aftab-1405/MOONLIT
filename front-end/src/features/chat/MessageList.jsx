@@ -225,6 +225,7 @@ const AIMessage = memo(function AIMessage({
   id,
   text,
   steps,
+  timeline,
   status,
   onRunQuery,
   onOpenSqlEditor,
@@ -251,6 +252,12 @@ const AIMessage = memo(function AIMessage({
   const displayText = text || '';
   const chatDisplayText = useMemo(() => stripCanvasCodeArtifacts(displayText), [displayText]);
   const displaySteps = useMemo(() => (Array.isArray(steps) ? steps : []), [steps]);
+  const displayTimeline = useMemo(() => (
+    Array.isArray(timeline)
+      ? timeline.filter((item) => item && item.type)
+      : []
+  ), [timeline]);
+  const hasTimeline = displayTimeline.length > 0;
   const artifacts = useMemo(() => extractCanvasCodeArtifacts(displayText), [displayText]);
 
   useEffect(() => {
@@ -314,7 +321,38 @@ const AIMessage = memo(function AIMessage({
     copyRich(htmlContent, plainTextContent);
   }, [copyRich, displayText]);
 
-  const showThinkingSpinner = isWaiting && displaySteps.length === 0 && !chatDisplayText.trim();
+  const showThinkingSpinner = isWaiting && displaySteps.length === 0 && !chatDisplayText.trim() && !hasTimeline;
+
+  const renderTextBlock = useCallback((content, key) => {
+    const blockText = stripCanvasCodeArtifacts(content);
+    if (!blockText.trim()) return null;
+
+    return (
+      <Box
+        key={key}
+        data-testid="assistant-text-chunk"
+        sx={{
+          pl: 1,
+          pr: { xs: 2, sm: 4 },
+          minWidth: 0,
+          py: 0.5,
+          overflowAnchor: 'none',
+        }}
+      >
+        <MarkdownRenderer content={blockText} onRunQuery={onRunQuery} />
+      </Box>
+    );
+  }, [onRunQuery]);
+
+  const renderStepBlock = useCallback((step, key) => (
+    <Box
+      key={key}
+      data-testid={`assistant-${step.type}-step`}
+      sx={{ pl: 1, py: 0.75, minWidth: 0 }}
+    >
+      <StepsAccordion steps={[step]} isStreaming={isWaiting || isStreaming} />
+    </Box>
+  ), [isStreaming, isWaiting]);
 
   return (
     <Fade in timeout={300}>
@@ -325,7 +363,7 @@ const AIMessage = memo(function AIMessage({
           ...turnGroupHoverSx,
         }}
       >
-        <Box sx={{ position: 'relative', lineHeight: 1.65, minWidth: 0 }}>
+        <Box ref={contentRef} sx={{ position: 'relative', lineHeight: 1.65, minWidth: 0 }}>
           {showThinkingSpinner && (
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1, py: 0.75, color: 'text.secondary' }}>
               {prefersReducedMotion ? (
@@ -338,26 +376,27 @@ const AIMessage = memo(function AIMessage({
             </Box>
           )}
 
-          {displaySteps.length > 0 && (
-            <Box sx={{ pl: 1, py: 0.75, minWidth: 0 }}>
-              <StepsAccordion steps={displaySteps} isStreaming={isWaiting || isStreaming} />
-            </Box>
-          )}
+          {hasTimeline
+            ? displayTimeline.map((item, index) => {
+              if (item.type === 'text') {
+                return renderTextBlock(item.content || '', item.id || `text-${index}`);
+              }
+              if (item.type === 'thinking' || item.type === 'tool') {
+                return renderStepBlock(item, item.id || `${item.type}-${index}`);
+              }
+              return null;
+            })
+            : (
+              <>
+                {displaySteps.length > 0 && (
+                  <Box sx={{ pl: 1, py: 0.75, minWidth: 0 }}>
+                    <StepsAccordion steps={displaySteps} isStreaming={isWaiting || isStreaming} />
+                  </Box>
+                )}
 
-          {chatDisplayText.trim() && (
-            <Box
-              ref={contentRef}
-              sx={{
-                pl: 1,
-                pr: { xs: 2, sm: 4 },
-                minWidth: 0,
-                py: 0.5,
-                overflowAnchor: 'none',
-              }}
-            >
-              <MarkdownRenderer content={chatDisplayText} onRunQuery={onRunQuery} />
-            </Box>
-          )}
+                {chatDisplayText.trim() && renderTextBlock(chatDisplayText, 'legacy-text')}
+              </>
+            )}
 
           {artifacts.length > 0 && (
             <Box
@@ -511,6 +550,7 @@ function normalizeAssistantMessage(message) {
     id: message.id,
     text: message.text || '',
     steps: message.steps || [],
+    timeline: message.timeline || [],
     status: message.status || MESSAGE_STATUS.DONE,
   };
 }
@@ -518,6 +558,7 @@ function normalizeAssistantMessage(message) {
 const MessageList = memo(function MessageList({
   messages = [],
   isLoadingConversation = false,
+  loadError = false,
   onRunQuery,
   onOpenSqlEditor,
   onOpenCanvasArtifact,
@@ -540,6 +581,26 @@ const MessageList = memo(function MessageList({
 
   if (isLoadingConversation) {
     return <ConversationLoadingSkeleton />;
+  }
+
+  if (loadError && messages.length === 0) {
+    return (
+      <Box
+        sx={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          px: 2,
+          py: 4,
+          textAlign: 'center',
+        }}
+      >
+        <Typography sx={{ color: 'text.secondary', maxWidth: 420 }}>
+          This conversation could not be loaded. Try selecting it again from the sidebar.
+        </Typography>
+      </Box>
+    );
   }
 
   return (
@@ -586,6 +647,7 @@ const MessageList = memo(function MessageList({
                 id={message.id}
                 text={message.text}
                 steps={message.steps}
+                timeline={message.timeline}
                 status={message.status}
                 onRunQuery={onRunQuery}
                 onOpenSqlEditor={onOpenSqlEditor}

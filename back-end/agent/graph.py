@@ -43,7 +43,7 @@ def build_react_agent(
                 if messages[start_idx].type == "human":
                     break
                 start_idx -= 1
-            
+
             # If we walked all the way back to 0 and still didn't find a HumanMessage,
             # we must cut the history to prevent infinite growth. We jump back to the target
             # boundary and walk forward until we find a safe starting message.
@@ -60,7 +60,27 @@ def build_react_agent(
 
             messages = messages[start_idx:]
 
-        return [SystemMessage(content=system_prompt)] + messages
+        # Inject the latest compressed summary block (if any) as a SystemMessage
+        # immediately after the main system prompt. This runs every invocation so
+        # the agent always has the most recent long-term memory in-context without
+        # a tool call — while keeping older blocks retrieval-only via get_conversation_summary.
+        config = state.get("configurable", {})
+        latest_summary: str | None = config.get("latest_summary")
+        prefix = [SystemMessage(content=system_prompt)]
+        if latest_summary:
+            prefix.append(
+                SystemMessage(
+                    content=(
+                        "<recent_memory>\n"
+                        "The following is a compressed summary of earlier conversation history "
+                        "that is no longer in your active message window. "
+                        "Use it as background context — do not reference it explicitly unless asked.\n\n"
+                        + latest_summary
+                        + "\n</recent_memory>"
+                    )
+                )
+            )
+        return prefix + messages
 
     return create_react_agent(
         chat_model,

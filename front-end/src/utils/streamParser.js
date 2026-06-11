@@ -33,10 +33,33 @@ function extractDataPayload(line) {
 export async function parseSSEStream(reader, decoder, onEvent) {
   let buffer = '';
 
+  const processLine = (line) => {
+    const payload = extractDataPayload(line);
+    if (!payload) return false;
+
+    if (payload === DONE_PAYLOAD) {
+      onEvent({ type: 'done' });
+      return true;
+    }
+
+    try {
+      const event = JSON.parse(payload);
+      onEvent(event);
+      return event.type === 'done';
+    } catch {
+      return false;
+    }
+  };
+
   try {
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
+      if (done) {
+        if (buffer.trim()) {
+          processLine(buffer);
+        }
+        break;
+      }
 
       buffer += decoder.decode(value, { stream: true });
 
@@ -44,21 +67,7 @@ export async function parseSSEStream(reader, decoder, onEvent) {
       buffer = lines.pop() || '';
 
       for (let i = 0; i < lines.length; i += 1) {
-        const payload = extractDataPayload(lines[i]);
-        if (!payload) continue;
-
-        if (payload === DONE_PAYLOAD) {
-          onEvent({ type: 'done' });
-          return;
-        }
-
-        try {
-          const event = JSON.parse(payload);
-          onEvent(event);
-          if (event.type === 'done') return;
-        } catch {
-          // Skip malformed lines
-        }
+        if (processLine(lines[i])) return;
       }
     }
   } finally {

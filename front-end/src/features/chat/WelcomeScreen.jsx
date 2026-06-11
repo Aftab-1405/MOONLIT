@@ -39,9 +39,9 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
       prompt: 'Show me the database schema with all tables and their columns',
     },
     {
-      label: 'Open SQL Editor',
+      label: 'Draft SQL Query',
       icon: <CodeEditorIcon sx={{ width: 16, height: 16 }} />,
-      prompt: 'Open the SQL editor and help me write a query',
+      prompt: 'Help me draft a SQL query for my database',
     },
   ], []);
 

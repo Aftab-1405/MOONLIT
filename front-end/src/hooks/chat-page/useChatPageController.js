@@ -56,6 +56,8 @@ export function useChatPageController() {
     setConversations,
     currentConversationId,
     setCurrentConversationId,
+    routeConversationId,
+    routeConversationLoadState,
     fetchConversations,
     registerStreamingConversation,
     handleDeleteConversation,
@@ -71,7 +73,7 @@ export function useChatPageController() {
     workspaceCanvasArtifact,
     workspaceCanvasWidth,
     handleOpenCanvasArtifact,
-    handleOpenSqlEditor,
+    handleOpenSqlEditor: openSqlEditorCanvas,
     handleCloseWorkspaceCanvas,
     handleCanvasResize,
   } = useWorkspaceCanvas({ sidebarWidth: currentSidebarWidth });
@@ -120,6 +122,15 @@ export function useChatPageController() {
       severity,
     });
   }, []);
+  const handleOpenSqlEditor = useCallback((query = '', results = null) => {
+    if (!isDbConnected) {
+      setSettingsOpen(false);
+      setDbModalOpen(true);
+      showSnackbar('Connect a database to use the SQL editor.', 'info');
+      return;
+    }
+    openSqlEditorCanvas(query, results);
+  }, [isDbConnected, openSqlEditorCanvas, showSnackbar]);
   const handleQueryResults = useCallback((data) => {
     handleOpenCanvasArtifact({
       type: 'results',
@@ -192,8 +203,13 @@ export function useChatPageController() {
 
   const handleDeleteConversationConfirm = useCallback(async () => {
     if (!deleteConversationDialog.conversationId) return;
-    await handleDeleteConversation(deleteConversationDialog.conversationId);
-  }, [deleteConversationDialog.conversationId, handleDeleteConversation]);
+    try {
+      await handleDeleteConversation(deleteConversationDialog.conversationId);
+    } catch (error) {
+      showSnackbar(error?.message || 'Failed to delete conversation', 'error');
+      throw error;
+    }
+  }, [deleteConversationDialog.conversationId, handleDeleteConversation, showSnackbar]);
 
   const handleRenameConversationRequest = useCallback((conversationId, title) => {
     setRenameConversationDialog({
@@ -328,8 +344,10 @@ export function useChatPageController() {
     connectionPersistenceMinutes: settings.connectionPersistence ?? 0,
   });
 
-  const showWelcomeState = messages.length === 0 && !isConversationLoading;
-  const showConversationPanel = messages.length > 0 || isConversationLoading;
+  const isRouteConversationHydrating = routeConversationLoadState === 'loading';
+  const isConversationViewLoading = isConversationLoading || isRouteConversationHydrating;
+  const showWelcomeState = !routeConversationId && messages.length === 0 && !isConversationViewLoading;
+  const showConversationPanel = Boolean(routeConversationId) || messages.length > 0 || isConversationViewLoading;
 
   const streamActivityKey = useMemo(() => {
     const lastMessage = messages[messages.length - 1];
@@ -537,7 +555,8 @@ export function useChatPageController() {
     setScrollContainerRef,
     showConversationPanel,
     messages,
-    isConversationLoading,
+    isConversationLoading: isConversationViewLoading,
+    conversationLoadState: routeConversationLoadState,
     handleRunQuery,
     handleOpenSqlEditor,
     handleOpenCanvasArtifact,

@@ -192,15 +192,16 @@ function Sidebar({
         uiTarget: 'database_button',
       },
     ];
-    if (isConnected) {
-      items.push({
-        id: 'mindmap',
-        label: 'Mindmap',
-        tooltip: 'Mindmap',
-        icon: <MindmapIcon sx={{ fontSize: 18 }} />,
-        onClick: handleOpenMindmap,
-      });
-    }
+    items.push({
+      id: 'mindmap',
+      label: 'Mindmap',
+      tooltip: isConnected && currentDatabase
+        ? 'Mindmap'
+        : 'Connect a database to view the schema mindmap',
+      icon: <MindmapIcon sx={{ fontSize: 18 }} />,
+      onClick: handleOpenMindmap,
+      disabled: !isConnected || !currentDatabase,
+    });
     return items;
   }, [isConnected, currentDatabase, handleDatabaseAction, handleOpenMindmap]);
 
@@ -385,7 +386,12 @@ function Sidebar({
       <Collapse
         in={!recentsCollapsed}
         timeout="auto"
-        sx={{ flex: recentsCollapsed ? 0 : 1, minHeight: 0, overflow: recentsCollapsed ? 'hidden' : 'auto' }}
+        sx={{
+          flex: recentsCollapsed ? 0 : 1,
+          minHeight: 0,
+          overflow: recentsCollapsed ? 'hidden' : 'auto',
+          ...scrollbarStyles,
+        }}
       >
         <Box
           component="ul"
@@ -522,7 +528,11 @@ function Sidebar({
 
   // Mobile: always fully expanded
   const mobileContent = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <Box
+      component="nav"
+      aria-label="Sidebar"
+      sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}
+    >
       {renderHeader({ mobile: true })}
       {renderNavGroup(topNavItems, false, { ariaLabel: 'Primary actions' })}
       {renderNavGroup(workspaceNavItems, false, { pt: 0.25, ariaLabel: 'Workspace actions' })}
@@ -596,7 +606,10 @@ function Sidebar({
           open={mobileOpen}
           onClose={onMobileClose}
           SlideProps={{ mountOnEnter: true, unmountOnExit: true }}
-          PaperProps={{ sx: mobileDrawerPaperStyles }}
+          PaperProps={{
+            'aria-label': 'Sidebar',
+            sx: mobileDrawerPaperStyles,
+          }}
         >
           {mobileContent}
         </Drawer>

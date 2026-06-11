@@ -61,6 +61,7 @@ function upsertAssistantMessage(prevMessages, assistantId, messageData, status) 
     id: assistantId,
     textOverride: messageData.text,
     stepsOverride: messageData.steps,
+    timelineOverride: messageData.timeline,
     status,
   });
   const messageIndex = prevMessages.findIndex((message) => message.id === assistantId);
@@ -119,36 +120,31 @@ export function useMessageStreaming({
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     const contentParts = [];
-    const toolSteps = [];
-    let thinkingContent = '';
+    const eventTimeline = [];
     let lastUpdateTime = 0;
     let pendingStatus = null;
     let streamFlushRafId = 0;
     let interruptedWithoutAssistantContent = false;
 
     const buildMessageData = (isDone = false) => {
-      const steps = [];
-      let currentThinkingContent = thinkingContent;
       let streamedText = contentParts.join('');
 
-
-
-      if (currentThinkingContent) {
-        steps.push({ type: 'thinking', content: currentThinkingContent, isComplete: isDone });
-      }
-      toolSteps.forEach((tool, index) => {
-        steps.push({
-          type: 'tool',
-          id: `tool-${tool.name}-${index}`,
-          name: tool.name,
-          status: tool.status,
-          args: tool.args,
-          result: tool.result,
-        });
-      });
       const baseText = baseMessageData?.text || '';
       const baseSteps = Array.isArray(baseMessageData?.steps) ? baseMessageData.steps : [];
-      return { text: `${baseText}${streamedText}`, steps: [...baseSteps, ...steps] };
+      const baseTimeline = Array.isArray(baseMessageData?.timeline) ? baseMessageData.timeline : [];
+      const normalizedTimeline = eventTimeline.map((item) => (
+        item.type === 'thinking'
+          ? { ...item, isComplete: isDone || item.isComplete }
+          : item
+      ));
+      return {
+        text: `${baseText}${streamedText}`,
+        steps: [
+          ...baseSteps,
+          ...normalizedTimeline.filter((item) => item.type !== 'text'),
+        ],
+        timeline: [...baseTimeline, ...normalizedTimeline],
+      };
     };
 
     const flushStreamUpdate = () => {
@@ -177,13 +173,29 @@ export function useMessageStreaming({
 
     await parseSSEStream(reader, decoder, (event) => {
       switch (event.type) {
-        case 'token':
+        case 'token': {
           contentParts.push(event.content);
+          const lastItem = eventTimeline[eventTimeline.length - 1];
+          if (lastItem?.type === 'text') {
+            lastItem.content += event.content;
+          } else {
+            eventTimeline.push({
+              type: 'text',
+              id: `text-${eventTimeline.length}`,
+              content: event.content,
+            });
+          }
           scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
           break;
+        }
 
         case 'tool_start':
-          toolSteps.push({
+          eventTimeline.forEach((step) => {
+            if (step.type === 'thinking') step.isComplete = true;
+          });
+          eventTimeline.push({
+            type: 'tool',
+            id: `tool-${event.name}-${eventTimeline.length}`,
             name: event.name,
             status: 'running',
             args: event.args,
@@ -193,8 +205,8 @@ export function useMessageStreaming({
           break;
 
         case 'tool_end': {
-          for (let i = toolSteps.length - 1; i >= 0; i -= 1) {
-            const step = toolSteps[i];
+          for (let i = eventTimeline.length - 1; i >= 0; i -= 1) {
+            const step = eventTimeline[i];
             if (step.name === event.name && step.status === 'running') {
               step.status = 'done';
               step.args = event.args;
@@ -207,7 +219,17 @@ export function useMessageStreaming({
         }
 
         case 'thinking_token':
-          thinkingContent += event.content;
+          if (eventTimeline[eventTimeline.length - 1]?.type === 'thinking') {
+            eventTimeline[eventTimeline.length - 1].content += event.content;
+            eventTimeline[eventTimeline.length - 1].isComplete = false;
+          } else {
+            eventTimeline.push({
+              type: 'thinking',
+              id: `thinking-${eventTimeline.length}`,
+              content: event.content,
+              isComplete: false,
+            });
+          }
           scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
           break;
 
@@ -242,8 +264,7 @@ export function useMessageStreaming({
     if (
       interruptedWithoutAssistantContent
       && contentParts.length === 0
-      && toolSteps.length === 0
-      && !thinkingContent
+      && eventTimeline.length === 0
     ) {
       setMessages((prev) => prev.filter((message) => message.id !== assistantMessageId));
     } else {
@@ -314,7 +335,11 @@ export function useMessageStreaming({
           return upsertAssistantMessage(
             prev,
             assistantMessageId,
-            { text: existingAssistant?.text || '', steps: existingAssistant?.steps || [] },
+            {
+              text: existingAssistant?.text || '',
+              steps: existingAssistant?.steps || [],
+              timeline: existingAssistant?.timeline || [],
+            },
             MESSAGE_STATUS.STOPPED,
           );
         });
@@ -330,7 +355,11 @@ export function useMessageStreaming({
         return upsertAssistantMessage(
           prev,
           assistantMessageId,
-          { text: currentText, steps: existingAssistant?.steps || [] },
+          {
+            text: currentText,
+            steps: existingAssistant?.steps || [],
+            timeline: existingAssistant?.timeline || [],
+          },
           MESSAGE_STATUS.ERROR,
         );
       });
@@ -347,7 +376,11 @@ export function useMessageStreaming({
       ? getMessages().find((message) => message.id === overrides.assistantMessageId)
       : null;
     const baseMessageData = existingMessage
-      ? { text: existingMessage.text || '', steps: existingMessage.steps || [] }
+      ? {
+        text: existingMessage.text || '',
+        steps: existingMessage.steps || [],
+        timeline: existingMessage.timeline || [],
+      }
       : null;
 
     setMessages((prev) => {
@@ -405,7 +438,11 @@ export function useMessageStreaming({
         upsertAssistantMessage(
           prev,
           assistantMessageId,
-          { text: errorMessage, steps: [] },
+          {
+            text: errorMessage,
+            steps: [],
+            timeline: [{ type: 'text', id: 'resume-error', content: errorMessage }],
+          },
           MESSAGE_STATUS.ERROR,
         )
       );

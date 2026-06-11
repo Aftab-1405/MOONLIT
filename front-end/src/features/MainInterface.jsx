@@ -184,6 +184,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
   setScrollContainerRef,
   messages,
   isConversationLoading,
+  conversationLoadState,
   handleRunQuery,
   handleOpenSqlEditor,
   handleOpenCanvasArtifact,
@@ -255,6 +256,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
             <MessageList
               messages={messages}
               isLoadingConversation={isConversationLoading}
+              loadError={conversationLoadState === 'error'}
               onRunQuery={handleRunQuery}
               onOpenSqlEditor={handleOpenSqlEditor}
               onOpenCanvasArtifact={handleOpenCanvasArtifact}
@@ -358,6 +360,7 @@ function MainInterface() {
     showConversationPanel,
     messages,
     isConversationLoading,
+    conversationLoadState,
     handleRunQuery,
     handleOpenSqlEditor,
     handleOpenCanvasArtifact,
@@ -516,6 +519,7 @@ function MainInterface() {
             setScrollContainerRef={setScrollContainerRef}
             messages={messages}
             isConversationLoading={isConversationLoading}
+            conversationLoadState={conversationLoadState}
             handleRunQuery={handleRunQuery}
             handleOpenSqlEditor={handleOpenSqlEditor}
             handleOpenCanvasArtifact={handleOpenCanvasArtifact}

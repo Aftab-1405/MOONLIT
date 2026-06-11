@@ -179,7 +179,9 @@ function ChatInput({
     () => getComposerSurfaceSx(theme, { isFocused }),
     [theme, isFocused],
   );
-  const inputPlaceholder = isConnected
+  const inputPlaceholder = isStreaming
+    ? 'Please wait for response to finish...'
+    : isConnected
     ? 'Ask about your database or anything else...'
     : 'How can I help you today?';
 
@@ -220,11 +222,11 @@ function ChatInput({
 
   const handleSubmit = useCallback((e) => {
     e?.preventDefault();
-    if (message.trim() && !disabled) {
+    if (message.trim() && !disabled && !isStreaming) {
       onSend(message.trim());
       setMessage('');
     }
-  }, [message, disabled, onSend]);
+  }, [message, disabled, isStreaming, onSend]);
 
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -262,6 +264,46 @@ function ChatInput({
     setLlmAnchor(null);
   }, [onSelectLlm]);
 
+  const handleMenuItemKeyDown = useCallback((event, onSelect) => {
+    const items = Array.from(
+      event.currentTarget
+        .closest('[role="menu"]')
+        ?.querySelectorAll('[role="menuitemradio"]:not([aria-disabled="true"])') || [],
+    );
+    const currentIndex = items.indexOf(event.currentTarget);
+    const focusItem = (index) => {
+      items[index]?.focus();
+    };
+
+    switch (event.key) {
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        onSelect();
+        break;
+      case 'ArrowDown':
+      case 'ArrowRight':
+        event.preventDefault();
+        focusItem((currentIndex + 1) % items.length);
+        break;
+      case 'ArrowUp':
+      case 'ArrowLeft':
+        event.preventDefault();
+        focusItem((currentIndex - 1 + items.length) % items.length);
+        break;
+      case 'Home':
+        event.preventDefault();
+        focusItem(0);
+        break;
+      case 'End':
+        event.preventDefault();
+        focusItem(items.length - 1);
+        break;
+      default:
+        break;
+    }
+  }, []);
+
   return (
     <Box
       component="form"
@@ -283,7 +325,7 @@ function ChatInput({
         <Typography sx={getPopoverSectionLabelSx(theme)}>
           Switch Database
         </Typography>
-        <Box sx={{ maxHeight: 280, overflowY: 'auto', mt: 0.5 }}>
+        <Box role="menu" aria-label="Switch database" sx={{ maxHeight: 280, overflowY: 'auto', mt: 0.5 }}>
           {availableDatabases.map((db) => {
             const isActive = db === currentDatabase;
             return (
@@ -291,8 +333,10 @@ function ChatInput({
                 component="div"
                 role="menuitemradio"
                 aria-checked={isActive}
+                tabIndex={0}
                 key={db}
                 onClick={() => handleDatabaseChange(db)}
+                onKeyDown={(event) => handleMenuItemKeyDown(event, () => handleDatabaseChange(db))}
                 sx={getSelectableMenuItemSx(theme, { isActive })}
               >
                 <Typography sx={{ ...theme.typography.uiNavItem, color: isActive ? 'text.primary' : 'text.primary', fontWeight: isActive ? 500 : 400 }}>
@@ -316,7 +360,7 @@ function ChatInput({
         <Typography sx={getPopoverSectionLabelSx(theme)}>
           PostgreSQL Schema
         </Typography>
-        <Box sx={{ maxHeight: 260, overflowY: 'auto', mt: 0.5 }}>
+        <Box role="menu" aria-label="Select PostgreSQL schema" sx={{ maxHeight: 260, overflowY: 'auto', mt: 0.5 }}>
           {availableSchemas.map((schema) => {
             const isActive = schema === currentSchema;
             return (
@@ -324,8 +368,10 @@ function ChatInput({
                 component="div"
                 role="menuitemradio"
                 aria-checked={isActive}
+                tabIndex={0}
                 key={schema}
                 onClick={() => handleSchemaChange(schema)}
+                onKeyDown={(event) => handleMenuItemKeyDown(event, () => handleSchemaChange(schema))}
                 sx={getSelectableMenuItemSx(theme, { isActive })}
               >
                 <Typography sx={{ ...theme.typography.uiNavItem, color: isActive ? 'text.primary' : 'text.primary', fontWeight: isActive ? 500 : 400 }}>
@@ -347,7 +393,7 @@ function ChatInput({
         paperSx={{ mt: -1 }}
       >
         {/* Model list */}
-        <Box sx={{ maxHeight: 280, overflowY: 'auto' }}>
+        <Box role="menu" aria-label="Select model" sx={{ maxHeight: 280, overflowY: 'auto' }}>
           {llmOptionsLoading ? (
             <Box sx={{ display: 'grid', gap: 0.5 }}>
               {[0, 1, 2].map((i) => (
@@ -370,8 +416,10 @@ function ChatInput({
                       component="div"
                       role="menuitemradio"
                       aria-checked={isActive}
+                      tabIndex={0}
                       key={`${section.name}-${model}`}
                       onClick={() => handleLlmSelection(section.name, model)}
+                      onKeyDown={(event) => handleMenuItemKeyDown(event, () => handleLlmSelection(section.name, model))}
                       sx={getSelectableMenuItemSx(theme, { isActive })}
                     >
                       <Box>
@@ -406,12 +454,16 @@ function ChatInput({
           mx: 'auto',
           position: 'relative',
           ...composerSurfaceSx,
+          opacity: isStreaming ? 0.72 : 1,
+          transition: theme.transitions.create(['opacity', 'box-shadow', 'border-color'], {
+            duration: theme.transitions.duration.shorter,
+          }),
           [HOVER_CAPABLE_QUERY]: {
             '&:hover': {
               boxShadow: getComposerHoverShadow(theme, { isFocused }),
             },
           },
-          cursor: 'text',
+          cursor: isStreaming ? 'wait' : 'text',
         }}
       >
         <Box
@@ -433,7 +485,7 @@ function ChatInput({
           onKeyDown={handleKeyDown}
           onFocus={handleFocus}
           onBlur={handleBlur}
-          disabled={disabled}
+          disabled={disabled || isStreaming}
           variant="standard"
           InputProps={{
             disableUnderline: true,

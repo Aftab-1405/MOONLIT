@@ -946,6 +946,7 @@ function Auth() {
                         endAdornment: (
                           <InputAdornment position="end">
                             <IconButton
+                              aria-label={showPassword ? 'Hide password' : 'Show password'}
                               onClick={() => setShowPassword((p) => !p)}
                               edge="end"
                               size="small"
@@ -1066,6 +1067,7 @@ function Auth() {
                         endAdornment: (
                           <InputAdornment position="end">
                             <IconButton
+                              aria-label={showPassword ? 'Hide password' : 'Show password'}
                               onClick={() => setShowPassword((p) => !p)}
                               edge="end"
                               size="small"
@@ -1234,7 +1236,13 @@ function Auth() {
             type="email"
             label="Email"
             value={resetEmail}
-            onChange={(e) => setResetEmail(e.target.value)}
+            onChange={(e) => {
+              setResetEmail(e.target.value);
+              clearFieldError('email');
+            }}
+            onBlur={() => validateField('email', resetEmail)}
+            error={!!fieldErrors.email}
+            helperText={fieldErrors.email}
             size="small"
             autoFocus
           />

@@ -1,6 +1,6 @@
-import { useCallback, useRef, useEffect, memo } from 'react';
+import { useCallback, useRef, useEffect, memo, useState } from 'react';
 import { Box } from '@mui/material';
-import { useTheme as useMuiTheme } from '@mui/material/styles';
+import { alpha, useTheme as useMuiTheme } from '@mui/material/styles';
 
 /**
  * ResizeHandle - Draggable vertical divider for resizing panels
@@ -13,11 +13,13 @@ function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }
   const theme = useMuiTheme();
   const isDragging = useRef(false);
   const startX = useRef(0);
+  const [dragging, setDragging] = useState(false);
 
   const handleMouseDown = useCallback((e) => {
     if (disabled) return;
     e.preventDefault();
     isDragging.current = true;
+    setDragging(true);
     startX.current = e.clientX;
     document.body.style.cursor = 'col-resize';
     document.body.style.userSelect = 'none';
@@ -34,10 +36,25 @@ function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }
   const handleMouseUp = useCallback(() => {
     if (!isDragging.current) return;
     isDragging.current = false;
+    setDragging(false);
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
     onResizeEnd?.();
   }, [onResizeEnd]);
+
+  const handleKeyDown = useCallback((e) => {
+    if (disabled) return;
+
+    const resizeStep = e.shiftKey ? 48 : 24;
+    if (e.key === 'ArrowLeft') {
+      e.preventDefault();
+      onResize?.(-resizeStep);
+    } else if (e.key === 'ArrowRight') {
+      e.preventDefault();
+      onResize?.(resizeStep);
+    }
+  }, [disabled, onResize]);
+
   useEffect(() => {
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
@@ -53,7 +70,9 @@ function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize panels"
+      tabIndex={0}
       onMouseDown={handleMouseDown}
+      onKeyDown={handleKeyDown}
       sx={{
         width: 6,
         flexShrink: 0,
@@ -61,25 +80,33 @@ function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'transparent',
-        transition: 'background-color 0.15s ease',
-        '&:hover': {
-          backgroundColor: theme.palette.action.hover,
+        backgroundColor: dragging ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
+        transition: theme.transitions.create(['background-color'], {
+          duration: theme.transitions.duration.shorter,
+        }),
+        '&:hover, &:focus-visible': {
+          backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.12 : 0.08),
+          outline: 'none',
         },
         '&:active': {
-          backgroundColor: theme.palette.action.selected,
+          backgroundColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.18 : 0.12),
         },
         '&::after': {
           content: '""',
           width: 2,
-          height: 40,
+          height: dragging ? 64 : 40,
           borderRadius: 1,
-          backgroundColor: theme.palette.border?.subtle,
-          transition: 'background-color 0.15s ease, height 0.15s ease',
+          backgroundColor: dragging
+            ? alpha(theme.palette.primary.main, 0.72)
+            : (theme.palette.border?.subtle || alpha(theme.palette.text.primary, 0.14)),
+          transition: theme.transitions.create(['background-color', 'height', 'width'], {
+            duration: theme.transitions.duration.shorter,
+          }),
         },
-        '&:hover::after': {
+        '&:hover::after, &:focus-visible::after': {
+          width: 3,
           height: 60,
-          backgroundColor: theme.palette.text.secondary,
+          backgroundColor: alpha(theme.palette.primary.main, 0.65),
         },
       }}
     />

@@ -30,20 +30,15 @@ export function useConversations() {
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [isConversationsLoading, setIsConversationsLoading] = useState(false);
-  const [isConversationLoading, setIsConversationLoading] = useState(false);
+  const [isConversationLoading, setIsConversationLoading] = useState(Boolean(conversationId));
+  const [routeConversationLoadState, setRouteConversationLoadState] = useState(
+    conversationId ? 'loading' : 'idle'
+  );
   const prevConversationIdRef = useRef(null);
   const lastLoadedConversationIdRef = useRef(null);
   const newlyCreatedConvIdRef = useRef(null);
-  const abortControllerRef = useRef(null);
   const conversationLoadSeqRef = useRef(0);
   const conversationsLoadSeqRef = useRef(0);
-  const getAbortSignal = useCallback(() => {
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-    return abortControllerRef.current.signal;
-  }, []);
   const fetchConversations = useCallback(async (signal, options = {}) => {
     const showLoading = options.showLoading ?? true;
     if (options.force) {
@@ -101,17 +96,16 @@ export function useConversations() {
       setMessages(cachedConversation.messages);
       lastLoadedConversationIdRef.current = convId;
       setIsConversationLoading(false);
-      return;
+      return true;
     }
 
-    const signal = getAbortSignal();
     const requestSeq = conversationLoadSeqRef.current + 1;
     conversationLoadSeqRef.current = requestSeq;
     setIsConversationLoading(true);
     try {
       const data = await queryClient.fetchQuery({
         queryKey: queryKeys.conversation(convId),
-        queryFn: ({ signal: querySignal }) => getConversation(convId, signal ?? querySignal),
+        queryFn: ({ signal: querySignal }) => getConversation(convId, querySignal),
         staleTime: 5 * 60 * 1000,
       });
       if (data.status === 'success' && data.conversation) {
@@ -125,16 +119,19 @@ export function useConversations() {
         });
         setMessages(formattedMessages);
         lastLoadedConversationIdRef.current = convId;
+        return true;
       }
+      return false;
     } catch (error) {
-      if (error.name === 'AbortError') return; // Ignore abort errors
+      if (error.name === 'AbortError') return false; // Ignore abort errors
       logger.error('Failed to load conversation:', error);
+      return false;
     } finally {
       if (conversationLoadSeqRef.current === requestSeq) {
         setIsConversationLoading(false);
       }
     }
-  }, [getAbortSignal]);
+  }, []);
   const handleDeleteConversation = useCallback(async (convId) => {
     try {
       await deleteConversation(convId);
@@ -147,6 +144,7 @@ export function useConversations() {
     } catch (error) {
       if (error.name === 'AbortError') return; // Ignore abort errors
       logger.error('Failed to delete conversation:', error);
+      throw error;
     }
   }, [currentConversationId, navigate]);
   const handleRenameConversation = useCallback(async (convId, title) => {
@@ -175,27 +173,47 @@ export function useConversations() {
     fetchConversations();
   }, [fetchConversations]);
   useEffect(() => {
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
+    let cancelled = false;
+
+    const loadRouteConversation = () => {
+      setRouteConversationLoadState('loading');
+      handleSelectConversation(conversationId).then((loaded) => {
+        if (cancelled) return;
+        if (loaded) {
+          prevConversationIdRef.current = conversationId;
+          setRouteConversationLoadState('ready');
+          return;
+        }
+        setRouteConversationLoadState('error');
+      });
     };
-  }, []);
-  useEffect(() => {
+
     if (conversationId) {
       if (conversationId !== prevConversationIdRef.current || conversationId !== lastLoadedConversationIdRef.current) {
         if (conversationId === newlyCreatedConvIdRef.current) {
           newlyCreatedConvIdRef.current = null;
           lastLoadedConversationIdRef.current = conversationId;
+          setRouteConversationLoadState('ready');
         } else {
-          handleSelectConversation(conversationId);
+          loadRouteConversation();
         }
+      } else {
+        setRouteConversationLoadState('ready');
       }
     } else if (prevConversationIdRef.current) {
       resetChatState();
       lastLoadedConversationIdRef.current = null;
+      setRouteConversationLoadState('idle');
+    } else {
+      setRouteConversationLoadState('idle');
     }
-    prevConversationIdRef.current = conversationId;
+    if (!conversationId || conversationId === lastLoadedConversationIdRef.current) {
+      prevConversationIdRef.current = conversationId;
+    }
+
+    return () => {
+      cancelled = true;
+    };
   }, [conversationId, handleSelectConversation, resetChatState]);
 
   return {
@@ -207,6 +225,8 @@ export function useConversations() {
     setConversations,
     currentConversationId,
     setCurrentConversationId,
+    routeConversationId: conversationId || null,
+    routeConversationLoadState,
     fetchConversations,
     registerStreamingConversation,
     handleDeleteConversation,

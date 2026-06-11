@@ -199,100 +199,107 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   uiTarget,
 }) {
   const theme = useTheme();
+  const tooltipTitle = disabled || isCollapsed ? (tooltip || label) : '';
 
   return (
     <Tooltip
-      title={isCollapsed ? (tooltip || label) : ''}
+      title={tooltipTitle}
       placement="right"
       arrow
-      disableHoverListener={!isCollapsed}
-      disableFocusListener={!isCollapsed}
-      disableTouchListener={!isCollapsed}
+      disableHoverListener={!tooltipTitle}
+      disableFocusListener={!tooltipTitle}
+      disableTouchListener={!tooltipTitle}
     >
       <Box
-        component="button"
-        type="button"
-        onClick={disabled ? undefined : onClick}
-        disabled={disabled}
-        aria-label={label}
-        data-ui-target={uiTarget}
-        sx={{
-          ...buildNavRowSx(theme, { isActive, disabled }),
-          px: 0,
-          '&:hover:not(:disabled) .shortcut-hint': { opacity: 1 },
-        }}
+        component="span"
+        sx={{ display: 'block' }}
       >
-        {/* ── Icon column ── always ICON_COL wide, icon centered inside ── */}
         <Box
-          component="span"
+          component="button"
+          type="button"
+          onClick={disabled ? undefined : onClick}
+          disabled={disabled}
+          aria-label={label}
+          data-ui-target={uiTarget}
           sx={{
-            display: 'inline-flex',
-            flexShrink: 0,
-            width: ICON_COL,
-            justifyContent: 'center',
-            alignItems: 'center',
-            position: 'relative',
+            ...buildNavRowSx(theme, { isActive, disabled }),
+            px: 0,
+            width: '100%',
+            '&:hover:not(:disabled) .shortcut-hint': { opacity: 1 },
           }}
         >
-          <Box component="span" sx={{ display: 'inline-flex', color: 'inherit' }}>
-            {icon}
-          </Box>
-
-          {showStatus && (
-            <Box
-              sx={{
-                position: 'absolute',
-                top: 6,
-                right: 6,
-                width: 6,
-                height: 6,
-                borderRadius: '50%',
-                backgroundColor: theme.palette.success.main,
-                boxShadow: `0 0 0 1.5px ${theme.palette.background.paper}`,
-              }}
-            />
-          )}
-        </Box>
-
-        {/* ── Label — collapses to zero when sidebar is collapsed ── */}
-        <Box
-          sx={{
-            flex: '1 1 auto',
-            minWidth: 0,
-            maxWidth: isCollapsed ? 0 : 200,
-            opacity: isCollapsed ? 0 : 1,
-            overflow: 'hidden',
-            transition: theme.transitions.create(['max-width', 'opacity'], {
-              duration: theme.transitions.duration.shortest,
-            }),
-          }}
-        >
-          <Typography
-            noWrap
-            sx={{ ...theme.typography.uiNavItem, fontWeight: isActive ? 500 : 400, color: 'inherit', textAlign: 'left' }}
-          >
-            {label}
-          </Typography>
-        </Box>
-
-        {/* ── Shortcut hint — only visible on hover when expanded ── */}
-        {shortcut && !isCollapsed && (
-          <Typography
-            className="shortcut-hint"
+          {/* ── Icon column ── always ICON_COL wide, icon centered inside ── */}
+          <Box
             component="span"
             sx={{
-              ...theme.typography.uiNavShortcut,
-              color: 'text.disabled',
+              display: 'inline-flex',
               flexShrink: 0,
-              opacity: 0,
-              transition: 'opacity 0.15s ease',
-              whiteSpace: 'nowrap',
-              pr: 0.5,
+              width: ICON_COL,
+              justifyContent: 'center',
+              alignItems: 'center',
+              position: 'relative',
             }}
           >
-            {shortcut}
-          </Typography>
-        )}
+            <Box component="span" sx={{ display: 'inline-flex', color: 'inherit' }}>
+              {icon}
+            </Box>
+
+            {showStatus && (
+              <Box
+                sx={{
+                  position: 'absolute',
+                  top: 6,
+                  right: 6,
+                  width: 6,
+                  height: 6,
+                  borderRadius: '50%',
+                  backgroundColor: theme.palette.success.main,
+                  boxShadow: `0 0 0 1.5px ${theme.palette.background.paper}`,
+                }}
+              />
+            )}
+          </Box>
+
+          {/* ── Label — collapses to zero when sidebar is collapsed ── */}
+          <Box
+            sx={{
+              flex: '1 1 auto',
+              minWidth: 0,
+              maxWidth: isCollapsed ? 0 : 200,
+              opacity: isCollapsed ? 0 : 1,
+              overflow: 'hidden',
+              transition: theme.transitions.create(['max-width', 'opacity'], {
+                duration: theme.transitions.duration.shortest,
+              }),
+            }}
+          >
+            <Typography
+              noWrap
+              sx={{ ...theme.typography.uiNavItem, fontWeight: isActive ? 500 : 400, color: 'inherit', textAlign: 'left' }}
+            >
+              {label}
+            </Typography>
+          </Box>
+
+          {/* ── Shortcut hint — only visible on hover when expanded ── */}
+          {shortcut && !isCollapsed && (
+            <Typography
+              className="shortcut-hint"
+              component="span"
+              sx={{
+                ...theme.typography.uiNavShortcut,
+                color: 'text.disabled',
+                flexShrink: 0,
+                opacity: 0,
+                transition: 'opacity 0.15s ease',
+                whiteSpace: 'nowrap',
+                pr: 0.5,
+              }}
+            >
+              {shortcut}
+            </Typography>
+          )}
+        </Box>
       </Box>
     </Tooltip>
   );

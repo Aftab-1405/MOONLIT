@@ -168,6 +168,7 @@ class ConversationRepository:
         tools: List[Dict] = None,
         *,
         thinking: Optional[str] = None,
+        timeline: Optional[List[Dict]] = None,
         append: bool = False,
     ) -> None:
         """
@@ -239,6 +240,11 @@ class ConversationRepository:
                         orig_tools = last_message.get("tools", [])
                         last_message["tools"] = orig_tools + tools
 
+                    # Append timeline entries
+                    if timeline:
+                        orig_tl = last_message.get("timeline", [])
+                        last_message["timeline"] = orig_tl + timeline
+
                     conversation_ref.update({"messages": messages_list})
                     logger.debug(f"Conversation {conversation_id} updated successfully by appending to last {sender} message")
                     return
@@ -256,6 +262,9 @@ class ConversationRepository:
 
             if tools:
                 message_data["tools"] = tools
+
+            if timeline:
+                message_data["timeline"] = timeline
 
             conversation_ref.update({"messages": firestore.ArrayUnion([message_data])})
             logger.debug(f"Conversation {conversation_id} updated successfully")

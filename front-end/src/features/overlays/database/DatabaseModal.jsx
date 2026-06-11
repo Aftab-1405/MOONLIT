@@ -534,6 +534,21 @@ function DatabaseModal({
     </PreferenceNavList>
   );
 
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const handleEscapeKey = (event) => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      onClose?.(event, 'escapeKeyDown');
+    };
+
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [onClose, open]);
+
   const renderConnectionForm = () => (
     <Box
       sx={{
@@ -688,7 +703,6 @@ function DatabaseModal({
       showCloseButton={false}
       disableAutoFocus
       disableEnforceFocus
-      disableRestoreFocus
       keepMounted
       transitionDuration={180}
       rootSx={mainContentDialogRootSx}
