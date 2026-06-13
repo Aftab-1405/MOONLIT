@@ -574,41 +574,6 @@ def get_query_history(rationale: str, *, config: RunnableConfig) -> str:
     return json.dumps(queries, indent=2)
 
 
-@tool
-def get_conversation_summary(rationale: str, *, config: RunnableConfig) -> str:
-    """CRITICAL MEMORY TOOL: You DO have access to older parts of this conversation! Retrieve compressed summaries of conversation history that no longer fits in your active memory window (~20 messages). You MUST call this tool when the user asks about past context, their name, earlier decisions, or anything you cannot see in the current message history. Never tell the user you don't have access to past history."""
-    writer = _try_writer()
-    writer({"type": "tool_start", "name": "get_conversation_summary", "args": {"rationale": rationale}})
-
-    uid = config["configurable"]["user_id"]
-    namespaced_thread_id = config["configurable"]["thread_id"]
-    cid = namespaced_thread_id.split(":")[-1] if ":" in namespaced_thread_id else namespaced_thread_id
-
-    from repositories.conversation_repository import ConversationRepository
-    from services.conversation_service import format_summaries_for_tool
-
-    conv = ConversationRepository.get_for_user(cid, uid)
-    if not conv:
-        return "Conversation not found."
-
-    summaries = conv.get("summaries", [])
-    if not summaries:
-        return "No older conversation summaries exist yet."
-
-    writer(
-        {
-            "type": "tool_end",
-            "name": "get_conversation_summary",
-            "args": {"rationale": rationale},
-            "result": {"count": len(summaries)},
-        }
-    )
-
-    return (
-      format_summaries_for_tool(summaries)
-    )
-
-
 # ── public list ──────────────────────────────────────────────────────
 
 ALL_TOOLS = [
@@ -619,7 +584,6 @@ ALL_TOOLS = [
     get_schema_overview,
     web_search,
     get_query_history,
-    get_conversation_summary,
     open_sql_editor,
     open_database_modal,
     open_settings_modal,

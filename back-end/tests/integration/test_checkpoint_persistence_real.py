@@ -1,4 +1,4 @@
-# test_integration_summary_tool.py
+# test_integration_checkpoint_persistence.py
 import os
 import pytest
 import uuid

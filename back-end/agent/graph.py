@@ -31,7 +31,7 @@ def build_react_agent(
     """
     from langchain_core.messages import SystemMessage
 
-    def state_modifier(state):
+    def state_modifier(state, config=None):
         messages = list(state["messages"])
         if len(messages) > ACTIVE_MESSAGE_WINDOW:
             original_start_idx = len(messages) - ACTIVE_MESSAGE_WINDOW
@@ -60,23 +60,27 @@ def build_react_agent(
 
             messages = messages[start_idx:]
 
-        # Inject the latest compressed summary block (if any) as a SystemMessage
+        # Inject retrieved VAMP historical context (if any) as a SystemMessage
         # immediately after the main system prompt. This runs every invocation so
-        # the agent always has the most recent long-term memory in-context without
-        # a tool call — while keeping older blocks retrieval-only via get_conversation_summary.
-        config = state.get("configurable", {})
-        latest_summary: str | None = config.get("latest_summary")
+        # the agent receives relevant long-term memory without relying on a
+        # model-chosen memory tool call.
+        configurable = {}
+        if isinstance(config, dict):
+            configurable = config.get("configurable", {}) or {}
+        if not configurable:
+            configurable = state.get("configurable", {})
+        historical_context: str | None = configurable.get("historical_context")
         prefix = [SystemMessage(content=system_prompt)]
-        if latest_summary:
+        if historical_context:
             prefix.append(
                 SystemMessage(
                     content=(
-                        "<recent_memory>\n"
-                        "The following is a compressed summary of earlier conversation history "
-                        "that is no longer in your active message window. "
-                        "Use it as background context — do not reference it explicitly unless asked.\n\n"
-                        + latest_summary
-                        + "\n</recent_memory>"
+                        "<historical_context>\n"
+                        "The following memory blocks were retrieved deterministically "
+                        "before this LLM call. Use them as factual background, but do "
+                        "not reference the memory system unless asked.\n\n"
+                        + historical_context
+                        + "\n</historical_context>"
                     )
                 )
             )
