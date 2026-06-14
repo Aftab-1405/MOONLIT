@@ -294,10 +294,22 @@ const AIMessage = memo(function AIMessage({
 
       if (sqlEditorTimeoutRef.current) clearTimeout(sqlEditorTimeoutRef.current);
       sqlEditorTimeoutRef.current = setTimeout(() => {
-        onOpenSqlEditor(query, normalizedResults);
+        if (onOpenCanvasArtifact) {
+          onOpenCanvasArtifact({
+            type: 'results',
+            title: 'Query Results',
+            props: {
+              data: normalizedResults,
+              sourceQuery: query,
+              sourceType: 'sql-editor',
+            },
+          });
+        } else if (onOpenSqlEditor) {
+          onOpenSqlEditor(query, normalizedResults);
+        }
       }, 100);
     });
-  }, [displaySteps, id, isStreaming, isWaiting, onOpenSqlEditor]);
+  }, [displaySteps, id, isStreaming, isWaiting, onOpenSqlEditor, onOpenCanvasArtifact]);
 
   useEffect(() => {
     if (!onOpenCanvasArtifact || isWaiting || isStreaming) return;

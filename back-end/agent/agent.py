@@ -13,7 +13,7 @@ import asyncio
 import logging
 from typing import AsyncGenerator, Optional
 
-from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 from langchain_core.messages.utils import merge_message_runs
 from langgraph.types import Command
 from fastapi.concurrency import run_in_threadpool
@@ -215,7 +215,25 @@ async def stream_conversation(
                 )
             graph_input = {"messages": initial_messages}
         else:
-            initial_messages = [HumanMessage(content=message or "")]
+            initial_messages = []
+            
+            # Repair dangling tool calls if the previous run was aborted or failed
+            state_snapshot = await agent.aget_state(config)
+            if state_snapshot and state_snapshot.values and "messages" in state_snapshot.values:
+                existing_messages = state_snapshot.values["messages"]
+                if existing_messages:
+                    last_msg = existing_messages[-1]
+                    if isinstance(last_msg, AIMessage) and getattr(last_msg, "tool_calls", None):
+                        for tc in last_msg.tool_calls:
+                            initial_messages.append(
+                                ToolMessage(
+                                    content="The previous execution failed or was interrupted before this tool could complete.",
+                                    tool_call_id=tc["id"],
+                                    name=tc["name"]
+                                )
+                            )
+                            
+            initial_messages.append(HumanMessage(content=message or ""))
             graph_input = {"messages": initial_messages}
 
         async for part in agent.astream(
