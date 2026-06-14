@@ -8,8 +8,8 @@ import main
 from dependencies import get_current_user
 
 # Mock Firebase initialization during import
-import services.firestore_service
-services.firestore_service.FirestoreService.initialize = lambda: None
+import app.features.conversations.infrastructure.firestore_service
+app.features.conversations.infrastructure.firestore_service.FirestoreService.initialize = lambda: None
 
 app = main.create_app()
 
@@ -23,7 +23,7 @@ def client():
         "verified": True
     }
     
-    from repositories.conversation_repository import ConversationRepository
+    from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
     original_get = ConversationRepository.get
     original_get_for_user = ConversationRepository.get_for_user
     original_delete = ConversationRepository.delete
@@ -86,7 +86,7 @@ def test_xss_payload_in_title(client):
         assert response.status_code != 500
 
 def test_xss_in_all_string_fields(client):
-    from services.user_settings_service import UserSettingsService
+    from app.features.user_settings.application.user_settings_service import UserSettingsService
     
     payloads = [
         "<script>alert(1)</script>",

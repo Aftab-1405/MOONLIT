@@ -7,9 +7,9 @@ import pytest
 from fastapi.testclient import TestClient
 import main
 from dependencies import get_current_user
-from repositories.conversation_repository import ConversationRepository
-import services.firestore_service
-services.firestore_service.FirestoreService.initialize = lambda: None
+from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
+import app.features.conversations.infrastructure.firestore_service
+app.features.conversations.infrastructure.firestore_service.FirestoreService.initialize = lambda: None
 
 app = main.create_app()
 

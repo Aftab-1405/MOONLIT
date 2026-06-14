@@ -1,0 +1,133 @@
+"""Per-user application preferences stored in Firestore."""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from app.features.context.infrastructure.context_repository import ContextRepository
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_PREFERENCES: dict[str, Any] = {
+    "theme": "dark",
+    "confirmBeforeRun": False,
+    "queryTimeout": 30,
+    "maxRows": 1000,
+    "nullDisplay": "NULL",
+    "rememberConnection": False,
+    "defaultDbType": "postgresql",
+    "connectionPersistence": 0,
+    "enableReasoning": True,
+    "reasoningEffort": "medium",
+    "responseStyle": "balanced",
+    "llmProvider": None,
+    "llmModel": None,
+}
+
+_INT_KEYS = {"queryTimeout", "maxRows", "connectionPersistence"}
+_BOOL_KEYS = {"confirmBeforeRun", "rememberConnection", "enableReasoning"}
+_ENUMS = {
+    "theme": {"light", "dark"},
+    "defaultDbType": {"mysql", "postgresql", "sqlserver", "oracle"},
+    "connectionPersistence": {0, 5, 15, 30, 60},
+    "reasoningEffort": {"low", "medium", "high"},
+    "responseStyle": {"concise", "balanced", "detailed"},
+}
+
+
+def _normalize_user_id(user: Any) -> str:
+    return ContextRepository._normalize_user_id(user)
+
+
+def _coerce_value(key: str, value: Any) -> Any:
+    if value is None:
+        return None
+
+    if key in _BOOL_KEYS:
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    if key in _INT_KEYS:
+        try:
+            coerced = int(value)
+        except (TypeError, ValueError):
+            return None
+        if key in _ENUMS and coerced not in _ENUMS[key]:
+            return None
+        return coerced
+
+    if key in _ENUMS:
+        normalized = str(value).strip()
+        if key == "theme":
+            normalized = normalized.lower()
+        if key == "defaultDbType":
+            normalized = normalized.lower()
+        if key == "reasoningEffort":
+            normalized = normalized.lower()
+        if key == "responseStyle":
+            normalized = normalized.lower()
+        return normalized if normalized in _ENUMS[key] else None
+
+    if key in {"llmProvider", "llmModel", "nullDisplay"}:
+        text = str(value).strip()
+        return text or None
+
+    return value
+
+
+def _sanitize_patch(patch: dict[str, Any]) -> dict[str, Any]:
+    """Accept camelCase frontend keys and legacy connectionPersistenceMinutes."""
+    if not patch:
+        return {}
+
+    incoming = dict(patch)
+    if (
+        "connectionPersistence" not in incoming
+        and "connectionPersistenceMinutes" in incoming
+    ):
+        incoming["connectionPersistence"] = incoming.pop("connectionPersistenceMinutes")
+
+    sanitized: dict[str, Any] = {}
+    for key, value in incoming.items():
+        if key not in DEFAULT_PREFERENCES:
+            continue
+        coerced = _coerce_value(key, value)
+        if coerced is not None or key in {"llmProvider", "llmModel"}:
+            sanitized[key] = coerced
+    return sanitized
+
+
+class UserSettingsService:
+    """Read/write merged preferences on user_context/{uid}.preferences."""
+
+    @staticmethod
+    def get_merged(user_id: Any) -> dict[str, Any]:
+        uid = _normalize_user_id(user_id)
+        doc = ContextRepository.get(uid) or {}
+        stored = doc.get("preferences") if isinstance(doc.get("preferences"), dict) else {}
+        merged = {**DEFAULT_PREFERENCES, **stored}
+        return merged
+
+    @staticmethod
+    def save(user_id: Any, patch: dict[str, Any]) -> dict[str, Any]:
+        uid = _normalize_user_id(user_id)
+        sanitized = _sanitize_patch(patch)
+        if not sanitized:
+            return UserSettingsService.get_merged(uid)
+
+        current = UserSettingsService.get_merged(uid)
+        merged = {**current, **sanitized}
+        ContextRepository.update(uid, {"preferences": merged})
+        logger.info("Updated preferences for user %s: %s", uid, list(sanitized.keys()))
+        return merged
+
+    @staticmethod
+    def connection_persistence_minutes(prefs: dict[str, Any]) -> int:
+        try:
+            return int(prefs.get("connectionPersistence", 0))
+        except (TypeError, ValueError):
+            return 0

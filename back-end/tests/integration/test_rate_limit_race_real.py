@@ -3,7 +3,7 @@ import os
 import pytest
 import redis.asyncio as redis
 from dotenv import load_dotenv
-from services.rate_limiting.user_quota import UserQuotaService, UserQuotaConfig
+from app.features.quota.application.rate_limiting.user_quota import UserQuotaService, UserQuotaConfig
 
 # Load the environment variables from the project root .env
 load_dotenv()

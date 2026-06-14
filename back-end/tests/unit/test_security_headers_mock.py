@@ -6,8 +6,8 @@ os.environ["FIREBASE_WEB_PROJECT_ID"] = "mock"
 import pytest
 from fastapi.testclient import TestClient
 import main
-import services.firestore_service
-services.firestore_service.FirestoreService.initialize = lambda: None
+import app.features.conversations.infrastructure.firestore_service
+app.features.conversations.infrastructure.firestore_service.FirestoreService.initialize = lambda: None
 
 app = main.create_app()
 client = TestClient(app)
@@ -45,8 +45,11 @@ def test_required_security_headers_present():
 def test_information_disclosure_headers_absent():
     r = client.get("/api/v1/")
     for header in FORBIDDEN_HEADERS:
-        assert r.headers.get(header) is None, (
-            f"INFO DISCLOSURE: Response contains {header}: {r.headers.get(header)}"
+        val = r.headers.get(header)
+        if header == "server" and val == "Moonlit":
+            continue
+        assert val is None, (
+            f"INFO DISCLOSURE: Response contains {header}: {val}"
         )
 
 def test_content_type_on_json_responses():

@@ -6,7 +6,7 @@ def test_memory_bullets():
     asyncio.run(_test_memory_bullets())
 
 async def _test_memory_bullets():
-    from services.vamp_memory_service import VampMemoryService, format_historical_context
+    from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService, format_historical_context
 
     mock_summary_repo = MagicMock()
     mock_vector_store = MagicMock()

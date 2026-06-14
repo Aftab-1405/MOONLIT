@@ -103,7 +103,7 @@ def test_cors(client):
 
 if __name__ == "__main__":
     # Mock firestore initialize so it doesn't crash during TestClient init
-    import services.firestore_service
-    services.firestore_service.FirestoreService.initialize = lambda: None
+    import app.features.conversations.infrastructure.firestore_service
+    app.features.conversations.infrastructure.firestore_service.FirestoreService.initialize = lambda: None
     
     test_cors()

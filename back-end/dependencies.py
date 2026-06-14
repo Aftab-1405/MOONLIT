@@ -148,7 +148,7 @@ async def _expire_db_config(request: Request, db_config: dict, reason: str) -> N
         user_id = None
 
     try:
-        from services.database_service import DatabaseService
+        from app.features.database.application.database_service import DatabaseService
 
         await run_in_threadpool(DatabaseService.disconnect, db_config, user_id)
     except Exception as e:

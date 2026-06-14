@@ -15,10 +15,10 @@ from slowapi.errors import RateLimitExceeded
 import redis.asyncio as redis
 
 from config import get_config, ProductionConfig
-from services.firestore_service import FirestoreService
-from services.rate_limiting import create_rate_limiter, create_user_quota_service
-from agent.checkpointing import init_checkpointer, shutdown_checkpointer
-from api.schemas.common import ApiError
+from app.features.conversations.infrastructure.firestore_service import FirestoreService
+from app.features.quota.application.rate_limiting import create_rate_limiter, create_user_quota_service
+from app.features.agent_orchestration.infrastructure.checkpointing import init_checkpointer, shutdown_checkpointer
+from app.core.common_schemas import ApiError
 
 
 # Configure logging
@@ -252,8 +252,8 @@ def create_app() -> FastAPI:
     _register_error_handlers(app)
 
     # Register routers
-    from auth.routes import router as auth_router
-    from api.routes import combined_router as api_router
+    from app.features.auth.api.routes import router as auth_router
+    from app.api_router import combined_router as api_router
 
     app.include_router(auth_router)
     app.include_router(api_router, prefix="/api/v1")

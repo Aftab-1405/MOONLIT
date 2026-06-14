@@ -5,8 +5,8 @@ import uuid
 import json
 import redis.asyncio as redis
 from dotenv import load_dotenv
-from agent.agent import stream_conversation
-from agent.checkpointing import init_checkpointer, shutdown_checkpointer, get_checkpointer, UpstashRedisSaver
+from app.features.agent_orchestration.application.stream_conversation import stream_conversation
+from app.features.agent_orchestration.infrastructure.checkpointing import init_checkpointer, shutdown_checkpointer, get_checkpointer, UpstashRedisSaver
 from config import Config
 
 load_dotenv()

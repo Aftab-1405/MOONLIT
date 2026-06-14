@@ -2,7 +2,7 @@
 import pytest
 import firebase_admin
 from dotenv import load_dotenv
-from services.firestore_service import FirestoreService
+from app.features.conversations.infrastructure.firestore_service import FirestoreService
 
 load_dotenv()
 

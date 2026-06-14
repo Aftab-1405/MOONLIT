@@ -1,3 +1,4 @@
+import importlib
 import os
 os.environ["FIREBASE_PROJECT_ID"] = "mock"
 os.environ["FIREBASE_WEB_PROJECT_ID"] = "mock"
@@ -8,12 +9,12 @@ from fastapi.testclient import TestClient
 import httpx
 import main
 from dependencies import get_current_user, verify_session_cookie_value
-from repositories.conversation_repository import ConversationRepository
-from services.rate_limiting.user_quota import UserQuotaService, UserQuotaConfig
+from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
+from app.features.quota.application.rate_limiting.user_quota import UserQuotaService, UserQuotaConfig
 
 # Mock Firebase initialization during import
-import services.firestore_service
-services.firestore_service.FirestoreService.initialize = lambda: None
+import app.features.conversations.infrastructure.firestore_service
+app.features.conversations.infrastructure.firestore_service.FirestoreService.initialize = lambda: None
 
 app = main.create_app()
 
@@ -410,26 +411,28 @@ async def test_concurrent_load_dos():
     })
     
     # Mock get_checkpointer in both modules to prevent Env/lifespan check failures
-    import agent.agent
-    import agent.checkpointing
+    checkpointing_module = importlib.import_module("app.features.agent_orchestration.infrastructure.checkpointing")
     from langgraph.checkpoint.memory import InMemorySaver
     
-    original_get_cp = agent.checkpointing.get_checkpointer
-    original_agent_get_cp = getattr(agent.agent, "get_checkpointer", None)
+    original_get_cp = checkpointing_module.get_checkpointer
+    original_agent_get_cp = getattr(checkpointing_module, "get_checkpointer", None)
     
-    agent.checkpointing.get_checkpointer = lambda: InMemorySaver()
-    agent.agent.get_checkpointer = lambda: InMemorySaver()
+    checkpointing_module.get_checkpointer = lambda: InMemorySaver()
+    sc = importlib.import_module("app.features.agent_orchestration.application.stream_conversation")
+    sc.get_checkpointer = lambda: InMemorySaver()
     
     try:
+        print(f"TYPE OF APP: {type(app)}")
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as async_client:
             # Fire 30 concurrent requests (quota limit is 5 per minute)
             tasks = [make_request(async_client) for _ in range(30)]
             responses = await asyncio.gather(*tasks)
     finally:
         ConversationRepository.get = original_get
-        agent.checkpointing.get_checkpointer = original_get_cp
+        checkpointing_module.get_checkpointer = original_get_cp
         if original_agent_get_cp is not None:
-            agent.agent.get_checkpointer = original_agent_get_cp
+            sc = importlib.import_module("app.features.agent_orchestration.application.stream_conversation")
+            sc.get_checkpointer = original_agent_get_cp
         
     status_codes = [r.status_code for r in responses]
     too_many_requests = status_codes.count(429)

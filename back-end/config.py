@@ -33,7 +33,7 @@ class Config:
     _native_thinking_models_raw = os.getenv("BEDROCK_NATIVE_THINKING_MODELS", "")
     BEDROCK_NATIVE_THINKING_MODELS = [m.strip().lower() for m in _native_thinking_models_raw.split(",") if m.strip()]
 
-    # Provider API keys are resolved per selected provider in agent.model_factory.
+    # Provider API keys are resolved per selected provider in app.llm.providers.model_factory.
 
     # LLM Rate Limiting
     LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "True").lower() == "true"

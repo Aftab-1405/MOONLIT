@@ -7,8 +7,8 @@ import pytest
 from fastapi.testclient import TestClient
 import main
 from dependencies import get_current_user
-import services.firestore_service
-services.firestore_service.FirestoreService.initialize = lambda: None
+import app.features.conversations.infrastructure.firestore_service
+app.features.conversations.infrastructure.firestore_service.FirestoreService.initialize = lambda: None
 
 app = main.create_app()
 
@@ -21,7 +21,7 @@ def client():
         "verified": True
     }
     
-    from repositories.conversation_repository import ConversationRepository
+    from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
     original_get = ConversationRepository.get
     original_get_for_user = ConversationRepository.get_for_user
     original_delete = ConversationRepository.delete

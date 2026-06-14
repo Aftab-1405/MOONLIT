@@ -4,7 +4,7 @@ import pytest
 import importlib
 import uuid
 from fastapi.testclient import TestClient
-from repositories.conversation_repository import ConversationRepository
+from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
 
 @pytest.mark.usefixtures("restore_real_env")
 @pytest.mark.integration

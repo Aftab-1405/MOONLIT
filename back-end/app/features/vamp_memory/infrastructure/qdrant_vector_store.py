@@ -1,0 +1,140 @@
+import asyncio
+import logging
+import uuid
+from app.features.vamp_memory.domain.protocols import VectorMemoryStore
+
+logger = logging.getLogger(__name__)
+
+class QdrantVectorMemoryStore(VectorMemoryStore):
+    """Qdrant-backed pointer index for VAMP summary blocks."""
+
+    def __init__(
+        self,
+        *,
+        url: str,
+        api_key: str | None,
+        collection_name: str,
+        vector_size: int,
+    ):
+        from qdrant_client import QdrantClient
+        from qdrant_client import models
+
+        self.client = QdrantClient(url=url, api_key=api_key or None)
+        self.models = models
+        self.collection_name = collection_name
+        self.vector_size = vector_size
+        self._ensure_collection()
+
+    def _ensure_collection(self) -> None:
+        try:
+            exists = self.client.collection_exists(self.collection_name)
+        except Exception:
+            exists = False
+        if exists:
+            return
+        self.client.create_collection(
+            collection_name=self.collection_name,
+            vectors_config=self.models.VectorParams(
+                size=self.vector_size,
+                distance=self.models.Distance.COSINE,
+            ),
+        )
+        for field_name in ("conversation_id", "user_id"):
+            try:
+                self.client.create_payload_index(
+                    collection_name=self.collection_name,
+                    field_name=field_name,
+                    field_schema=self.models.PayloadSchemaType.KEYWORD,
+                )
+            except Exception:
+                logger.debug("Could not create Qdrant payload index for %s", field_name)
+
+    async def upsert(
+        self,
+        *,
+        conversation_id: str,
+        summary_id: str,
+        vector: list[float],
+        payload: dict,
+        point_seed: str | None = None,
+    ) -> None:
+        seed = point_seed or f"{conversation_id}:{summary_id}"
+        point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, seed))
+
+        def _upsert():
+            self.client.upsert(
+                collection_name=self.collection_name,
+                points=[
+                    self.models.PointStruct(
+                        id=point_id,
+                        vector=vector,
+                        payload=payload,
+                    )
+                ],
+            )
+
+        await asyncio.to_thread(_upsert)
+
+    async def search(
+        self,
+        *,
+        conversation_id: str,
+        query_vector: list[float],
+        k: int,
+        user_id: str | None = None,
+        pointer_type: str | None = None,
+    ) -> list[dict]:
+        must = [
+            self.models.FieldCondition(
+                key="conversation_id",
+                match=self.models.MatchValue(value=conversation_id),
+            )
+        ]
+        if user_id:
+            must.append(
+                self.models.FieldCondition(
+                    key="user_id",
+                    match=self.models.MatchValue(value=user_id),
+                )
+            )
+        if pointer_type:
+            must.append(
+                self.models.FieldCondition(
+                    key="pointer_type",
+                    match=self.models.MatchValue(value=pointer_type),
+                )
+            )
+        query_filter = self.models.Filter(must=must)
+
+        def _search():
+            if hasattr(self.client, "query_points"):
+                result = self.client.query_points(
+                    collection_name=self.collection_name,
+                    query=query_vector,
+                    query_filter=query_filter,
+                    limit=k,
+                    with_payload=True,
+                )
+                return getattr(result, "points", result)
+            return self.client.search(
+                collection_name=self.collection_name,
+                query_vector=query_vector,
+                query_filter=query_filter,
+                limit=k,
+                with_payload=True,
+            )
+
+        points = await asyncio.to_thread(_search)
+        hits = []
+        for point in points:
+            payload = getattr(point, "payload", {}) or {}
+            hits.append(
+                {
+                    "summary_id": payload.get("summary_id"),
+                    "idx": payload.get("idx", 0),
+                    "score": getattr(point, "score", 0.0),
+                    "bullet_id": payload.get("bullet_id"),
+                    "pointer_type": payload.get("pointer_type"),
+                }
+            )
+        return hits

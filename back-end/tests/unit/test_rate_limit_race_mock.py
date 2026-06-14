@@ -1,3 +1,4 @@
+import importlib
 import os
 os.environ["FIREBASE_PROJECT_ID"] = "mock"
 os.environ["FIREBASE_WEB_PROJECT_ID"] = "mock"
@@ -5,15 +6,15 @@ os.environ["FIREBASE_WEB_PROJECT_ID"] = "mock"
 import pytest
 import asyncio
 import httpx
-from services.rate_limiting.user_quota import UserQuotaService, UserQuotaConfig
+from app.features.quota.application.rate_limiting.user_quota import UserQuotaService, UserQuotaConfig
 
 # Mock Firestore initialization
-import services.firestore_service
-services.firestore_service.FirestoreService.initialize = lambda: None
+import app.features.conversations.infrastructure.firestore_service
+app.features.conversations.infrastructure.firestore_service.FirestoreService.initialize = lambda: None
 
 from main import create_app
 from dependencies import get_current_user
-from repositories.conversation_repository import ConversationRepository
+from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
 
 # A mock redis that simulates network latency
 class MockAsyncRedis:
@@ -113,14 +114,14 @@ async def test_rate_limit_race_integration():
     })
     
     # Mock checkpointer to prevent env errors
-    import agent.checkpointing
-    import agent.agent
+    checkpointing_module = importlib.import_module("app.features.agent_orchestration.infrastructure.checkpointing")
     from langgraph.checkpoint.memory import InMemorySaver
     
-    original_get_cp = agent.checkpointing.get_checkpointer
-    original_agent_get_cp = getattr(agent.agent, "get_checkpointer", None)
-    agent.checkpointing.get_checkpointer = lambda: InMemorySaver()
-    agent.agent.get_checkpointer = lambda: InMemorySaver()
+    original_get_cp = checkpointing_module.get_checkpointer
+    original_agent_get_cp = getattr(checkpointing_module, "get_checkpointer", None)
+    checkpointing_module.get_checkpointer = lambda: InMemorySaver()
+    sc = importlib.import_module("app.features.agent_orchestration.application.stream_conversation")
+    sc.get_checkpointer = lambda: InMemorySaver()
     
     async def make_request(async_client):
         return await async_client.post(
@@ -135,15 +136,17 @@ async def test_rate_limit_race_integration():
         )
         
     try:
+        print(f"TYPE OF APP: {type(app)}")
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as async_client:
             # Fire 50 concurrent requests when limit is 5
             tasks = [make_request(async_client) for _ in range(50)]
             responses = await asyncio.gather(*tasks)
     finally:
         ConversationRepository.get = original_get
-        agent.checkpointing.get_checkpointer = original_get_cp
+        checkpointing_module.get_checkpointer = original_get_cp
         if original_agent_get_cp is not None:
-            agent.agent.get_checkpointer = original_agent_get_cp
+            sc = importlib.import_module("app.features.agent_orchestration.application.stream_conversation")
+            sc.get_checkpointer = original_agent_get_cp
             
     status_codes = [r.status_code for r in responses]
     too_many_requests = status_codes.count(429)

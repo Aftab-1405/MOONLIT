@@ -23,13 +23,13 @@ async def test_integration_agent_stream_conversation(model_name):
     if redis_url and redis_url.startswith("redis://"):
         os.environ["UPSTASH_REDIS_URL"] = redis_url.replace("redis://", "rediss://", 1)
         
-    import agent.agent
+    import app.features.agent_orchestration.application.stream_conversation
     import main
     
     # We do NOT use overrides. We run the real stream_conversation.
     # Note: We pass a simple prompt to minimize token usage and time.
     try:
-        stream = agent.agent.stream_conversation(
+        stream = agent.app.features.agent_orchestration.application.stream_conversation(
             conversation_id=f"integration_thread_{model_name.replace(':', '_').replace('.', '_')}",
             message="Count from 1 to 2.",
             user_id="integration_user_123",

@@ -1,8 +1,8 @@
 import pytest
-from database.adapters.postgresql_adapter import PostgreSQLAdapter
-from database.adapters.mysql_adapter import MySQLAdapter
-from database.adapters.oracle_adapter import OracleAdapter
-from database.adapters.sqlserver_adapter import SQLServerAdapter
+from app.features.database.infrastructure.adapters.postgresql_adapter import PostgreSQLAdapter
+from app.features.database.infrastructure.adapters.mysql_adapter import MySQLAdapter
+from app.features.database.infrastructure.adapters.oracle_adapter import OracleAdapter
+from app.features.database.infrastructure.adapters.sqlserver_adapter import SQLServerAdapter
 
 @pytest.mark.integration
 def test_integration_postgresql_adapter_sqli_protection():
@@ -197,7 +197,7 @@ def test_integration_where_clause_parameterization():
     adapters = [
         (PostgreSQLAdapter, "%s"),
         (MySQLAdapter, "%s"),
-        (SQLServerAdapter, "?"),
+        (SQLServerAdapter, "%s"),
         (OracleAdapter, ":")
     ]
     

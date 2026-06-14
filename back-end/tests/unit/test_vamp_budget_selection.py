@@ -5,7 +5,7 @@ import pytest
 # Add project root to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
-from services.vamp_memory_service import VampMemoryService
+from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService
 
 class DummyRepo:
     pass

@@ -17,11 +17,11 @@ def restore_real_env():
         pass
         
     # 3. Clear the firestore db cache in firestore_service
-    from services.firestore_service import get_firestore_db
+    from app.features.conversations.infrastructure.firestore_service import get_firestore_db
     get_firestore_db.cache_clear()
     
     # 4. Restore actual FirestoreService methods
-    from services.firestore_service import FirestoreService, _initialize_firebase
+    from app.features.conversations.infrastructure.firestore_service import FirestoreService, _initialize_firebase
     FirestoreService.initialize = classmethod(lambda cls: _initialize_firebase())
     FirestoreService.get_db = classmethod(lambda cls: get_firestore_db())
     
