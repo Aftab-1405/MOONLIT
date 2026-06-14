@@ -81,6 +81,7 @@ ipython_config.py
 
 # Virtual environments
 .venv/
+env/
 
 # Type checkers
 .mypy_cache/
@@ -111,6 +112,7 @@ out/
 # Logs
 logs/
 *.log
+backend.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
