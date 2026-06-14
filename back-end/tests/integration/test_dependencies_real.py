@@ -5,8 +5,8 @@ import httpx
 import firebase_admin
 from firebase_admin import auth, credentials
 from dotenv import load_dotenv
-from config import Config
-from dependencies import verify_session_cookie_value
+from app.core.config import Config
+from app.core.dependencies import verify_session_cookie_value
 
 load_dotenv()
 

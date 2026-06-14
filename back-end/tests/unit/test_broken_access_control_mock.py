@@ -6,7 +6,7 @@ os.environ["FIREBASE_WEB_PROJECT_ID"] = "mock"
 import pytest
 from fastapi.testclient import TestClient
 import main
-from dependencies import get_current_user
+from app.core.dependencies import get_current_user
 import app.features.conversations.infrastructure.firestore_service
 app.features.conversations.infrastructure.firestore_service.FirestoreService.initialize = lambda: None
 

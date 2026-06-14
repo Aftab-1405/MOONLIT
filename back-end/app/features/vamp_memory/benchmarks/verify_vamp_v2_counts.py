@@ -1,5 +1,5 @@
 import asyncio
-from app.infrastructure.firestore.firestore_service import FirestoreService, get_firestore_db
+from app.features.conversations.infrastructure.firestore_service import FirestoreService, get_firestore_db
 from app.features.vamp_memory.infrastructure.summary_block_repository import SummaryBlockRepository
 from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
 from app.features.vamp_memory.application.vamp_memory_service import get_default_vector_store

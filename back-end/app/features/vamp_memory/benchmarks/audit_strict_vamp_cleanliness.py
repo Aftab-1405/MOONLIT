@@ -5,7 +5,7 @@ import re
 
 # Resolve the project root relative to the script location
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
+PROJECT_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, "..", "..", "..", ".."))
 
 PRODUCTION_FILES = [
     "app/features/vamp_memory/application/vamp_memory_service.py",

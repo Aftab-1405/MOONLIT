@@ -70,7 +70,7 @@ def get_chat_model(
         
     model_kwargs = {}
     
-    from config import Config
+    from app.core.config import Config
     is_native_reasoning = any(m in model.lower() for m in Config.BEDROCK_NATIVE_THINKING_MODELS)
     
     if is_native_reasoning:

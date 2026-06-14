@@ -24,10 +24,10 @@ def client():
     os.environ["FIREBASE_TOKEN_URI"] = "mock"
     os.environ["UPSTASH_REDIS_URL"] = "redis://localhost:6379"
     
-    import config
+    import app.core.config as config
     importlib.reload(config)
     
-    import main
+    import app.main as main
     importlib.reload(main)
     
     app = main.create_app()

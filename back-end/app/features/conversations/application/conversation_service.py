@@ -314,7 +314,7 @@ class ConversationService:
             from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
             from app.llm.providers.model_factory import get_chat_model
             from app.features.agent_orchestration.infrastructure.checkpoint_utils import get_thread_message_count
-            from config import Config
+            from app.core.config import Config
             from langchain_core.messages import HumanMessage, SystemMessage
             from app.features.conversations.infrastructure.firestore_service import FirestoreService
 
@@ -538,7 +538,7 @@ def _claim_summary_range(
 
     Returns a claim id if this worker owns the range, otherwise None.
     """
-    from config import Config
+    from app.core.config import Config
 
     claim_id = str(uuid.uuid4())
     claimed_at = datetime.now(timezone.utc).isoformat()

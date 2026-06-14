@@ -4,7 +4,7 @@ import uuid
 import firebase_admin
 from firebase_admin import credentials
 from dotenv import load_dotenv
-from config import Config
+from app.core.config import Config
 from app.features.user_settings.application.user_settings_service import UserSettingsService, DEFAULT_PREFERENCES
 from app.features.context.infrastructure.context_repository import ContextRepository
 

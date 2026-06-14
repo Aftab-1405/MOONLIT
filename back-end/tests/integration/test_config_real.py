@@ -1,7 +1,7 @@
 # test_integration_config.py
 import pytest
 from dotenv import load_dotenv
-from config import Config
+from app.core.config import Config
 
 load_dotenv()
 

@@ -6,7 +6,7 @@ os.environ["FIREBASE_WEB_PROJECT_ID"] = "mock"
 import pytest
 from fastapi.testclient import TestClient
 import main
-from dependencies import get_current_user, verify_session_cookie_value
+from app.core.dependencies import get_current_user, verify_session_cookie_value
 import app.features.conversations.infrastructure.firestore_service
 app.features.conversations.infrastructure.firestore_service.FirestoreService.initialize = lambda: None
 
@@ -14,7 +14,7 @@ app = main.create_app()
 
 def test_session_invalidated_after_logout():
     """Session cookie used before logout must be rejected after logout."""
-    import dependencies
+    import app.core.dependencies as dependencies
 
     call_count = {"n": 0}
 

@@ -5,7 +5,7 @@ os.environ["FIREBASE_WEB_PROJECT_ID"] = "mock"
 import pytest
 from fastapi.testclient import TestClient
 import main
-from dependencies import get_current_user
+from app.core.dependencies import get_current_user
 
 # Mock Firebase initialization during import
 import app.features.conversations.infrastructure.firestore_service

@@ -7,7 +7,7 @@ Implements database operations for PostgreSQL using psycopg2.
 import logging
 from typing import Any, Dict, Optional
 from contextlib import contextmanager
-from config import Config
+from app.core.config import Config
 from .base_adapter import BaseDatabaseAdapter
 
 logger = logging.getLogger(__name__)

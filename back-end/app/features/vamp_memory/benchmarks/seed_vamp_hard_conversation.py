@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Import project services/repositories
-from app.infrastructure.firestore.firestore_service import FirestoreService, get_firestore_db
+from app.features.conversations.infrastructure.firestore_service import FirestoreService, get_firestore_db
 from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
 from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService, get_default_vector_store
 from app.features.conversations.application.conversation_service import ConversationService

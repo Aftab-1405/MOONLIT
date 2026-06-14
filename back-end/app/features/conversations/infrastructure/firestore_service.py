@@ -4,7 +4,7 @@
 import firebase_admin
 from firebase_admin import credentials, firestore
 from functools import lru_cache
-from config import Config
+from app.core.config import Config
 from datetime import datetime
 import logging
 

@@ -8,7 +8,7 @@ import asyncio
 from fastapi.testclient import TestClient
 import httpx
 import main
-from dependencies import get_current_user, verify_session_cookie_value
+from app.core.dependencies import get_current_user, verify_session_cookie_value
 from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
 from app.features.quota.application.rate_limiting.user_quota import UserQuotaService, UserQuotaConfig
 
@@ -225,7 +225,7 @@ def test_jwt_forgery_attempt():
     app.dependency_overrides.clear()
     
     # Mock verify_session_cookie_value in dependencies
-    import dependencies
+    import app.core.dependencies as dependencies
     original_verify = dependencies.verify_session_cookie_value
     
     def mock_verify(cookie_val):

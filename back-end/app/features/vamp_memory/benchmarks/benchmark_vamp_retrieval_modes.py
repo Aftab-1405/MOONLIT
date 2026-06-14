@@ -20,7 +20,7 @@ from datetime import datetime
 # Add parent directory to sys.path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.infrastructure.firestore.firestore_service import FirestoreService
+from app.features.conversations.infrastructure.firestore_service import FirestoreService
 from app.features.vamp_memory.infrastructure.summary_block_repository import SummaryBlockRepository
 from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService, format_historical_context, adaptive_k
 

@@ -54,7 +54,7 @@ def _effective_max_rows(user_max_rows):
     """Return user's max_rows setting, or the server-configured cap if unset."""
     if user_max_rows is not None:
         return user_max_rows
-    from config import Config
+    from app.core.config import Config
 
     return Config.MAX_QUERY_RESULTS
 
@@ -193,7 +193,7 @@ def _execute_tool(
         if user_max_rows is not None:
             display_args["max_rows"] = user_max_rows
         else:
-            from config import Config
+            from app.core.config import Config
 
             display_args["max_rows"] = (
                 f"No Limit (server max: {Config.MAX_QUERY_RESULTS})"

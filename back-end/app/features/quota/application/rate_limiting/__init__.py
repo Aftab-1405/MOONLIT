@@ -4,7 +4,7 @@ Rate Limiting Package
 Provides rate limiting for both global LLM API calls and per-user quotas.
 """
 
-from .llm_rate_limiter import (
+from app.infrastructure.rate_limiting import (
     MultiKeyRateLimiter,
     ProviderRateLimiter,
     create_rate_limiter,

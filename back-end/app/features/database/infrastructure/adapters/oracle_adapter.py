@@ -17,7 +17,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 from contextlib import contextmanager
-from config import Config
+from app.core.config import Config
 from .base_adapter import BaseDatabaseAdapter
 
 logger = logging.getLogger(__name__)

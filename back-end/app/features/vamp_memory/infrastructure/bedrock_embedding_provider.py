@@ -12,7 +12,7 @@ def default_embedding_provider(text: str) -> list[float]:
 
     client = boto3.client("bedrock-runtime")
     try:
-        from config import Config
+        from app.core.config import Config
 
         model_id = Config.VAMP_EMBEDDING_MODEL
     except Exception:

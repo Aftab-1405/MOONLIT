@@ -10,7 +10,7 @@ from typing import Any, Dict, Optional
 from contextlib import contextmanager
 import logging
 from .base_adapter import BaseDatabaseAdapter
-from config import Config
+from app.core.config import Config
 
 logger = logging.getLogger(__name__)
 

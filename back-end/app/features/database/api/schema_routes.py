@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 
-from dependencies import get_current_user, require_db_config, update_session_data
+from app.core.dependencies import get_current_user, require_db_config, update_session_data
 from app.features.database.application.database_service import DatabaseService
 from app.core.request_schemas import SelectSchemaRequest, GetTableSchemaRequest
 from app.core.common_schemas import COMMON_ERROR_RESPONSES, ApiSuccess

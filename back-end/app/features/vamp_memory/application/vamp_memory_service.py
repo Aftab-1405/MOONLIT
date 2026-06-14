@@ -20,7 +20,7 @@ def get_default_vector_store() -> VectorMemoryStore:
     if _VECTOR_STORE_SINGLETON is not None:
         return _VECTOR_STORE_SINGLETON
 
-    from config import Config
+    from app.core.config import Config
 
     if Config.VAMP_VECTOR_BACKEND != "qdrant":
         raise RuntimeError(
@@ -56,7 +56,7 @@ class VampMemoryService:
         self.summary_repo = summary_repo
         if embedding_model == DEFAULT_EMBEDDING_MODEL:
             try:
-                from config import Config
+                from app.core.config import Config
 
                 embedding_model = Config.VAMP_EMBEDDING_MODEL
                 context_budget_chars = Config.VAMP_CONTEXT_BUDGET_CHARS

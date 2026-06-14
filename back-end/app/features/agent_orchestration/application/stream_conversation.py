@@ -177,7 +177,7 @@ async def stream_conversation(
         historical_context = None
         if message:
             try:
-                from config import Config
+                from app.core.config import Config
                 from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService
 
                 if Config.VAMP_MEMORY_ENABLED:

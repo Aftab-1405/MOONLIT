@@ -191,7 +191,7 @@ class ConnectionService:
             from app.features.context.application.context_service import ContextService
             from app.features.database.infrastructure.connection_manager import get_connection_manager
             from app.features.database.infrastructure.adapters import get_adapter
-            from config import get_config
+            from app.core.config import get_config
 
             config = get_config()
             max_tables = config.SCHEMA_CONTEXT_MAX_TABLES

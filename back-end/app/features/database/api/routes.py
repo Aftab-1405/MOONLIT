@@ -8,7 +8,7 @@ from typing import Any, Optional
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
 
-from dependencies import (
+from app.core.dependencies import (
     get_current_user,
     get_db_config,
     require_db_config,
@@ -448,7 +448,7 @@ async def run_sql_query(
     user: dict = Depends(get_current_user),
 ):
     """Execute a SQL query."""
-    from config import Config
+    from app.core.config import Config
 
     user_id = user.get("uid") or user
     sql_query = data.sql_query

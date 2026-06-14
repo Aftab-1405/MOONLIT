@@ -11,7 +11,7 @@ from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 
-from dependencies import (
+from app.core.dependencies import (
     get_current_user,
     require_db_config,
     get_session_data,
@@ -43,7 +43,7 @@ def _parse_cache_time(cached_at):
 
 
 def _build_context_metrics_payload(context: dict) -> dict:
-    from config import get_config
+    from app.core.config import get_config
 
     config = get_config()
     telemetry = context.get("metrics_telemetry", {})
@@ -328,7 +328,7 @@ async def stream_context_metrics(
 async def reset_context_metrics(user: dict = Depends(get_current_user)):
     """Reset context metrics counters (for testing/monitoring)."""
     from app.features.context.application.context_service import ContextMetrics
-    from config import get_config
+    from app.core.config import get_config
 
     config = get_config()
     if not config.DEBUG and not config.TESTING:

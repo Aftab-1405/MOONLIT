@@ -543,7 +543,7 @@ class AIToolExecutor:
     ) -> Dict:
         """Execute query using explicitly passed db_config."""
         from app.features.database.security.security import DatabaseSecurity
-        from config import Config
+        from app.core.config import Config
         import time
 
         if not db_config:

@@ -9,8 +9,8 @@ from fastapi.concurrency import run_in_threadpool
 from firebase_admin import auth
 from pydantic import BaseModel, Field
 
-from config import get_config
-from dependencies import (
+from app.core.config import get_config
+from app.core.dependencies import (
     clear_session_state,
     get_current_user,
     get_current_user_optional,

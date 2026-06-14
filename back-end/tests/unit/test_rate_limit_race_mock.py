@@ -13,7 +13,7 @@ import app.features.conversations.infrastructure.firestore_service
 app.features.conversations.infrastructure.firestore_service.FirestoreService.initialize = lambda: None
 
 from main import create_app
-from dependencies import get_current_user
+from app.core.dependencies import get_current_user
 from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
 
 # A mock redis that simulates network latency

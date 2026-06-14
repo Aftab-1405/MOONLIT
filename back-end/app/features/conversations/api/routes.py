@@ -8,8 +8,8 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
 
-from config import Config
-from dependencies import get_current_user, get_db_config
+from app.core.config import Config
+from app.core.dependencies import get_current_user, get_db_config
 from app.features.conversations.application.conversation_service import ConversationService
 from app.llm.providers.model_factory import (
     get_supported_providers,

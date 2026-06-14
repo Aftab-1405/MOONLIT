@@ -2,7 +2,7 @@ import sys
 import asyncio
 print("Starting verify 2")
 try:
-    from app.infrastructure.firestore.firestore_service import FirestoreService, get_firestore_db
+    from app.features.conversations.infrastructure.firestore_service import FirestoreService, get_firestore_db
     print("Imported firestore service")
     from app.features.vamp_memory.infrastructure.summary_block_repository import SummaryBlockRepository
     from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
