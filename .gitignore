@@ -1,6 +1,6 @@
 # ==========================================
-# DB-Genie Root .gitignore
-# Covers: React/Vite (front-end) + Flask/Python (back-end)
+# Moonlit .gitignore
+# Covers: React/Vite (front-end) + FastAPI/Python (back-end)
 # ==========================================
 
 # ==========================================
@@ -11,10 +11,6 @@
 !.env.example
 *.pem
 *.key
-secrets/
-credentials/
-moonlit-auth-credentials.json
-firebase-credentials.json
 
 # ==========================================
 # PYTHON (Back-end)
@@ -71,9 +67,6 @@ coverage.xml
 .pytest_cache/
 cover/
 
-# Flask stuff
-instance/
-.webassets-cache
 
 # Sphinx documentation
 docs/_build/
@@ -82,20 +75,12 @@ docs/_build/
 .pybuilder/
 target/
 
-# Jupyter Notebook
-.ipynb_checkpoints
-
 # IPython
 profile_default/
 ipython_config.py
 
 # Virtual environments
 .venv/
-venv/
-ENV/
-env/
-env.bak/
-venv.bak/
 
 # Type checkers
 .mypy_cache/
@@ -107,11 +92,6 @@ cython_debug/
 
 # Ruff / Linters
 .ruff_cache/
-
-# SQLite databases
-*.sqlite3
-*.sqlite3-journal
-*.db
 
 # ==========================================
 # JAVASCRIPT/NODE.JS (Front-end)
@@ -195,12 +175,6 @@ firestore-debug.log
 ui-debug.log
 *.firebaserc
 
-# ==========================================
-# AI/AGENT TOOLS
-# ==========================================
-.cursorignore
-.cursorindexingignore
-.agent/
 
 # ==========================================
 # MISCELLANEOUS
@@ -227,5 +201,8 @@ temp/
 back-end/docs/
 front-end/docs/
 
-.claude
-CLAUDE.md
+/qdrant_storage
+commands.txt
+/back-end/reports
+/back-end/data
+/back-end/scripts

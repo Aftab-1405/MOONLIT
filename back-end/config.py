@@ -183,6 +183,23 @@ class Config:
         os.getenv("CONTEXT_METRICS_ENABLED", "True").lower() == "true"
     )
 
+    # VAMP long-context memory configuration
+    VAMP_MEMORY_ENABLED = os.getenv("VAMP_MEMORY_ENABLED", "True").lower() == "true"
+    VAMP_VECTOR_BACKEND = os.getenv("VAMP_VECTOR_BACKEND", "qdrant").strip().lower()
+    VAMP_QDRANT_URL = os.getenv("VAMP_QDRANT_URL")
+    VAMP_QDRANT_API_KEY = os.getenv("VAMP_QDRANT_API_KEY")
+    VAMP_QDRANT_COLLECTION = os.getenv(
+        "VAMP_QDRANT_COLLECTION", "moonlit_vamp_memory"
+    )
+    VAMP_EMBEDDING_MODEL = os.getenv(
+        "VAMP_EMBEDDING_MODEL", "amazon.titan-embed-text-v2:0"
+    )
+    VAMP_EMBEDDING_DIMENSIONS = int(os.getenv("VAMP_EMBEDDING_DIMENSIONS", 1024))
+    VAMP_CONTEXT_BUDGET_CHARS = int(os.getenv("VAMP_CONTEXT_BUDGET_CHARS", 12000))
+    VAMP_SUMMARY_CLAIM_TTL_SECONDS = int(
+        os.getenv("VAMP_SUMMARY_CLAIM_TTL_SECONDS", 900)
+    )
+
     # Session/Cookie Configuration (base defaults)
     DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS", "False").lower() == "true"
     DEV_AUTH_USER_ID = os.getenv("DEV_AUTH_USER_ID", "local-dev-user")

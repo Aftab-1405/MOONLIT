@@ -23,19 +23,28 @@ from api.schemas.common import ApiError
 
 # Configure logging
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler("backend.log"),
         logging.StreamHandler()
     ]
 )
-logging.getLogger("watchfiles.main").setLevel(logging.WARNING)
-logging.getLogger("watchfiles").setLevel(logging.WARNING)
 logger = logging.getLogger(__name__)
 
 # Get environment-specific configuration
 AppConfig = get_config()
+logging.getLogger().setLevel(getattr(logging, AppConfig.LOG_LEVEL, logging.INFO))
+for noisy_logger in (
+    "boto3",
+    "botocore",
+    "urllib3",
+    "s3transfer",
+    "cachecontrol",
+    "watchfiles",
+    "watchfiles.main",
+):
+    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
 
 # Rate limiter - uses storage from config (memory:// for dev, redis:// for prod)
 limiter = Limiter(
@@ -161,16 +170,24 @@ def create_app() -> FastAPI:
         }
         logger.debug(f"Headers: {safe_headers}")
         
-        try:
-            body = await request.body()
-            if body:
-                body_str = body.decode('utf-8')
-                # Truncate large bodies to prevent log bombing / disk exhaustion
-                if len(body_str) > 200:
-                    body_str = body_str[:200] + f"... [TRUNCATED {len(body_str) - 200} bytes]"
-                logger.debug(f"Body: {body_str}")
-        except Exception:
-            pass
+        if logger.isEnabledFor(logging.DEBUG):
+            sensitive_body_paths = {
+                "/api/v1/pass_user_prompt_to_llm",
+                "/api/v1/resume_agent",
+            }
+            try:
+                body = await request.body()
+                if body:
+                    if request.url.path in sensitive_body_paths:
+                        logger.debug("Body: ***REDACTED***")
+                    else:
+                        body_str = body.decode('utf-8')
+                        # Truncate large bodies to prevent log bombing / disk exhaustion
+                        if len(body_str) > 200:
+                            body_str = body_str[:200] + f"... [TRUNCATED {len(body_str) - 200} bytes]"
+                        logger.debug(f"Body: {body_str}")
+            except Exception:
+                pass
         
         response = await call_next(request)
         logger.debug(f"Response status: {response.status_code}")

@@ -174,10 +174,24 @@ async def stream_conversation(
         # could access its Redis thread state via the stream endpoint.
         namespaced_thread_id = f"{user_id}:{conversation_id}"
 
-        # Fetch the most recent summary block once per turn so state_modifier
-        # can inject it into every LLM invocation. This costs one Firestore read
-        # but eliminates the risk of the agent failing to recall older context.
-        latest_summary = await _get_latest_summary(conversation_id)
+        historical_context = None
+        if message:
+            try:
+                from config import Config
+                from services.vamp_memory_service import VampMemoryService
+
+                if Config.VAMP_MEMORY_ENABLED:
+                    historical_context = await VampMemoryService().retrieve_context(
+                        conversation_id,
+                        user_id,
+                        message,
+                    )
+            except Exception as exc:
+                logger.warning(
+                    "VAMP historical context retrieval failed for %s: %s",
+                    conversation_id,
+                    exc,
+                )
 
         config = {
             "configurable": {
@@ -186,7 +200,7 @@ async def stream_conversation(
                 "db_config": db_config,
                 "max_rows": max_rows,
                 "tool_cache": {},
-                "latest_summary": latest_summary,
+                "historical_context": historical_context,
             },
             "recursion_limit": MAX_AGENT_STEPS,
         }
@@ -333,46 +347,6 @@ async def _has_checkpoint(checkpointer, thread_id: str) -> bool:
     except Exception as e:
         logger.warning("Could not check checkpointer state for %s: %s", thread_id, e)
         return False
-
-
-async def _get_latest_summary(conversation_id: str) -> str | None:
-    """
-    Return the single most recent Firestore summary block for this conversation,
-    or None if no summaries exist yet. Used to inject background memory context
-    into every agent turn via the state_modifier.
-    """
-    try:
-        from repositories import ConversationRepository
-
-        conv_data = await asyncio.wait_for(
-            run_in_threadpool(ConversationRepository.get, conversation_id),
-            timeout=3.0,
-        )
-        if not conv_data:
-            return None
-        summaries = conv_data.get("summaries", [])
-        if not summaries:
-            return None
-        # Return only the most recent block to stay token-efficient.
-        return _normalize_summary_text(summaries[-1])
-    except Exception as e:
-        logger.warning("Could not fetch latest summary for %s: %s", conversation_id, e)
-        return None
-
-
-def _normalize_summary_text(summary) -> str:
-    """Coerce a stored summary value to plain text (handles legacy nested content)."""
-    if isinstance(summary, str):
-        return summary
-    if isinstance(summary, list):
-        parts = []
-        for block in summary:
-            if isinstance(block, str):
-                parts.append(block)
-            elif isinstance(block, dict) and "text" in block:
-                parts.append(block["text"])
-        return "".join(parts)
-    return str(summary) if summary else ""
 
 
 async def _load_firestore_history(conversation_id: str) -> list:
