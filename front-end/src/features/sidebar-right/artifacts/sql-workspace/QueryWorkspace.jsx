@@ -39,6 +39,7 @@ function QueryWorkspace({
   onTabClose,
   onQueryChange,
   onQueryExecute,
+  onRunQuery,
   onToggleSidebar,
   schemaSidebarOpen,
 }) {
@@ -73,6 +74,7 @@ function QueryWorkspace({
           isConnected={isConnected}
           onQueryChange={onQueryChange}
           onQueryExecute={onQueryExecute}
+          onRunQuery={onRunQuery}
         />
       </Suspense>
     </Box>

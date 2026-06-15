@@ -170,6 +170,12 @@ class ConversationRepository:
         thinking: Optional[str] = None,
         timeline: Optional[List[Dict]] = None,
         append: bool = False,
+        usage: Optional[Dict] = None,
+        turn_id: Optional[str] = None,
+        turn_index: Optional[int] = None,
+        message_role: Optional[str] = None,
+        is_final_assistant_response: Optional[bool] = None,
+        tool_trace_summary: Optional[str] = None,
     ) -> None:
         """
         Store a message in a conversation.
@@ -184,6 +190,12 @@ class ConversationRepository:
             tools: Optional list of tools used (for AI messages)
             thinking: Optional reasoning text (AI messages)
             append: If True, merges content/thinking/tools into the last message if it is from the same sender
+            usage: Optional dictionary of usage metrics (tokens, budget)
+            turn_id: unique turn identifier
+            turn_index: index of the current turn
+            message_role: role ('user' or 'assistant')
+            is_final_assistant_response: whether it is the final assistant response
+            tool_trace_summary: optional tool execution summary
         """
         from app.features.conversations.infrastructure.firestore_service import FirestoreService
         from firebase_admin import firestore
@@ -244,6 +256,22 @@ class ConversationRepository:
                     if timeline:
                         orig_tl = last_message.get("timeline", [])
                         last_message["timeline"] = orig_tl + timeline
+                        
+                    # Update usage if provided
+                    if usage:
+                        last_message["usage"] = usage
+
+                    # Update turn fields if provided
+                    if turn_id is not None:
+                        last_message["turn_id"] = turn_id
+                    if turn_index is not None:
+                        last_message["turn_index"] = turn_index
+                    if message_role is not None:
+                        last_message["message_role"] = message_role
+                    if is_final_assistant_response is not None:
+                        last_message["is_final_assistant_response"] = is_final_assistant_response
+                    if tool_trace_summary is not None:
+                        last_message["tool_trace_summary"] = tool_trace_summary
 
                     conversation_ref.update({"messages": messages_list})
                     logger.debug(f"Conversation {conversation_id} updated successfully by appending to last {sender} message")
@@ -265,6 +293,20 @@ class ConversationRepository:
 
             if timeline:
                 message_data["timeline"] = timeline
+                
+            if usage:
+                message_data["usage"] = usage
+
+            if turn_id is not None:
+                message_data["turn_id"] = turn_id
+            if turn_index is not None:
+                message_data["turn_index"] = turn_index
+            if message_role is not None:
+                message_data["message_role"] = message_role
+            if is_final_assistant_response is not None:
+                message_data["is_final_assistant_response"] = is_final_assistant_response
+            if tool_trace_summary is not None:
+                message_data["tool_trace_summary"] = tool_trace_summary
 
             conversation_ref.update({"messages": firestore.ArrayUnion([message_data])})
             logger.debug(f"Conversation {conversation_id} updated successfully")
@@ -306,6 +348,53 @@ class ConversationRepository:
             if conv_data["user_id"] != user_id:
                 raise PermissionError("User does not own this conversation")
 
+            # 1. Delete Qdrant vector pointers (run async cleanup in a new thread to avoid event loop issues)
+            import threading
+            import asyncio
+            from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService
+            
+            pointer_err_wrapper = []
+            def _delete_pointers():
+                try:
+                    asyncio.run(VampMemoryService().delete_conversation_pointers(conversation_id, user_id))
+                except Exception as e:
+                    pointer_err_wrapper.append(e)
+                
+            try:
+                t = threading.Thread(target=_delete_pointers)
+                t.start()
+                t.join()
+                if pointer_err_wrapper:
+                    raise pointer_err_wrapper[0]
+            except Exception as pointer_err:
+                logger.warning("Failed to clean up Qdrant pointers during conversation delete: %s", pointer_err)
+                # Create a cleanup retry record in Firestore
+                try:
+                    db.collection("qdrant_conversation_cleanup").add({
+                        "type": "qdrant_conversation_cleanup",
+                        "conversation_id": conversation_id,
+                        "user_id": user_id,
+                        "status": "pending",
+                        "attempts": 0,
+                        "last_error": str(pointer_err),
+                        "created_at": datetime.now(),
+                        "updated_at": datetime.now()
+                    })
+                    logger.info("Created qdrant_conversation_cleanup retry record for conversation %s", conversation_id)
+                except Exception as db_err:
+                    logger.error("Failed to create qdrant_conversation_cleanup retry record: %s", db_err)
+
+            # 2. Delete Firestore summary blocks subcollection
+            try:
+                summary_blocks_ref = conversation_ref.collection("summary_blocks")
+                summary_docs = summary_blocks_ref.get()
+                for doc in summary_docs:
+                    doc.reference.delete()
+                logger.debug("Deleted Firestore summary blocks for conversation %s", conversation_id)
+            except Exception as blocks_err:
+                logger.warning("Failed to clean up Firestore summary blocks: %s", blocks_err)
+
+            # 3. Delete the conversation document itself
             conversation_ref.delete()
             logger.info(f"Conversation {conversation_id} deleted successfully")
             return True
@@ -314,3 +403,52 @@ class ConversationRepository:
         except Exception as e:
             logger.error(f"Error deleting conversation {conversation_id}: {e}")
             raise
+
+    @staticmethod
+    def retry_qdrant_cleanups() -> int:
+        """
+        Scan Firestore for pending qdrant_conversation_cleanup records,
+        attempt pointer deletion, and update/delete records accordingly.
+        Returns the number of successfully cleaned up conversations.
+        """
+        from app.features.conversations.infrastructure.firestore_service import FirestoreService
+        from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService
+        import asyncio
+
+        db = FirestoreService.get_db()
+        pending_docs = db.collection("qdrant_conversation_cleanup").where("status", "==", "pending").get()
+        success_count = 0
+
+        for doc in pending_docs:
+            doc_data = doc.to_dict()
+            conversation_id = doc_data.get("conversation_id")
+            user_id = doc_data.get("user_id")
+            attempts = doc_data.get("attempts", 0)
+
+            if not conversation_id or not user_id:
+                doc.reference.delete()
+                continue
+
+            try:
+                # Attempt to delete Qdrant pointers in a new thread to avoid event loop conflicts
+                import threading
+                def _delete():
+                    asyncio.run(VampMemoryService().delete_conversation_pointers(conversation_id, user_id))
+                t = threading.Thread(target=_delete)
+                t.start()
+                t.join()
+                doc.reference.delete()
+                success_count += 1
+                logger.info("Successfully retired cleanup for conversation %s on attempt %s", conversation_id, attempts + 1)
+            except Exception as e:
+                attempts += 1
+                status = "failed" if attempts >= 5 else "pending"
+                doc.reference.update({
+                    "attempts": attempts,
+                    "status": status,
+                    "last_error": str(e),
+                    "updated_at": datetime.now()
+                })
+                logger.warning("Retry cleanup attempt %s failed for conversation %s: %s", attempts, conversation_id, e)
+
+        return success_count

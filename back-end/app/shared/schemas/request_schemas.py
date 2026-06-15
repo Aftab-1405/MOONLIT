@@ -29,6 +29,7 @@ class ChatRequest(BaseModel):
     )  # None = no limit (use server config)
     provider: Optional[str] = Field(default=None, max_length=50)
     model: Optional[str] = Field(default=None, max_length=150)
+    task_mode: Optional[str] = Field(default="normal", max_length=50)
 
     @field_validator("prompt")
     @classmethod
@@ -67,6 +68,7 @@ class AgentResumeRequest(BaseModel):
     max_rows: Optional[int] = Field(default=1000, ge=1, le=100000)
     provider: Optional[str] = Field(default=None, max_length=50)
     model: Optional[str] = Field(default=None, max_length=150)
+    task_mode: Optional[str] = Field(default="normal", max_length=50)
 
     @field_validator("resume")
     @classmethod

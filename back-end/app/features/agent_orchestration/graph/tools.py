@@ -97,8 +97,11 @@ def _emit_ui_action_tool(
     severity: str = "info",
     requires_confirmation: bool = False,
 ) -> str:
-    """Validate, emit tool_start -> ui_action -> tool_end, and return the LLM summary."""
-    validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
+    try:
+        validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
+    except ValueError as e:
+        # Prevent crash, return error to LLM
+        return f"Tool Argument Validation Error: {str(e)}. Please correct your arguments and try again."
     writer = _try_writer()
     enriched_payload = _with_ui_metadata(
         tool_name,
@@ -180,11 +183,14 @@ def _execute_tool(
     writer = _try_writer()
 
     # 1. Validate with Pydantic schemas (skip if caller already validated)
-    validated = (
-        _pre_validated
-        if _pre_validated is not None
-        else ToolExecutor.validate_and_parse_args(tool_name, raw_args)
-    )
+    try:
+        validated = (
+            _pre_validated
+            if _pre_validated is not None
+            else ToolExecutor.validate_and_parse_args(tool_name, raw_args)
+        )
+    except ValueError as e:
+        return f"Tool Argument Validation Error: {str(e)}. Please correct your arguments and try again."
 
     # 2. Display args (show effective max_rows for execute_query)
     display_args = dict(validated)
@@ -279,7 +285,11 @@ def execute_query(
     """Ask the user to approve a SQL SELECT query, then execute it only after approval. Only SELECT queries are allowed for safety."""
     tool_name = "execute_query"
     raw_args = {"query": query, "rationale": rationale, "max_rows": max_rows}
-    validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
+    
+    try:
+        validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
+    except ValueError as e:
+        return f"Tool Argument Validation Error: {str(e)}. Please correct your arguments and try again."
     decision = interrupt(
         _guided_interrupt_payload(
             tool_name,

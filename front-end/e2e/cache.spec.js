@@ -5,7 +5,6 @@ test.describe('TanStack Cache System E2E Tests', () => {
   let conversationsListCalls = 0;
   let getConversation1Calls = 0;
   let getConversation2Calls = 0;
-  let dbStatusCalls = 0;
 
   test.beforeEach(async ({ page }) => {
     // Reset call counters
@@ -13,7 +12,6 @@ test.describe('TanStack Cache System E2E Tests', () => {
     conversationsListCalls = 0;
     getConversation1Calls = 0;
     getConversation2Calls = 0;
-    dbStatusCalls = 0;
 
     // Inject mock authentication BEFORE the scripts load
     await page.addInitScript(() => {
@@ -114,7 +112,6 @@ test.describe('TanStack Cache System E2E Tests', () => {
             body: JSON.stringify({ status: 'success', title: 'Renamed Title' }),
           });
         } else if (urlStr.includes('/api/v1/db_status')) {
-          dbStatusCalls++;
           await route.fulfill({
             status: 200,
             contentType: 'application/json',

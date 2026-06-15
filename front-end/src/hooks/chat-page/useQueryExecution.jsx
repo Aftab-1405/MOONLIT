@@ -75,11 +75,18 @@ export function useQueryExecution({
         });
         showSnackbar(`Query returned ${queryData.row_count} rows`, 'success');
       } else {
+        // Show the backend's descriptive message when available.
         showSnackbar(response.message || 'Query failed', 'error');
       }
     } catch (error) {
       if (error.name === 'AbortError') return; // Ignore abort errors
-      showSnackbar('Failed to execute query', 'error');
+      // Extract the most descriptive safe message available.
+      const message =
+        error?.data?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'Failed to execute query';
+      showSnackbar(message, 'error');
     }
   }, [onQueryResults, showSnackbar]);
   const handleRunQuery = useCallback((sql) => {

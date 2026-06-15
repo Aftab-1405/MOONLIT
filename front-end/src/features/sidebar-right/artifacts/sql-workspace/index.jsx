@@ -8,7 +8,7 @@
  * - Resizable panels and clean workspace layout
  */
 
-import { useState, useCallback, useMemo, memo, useEffect } from 'react';
+import { useState, useCallback, useMemo, memo, useEffect, useRef } from 'react';
 import { Box, Collapse } from '@mui/material';
 import logger from '@/utils/logger';
 import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
@@ -193,6 +193,16 @@ function SqlWorkspace({
     [activeTabId, activeTab?.query, handleUpdateTab, onOpenArtifact]
   );
 
+  // Ref that StatusBar fills with its handleRunQuery so Monaco Ctrl+Enter
+  // calls the exact same execution path as clicking the Run button.
+  const runQueryRef = useRef(null);
+  const handleRunQueryViaRef = useCallback(() => {
+    runQueryRef.current?.();
+  }, []);
+  const handleRegisterRunQuery = useCallback((fn) => {
+    runQueryRef.current = fn;
+  }, []);
+
   // Panel resizing
   const handleSidebarResizeStart = useCallback((e) => {
     setResizingSidebar(true);
@@ -298,6 +308,7 @@ function SqlWorkspace({
           onTabClose={handleCloseTab}
           onQueryChange={handleQueryChange}
           onQueryExecute={handleQueryExecute}
+          onRunQuery={handleRunQueryViaRef}
           onToggleSidebar={() => setSchemaSidebarOpen((v) => !v)}
           schemaSidebarOpen={schemaSidebarOpen}
         />
@@ -309,6 +320,7 @@ function SqlWorkspace({
         currentDatabase={currentDatabase}
         activeTab={activeTab}
         onQueryExecute={handleQueryExecute}
+        onRegisterRunQuery={handleRegisterRunQuery}
       />
     </Box>
   );

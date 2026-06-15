@@ -10,6 +10,7 @@ import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, vs } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { ButtonLoadingSpinner } from '@/components';
+import { copyToClipboard } from '@/utils/clipboard';
 
 const SQL_LANGUAGES = new Set([
   'sql', 'mysql', 'postgresql', 'sqlite', 'sqlserver', 'oracle', 'tsql', 'plsql'
@@ -36,11 +37,35 @@ const CodeBlock = memo(function CodeBlock({
   }, []);
 
   const language = className?.replace('language-', '') || '';
-  const code = useMemo(() => {
+  const rawCode = useMemo(() => {
     return Array.isArray(children) ? children.join('') : String(children || '').replace(/\n$/, '');
   }, [children]);
 
-  const isSQL = SQL_LANGUAGES.has(language.toLowerCase());
+  // Check if the code block content is a JSON containing 'query'
+  const { code, detectedLanguage, rationale } = useMemo(() => {
+    const trimmed = rawCode.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed.query === 'string') {
+          return {
+            code: parsed.query,
+            detectedLanguage: 'sql',
+            rationale: parsed.rationale || null,
+          };
+        }
+      } catch {
+        // ignore and proceed with rawCode
+      }
+    }
+    return {
+      code: rawCode,
+      detectedLanguage: language,
+      rationale: null,
+    };
+  }, [rawCode, language]);
+
+  const isSQL = SQL_LANGUAGES.has(detectedLanguage.toLowerCase());
   const lineCount = code.split('\n').length;
   const showLineNumbers = lineCount >= 4;
 
@@ -50,11 +75,13 @@ const CodeBlock = memo(function CodeBlock({
     ? alpha(theme.palette.background.elevated, 0.9)
     : alpha(theme.palette.background.paper, 0.95);
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(code);
-    setCopied(true);
-    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+  const handleCopy = useCallback(async () => {
+    const ok = await copyToClipboard(code);
+    if (ok) {
+      setCopied(true);
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
+    }
   }, [code]);
 
   const handleRun = useCallback(async () => {
@@ -98,7 +125,7 @@ const CodeBlock = memo(function CodeBlock({
         gap: 1,
       }}>
         {/* Language label */}
-        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
           <Typography sx={{
             color: theme.palette.text.secondary,
             fontWeight: 500,
@@ -106,8 +133,11 @@ const CodeBlock = memo(function CodeBlock({
             ...theme.typography.uiCaption2xs,
             textTransform: 'lowercase',
             letterSpacing: '0.03em',
+            textOverflow: 'ellipsis',
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
           }}>
-            {language || 'code'}
+            {detectedLanguage || 'code'}{rationale ? ` - ${rationale}` : ''}
           </Typography>
         </Box>
 
@@ -163,7 +193,7 @@ const CodeBlock = memo(function CodeBlock({
         }}
       >
         <SyntaxHighlighter
-          language={language || 'text'}
+          language={detectedLanguage || 'text'}
           style={isDarkMode ? vscDarkPlus : vs}
           showLineNumbers={showLineNumbers}
           lineNumberStyle={{
@@ -220,6 +250,26 @@ const InlineCode = memo(function InlineCode({ children, theme }) {
 const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
+
+  const processedContent = useMemo(() => {
+    if (typeof content !== 'string') return content;
+    const trimmed = content.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (parsed && typeof parsed.query === 'string') {
+          let header = '';
+          if (parsed.rationale) {
+            header = `> **Rationale**: ${parsed.rationale}\n\n`;
+          }
+          return `${header}\`\`\`sql\n${parsed.query}\n\`\`\``;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return content;
+  }, [content]);
 
   const components = useMemo(() => ({
     code({ className, children, ...props }) {
@@ -326,7 +376,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({ content, onRunQuery })
   return (
     <Box sx={containerSx}>
       <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
-        {content}
+        {processedContent}
       </ReactMarkdown>
     </Box>
   );

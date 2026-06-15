@@ -21,6 +21,14 @@ async def test_stream_parser():
     
     sc = importlib.import_module("app.features.agent_orchestration.application.stream_conversation")
     from langgraph.checkpoint.memory import InMemorySaver
+    from unittest.mock import MagicMock
+    from app.features.conversations.infrastructure.firestore_service import FirestoreService
+    from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
+    
+    # Mock FirestoreService and ConversationRepository
+    mock_db = MagicMock()
+    FirestoreService.get_db = lambda: mock_db
+    ConversationRepository.get = lambda *args, **kwargs: {"user_id": "test_user", "task_checkpoint_summary": ""}
     
     sc._agent_cache[("bedrock", "mock", True, "medium", "balanced")] = MockAgent()
     sc.get_checkpointer = lambda: InMemorySaver()

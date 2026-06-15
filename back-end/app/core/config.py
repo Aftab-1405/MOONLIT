@@ -200,6 +200,13 @@ class Config:
         os.getenv("VAMP_SUMMARY_CLAIM_TTL_SECONDS", 900)
     )
 
+    # Adaptive step budgets
+    AGENT_DEFAULT_STEPS = int(os.getenv("AGENT_DEFAULT_STEPS", 50))
+    AGENT_TOOL_TASK_STEPS = int(os.getenv("AGENT_TOOL_TASK_STEPS", 100))
+    AGENT_LONG_TASK_STEPS = int(os.getenv("AGENT_LONG_TASK_STEPS", 200))
+    AGENT_APPROVED_AUTONOMOUS_STEPS = int(os.getenv("AGENT_APPROVED_AUTONOMOUS_STEPS", 500))
+    AGENT_TOTAL_STEP_BUDGET = int(os.getenv("AGENT_TOTAL_STEP_BUDGET", 500))
+
     # Session/Cookie Configuration (base defaults)
     DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS", "False").lower() == "true"
     DEV_AUTH_USER_ID = os.getenv("DEV_AUTH_USER_ID", "local-dev-user")

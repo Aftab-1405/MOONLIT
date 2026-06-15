@@ -31,6 +31,7 @@ import {
   switchDatabase,
   selectDatabase,
 } from '@/api';
+import { getSelectedDatabase } from '@/utils/databaseResponse';
 import { queryClient, queryKeys } from '@/api/queryClient';
 import { useFormValidation } from '@/hooks/useFormValidation';
 import {
@@ -157,7 +158,8 @@ function getDatabaseOptions(connectionData = {}) {
     : connectionData.schemas;
   if (databases?.length) return databases;
 
-  const selectedDatabase = connectionData.selected_database || connectionData.db_config?.database;
+  // Use centralized helper so all backend field variants are covered.
+  const selectedDatabase = getSelectedDatabase(connectionData);
   return selectedDatabase ? [selectedDatabase] : [];
 }
 
@@ -435,7 +437,8 @@ function DatabaseModal({
         setDatabases(getDatabaseOptions(connectionData));
         setIsRemote(connectionData.is_remote || false);
         setConnectionActive(true);
-        setSelectedDatabase(connectionData.selected_database || connectionData.db_config?.database || formData.database || null);
+        // Use centralized helper to resolve the connected database name.
+        setSelectedDatabase(getSelectedDatabase(connectionData) || formData.database || null);
         onConnect?.(connectionData);
 
         if (rememberConnection) {
@@ -778,4 +781,4 @@ function DatabaseModal({
   );
 }
 
-export default memo(DatabaseModal, (prevProps, nextProps) => prevProps.open === nextProps.open);
+export default memo(DatabaseModal);

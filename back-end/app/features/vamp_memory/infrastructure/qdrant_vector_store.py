@@ -39,7 +39,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
                 distance=self.models.Distance.COSINE,
             ),
         )
-        for field_name in ("conversation_id", "user_id"):
+        for field_name in ("conversation_id", "user_id", "pointer_type", "summary_id"):
             try:
                 self.client.create_payload_index(
                     collection_name=self.collection_name,
@@ -138,3 +138,29 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
                 }
             )
         return hits
+
+    async def delete_conversation_pointers(
+        self,
+        conversation_id: str,
+        user_id: str,
+    ) -> None:
+        """Delete all points matching both conversation_id and user_id."""
+        must = [
+            self.models.FieldCondition(
+                key="conversation_id",
+                match=self.models.MatchValue(value=conversation_id),
+            ),
+            self.models.FieldCondition(
+                key="user_id",
+                match=self.models.MatchValue(value=user_id),
+            ),
+        ]
+        query_filter = self.models.Filter(must=must)
+
+        def _delete():
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=self.models.FilterSelector(filter=query_filter),
+            )
+
+        await asyncio.to_thread(_delete)

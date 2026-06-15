@@ -2,6 +2,7 @@
 import os
 os.environ["FIREBASE_PROJECT_ID"] = "mock"
 os.environ["FIREBASE_WEB_PROJECT_ID"] = "mock"
+os.environ["UPSTASH_REDIS_URL"] = ""
 
 import pytest
 from fastapi.testclient import TestClient

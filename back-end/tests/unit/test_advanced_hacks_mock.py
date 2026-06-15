@@ -3,6 +3,18 @@ import os
 os.environ["FIREBASE_PROJECT_ID"] = "mock"
 os.environ["FIREBASE_WEB_PROJECT_ID"] = "mock"
 
+# Mock socket.getaddrinfo to prevent DNS resolution hangs on blocked networks
+import socket
+_orig_getaddrinfo = socket.getaddrinfo
+def mock_getaddrinfo(host, port, *args, **kwargs):
+    if host == "169.254.169.254.nip.io":
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("169.254.169.254", port or 0))]
+    try:
+        return _orig_getaddrinfo(host, port, *args, **kwargs)
+    except Exception:
+        raise OSError("DNS lookup failed in mock sandbox environment")
+socket.getaddrinfo = mock_getaddrinfo
+
 import pytest
 import asyncio
 from fastapi.testclient import TestClient

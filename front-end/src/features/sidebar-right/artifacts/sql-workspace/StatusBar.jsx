@@ -2,7 +2,7 @@
  * StatusBar - Bottom status bar with connection, actions, and editor info
  */
 
-import { useState, useCallback, memo } from 'react';
+import { useState, useCallback, memo, useEffect } from 'react';
 import { Box, Typography, IconButton, Tooltip } from '@mui/material';
 import { useTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
@@ -13,8 +13,9 @@ import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import { ButtonLoadingSpinner } from '@/components';
 import { runQuery } from '@/api';
+import { copyToClipboard } from '@/utils/clipboard';
 
-function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute }) {
+function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, onRegisterRunQuery }) {
   const theme = useTheme();
   const { settings } = useAppTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -65,19 +66,32 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute }) 
         onQueryExecute(null, response.message || 'Query execution failed');
       }
     } catch (err) {
-      onQueryExecute(null, 'Failed to execute query: ' + err.message);
+      // Extract the most descriptive safe message available from the error.
+      const message =
+        err?.data?.message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to execute query';
+      onQueryExecute(null, message);
     } finally {
       setIsRunning(false);
     }
   }, [activeTab, isConnected, isRunning, onQueryExecute, settings]);
 
+  // Register this run function with the parent so MonacoEditorSurface's
+  // Ctrl+Enter shortcut calls the exact same code path as clicking Run.
+  useEffect(() => {
+    onRegisterRunQuery?.(handleRunQuery);
+  }, [handleRunQuery, onRegisterRunQuery]);
+
   const handleFormatQuery = useCallback(() => {
     // TODO: Implement SQL formatting
   }, []);
 
-  const handleCopyQuery = useCallback(() => {
-    if (activeTab?.query) {
-      navigator.clipboard.writeText(activeTab.query);
+  const handleCopyQuery = useCallback(async () => {
+    if (!activeTab?.query) return;
+    const ok = await copyToClipboard(activeTab.query);
+    if (ok) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }

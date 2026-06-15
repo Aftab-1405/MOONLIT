@@ -22,3 +22,10 @@ class VectorMemoryStore(Protocol):
         pointer_type: str | None = None,
     ) -> list[dict]:
         ...
+
+    async def delete_conversation_pointers(
+        self,
+        conversation_id: str,
+        user_id: str,
+    ) -> None:
+        ...

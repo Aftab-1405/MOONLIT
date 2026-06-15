@@ -49,6 +49,7 @@ function MonacoEditorSurface({
   error,
   onQueryChange,
   onQueryExecute,
+  onRunQuery,
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -103,8 +104,10 @@ function MonacoEditorSurface({
   );
 
   useEffect(() => {
-    handleRunQueryRef.current = onQueryExecute;
-  }, [onQueryExecute]);
+    // onRunQuery is the real execution trigger (same as the Run button).
+    // Fall back to onQueryExecute only if onRunQuery is not provided.
+    handleRunQueryRef.current = onRunQuery ?? onQueryExecute;
+  }, [onRunQuery, onQueryExecute]);
 
   return (
     <Box
@@ -196,6 +199,7 @@ function areMonacoPropsEqual(prev, next) {
     && prev.error === next.error
     && prev.onQueryChange === next.onQueryChange
     && prev.onQueryExecute === next.onQueryExecute
+    && prev.onRunQuery === next.onRunQuery
   );
 }
 

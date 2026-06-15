@@ -159,6 +159,7 @@ async def chat(
                     api_key=api_key,
                     provider=provider,
                     model=model,
+                    task_mode=getattr(data, "task_mode", "normal") or "normal",
                 ):
                     yield sse_line
             finally:
@@ -253,6 +254,7 @@ async def resume_agent(
                     provider=provider,
                     model=model,
                     resume=data.resume,
+                    task_mode=getattr(data, "task_mode", "normal") or "normal",
                 ):
                     yield sse_line
             finally:

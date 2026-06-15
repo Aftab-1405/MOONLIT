@@ -84,6 +84,7 @@ export function useChatPageController() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dbModalInitialType, setDbModalInitialType] = useState(null);
   const [settingsInitialSection, setSettingsInitialSection] = useState(null);
+  const [usageMetrics, setUsageMetrics] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [guidedConfirmDialog, setGuidedConfirmDialog] = useState({
     open: false,
@@ -278,6 +279,9 @@ export function useChatPageController() {
         handleSidebarNewChat();
       }, Number(payload?.delayMs) || 900);
     },
+    usage_metrics: (payload) => {
+      if (payload) setUsageMetrics(payload);
+    },
     onInvalidAction: ({ reason }) => {
       if (reason) showSnackbar(reason, 'warning');
     },
@@ -285,6 +289,33 @@ export function useChatPageController() {
 
   useEffect(() => {
     messagesRef.current = messages;
+    
+    // Extract usage metrics from the loaded conversation history
+    let nextUsage = null;
+    let foundUsage = false;
+    
+    if (messages && messages.length > 0) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const isAssistant = messages[i].role === 'assistant' || messages[i].sender === 'ai';
+        if (isAssistant && messages[i].usage) {
+          nextUsage = messages[i].usage;
+          foundUsage = true;
+          break;
+        }
+      }
+    }
+
+    const isLastUser = messages && messages.length === 1 && (messages[0].role === 'user' || messages[0].sender === 'user');
+    
+    if (foundUsage) {
+      setTimeout(() => {
+        setUsageMetrics(nextUsage);
+      }, 0);
+    } else if (!isLastUser || !messages || messages.length === 0) {
+      setTimeout(() => {
+        setUsageMetrics(null);
+      }, 0);
+    }
   }, [messages]);
 
   const handleAgentInterrupt = useCallback((event, assistantMessageId = null) => {
@@ -475,6 +506,7 @@ export function useChatPageController() {
     providerOptions,
     llmOptionsLoading,
     onSelectLlm: handleLlmSelection,
+    usageMetrics,
   }), [
     handleSendMessageWithModel,
     handleStopStreaming,
@@ -490,6 +522,7 @@ export function useChatPageController() {
     providerOptions,
     llmOptionsLoading,
     handleLlmSelection,
+    usageMetrics,
   ]);
   const commonSidebarProps = useMemo(() => ({
     conversations,

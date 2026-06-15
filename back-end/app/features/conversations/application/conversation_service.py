@@ -23,6 +23,18 @@ from app.features.agent_orchestration.infrastructure.memory_config import (
 logger = logging.getLogger(__name__)
 
 
+def _build_tool_trace_summary(timeline: list[dict]) -> str | None:
+    tools = [item for item in timeline if item.get("type") == "tool"]
+    if not tools:
+        return None
+    summary_parts = []
+    for t in tools:
+        name = t.get("name", "unknown")
+        status = t.get("status", "unknown")
+        summary_parts.append(f"{name} ({status})")
+    return "Tool activity: " + ", ".join(summary_parts)
+
+
 class ConversationService:
     """Service for managing conversations and AI interactions."""
 
@@ -76,6 +88,7 @@ class ConversationService:
         provider: str | None = None,
         model: str | None = None,
         resume: dict | None = None,
+        task_mode: str = "normal",
     ) -> AsyncGenerator[str, None]:
         """
         Consume SSE events from the LangGraph agent, pass them through
@@ -89,6 +102,8 @@ class ConversationService:
 
         prompt_stored = False
         response_stored = False
+        current_turn_id = None
+        current_turn_index = None
         # Ordered timeline mirrors the frontend's eventTimeline exactly.
         # Each entry is one of:
         #   { "type": "text",     "content": str }
@@ -97,6 +112,7 @@ class ConversationService:
         ordered_timeline: list[dict] = []
         was_aborted = False
         has_error = False
+        last_usage_metrics = None
 
         try:
             # Load conversation history for the checkpointer
@@ -105,6 +121,25 @@ class ConversationService:
             conv_data = ConversationRepository.get(conversation_id)
             if conv_data and conv_data.get("user_id") != user_id:
                 raise PermissionError("User does not own this conversation")
+
+            if resume is not None and conv_data and conv_data.get("messages"):
+                last_msg = conv_data["messages"][-1]
+                current_turn_id = last_msg.get("turn_id")
+                current_turn_index = last_msg.get("turn_index")
+
+            # Persist task_mode to Firestore conversation
+            if conv_data:
+                task_mode_stored = conv_data.get("task_mode", "normal") or "normal"
+                if resume is not None and task_mode == "normal" and task_mode_stored != "normal":
+                    task_mode = task_mode_stored
+                try:
+                    from app.features.conversations.infrastructure.firestore_service import FirestoreService
+                    db = FirestoreService.get_db()
+                    db.collection("conversations").document(conversation_id).update({
+                        "task_mode": task_mode
+                    })
+                except Exception as e:
+                    logger.warning("Failed to save task_mode in Firestore: %s", e)
 
             # Stream from the LangGraph agent
             async for sse_line in stream_conversation(
@@ -120,6 +155,7 @@ class ConversationService:
                 enable_reasoning=enable_reasoning,
                 reasoning_effort=reasoning_effort,
                 resume=resume,
+                task_mode=task_mode,
             ):
                 # Parse the SSE data line to track content/tools for persistence
                 event = _parse_sse_event(sse_line)
@@ -129,6 +165,33 @@ class ConversationService:
                     continue
 
                 event_type = event.get("type")
+
+                # Core user prompt storage trigger
+                if prompt and not prompt_stored and event_type in ("token", "tool_start", "thinking_token", "agent_interrupt"):
+                    if current_turn_id is None:
+                        import uuid
+                        current_turn_id = str(uuid.uuid4())
+                    if current_turn_index is None:
+                        existing_messages = conv_data.get("messages", []) if conv_data else []
+                        max_turn_index = -1
+                        for msg in existing_messages:
+                            ti = msg.get("turn_index")
+                            if ti is not None:
+                                try:
+                                    max_turn_index = max(max_turn_index, int(ti))
+                                except (ValueError, TypeError):
+                                    pass
+                        current_turn_index = max_turn_index + 1
+
+                    await run_in_threadpool(
+                        ConversationRepository.store_message,
+                        conversation_id, "user", prompt, user_id,
+                        turn_id=current_turn_id,
+                        turn_index=current_turn_index,
+                        message_role="user",
+                        is_final_assistant_response=False,
+                    )
+                    prompt_stored = True
 
                 if event_type == "token":
                     if prompt and not prompt_stored:
@@ -195,6 +258,15 @@ class ConversationService:
                 elif event_type == "error":
                     has_error = True
 
+                elif event_type == "usage_metrics":
+                    last_usage_metrics = {
+                        "inputTokens": event.get("inputTokens"),
+                        "outputTokens": event.get("outputTokens"),
+                        "totalTokens": event.get("totalTokens"),
+                        "activeContextBudget": event.get("activeContextBudget"),
+                        "totalContextWindow": event.get("totalContextWindow"),
+                    }
+
                 elif event_type == "agent_interrupt" and prompt and not prompt_stored:
                     await run_in_threadpool(
                         ConversationRepository.store_message,
@@ -251,6 +323,24 @@ class ConversationService:
                     if not response_text and tools_used:
                         response_text = "(Used tools to gather information)"
 
+                    # Generate turn info if not already generated
+                    if current_turn_id is None:
+                        import uuid
+                        current_turn_id = str(uuid.uuid4())
+                    if current_turn_index is None:
+                        existing_messages = conv_data.get("messages", []) if conv_data else []
+                        max_turn_index = -1
+                        for msg in existing_messages:
+                            ti = msg.get("turn_index")
+                            if ti is not None:
+                                try:
+                                    max_turn_index = max(max_turn_index, int(ti))
+                                except (ValueError, TypeError):
+                                    pass
+                        current_turn_index = max_turn_index + 1
+
+                    tool_trace_summary = _build_tool_trace_summary(ordered_timeline)
+
                     # `content` is always stored — the summarisation loop reads it.
                     # `thinking` and `tools` are intentionally omitted when a timeline
                     # is present: all that data is already embedded in the timeline
@@ -261,8 +351,16 @@ class ConversationService:
                         "ai",
                         response_text,
                         user_id,
+                        tools=None,
+                        thinking=None,
                         timeline=ordered_timeline,
                         append=(resume is not None),
+                        usage=last_usage_metrics,
+                        turn_id=current_turn_id,
+                        turn_index=current_turn_index,
+                        message_role="assistant",
+                        is_final_assistant_response=(not was_aborted),
+                        tool_trace_summary=tool_trace_summary,
                     )
                     response_stored = True
                     status = "partial (aborted)" if was_aborted else "complete"
@@ -312,17 +410,16 @@ class ConversationService:
     ):
         try:
             from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
-            from app.llm.providers.model_factory import get_chat_model
-            from app.features.agent_orchestration.infrastructure.checkpoint_utils import get_thread_message_count
+            from app.llm.providers.model_factory import get_chat_model, get_default_model
             from app.core.config import Config
             from langchain_core.messages import HumanMessage, SystemMessage
             from app.features.conversations.infrastructure.firestore_service import FirestoreService
+            from app.core.token_budget import calculate_token_budget
+            import json
 
-            namespaced_thread_id = thread_id or f"{user_id}:{conversation_id}"
-            checkpoint_message_count = await get_thread_message_count(
-                namespaced_thread_id
-            )
-            context_is_trimmed = checkpoint_message_count > ACTIVE_MESSAGE_WINDOW
+            selected_model = model or get_default_model(Config.LLM_PROVIDER)
+            budget_info = calculate_token_budget(selected_model)
+            active_context_budget = budget_info["active_context_budget"]
 
             db = FirestoreService.get_db()
             doc_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(
@@ -340,26 +437,60 @@ class ConversationService:
 
                 messages = data.get("messages", [])
                 start_idx = data.get("last_summarized_idx", 0)
-                unsummarized_count = len(messages) - start_idx
+                unsummarized_tail = messages[start_idx:]
+                if not unsummarized_tail:
+                    return
+                
+                # Calculate total tokens in unsummarized tail
+                tail_tokens = sum(_get_message_tokens(msg) for msg in unsummarized_tail)
 
-                if unsummarized_count <= 0:
+                # Only summarize if unsummarized_tail_tokens >= active_context_budget
+                if tail_tokens < active_context_budget:
                     return
 
-                end_idx = _select_summary_end_idx(
-                    messages,
-                    start_idx,
-                    context_is_trimmed=context_is_trimmed,
-                )
-                if end_idx is None or end_idx <= start_idx:
-                    logger.debug(
-                        "Summarization deferred for %s: start=%s end=%s trimmed=%s total=%s",
-                        conversation_id,
-                        start_idx,
-                        end_idx,
-                        context_is_trimmed,
-                        len(messages),
-                    )
+                # Group messages into turns
+                turns = _group_messages_into_turns(messages)
+
+                # Map messages to turn index
+                turn_idx_by_msg_idx = {}
+                for t_idx, turn in enumerate(turns):
+                    for m_idx in turn:
+                        turn_idx_by_msg_idx[m_idx] = t_idx
+
+                # Find unsummarized turns
+                start_turn_idx = turn_idx_by_msg_idx.get(start_idx, 0)
+                unsummarized_turns = turns[start_turn_idx:]
+
+                # Filter complete unsummarized turns (stop at first incomplete one)
+                complete_unsummarized_turns = []
+                for t in unsummarized_turns:
+                    if _turn_is_complete(t, messages):
+                        complete_unsummarized_turns.append(t)
+                    else:
+                        break
+
+                if not complete_unsummarized_turns:
                     return
+
+                # Chunk complete unsummarized turns by budget (limit chunk size to active_context_budget // 2)
+                chunk_turns = []
+                chunk_tokens = 0
+                max_chunk_tokens = active_context_budget // 2
+
+                for turn in complete_unsummarized_turns:
+                    turn_tokens = sum(_get_message_tokens(messages[idx]) for idx in turn)
+                    if chunk_turns and chunk_tokens + turn_tokens > max_chunk_tokens:
+                        break
+                    chunk_turns.append(turn)
+                    chunk_tokens += turn_tokens
+
+                if not chunk_turns:
+                    chunk_turns = [complete_unsummarized_turns[0]]
+
+                # The first chunk covers message range [start_idx, end_idx)
+                chunk_start_msg_idx = chunk_turns[0][0]
+                chunk_end_msg_idx = chunk_turns[-1][-1]
+                end_idx = chunk_end_msg_idx + 1
 
                 claim_id = _claim_summary_range(
                     db,
@@ -369,12 +500,6 @@ class ConversationService:
                     end_idx=end_idx,
                 )
                 if not claim_id:
-                    logger.debug(
-                        "Summarization deferred for %s: range %s-%s is already claimed",
-                        conversation_id,
-                        start_idx,
-                        end_idx,
-                    )
                     return
 
                 block_to_summarize = messages[start_idx:end_idx]
@@ -450,6 +575,27 @@ class ConversationService:
 
                     from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService
 
+                    # Check if explicit turn_index is present, otherwise fallback to index in turns list
+                    covers_from_turn = messages[chunk_turns[0][0]].get("turn_index")
+                    if covers_from_turn is None:
+                        covers_from_turn = turns.index(chunk_turns[0])
+                    else:
+                        try:
+                            covers_from_turn = int(covers_from_turn)
+                        except (ValueError, TypeError):
+                            covers_from_turn = turns.index(chunk_turns[0])
+
+                    covers_to_turn = messages[chunk_turns[-1][-1]].get("turn_index")
+                    if covers_to_turn is None:
+                        covers_to_turn = turns.index(chunk_turns[-1])
+                    else:
+                        try:
+                            covers_to_turn = int(covers_to_turn)
+                        except (ValueError, TypeError):
+                            covers_to_turn = turns.index(chunk_turns[-1])
+
+                    covers_message_ids = [messages[idx].get("id") or messages[idx].get("message_id") or idx for idx in range(start_idx, end_idx)]
+
                     await VampMemoryService().store_summary_block(
                         conversation_id,
                         user_id,
@@ -457,8 +603,12 @@ class ConversationService:
                         start_message_idx=start_idx,
                         end_message_idx=end_idx - 1,
                         memory_bullets=memory_bullets,
+                        covers_from_turn=covers_from_turn,
+                        covers_to_turn=covers_to_turn,
+                        covers_message_ids=covers_message_ids,
+                        created_from_unsummarized_tail=True,
                     )
-                    if not _commit_summary_claim(doc_ref, claim_id, end_idx):
+                    if not _commit_summary_claim(doc_ref, claim_id, end_idx, last_summarized_turn=covers_to_turn):
                         logger.warning(
                             "Summary claim commit skipped for %s: claim no longer active",
                             conversation_id,
@@ -468,15 +618,17 @@ class ConversationService:
                     _clear_summary_claim(doc_ref, claim_id)
                     raise
                 logger.info(
-                    "Generated summary for conversation %s (messages %s to %s, trimmed=%s)",
+                    "Generated summary for conversation %s (messages %s to %s, turns %s to %s)",
                     conversation_id,
                     start_idx,
                     end_idx,
-                    context_is_trimmed,
+                    covers_from_turn,
+                    covers_to_turn,
                 )
 
                 # Catch up additional full blocks in the same pass.
-                context_is_trimmed = checkpoint_message_count > ACTIVE_MESSAGE_WINDOW
+                # Re-evaluate tokens after summarizing
+                pass
         except Exception as e:
             logger.error(f"Error in background summarization: {e}", exc_info=True)
 
@@ -576,8 +728,8 @@ def _claim_summary_range(
     return _run_firestore_transaction(db, _work)
 
 
-def _commit_summary_claim(doc_ref, claim_id: str, end_idx: int) -> bool:
-    """Advance last_summarized_idx only if this worker still owns the claim."""
+def _commit_summary_claim(doc_ref, claim_id: str, end_idx: int, last_summarized_turn: int | None = None) -> bool:
+    """Advance last_summarized_idx and last_summarized_turn only if this worker still owns the claim."""
     from app.features.conversations.infrastructure.firestore_service import FirestoreService
     from firebase_admin import firestore
 
@@ -587,16 +739,22 @@ def _commit_summary_claim(doc_ref, claim_id: str, end_idx: int) -> bool:
         doc = _get_doc_in_transaction(doc_ref, transaction)
         if not doc.exists:
             return False
-        pending = (doc.to_dict() or {}).get("summary_pending") or {}
+        data = doc.to_dict() or {}
+        pending = data.get("summary_pending") or {}
         if pending.get("claim_id") != claim_id:
             return False
+            
+        updates = {
+            "last_summarized_idx": end_idx,
+            "summary_pending": firestore.DELETE_FIELD,
+        }
+        if last_summarized_turn is not None:
+            updates["last_summarized_turn"] = last_summarized_turn
+
         _update_doc_in_transaction(
             doc_ref,
             transaction,
-            {
-                "last_summarized_idx": end_idx,
-                "summary_pending": firestore.DELETE_FIELD,
-            },
+            updates,
         )
         return True
 
@@ -750,40 +908,45 @@ def _select_summary_end_idx(
     start_idx: int,
     *,
     context_is_trimmed: bool,
+    active_context_budget: int = 4000,
 ) -> int | None:
     """
-    Choose the next Firestore slice to summarize.
-
-    - Scheduled mode: full SUMMARY_BLOCK_SIZE blocks while context still fits.
-    - Trim mode: summarize older messages before they fall out of the checkpoint
-      window, keeping a small tail of recent Firestore entries unsummarized.
+    Choose the next Firestore slice to summarize using token budgets.
     """
+    from app.core.token_budget import estimate_tokens
+    import json
+    
     unsummarized_count = len(messages) - start_idx
     if unsummarized_count <= 0:
         return None
 
-    if context_is_trimmed:
-        min_remaining = min(
-            HOT_FIRESTORE_MESSAGES,
-            max(2, len(messages) // 2),
-        )
-        retain_from = len(messages) - min_remaining
-        if retain_from <= start_idx:
-            return None
-            
-        # Prevent generating tiny summaries on every turn. Wait until we have a chunk
-        # of at least half the SUMMARY_BLOCK_SIZE (e.g. 10 messages).
-        if retain_from - start_idx < (SUMMARY_BLOCK_SIZE // 2):
-            return None
-            
-        return _find_safe_user_boundary(messages, start_idx, retain_from)
-
-    if unsummarized_count < SUMMARY_BLOCK_SIZE:
+    # Only trigger summarization if the unsummarized tail exceeds the active_context_budget.
+    if not context_is_trimmed:
         return None
 
-    return _find_safe_user_boundary(
-        messages, start_idx, start_idx + SUMMARY_BLOCK_SIZE
-    )
+    # Walk backwards from the end to find the maximum unsummarized tail that fits in half the budget
+    target_budget = active_context_budget // 2
+    total_tokens = 0
+    retain_from = len(messages)
+    
+    for i in range(len(messages) - 1, start_idx - 1, -1):
+        msg = messages[i]
+        content = msg.get("content", "")
+        tokens = estimate_tokens(content)
+        timeline = msg.get("timeline", [])
+        if timeline:
+            tokens += estimate_tokens(json.dumps(timeline))
+            
+        if total_tokens + tokens > target_budget:
+            break
+            
+        total_tokens += tokens
+        retain_from = i
+
+    if retain_from <= start_idx:
+        retain_from = start_idx + 2  # ensure we at least summarize something
+        
+    return _find_safe_user_boundary(messages, start_idx, retain_from)
 
 
 def _ai_message_content_to_str(content) -> str:
@@ -837,3 +1000,74 @@ def _classify_error(raw: str) -> str:
     if "authentication" in lower or "401" in lower:
         return "Authentication error. Please check API keys."
     return "AI service error. Please try again."
+
+
+def _group_messages_into_turns(messages: list) -> list[list[int]]:
+    """Groups message indices into turns, with explicit turn_index/turn_id or fallback."""
+    turns = []
+    current_turn = []
+    
+    # We will build turns based on turn_index or turn_id if they exist,
+    # otherwise fallback to grouping where 'user' starts a new turn.
+    for idx, msg in enumerate(messages):
+        key = msg.get("turn_index") or msg.get("turn_id")
+        
+        # If we have a key, we group by key
+        if key is not None:
+            # If there's a current turn and the last message in it had the same key
+            if current_turn:
+                last_msg = messages[current_turn[-1]]
+                last_key = last_msg.get("turn_index") or last_msg.get("turn_id")
+                if last_key == key:
+                    current_turn.append(idx)
+                    continue
+            # Otherwise, start a new turn
+            if current_turn:
+                turns.append(current_turn)
+            current_turn = [idx]
+        else:
+            # Fallback grouping: 'user' starts a turn
+            sender = str(msg.get("sender", "user")).lower()
+            if sender == "user":
+                if current_turn:
+                    turns.append(current_turn)
+                current_turn = [idx]
+            else:
+                if not current_turn:
+                    current_turn = [idx]
+                else:
+                    current_turn.append(idx)
+                    
+    if current_turn:
+        turns.append(current_turn)
+    return turns
+
+def _get_message_tokens(msg: dict) -> int:
+    """Get message token size, prioritizing Bedrock usage if available."""
+    from app.core.token_budget import estimate_tokens
+    import json
+    usage = msg.get("usage")
+    if isinstance(usage, dict):
+        total = usage.get("totalTokens") or usage.get("total_tokens")
+        if total is not None:
+            return int(total)
+        inp = usage.get("inputTokens") or usage.get("input_tokens") or 0
+        out = usage.get("outputTokens") or usage.get("output_tokens") or 0
+        if inp + out > 0:
+            return inp + out
+    content = msg.get("content", "")
+    tokens = estimate_tokens(content)
+    timeline = msg.get("timeline", [])
+    if timeline:
+        tokens += estimate_tokens(json.dumps(timeline))
+    return tokens
+
+def _turn_is_complete(turn: list[int], messages: list) -> bool:
+    has_user = any(str(messages[idx].get("sender", "")).lower() == "user" for idx in turn)
+    has_ai = any(str(messages[idx].get("sender", "")).lower() == "ai" for idx in turn)
+    has_final_ai = any(messages[idx].get("is_final_assistant_response") is True for idx in turn)
+    # If any message in this turn is marked as final assistant response, then it is complete.
+    # Otherwise, fallback to checking if we have both user and ai messages.
+    if has_final_ai:
+        return True
+    return has_user and has_ai

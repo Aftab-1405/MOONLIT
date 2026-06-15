@@ -421,13 +421,13 @@ const AIMessage = memo(function AIMessage({
                     p: 1.75,
                     borderRadius: '10px',
                     border: '1px solid',
-                    borderColor: theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)',
-                    bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.04 : 0.02),
+                    borderColor: theme.palette.border?.subtle || (theme.palette.mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.08)'),
+                    bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.0305 : 0.015),
                     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                     '&:hover': {
-                      borderColor: theme.palette.primary.main,
-                      bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.07 : 0.035),
-                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, 0.08)}`,
+                      borderColor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.32 : 0.24),
+                      bgcolor: alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.055 : 0.025),
+                      boxShadow: `0 4px 12px ${alpha(theme.palette.primary.main, theme.palette.mode === 'dark' ? 0.06 : 0.04)}`,
                     },
                   }}
                 >

@@ -99,8 +99,7 @@ export function useConversations() {
       return true;
     }
 
-    const requestSeq = conversationLoadSeqRef.current + 1;
-    conversationLoadSeqRef.current = requestSeq;
+    const requestSeq = ++conversationLoadSeqRef.current;
     setIsConversationLoading(true);
     try {
       const data = await queryClient.fetchQuery({
@@ -108,6 +107,13 @@ export function useConversations() {
         queryFn: ({ signal: querySignal }) => getConversation(convId, querySignal),
         staleTime: 5 * 60 * 1000,
       });
+
+      // Guard: if the user switched conversations while this request was
+      // in-flight, discard the stale result entirely.
+      if (conversationLoadSeqRef.current !== requestSeq) {
+        return false;
+      }
+
       if (data.status === 'success' && data.conversation) {
         setCurrentConversationId(convId);
         const formattedMessages = (data.conversation.messages || []).map((msg, index) =>
@@ -127,6 +133,7 @@ export function useConversations() {
       logger.error('Failed to load conversation:', error);
       return false;
     } finally {
+      // Only reset loading if this is still the active request.
       if (conversationLoadSeqRef.current === requestSeq) {
         setIsConversationLoading(false);
       }

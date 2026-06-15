@@ -59,6 +59,7 @@ def get_chat_model(
     # Explicitly pass credentials to avoid conflicts with ~/.aws/credentials
     aws_access_key_id = os.getenv("AWS_ACCESS_KEY_ID")
     aws_secret_access_key = os.getenv("AWS_SECRET_ACCESS_KEY")
+    aws_session_token = os.getenv("AWS_SESSION_TOKEN")
     aws_region = os.getenv("AWS_DEFAULT_REGION") or os.getenv("AWS_REGION") or "us-east-1"
     
     # Bedrock region overrides for models not available in the default region (us-east-1)
@@ -98,6 +99,7 @@ def get_chat_model(
         region_name=aws_region,
         aws_access_key_id=aws_access_key_id,
         aws_secret_access_key=aws_secret_access_key,
+        aws_session_token=aws_session_token,
         disable_streaming=False,
         **model_kwargs
     )

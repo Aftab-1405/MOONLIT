@@ -63,6 +63,7 @@ function upsertAssistantMessage(prevMessages, assistantId, messageData, status) 
     stepsOverride: messageData.steps,
     timelineOverride: messageData.timeline,
     status,
+    usage: messageData.usage,
   });
   const messageIndex = prevMessages.findIndex((message) => message.id === assistantId);
 
@@ -124,7 +125,12 @@ export function useMessageStreaming({
     let lastUpdateTime = 0;
     let pendingStatus = null;
     let streamFlushRafId = 0;
+    // True when the stream ended because the agent needs user input.
+    let hasAgentInterrupt = false;
+    // True when an interrupt arrived but no assistant content was produced at
+    // all — in that case we remove the placeholder message entirely.
     let interruptedWithoutAssistantContent = false;
+    let lastUsageMetrics = null;
 
     const buildMessageData = (isDone = false) => {
       let streamedText = contentParts.join('');
@@ -144,6 +150,7 @@ export function useMessageStreaming({
           ...normalizedTimeline.filter((item) => item.type !== 'text'),
         ],
         timeline: [...baseTimeline, ...normalizedTimeline],
+        usage: lastUsageMetrics || baseMessageData?.usage,
       };
     };
 
@@ -234,6 +241,7 @@ export function useMessageStreaming({
           break;
 
         case 'agent_interrupt':
+          hasAgentInterrupt = true;
           interruptedWithoutAssistantContent = true;
           onAgentInterrupt(event, assistantMessageId);
           scheduleStreamUpdate(MESSAGE_STATUS.WAITING);
@@ -242,6 +250,18 @@ export function useMessageStreaming({
         case 'error':
           contentParts.push(`\n\n**Error**: ${event.message}`);
           scheduleStreamUpdate(MESSAGE_STATUS.ERROR);
+          break;
+
+        case 'usage_metrics':
+          lastUsageMetrics = {
+            inputTokens: event.inputTokens,
+            outputTokens: event.outputTokens,
+            totalTokens: event.totalTokens,
+            activeContextBudget: event.activeContextBudget,
+            totalContextWindow: event.totalContextWindow,
+          };
+          dispatchUiAction({ action: 'usage_metrics', payload: event });
+          scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
           break;
 
         case 'ui_action':
@@ -266,7 +286,14 @@ export function useMessageStreaming({
       && contentParts.length === 0
       && eventTimeline.length === 0
     ) {
+      // Pure interrupt with no assistant content: remove the placeholder.
       setMessages((prev) => prev.filter((message) => message.id !== assistantMessageId));
+    } else if (hasAgentInterrupt) {
+      // Interrupt with some content: keep the message as WAITING so the
+      // approval / continue controls remain visible.
+      setMessages((prev) =>
+        upsertAssistantMessage(prev, assistantMessageId, buildMessageData(true), MESSAGE_STATUS.WAITING)
+      );
     } else {
       setMessages((prev) =>
         upsertAssistantMessage(prev, assistantMessageId, buildMessageData(true), MESSAGE_STATUS.DONE)

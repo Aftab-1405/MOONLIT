@@ -262,8 +262,46 @@ class PromptBuilder:
             </agent_workflow>
     
             <diagram_output>
-            For schema or workflow diagrams, output ONLY valid JSON inside ```diagram-flow:
-            {"direction":"LR"|"TB","nodes":[{"id":"str","type":"entity"|"process","data":{"label":"str"},"style":{}}],"edges":[{"id":"str","source":"str","target":"str","label":"str","type":"smoothstep"}]}
+            For database schemas, query execution plans, or workflow diagrams, output ONLY valid JSON inside ```diagram-flow:
+            {
+              "direction": "LR" | "TB",
+              "nodes": [
+                {
+                  "id": "node_id",
+                  "type": "entity" | "process" | "premium",
+                  "label": "Primary Title",
+                  "subtitle": "Secondary description or detail",
+                  "count": 42,
+                  "status": "ready" | "active" | "pending" | "blocked" | "disabled",
+                  "tags": ["tag1", "tag2"],
+                  "style": {
+                    "backgroundColor": "#hex",
+                    "color": "#hex",
+                    "borderColor": "#hex",
+                    "borderStyle": "solid" | "dashed" | "dotted",
+                    "borderWidth": "2px",
+                    "borderRadius": "8px",
+                    "boxShadow": "0 4px 8px rgba(0,0,0,0.15)"
+                  }
+                }
+              ],
+              "edges": [
+                {
+                  "id": "edge_id",
+                  "source": "source_node_id",
+                  "target": "target_node_id",
+                  "label": "optional label",
+                  "type": "floating" | "smoothstep",
+                  "dashed": true | false,
+                  "animated": true | false,
+                  "style": {
+                    "stroke": "#hex",
+                    "strokeWidth": "2.5px"
+                  }
+                }
+              ]
+            }
+            Use custom styles, distinct colors, and premium properties (like tags, status, and count) to make diagrams visually premium, professional, and informative. You can use ANY standard CSS presentation properties inside the "style" object (e.g., padding, margin, fontSize, fontStyle, opacity, textShadow, background, etc. except layout-breaking properties like position, display, zIndex, width, height) to design highly unique and premium diagram components.
             </diagram_output>
     
             <data_preview_policy>

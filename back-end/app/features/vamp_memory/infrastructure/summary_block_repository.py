@@ -55,6 +55,10 @@ class SummaryBlockRepository:
         end_message_idx: int,
         embedding_model: str,
         memory_bullets: list[dict] | None = None,
+        covers_from_turn: int | None = None,
+        covers_to_turn: int | None = None,
+        covers_message_ids: list | None = None,
+        created_from_unsummarized_tail: bool = True,
     ) -> dict:
         """
         Append one immutable summary block.
@@ -79,6 +83,10 @@ class SummaryBlockRepository:
             "embedding_model": embedding_model,
             "vector_status": "pending",
             "created_at": datetime.now(),
+            "covers_from_turn": covers_from_turn,
+            "covers_to_turn": covers_to_turn,
+            "covers_message_ids": covers_message_ids,
+            "created_from_unsummarized_tail": created_from_unsummarized_tail,
         }
 
         if memory_bullets is not None:

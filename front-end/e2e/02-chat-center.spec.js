@@ -320,8 +320,6 @@ test.describe('Chat Center — Column 2', () => {
     await goToChat(page);
     await openConversation(page, 'Sales Analysis');
 
-    // Hover over the AI message to reveal action buttons (they're opacity:0 by default)
-    const aiMsgArea = page.locator('[data-testid="user-message"]').first().locator('..').locator('..');
     // Find the AI message copy button
     const copyBtn = page.locator('[data-testid="action-bar-copy"]').first();
 

@@ -70,8 +70,15 @@ class ExecuteQueryArgs(BaseToolArgs):
 
     query: str = Field(..., description="SQL SELECT query to execute.")
     max_rows: Optional[int] = Field(
-        100, description="Maximum number of rows to return.", ge=1, le=1000
+        100, description="Maximum number of rows to return (capped at 1000).", ge=1, le=1000
     )
+
+    @field_validator("max_rows", mode="before")
+    @classmethod
+    def cap_max_rows(cls, v: Any) -> Any:
+        if isinstance(v, int):
+            return max(1, min(v, 1000))
+        return v
 
     @field_validator("query")
     @classmethod

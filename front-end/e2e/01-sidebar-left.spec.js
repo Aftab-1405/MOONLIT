@@ -27,9 +27,6 @@ async function goToChat(page, overrides = {}) {
 
 // ── Helper: hover over a conversation row to reveal the options button ────────
 async function hoverConversationRow(page, titleText) {
-  const row = page.locator(`[data-testid="conv-item"], .conv-item, li, [role="listitem"]`)
-    .filter({ hasText: titleText })
-    .first();
   // Fallback: just find the text node's parent
   const item = page.locator(`text=${titleText}`).first();
   await item.hover();

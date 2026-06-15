@@ -82,6 +82,10 @@ class VampMemoryService:
         start_message_idx: int,
         end_message_idx: int,
         memory_bullets: list[dict] | None = None,
+        covers_from_turn: int | None = None,
+        covers_to_turn: int | None = None,
+        covers_message_ids: list | None = None,
+        created_from_unsummarized_tail: bool = True,
     ) -> dict:
         block = self.summary_repo.create_block(
             conversation_id,
@@ -91,6 +95,10 @@ class VampMemoryService:
             end_message_idx=end_message_idx,
             embedding_model=self.embedding_model,
             memory_bullets=memory_bullets,
+            covers_from_turn=covers_from_turn,
+            covers_to_turn=covers_to_turn,
+            covers_message_ids=covers_message_ids,
+            created_from_unsummarized_tail=created_from_unsummarized_tail,
         )
         try:
             await self.index_summary_block(block)
@@ -249,3 +257,15 @@ class VampMemoryService:
     ) -> list[dict]:
         """Shim for tests accessing private method directly."""
         return dedupe_select_budget_then_sort(blocks, budget_chars=budget_chars or self.context_budget_chars)
+
+    async def delete_conversation_pointers(
+        self,
+        conversation_id: str,
+        user_id: str,
+    ) -> None:
+        """Delete all Qdrant vector pointers for the given conversation owned by the user."""
+        try:
+            await self.vector_store.delete_conversation_pointers(conversation_id, user_id)
+            logger.info("Deleted Qdrant pointers for conversation %s and user %s", conversation_id, user_id)
+        except Exception as exc:
+            logger.warning("Failed to delete Qdrant pointers for conversation %s: %s", conversation_id, exc)

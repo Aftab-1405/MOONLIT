@@ -24,6 +24,8 @@ import {
 import { alpha } from '@mui/material/styles';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
+import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
+import SettingsSuggestRoundedIcon from '@mui/icons-material/SettingsSuggestRounded';
 import MindmapIcon from '@/components/icons/MindmapIcon';
 import { ArtifactShell } from '@/features/sidebar-right/artifact-loader';
 import {
@@ -43,7 +45,7 @@ import {
 } from '@/styles/reactFlowStyles';
 import { getReadOnlyReactFlowProps } from '@/config/reactFlow';
 
-const VALID_DIRECTIONS = new Set(['LR', 'TD']);
+const VALID_DIRECTIONS = new Set(['LR', 'TD', 'TB']);
 const STREAM_SETTLE_MS = 350;
 // Slightly larger default nodes give more room for rich content
 const DEFAULT_NODE_WIDTH = 200;
@@ -52,17 +54,16 @@ const MOBILE_NODE_WIDTH = 186;
 const MOBILE_NODE_HEIGHT = 90;
 const INLINE_VIEWPORT = { width: 720, height: 340 };
 const MOBILE_VIEWPORT = { width: 320, height: 230 };
-const STYLE_KEYS = new Set([
-  'background',
-  'backgroundColor',
-  'border',
-  'borderColor',
-  'color',
-  'fontWeight',
-  'lineHeight',
-  'stroke',
-  'strokeDasharray',
-  'strokeWidth',
+const FORBIDDEN_STYLE_KEYS = new Set([
+  'position',
+  'display',
+  'top',
+  'left',
+  'right',
+  'bottom',
+  'zIndex',
+  'width',
+  'height',
 ]);
 
 const PREMIUM_NODE_TYPE = 'premium';
@@ -83,32 +84,53 @@ const normalizeNodeStatus = (status) => {
   return NODE_STATUSES.has(normalized) ? normalized : undefined;
 };
 
+const kebabToCamel = (str) => str.replace(/-([a-z])/g, (g) => g[1].toUpperCase());
+
 const normalizeStyle = (style) => {
   if (!style || typeof style !== 'object' || Array.isArray(style)) return undefined;
   const normalized = {};
   Object.entries(style).forEach(([key, value]) => {
-    if (STYLE_KEYS.has(key) && ['string', 'number'].includes(typeof value)) {
-      normalized[key] = value;
+    const camelKey = kebabToCamel(key);
+    if (!FORBIDDEN_STYLE_KEYS.has(camelKey) && ['string', 'number'].includes(typeof value)) {
+      normalized[camelKey] = value;
     }
   });
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 };
 
 const normalizeNodeStyle = (node) => {
-  const style = normalizeStyle(node.style) || {};
-  if (typeof node.color === 'string') style.color = node.color;
-  if (typeof node.backgroundColor === 'string') style.backgroundColor = node.backgroundColor;
-  if (typeof node.borderColor === 'string') {
-    style.borderColor = node.borderColor;
-    style.border = style.border || `1px solid ${node.borderColor}`;
+  const rawStyle = (node.style && typeof node.style === 'object')
+    ? node.style
+    : ((node.data && typeof node.data === 'object' && node.data.style && typeof node.data.style === 'object') ? node.data.style : {});
+
+  const style = normalizeStyle(rawStyle) || {};
+
+  const color = node.color || node.data?.color;
+  const backgroundColor = node.backgroundColor || node.data?.backgroundColor;
+  const borderColor = node.borderColor || node.data?.borderColor;
+
+  if (typeof color === 'string') style.color = color;
+  if (typeof backgroundColor === 'string') style.backgroundColor = backgroundColor;
+  if (typeof borderColor === 'string') {
+    style.borderColor = borderColor;
+    style.border = style.border || `1px solid ${borderColor}`;
   }
   return Object.keys(style).length > 0 ? style : undefined;
 };
 
 const normalizeEdgeStyle = (edge) => {
-  const style = normalizeStyle(edge.style) || {};
-  if (typeof edge.color === 'string') style.stroke = edge.color;
-  if (edge.dashed) style.strokeDasharray = style.strokeDasharray || '6 4';
+  const rawStyle = (edge.style && typeof edge.style === 'object')
+    ? edge.style
+    : ((edge.data && typeof edge.data === 'object' && edge.data.style && typeof edge.data.style === 'object') ? edge.data.style : {});
+
+  const style = normalizeStyle(rawStyle) || {};
+
+  const color = edge.color || edge.data?.color;
+  if (typeof color === 'string') style.stroke = color;
+
+  const dashed = edge.dashed !== undefined ? edge.dashed : edge.data?.dashed;
+  if (dashed) style.strokeDasharray = style.strokeDasharray || '6 4';
+
   return Object.keys(style).length > 0 ? style : undefined;
 };
 
@@ -206,16 +228,41 @@ const normalizeDiagram = (diagram) => {
     const id = typeof node?.id === 'string' ? node.id.trim() : '';
     if (!id || nodeIds.has(id)) return;
     nodeIds.add(id);
-    const label = typeof node.label === 'string' && node.label.trim() ? node.label.trim() : id;
-    const subtitle = typeof node.subtitle === 'string' && node.subtitle.trim() ? node.subtitle.trim() : '';
-    const count = Number.isFinite(node.count) ? node.count : undefined;
+    
+    // Support label at top level, nested in data.label, or as raw string in data
+    let label = '';
+    if (typeof node.label === 'string' && node.label.trim()) {
+      label = node.label.trim();
+    } else if (node.data && typeof node.data.label === 'string' && node.data.label.trim()) {
+      label = node.data.label.trim();
+    } else if (typeof node.data === 'string' && node.data.trim()) {
+      label = node.data.trim();
+    } else {
+      label = id;
+    }
+
+    const subtitleVal = node.subtitle || node.data?.subtitle;
+    const subtitle = typeof subtitleVal === 'string' && subtitleVal.trim() ? subtitleVal.trim() : '';
+
+    const countVal = node.count !== undefined ? node.count : node.data?.count;
+    const count = Number.isFinite(countVal) ? countVal : undefined;
+
+    const statusVal = node.status || node.data?.status;
+    const status = normalizeNodeStatus(statusVal);
+
+    const tagsVal = node.tags || node.data?.tags;
+    const tags = normalizeTags(tagsVal);
+
+    const typeVal = node.type || node.data?.type;
+
     nodes.push({
       id,
+      type: typeof typeVal === 'string' ? typeVal.trim().toLowerCase() : undefined,
       label,
       subtitle,
       count,
-      status: normalizeNodeStatus(node.status),
-      tags: normalizeTags(node.tags),
+      status,
+      tags,
       style: normalizeNodeStyle(node),
     });
   });
@@ -233,14 +280,21 @@ const normalizeDiagram = (diagram) => {
       const id = typeof edge.id === 'string' && edge.id.trim()
         ? edge.id.trim()
         : `${source}-${target}-${index}`;
+
+      const labelVal = edge.label || edge.data?.label;
+      const dashedVal = edge.dashed !== undefined ? edge.dashed : edge.data?.dashed;
+      const animatedVal = edge.animated !== undefined ? edge.animated : edge.data?.animated;
+      const typeVal = edge.type || edge.data?.type;
+
       edges.push({
         id,
         source,
         target,
-        label: typeof edge.label === 'string' ? edge.label.trim() : '',
-        dashed: Boolean(edge.dashed),
+        type: typeof typeVal === 'string' ? typeVal.trim() : undefined,
+        label: typeof labelVal === 'string' ? labelVal.trim() : '',
+        dashed: Boolean(dashedVal),
         style: normalizeEdgeStyle(edge),
-        animated: Boolean(edge.animated),
+        animated: Boolean(animatedVal),
       });
     });
   }
@@ -253,18 +307,21 @@ const buildFlowElements = (diagram, isMobile, theme) => {
   const nodeHeight = isMobile ? MOBILE_NODE_HEIGHT : DEFAULT_NODE_HEIGHT;
   const edgeBaseStyle = getReactFlowEdgeStyle(theme, { isMobile });
 
+  const isVertical = diagram.direction === 'TB' || diagram.direction === 'TD';
+
   const nodes = diagram.nodes.map((node) => ({
     id: node.id,
-    type: PREMIUM_NODE_TYPE,
+    type: node.type || PREMIUM_NODE_TYPE,
     data: {
+      type: node.type || PREMIUM_NODE_TYPE,
       title: node.label,
       subtitle: node.subtitle,
       count: node.count,
       status: node.status,
       tags: node.tags,
       customStyle: node.style,
-      sourcePosition: Position.Right,
-      targetPosition: Position.Left,
+      sourcePosition: isVertical ? Position.Bottom : Position.Right,
+      targetPosition: isVertical ? Position.Top : Position.Left,
     },
     position: { x: 0, y: 0 },
     width: nodeWidth,
@@ -276,7 +333,7 @@ const buildFlowElements = (diagram, isMobile, theme) => {
     source: edge.source,
     target: edge.target,
     label: edge.label,
-    type: 'floating',
+    type: edge.type || 'floating',
     markerEnd: {
       type: MarkerType.ArrowClosed,
       // Cleaner, proportionate arrowhead
@@ -312,6 +369,21 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
   const disabled = status === 'disabled';
   const accentSx = getReactFlowCustomNodeAccentSx(theme, data.customStyle, disabled);
 
+  const nodeType = data.type;
+  const isEntity = nodeType === 'entity';
+  const isProcess = nodeType === 'process';
+
+  const typeOverridesSx = {
+    ...(isEntity && {
+      borderRadius: '6px',
+      borderLeft: `3px solid ${theme.palette.success.main}`,
+    }),
+    ...(isProcess && {
+      borderRadius: '16px',
+      borderLeft: `3px solid ${theme.palette.primary.main}`,
+    }),
+  };
+
   return (
     <Box
       className={FLOW_NODE_CARD_CLASS}
@@ -331,7 +403,16 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
         gap: hasFooter ? 1.25 : 0,
         textAlign: 'center',
         opacity: disabled ? 0.62 : 1,
+        ...typeOverridesSx,
         ...accentSx,
+        ...(!disabled && data.customStyle && typeof data.customStyle === 'object' ? {
+          ...data.customStyle,
+          ...((data.customStyle.backgroundColor || data.customStyle.background) ? { backgroundImage: 'none' } : {}),
+          '&:hover': {
+            ...data.customStyle,
+            ...((data.customStyle.backgroundColor || data.customStyle.background) ? { backgroundImage: 'none' } : {}),
+          }
+        } : {}),
       }}
     >
       <Handle type="target" position={data.targetPosition || Position.Left} style={HIDDEN_FLOW_HANDLE_STYLE} />
@@ -355,19 +436,24 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
 
       {/* Primary content: label + subtitle */}
       <Box sx={{ minWidth: 0, width: '100%' }}>
-        <Typography
-          noWrap
-          sx={{
-            ...theme.typography.uiBodySm,
-            lineHeight: 1.25,
-            fontWeight: 660,
-            letterSpacing: 0,
-            color: disabled ? 'text.disabled' : 'text.primary',
-            textAlign: 'center',
-          }}
-        >
-          {data.title}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75, width: '100%', minWidth: 0, mb: 0.25 }}>
+          {isEntity && <TableChartRoundedIcon sx={{ fontSize: 16, color: theme.palette.success.main, flexShrink: 0 }} />}
+          {isProcess && <SettingsSuggestRoundedIcon sx={{ fontSize: 16, color: theme.palette.primary.main, flexShrink: 0 }} />}
+          <Typography
+            noWrap
+            sx={{
+              ...theme.typography.uiBodySm,
+              lineHeight: 1.25,
+              letterSpacing: 0,
+              color: disabled ? 'text.disabled' : (data.customStyle?.color ? 'inherit' : 'text.primary'),
+              textAlign: 'center',
+              fontSize: data.customStyle?.fontSize ? 'inherit' : undefined,
+              fontWeight: data.customStyle?.fontWeight ? 'inherit' : 660,
+            }}
+          >
+            {data.title}
+          </Typography>
+        </Box>
         {data.subtitle && (
           <Typography
             noWrap
@@ -376,8 +462,9 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
               ...theme.typography.uiCaption2xs,
               lineHeight: 1.35,
               letterSpacing: 0,
-              color: disabled ? 'text.disabled' : 'text.secondary',
+              color: disabled ? 'text.disabled' : (data.customStyle?.color ? 'inherit' : 'text.secondary'),
               textAlign: 'center',
+              opacity: data.customStyle?.color ? 0.82 : 1,
             }}
           >
             {data.subtitle}
@@ -441,6 +528,8 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
 
 const nodeTypes = {
   [PREMIUM_NODE_TYPE]: DiagramFlowNode,
+  entity: DiagramFlowNode,
+  process: DiagramFlowNode,
 };
 
 // ─── Floating Edge ────────────────────────────────────────────────────────────

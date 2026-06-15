@@ -48,14 +48,30 @@ function csrfHeaders(method) {
  */
 async function apiClient(endpoint, options = {}) {
   const method = options.method || 'GET';
+  const { body, headers: customHeaders, ...restOptions } = options;
+  const hasBody = body !== undefined;
+
+  const headers = {
+    ...csrfHeaders(method),
+    ...customHeaders,
+  };
+
+  // Only set Content-Type for requests that carry a body and are not FormData
+  // (FormData sets its own multipart boundary).
+  if (hasBody && !(body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const config = {
-    ...options,
+    ...restOptions,
+    method,
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...csrfHeaders(method),
-      ...options.headers,
-    },
+    headers,
+    body: hasBody
+      ? body instanceof FormData
+        ? body
+        : JSON.stringify(body)
+      : undefined,
   };
 
   if (IS_DEV) {
@@ -134,7 +150,7 @@ export function post(endpoint, body, options = {}) {
   return apiClient(endpoint, {
     ...options,
     method: 'POST',
-    body: body ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? body : undefined,
   });
 }
 
@@ -143,7 +159,7 @@ export function patch(endpoint, body, options = {}) {
   return apiClient(endpoint, {
     ...options,
     method: 'PATCH',
-    body: body ? JSON.stringify(body) : undefined,
+    body: body !== undefined ? body : undefined,
   });
 }
 
@@ -154,15 +170,25 @@ export function del(endpoint, options = {}) {
 
 /** POST wrapper that returns raw Response (for streaming). */
 export async function postRaw(endpoint, body, options = {}) {
+  const hasBody = body !== undefined;
+  const headers = {
+    ...csrfHeaders('POST'),
+    ...options.headers,
+  };
+
+  if (hasBody && !(body instanceof FormData)) {
+    headers['Content-Type'] = 'application/json';
+  }
+
   const config = {
     method: 'POST',
     credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...csrfHeaders('POST'),
-      ...options.headers,
-    },
-    body: body ? JSON.stringify(body) : undefined,
+    headers,
+    body: hasBody
+      ? body instanceof FormData
+        ? body
+        : JSON.stringify(body)
+      : undefined,
     ...options,
   };
 

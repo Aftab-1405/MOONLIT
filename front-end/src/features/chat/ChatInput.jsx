@@ -50,6 +50,62 @@ const blurReveal = keyframes`
   }
 `;
 
+const ContextProgressRing = ({ total, budget, theme }) => {
+  if (total == null || budget == null || budget <= 0) return null;
+  const ratio = Math.min(1, total / budget);
+  const radius = 7;
+  const strokeWidth = 2.2;
+  const size = 18;
+  const center = size / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - ratio * circumference;
+
+  let color = theme.palette.success.main;
+  if (ratio > 0.9) {
+    color = theme.palette.error.main;
+  } else if (ratio > 0.75) {
+    color = theme.palette.warning.main;
+  }
+
+  return (
+    <Box
+      component="svg"
+      width={size}
+      height={size}
+      viewBox={`0 0 ${size} ${size}`}
+      sx={{
+        transform: 'rotate(-90deg)',
+        transformOrigin: 'center',
+        flexShrink: 0,
+        display: 'block',
+      }}
+    >
+      <circle
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="transparent"
+        stroke={alpha(theme.palette.text.primary, 0.08)}
+        strokeWidth={strokeWidth}
+      />
+      <circle
+        cx={center}
+        cy={center}
+        r={radius}
+        fill="transparent"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeDasharray={circumference}
+        strokeDashoffset={strokeDashoffset}
+        strokeLinecap="round"
+        style={{
+          transition: 'stroke-dashoffset 0.35s ease-in-out',
+        }}
+      />
+    </Box>
+  );
+};
+
 function ChatInput({
   onSend,
   onStop,
@@ -66,6 +122,7 @@ function ChatInput({
   providerOptions = [],
   llmOptionsLoading = false,
   onSelectLlm,
+  usageMetrics = null,
   children,
 }) {
   const [message, setMessage] = useState('');
@@ -121,7 +178,7 @@ function ChatInput({
     borderColor: neutralInteraction.border,
     color: 'text.secondary',
     backgroundColor: 'transparent',
-    ...theme.typography.uiCaptionSm,
+    ...theme.typography.uiBodySm,
     lineHeight: 1,
     transition: theme.transitions.create(['background-color', 'border-color', 'color', 'transform'], {
       duration: theme.transitions.duration.shorter,
@@ -311,6 +368,8 @@ function ChatInput({
       sx={{
         px: { xs: 0.5, sm: 0.75 },
         pb: { xs: 'max(env(safe-area-inset-bottom), 8px)', sm: 0.75 },
+        position: 'relative',
+        zIndex: 2,
       }}
     >
       <AppPopover
@@ -624,7 +683,30 @@ function ChatInput({
           </Box>
 
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-            <Tooltip title={activeProviderLabel ? `${selectedModel || 'Select model'} - ${activeProviderLabel}` : 'Select model'}>
+            <Tooltip
+              title={
+                usageMetrics && usageMetrics.totalTokens != null && usageMetrics.activeContextBudget != null ? (
+                  <Box sx={{ p: 0.5 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'inherit', mb: 0.5 }}>
+                      {selectedModel || 'Select model'}
+                    </Typography>
+                    {activeProviderLabel && (
+                      <Typography variant="caption" display="block" sx={{ opacity: 0.8, mb: 0.5 }}>
+                        Provider: {activeProviderLabel}
+                      </Typography>
+                    )}
+                    <Typography variant="caption" display="block" sx={{ opacity: 0.8 }}>
+                      Context size: {usageMetrics.totalTokens.toLocaleString()} / {usageMetrics.activeContextBudget.toLocaleString()} ({Math.round((usageMetrics.totalTokens / usageMetrics.activeContextBudget) * 100)}%)
+                    </Typography>
+                    <Typography variant="caption" display="block" sx={{ opacity: 0.5, mt: 0.5, fontSize: '10px' }}>
+                      (Older history dynamically trimmed to stay within budget)
+                    </Typography>
+                  </Box>
+                ) : (
+                  activeProviderLabel ? `${selectedModel || 'Select model'} - ${activeProviderLabel}` : 'Select model'
+                )
+              }
+            >
               <span>
                 <Button
                   variant="outlined"
@@ -633,6 +715,15 @@ function ChatInput({
                   disabled={!hasLlmOptions && !llmOptionsLoading}
                   aria-expanded={Boolean(llmAnchor)}
                   aria-label="Select model"
+                  startIcon={
+                    usageMetrics && usageMetrics.totalTokens != null && usageMetrics.activeContextBudget != null ? (
+                      <ContextProgressRing
+                        total={usageMetrics.totalTokens}
+                        budget={usageMetrics.activeContextBudget}
+                        theme={theme}
+                      />
+                    ) : undefined
+                  }
                   endIcon={(
                     <KeyboardArrowDownRoundedIcon sx={{
                       transform: llmAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
@@ -642,10 +733,11 @@ function ChatInput({
                   )}
                   sx={{
                     ...toolbarActionButtonStyles,
-                    maxWidth: { xs: 'min(44vw, 144px)', sm: 208 },
+                    width: { xs: 130, sm: 170 },
+                    flexShrink: 0,
                   }}
                 >
-                  <Box component="span" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                  <Box component="span" sx={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'clip', flex: 1, textAlign: 'left' }}>
                     {selectedModel || (llmOptionsLoading ? 'Loading...' : 'Choose model')}
                   </Box>
                 </Button>
@@ -743,8 +835,18 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.onOpenSqlEditor !== nextProps.onOpenSqlEditor) return false;
   if (prevProps.onDatabaseSwitch !== nextProps.onDatabaseSwitch) return false;
   if (prevProps.onSelectLlm !== nextProps.onSelectLlm) return false;
+  if (prevProps.usageMetrics !== nextProps.usageMetrics) return false;
   if (prevProps.children !== nextProps.children) return false;
   if (prevProps.availableDatabases?.length !== nextProps.availableDatabases?.length) return false;
+  // Compare actual database identifiers, not just count, so a rename still
+  // triggers a re-render even when the number of databases is unchanged.
+  const prevDbKey = prevProps.availableDatabases
+    ?.map((db) => db?.name || db?.database || db?.id || String(db))
+    .join('\x1f');
+  const nextDbKey = nextProps.availableDatabases
+    ?.map((db) => db?.name || db?.database || db?.id || String(db))
+    .join('\x1f');
+  if (prevDbKey !== nextDbKey) return false;
   return true;
 }
 

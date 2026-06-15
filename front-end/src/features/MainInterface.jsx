@@ -10,6 +10,7 @@ import {
   Button,
   Slide,
   Fade,
+  Collapse,
   IconButton,
   Tooltip,
   Dialog,
@@ -53,89 +54,126 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
   onConfirm,
   theme,
 }) {
+  const isDark = theme.palette.mode === 'dark';
+
   return (
-    <Fade in={open} timeout={180} unmountOnExit>
-      <Box
-        role="status"
-        aria-live="polite"
-        sx={{
-          width: '100%',
-          maxWidth: UI_LAYOUT.chatInputMaxWidth,
-          mx: 'auto',
-          mb: 1,
-          boxSizing: 'border-box',
-        }}
-      >
+    <Collapse in={open} timeout={250}>
+      <Fade in={open} timeout={250}>
         <Box
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           sx={{
-            display: 'grid',
-            gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto' },
-            alignItems: 'center',
-            gap: { xs: 1, sm: 1.5 },
-            borderRadius: '10px',
-            border: '1px solid',
-            borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.1),
-            bgcolor: alpha(theme.palette.background.elevated, theme.palette.mode === 'dark' ? 0.96 : 0.98),
-            boxShadow: `0 10px 28px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.24 : 0.08)}`,
-            px: { xs: 1.25, sm: 1.5 },
-            py: { xs: 1, sm: 1.1 },
+            width: '100%',
+            maxWidth: UI_LAYOUT.chatInputMaxWidth,
+            mx: 'auto',
+            position: 'relative',
+            zIndex: 1,
           }}
         >
-          <Box sx={{ minWidth: 0 }}>
-            <Typography
-              sx={{
-                ...theme.typography.uiBodySm,
-                color: 'text.primary',
-                fontWeight: 600,
-                lineHeight: 1.35,
-              }}
-            >
-              {title || 'Confirm action'}
-            </Typography>
-            {message ? (
-              <Typography
-                sx={{
-                  mt: 0.25,
-                  ...theme.typography.uiCaptionMd,
-                  color: 'text.secondary',
-                  lineHeight: 1.45,
-                  overflowWrap: 'anywhere',
-                }}
-              >
-                {message}
-              </Typography>
-            ) : null}
-          </Box>
           <Box
             sx={{
+              position: 'relative',
+              zIndex: 1,
+              mx: { xs: 1, sm: 0 },
+              mb: -3.5, // Slide behind composer
               display: 'flex',
-              justifyContent: { xs: 'flex-end', sm: 'flex-start' },
-              gap: 0.75,
-              flexWrap: 'wrap',
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'flex-start', sm: 'center' },
+              justifyContent: 'space-between',
+              gap: { xs: 1.5, sm: 2 },
+              borderTopLeftRadius: '20px',
+              borderTopRightRadius: '20px',
+              border: '1px solid',
+              borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
+              borderBottom: 0,
+              bgcolor: theme.palette.background.paper,
+              px: { xs: 2.25, sm: 3 },
+              pb: { xs: 5.5, sm: 5 }, // padding overlap
+              pt: 1.5,
+              backgroundImage: isDark
+                ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.02)} 0%, transparent 100%)`
+                : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.5)} 0%, transparent 100%)`,
             }}
           >
-            <Button
-              size="small"
-              color="secondary"
-              onClick={onCancel}
-              sx={{ minHeight: 34, borderRadius: '8px' }}
+            <Box sx={{ minWidth: 0 }}>
+              <Typography
+                sx={{
+                  ...theme.typography.uiBodySm,
+                  color: 'text.primary',
+                  fontWeight: 700,
+                  lineHeight: 1.35,
+                }}
+              >
+                {title || 'Confirm action'}
+              </Typography>
+              {message && (
+                <Typography
+                  sx={{
+                    mt: 0.25,
+                    ...theme.typography.uiCaptionMd,
+                    color: 'text.secondary',
+                    lineHeight: 1.45,
+                    overflowWrap: 'anywhere',
+                  }}
+                >
+                  {message}
+                </Typography>
+              )}
+            </Box>
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 1.5,
+                flexShrink: 0,
+                alignSelf: { xs: 'flex-end', sm: 'center' },
+              }}
             >
-              {cancelText || 'Not now'}
-            </Button>
-            <Button
-              size="small"
-              variant="contained"
-              color="primary"
-              disableElevation
-              onClick={onConfirm}
-              sx={{ minHeight: 34, borderRadius: '8px' }}
-            >
-              {confirmText || 'Confirm'}
-            </Button>
+              <Button
+                size="small"
+                onClick={onCancel}
+                sx={{
+                  minHeight: 28,
+                  borderRadius: '6px',
+                  textTransform: 'none',
+                  color: 'text.secondary',
+                  px: 1.5,
+                  ...theme.typography.uiCaptionMd,
+                  fontWeight: 500,
+                  '&:hover': {
+                    bgcolor: alpha(theme.palette.text.primary, 0.06),
+                  },
+                }}
+              >
+                {cancelText || 'Not now'}
+              </Button>
+              <Button
+                size="small"
+                onClick={onConfirm}
+                sx={{
+                  minHeight: 28,
+                  borderRadius: '6px',
+                  textTransform: 'none',
+                  color: theme.palette.primary.main,
+                  px: 1.5,
+                  ...theme.typography.uiCaptionMd,
+                  fontWeight: 700,
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '3px',
+                  '&:hover': {
+                    textDecoration: 'underline',
+                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                  },
+                }}
+              >
+                {confirmText || 'Confirm'}
+              </Button>
+            </Box>
           </Box>
         </Box>
-      </Box>
-    </Fade>
+      </Fade>
+    </Collapse>
   );
 });
 
