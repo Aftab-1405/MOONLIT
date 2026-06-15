@@ -1,5 +1,3 @@
-DEFAULT_EMBEDDING_MODEL = "amazon.titan-embed-text-v2:0"
-
 def default_embedding_provider(text: str) -> list[float]:
     """
     Generate an embedding using Bedrock Titan Text Embeddings V2.
@@ -7,16 +5,15 @@ def default_embedding_provider(text: str) -> list[float]:
     This function is intentionally lazy-imported so unit tests and deployments
     without embedding credentials can import the service safely.
     """
-    import boto3
     import json
+    from app.infrastructure.bedrock.client import get_bedrock_client
+    from app.core.config import Config
 
-    client = boto3.client("bedrock-runtime")
-    try:
-        from app.core.config import Config
-
-        model_id = Config.VAMP_EMBEDDING_MODEL
-    except Exception:
-        model_id = DEFAULT_EMBEDDING_MODEL
+    client = get_bedrock_client()
+    model_id = Config.VAMP_EMBEDDING_MODEL
+    if not model_id:
+        raise ValueError("VAMP_EMBEDDING_MODEL is not configured in settings/environment")
+        
     response = client.invoke_model(
         modelId=model_id,
         body=json.dumps({"inputText": text}),
