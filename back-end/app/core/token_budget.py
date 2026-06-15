@@ -4,58 +4,11 @@ from pathlib import Path
 
 import fnmatch
 
-UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS = int(os.getenv("UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS", 32768))
+UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS = 32768
 
 def get_model_context_window_with_source(model_id: str) -> tuple[int, str]:
     """Resolve context window and its resolution source."""
-    # 1. Benchmark override
-    benchmark_override = os.getenv("BENCHMARK_CONTEXT_WINDOW_OVERRIDE")
-    if benchmark_override:
-        try:
-            val = int(benchmark_override)
-            print(f"model_id: {model_id}")
-            print(f"resolved_context_window: {val}")
-            print(f"resolution_source: benchmark_override")
-            return val, "benchmark_override"
-        except ValueError:
-            pass
-
-    # 2. Env configuration
-    env_override = os.getenv("MODEL_CONTEXT_WINDOW_TOKENS_JSON")
-    env_windows = {}
-    if env_override:
-        try:
-            env_windows = json.loads(env_override)
-        except json.JSONDecodeError:
-            pass
-
-    if isinstance(env_windows, dict) and "models" in env_windows:
-        env_windows = env_windows["models"]
-    if not isinstance(env_windows, dict):
-        env_windows = {}
-
-    if model_id in env_windows:
-        val = env_windows[model_id]
-        print(f"model_id: {model_id}")
-        print(f"resolved_context_window: {val}")
-        print(f"resolution_source: env")
-        return val, "env"
-
-    for pattern, v in env_windows.items():
-        if fnmatch.fnmatch(model_id, pattern):
-            print(f"model_id: {model_id}")
-            print(f"resolved_context_window: {v}")
-            print(f"resolution_source: wildcard")
-            return v, "wildcard"
-
-    for k, v in env_windows.items():
-        if k in model_id or model_id in k:
-            print(f"model_id: {model_id}")
-            print(f"resolved_context_window: {v}")
-            print(f"resolution_source: wildcard")
-            return v, "wildcard"
-
-    # 3. Config file configuration
+    # Config file configuration
     config_path = Path("config/model_context_windows.json")
     if not config_path.is_absolute():
         # Resolve relative to project root
@@ -95,7 +48,7 @@ def get_model_context_window_with_source(model_id: str) -> tuple[int, str]:
             print(f"resolution_source: wildcard")
             return v, "wildcard"
 
-    # 4. Fallback
+    # Fallback
     print(f"model_id: {model_id}")
     print(f"resolved_context_window: {UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS}")
     print(f"resolution_source: fallback")
