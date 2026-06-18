@@ -126,7 +126,7 @@ async def check_and_perform_compaction(agent, config, conversation_id, chat_mode
     try:
         from langchain_core.messages import RemoveMessage
         from app.core.token_budget import estimate_tokens
-        from app.features.conversations.infrastructure.firestore_service import FirestoreService
+        from app.infrastructure.firestore.service import FirestoreService
         
         state = await agent.aget_state(config)
         if not state or "messages" not in state.values:
@@ -188,8 +188,13 @@ async def check_and_perform_compaction(agent, config, conversation_id, chat_mode
                 existing_summary = config["configurable"].get("task_checkpoint_summary", "")
                 
                 try:
-                    from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
-                    conv_data = ConversationRepository.get(conversation_id)
+                    from app.features.agent_orchestration.application.conversation_access import (
+                        get_default_conversation_state_reader,
+                    )
+
+                    conv_data = get_default_conversation_state_reader().get_conversation(
+                        conversation_id
+                    )
                     if conv_data:
                         existing_summary = conv_data.get("task_checkpoint_summary", "") or existing_summary
                 except Exception:
@@ -227,6 +232,43 @@ logger = logging.getLogger(__name__)
 # reasoning_effort, response_style). api_key is excluded because Bedrock
 # resolves credentials from AWS env vars, not the key argument.
 _agent_cache: dict[tuple, object] = {}
+
+
+async def _count_converse_tokens_for_stream(
+    model_id: str,
+    *,
+    cache_key: tuple | None = None,
+    **kwargs,
+) -> dict:
+    from app.core.token_budget import (
+        count_converse_tokens_cached,
+        count_converse_tokens_with_fallback,
+    )
+
+    counter = count_converse_tokens_with_fallback
+    if cache_key is not None:
+        counter = lambda model_id, **inner_kwargs: count_converse_tokens_cached(
+            model_id,
+            cache_key=cache_key,
+            **inner_kwargs,
+        )
+
+    if str(model_id).startswith("mock"):
+        return counter(model_id, **kwargs)
+    return await run_in_threadpool(counter, model_id, **kwargs)
+
+
+def _merge_token_count_results(*results: dict | int | None) -> tuple[str, str | None]:
+    for result in results:
+        if isinstance(result, dict) and result.get("mode") == "estimated":
+            return "estimated", result.get("reason") or "provider_unsupported"
+    return "exact", None
+
+
+def _token_count_value(result: dict | int | None) -> int:
+    if isinstance(result, dict):
+        return int(result.get("tokens") or 0)
+    return int(result or 0)
 
 
 # Safety limit — prevents runaway tool loops (applies to node transitions)
@@ -349,26 +391,25 @@ async def stream_conversation(
     """
     last_completed_tool: dict | None = None
     think_parser = ThinkTagParser()
+    step_limit_reached = False
 
     try:
         selected_model = model or get_default_model(provider)
-        from app.core.token_budget import calculate_token_budget
-        budget_info = calculate_token_budget(selected_model)
-        active_context_budget = budget_info["active_context_budget"]
-
-        chat_model = get_chat_model(
-            provider,
-            selected_model,
-            api_key,
-            enable_reasoning=enable_reasoning,
-            reasoning_effort=reasoning_effort,
-        )
 
         # Compile the ReAct graph once per unique configuration
         cache_key = (provider, selected_model, enable_reasoning, reasoning_effort, response_style)
+        system_prompt = PromptBuilder.build_system_prompt(response_style)
+        chat_model = None
+        if not (str(selected_model).startswith("mock") and cache_key in _agent_cache):
+            chat_model = get_chat_model(
+                provider,
+                selected_model,
+                api_key,
+                enable_reasoning=enable_reasoning,
+                reasoning_effort=reasoning_effort,
+            )
 
         if cache_key not in _agent_cache:
-            system_prompt = PromptBuilder.build_system_prompt(response_style)
             checkpointer = get_checkpointer()
             compiled_agent = build_react_agent(
                 chat_model,
@@ -390,30 +431,75 @@ async def stream_conversation(
         # Namespace thread_id by user_id to prevent unauthenticated checkpoint access.
         namespaced_thread_id = f"{user_id}:{conversation_id}"
 
-        # Clear checkpointer and task_checkpoint_summary if it is a new user turn
+        # Clear checkpointer and task_checkpoint_summary if it is a new user turn.
+        # Skip clearing when the agent is continuing a paused long task.
+        is_continue_task = (
+            isinstance(resume, dict) and resume.get("continue_task", False)
+        )
         is_new_turn = (resume is None) and (message is not None)
-        if is_new_turn:
-            await clear_checkpointer_thread(checkpointer, namespaced_thread_id)
+        if is_new_turn and not is_continue_task and not str(selected_model).startswith("mock"):
+            # Only clear if the conversation is NOT paused mid-task.
             try:
-                from app.features.conversations.infrastructure.firestore_service import FirestoreService
+                from app.infrastructure.firestore.service import FirestoreService
                 db = FirestoreService.get_db()
-                db.collection("conversations").document(conversation_id).update({
-                    "task_checkpoint_summary": ""
-                })
-            except Exception as e:
-                logger.warning("Failed to clear task_checkpoint_summary in Firestore: %s", e)
+                conv_ref = db.collection("conversations").document(conversation_id)
+                conv_snap = await asyncio.wait_for(
+                    run_in_threadpool(conv_ref.get),
+                    timeout=2.0,
+                )
+                existing_task_status = (
+                    conv_snap.to_dict().get("task_status", "")
+                    if conv_snap.exists
+                    else ""
+                )
+            except Exception:
+                existing_task_status = ""
+
+            if existing_task_status != "paused_step_limit":
+                await clear_checkpointer_thread(checkpointer, namespaced_thread_id)
+                try:
+                    from app.infrastructure.firestore.service import FirestoreService
+                    db = FirestoreService.get_db()
+                    await asyncio.wait_for(
+                        run_in_threadpool(
+                            db.collection("conversations").document(conversation_id).update,
+                            {
+                                "task_checkpoint_summary": "",
+                                "task_status": "",
+                            },
+                        ),
+                        timeout=2.0,
+                    )
+                except Exception as e:
+                    logger.warning("Failed to clear task_checkpoint_summary in Firestore: %s", e)
+            else:
+                logger.info(
+                    "Preserving checkpoint for paused task %s — new message continues the task.",
+                    conversation_id,
+                )
+        elif is_continue_task:
+            logger.info(
+                "continue_task=True: skipping checkpoint clear for conversation %s",
+                conversation_id,
+            )
 
         historical_context = None
-        if message:
+        if message and not str(selected_model).startswith("mock"):
             try:
-                from app.core.config import Config
-                from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService
+                from app.core.config import get_config
+                from app.features.agent_orchestration.application.historical_context import (
+                    get_default_historical_context_provider,
+                )
 
+                Config = get_config()
                 if Config.VAMP_MEMORY_ENABLED:
-                    historical_context = await VampMemoryService().retrieve_context(
-                        conversation_id,
-                        user_id,
-                        message,
+                    historical_context = await asyncio.wait_for(
+                        get_default_historical_context_provider().retrieve_context(
+                            conversation_id,
+                            user_id,
+                            message,
+                        ),
+                        timeout=3.0,
                     )
             except Exception as exc:
                 logger.warning(
@@ -422,8 +508,32 @@ async def stream_conversation(
                     exc,
                 )
 
-        # Determine recursion limit dynamically by task mode
-        from app.core.config import Config
+        # Determine recursion limit dynamically by task mode.
+        # For continue_task resumes: restore task_mode from persisted Firestore state
+        # so the step budget scales correctly across continuation calls.
+        from app.core.config import get_config
+        Config = get_config()
+        if is_continue_task and task_mode in (None, "normal", ""):
+            try:
+                from app.features.agent_orchestration.application.conversation_access import (
+                    get_default_conversation_state_reader,
+                )
+                conv_data = await asyncio.to_thread(
+                    get_default_conversation_state_reader().get_conversation,
+                    conversation_id,
+                )
+                if conv_data:
+                    stored_task_mode = conv_data.get("task_mode", "normal") or "normal"
+                    if stored_task_mode != "normal":
+                        task_mode = stored_task_mode
+                        logger.info(
+                            "Restored task_mode=%s from Firestore for continue_task on %s",
+                            task_mode,
+                            conversation_id,
+                        )
+            except Exception as tm_err:
+                logger.warning("Could not restore task_mode from Firestore: %s", tm_err)
+
         task_mode = task_mode or "normal"
         if task_mode == "tool_task":
             recursion_limit = Config.AGENT_TOOL_TASK_STEPS
@@ -437,13 +547,118 @@ async def stream_conversation(
 
         # Load task_checkpoint_summary from Firestore if available
         task_checkpoint_summary = ""
+        conv_data = None
         try:
-            from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
-            conv_data = ConversationRepository.get(conversation_id)
+            from app.features.agent_orchestration.application.conversation_access import (
+                get_default_conversation_state_reader,
+            )
+
+            conv_data = await asyncio.to_thread(
+                get_default_conversation_state_reader().get_conversation,
+                conversation_id,
+            )
             if conv_data:
                 task_checkpoint_summary = conv_data.get("task_checkpoint_summary", "")
         except Exception as e:
             logger.warning("Failed to load task_checkpoint_summary for config: %s", e)
+
+        from app.core.token_budget import (
+            TokenCountingError,
+            calculate_dynamic_token_budget,
+            output_reserve_for_task_mode,
+        )
+
+        try:
+            system_prompt_count = await _count_converse_tokens_for_stream(
+                selected_model,
+                cache_key=("system", response_style, system_prompt),
+                system=system_prompt,
+                messages=[{"role": "user", "content": [{"text": ""}]}],
+            )
+            tool_schema_count = await _count_converse_tokens_for_stream(
+                selected_model,
+                cache_key=(
+                    "tools",
+                    tuple(getattr(tool, "name", str(tool)) for tool in ALL_TOOLS),
+                ),
+                messages=[{"role": "user", "content": [{"text": ""}]}],
+                tools=ALL_TOOLS,
+            )
+            vamp_memory_count = (
+                await _count_converse_tokens_for_stream(
+                    selected_model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [{"text": historical_context or ""}],
+                        }
+                    ],
+                )
+                if historical_context
+                else {"tokens": 0, "mode": "exact", "reason": None}
+            )
+            task_checkpoint_count = (
+                await _count_converse_tokens_for_stream(
+                    selected_model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [{"text": task_checkpoint_summary or ""}],
+                        }
+                    ],
+                )
+                if task_checkpoint_summary
+                else {"tokens": 0, "mode": "exact", "reason": None}
+            )
+        except TokenCountingError as count_err:
+            logger.error("Exact token counting failed before model call: %s", count_err)
+            yield sse_error("Unable to count request tokens exactly. Please try again.")
+            yield sse_done()
+            return
+
+        token_counting_mode, token_counting_reason = _merge_token_count_results(
+            system_prompt_count,
+            tool_schema_count,
+            vamp_memory_count,
+            task_checkpoint_count,
+        )
+        if token_counting_mode == "estimated":
+            logger.warning(
+                "Using conservative token estimates because provider counting is unsupported: model=%s reason=%s",
+                selected_model,
+                token_counting_reason,
+            )
+
+        system_prompt_tokens = _token_count_value(system_prompt_count)
+        tool_schema_tokens = _token_count_value(tool_schema_count)
+        vamp_memory_tokens = _token_count_value(vamp_memory_count)
+        task_checkpoint_tokens = _token_count_value(task_checkpoint_count)
+
+        budget_info = calculate_dynamic_token_budget(
+            selected_model,
+            system_prompt_tokens=system_prompt_tokens,
+            tool_schema_tokens=tool_schema_tokens,
+            output_reserve_tokens=output_reserve_for_task_mode(task_mode),
+            token_counting_mode=token_counting_mode,
+        )
+        active_context_budget = budget_info["pressure_trigger_tokens"]
+        hot_history_budget = max(
+            0,
+            budget_info["hot_history_budget"]
+            - vamp_memory_tokens
+            - task_checkpoint_tokens,
+        )
+        budget_info.update(
+            {
+                "system_prompt_tokens": system_prompt_tokens,
+                "tool_schema_tokens": tool_schema_tokens,
+                "vamp_memory_tokens": vamp_memory_tokens,
+                "task_checkpoint_tokens": task_checkpoint_tokens,
+                "hot_history_budget": hot_history_budget,
+                "token_counting_mode": token_counting_mode,
+                "token_counting_reason": token_counting_reason,
+            }
+        )
 
         config = {
             "configurable": {
@@ -460,7 +675,20 @@ async def stream_conversation(
 
         graph_input = None
         if resume is not None:
-            if isinstance(resume, dict) and resume.get("interrupt_id"):
+            if is_continue_task:
+                # "Continue task" — inject a new HumanMessage into the existing thread
+                # rather than resuming an interrupt. This lets the agent pick up right
+                # where it left off using the saved task_checkpoint_summary context.
+                continuation_message = (
+                    resume.get("message")
+                    or "Continue the task from where you left off. Check the task checkpoint summary above for context."
+                )
+                graph_input = {"messages": [HumanMessage(content=continuation_message)]}
+                logger.info(
+                    "continue_task: injecting continuation message into thread %s",
+                    namespaced_thread_id,
+                )
+            elif isinstance(resume, dict) and resume.get("interrupt_id"):
                 interrupt_id = resume["interrupt_id"]
                 clean_payload = {k: v for k, v in resume.items() if k != "interrupt_id"}
                 graph_input = Command(resume={interrupt_id: clean_payload})
@@ -468,17 +696,88 @@ async def stream_conversation(
                 graph_input = Command(resume=resume)
         elif not await _has_checkpoint(checkpointer, namespaced_thread_id):
             try:
-                from app.features.conversations.application.conversation_service import ConversationService
-                await ConversationService.check_and_summarize(
-                    conversation_id,
-                    user_id,
-                    selected_model,
-                    thread_id=namespaced_thread_id,
+                from app.features.conversations.application.conversation_service import (
+                    _get_background_summary_pressure,
                 )
+
+                summary_pressure = _get_background_summary_pressure(
+                    conv_data,
+                    pressure_budget_tokens=budget_info["pressure_trigger_tokens"],
+                )
+                if summary_pressure["should_schedule"]:
+                    from app.features.agent_orchestration.application.conversation_access import (
+                        get_default_conversation_summarizer,
+                    )
+
+                    yield sse_encode(
+                        {
+                            "type": "usage_metrics",
+                            "inputPayloadTokens": summary_pressure["tail_tokens"],
+                            "activeContextBudget": summary_pressure["pressure_budget"],
+                            "pressureTriggerTokens": summary_pressure["pressure_budget"],
+                            "availableInputPayloadTokens": budget_info["available_input_payload_tokens"],
+                            "modelContextWindow": budget_info["model_context_window"],
+                            "totalContextWindow": budget_info["model_context_window"],
+                            "reservedOutputTokens": budget_info["reserved_output_tokens"],
+                            "safetyMarginTokens": budget_info["reserved_safety_margin_tokens"],
+                            "systemPromptTokens": budget_info["system_prompt_tokens"],
+                            "toolSchemaTokens": budget_info["tool_schema_tokens"],
+                            "vampMemoryTokens": budget_info["vamp_memory_tokens"],
+                            "taskCheckpointTokens": budget_info["task_checkpoint_tokens"],
+                            "hotHistoryBudget": budget_info["hot_history_budget"],
+                            "tokenCountingMode": budget_info["token_counting_mode"],
+                            "tokenCountingReason": budget_info["token_counting_reason"],
+                            "contextPhase": "pre_summary",
+                            "summaryThresholdTokens": summary_pressure["threshold_tokens"],
+                            "summaryCompleteTurns": summary_pressure["complete_turn_count"],
+                        }
+                    )
+                    yield sse_encode(
+                        {
+                            "type": "workflow_status",
+                            "stage": "summarizing_context",
+                            "status": "running",
+                            "content": "Summarizing conversation context before continuing.",
+                        }
+                    )
+                    await get_default_conversation_summarizer().check_and_summarize(
+                        conversation_id,
+                        user_id,
+                        selected_model,
+                        thread_id=namespaced_thread_id,
+                    )
+                    yield sse_encode(
+                        {
+                            "type": "workflow_status",
+                            "stage": "summarizing_context",
+                            "status": "done",
+                            "content": "Conversation context summarized.",
+                        }
+                    )
+
+                    # Reload VAMP historical context to include the newly generated summary block
+                    try:
+                        from app.features.agent_orchestration.application.historical_context import (
+                            get_default_historical_context_provider,
+                        )
+                        Config = get_config()
+                        if Config.VAMP_MEMORY_ENABLED:
+                            historical_context = await asyncio.wait_for(
+                                get_default_historical_context_provider().retrieve_context(
+                                    conversation_id,
+                                    user_id,
+                                    message,
+                                ),
+                                timeout=3.0,
+                            )
+                            config["configurable"]["historical_context"] = historical_context
+                            logger.info("Reloaded historical_context in config after summarization.")
+                    except Exception as hc_err:
+                        logger.warning("Failed to reload historical context after summarization: %s", hc_err)
             except Exception as sum_err:
                 logger.warning("Pre-call summarization failed: %s", sum_err)
 
-            history = await _load_firestore_history(conversation_id, message, active_context_budget)
+            history = await _load_firestore_history(conversation_id, message, hot_history_budget)
             initial_messages = history + [HumanMessage(content=message or "")]
             initial_messages = merge_message_runs(initial_messages)
             if history:
@@ -531,7 +830,20 @@ async def stream_conversation(
                             "latencyMs": latency_ms,
                             "stopReason": stop_reason,
                             "activeContextBudget": budget_info["active_context_budget"],
-                            "totalContextWindow": budget_info["model_context_window"]
+                            "totalContextWindow": budget_info["model_context_window"],
+                            "inputPayloadTokens": input_tokens,
+                            "availableInputPayloadTokens": budget_info["available_input_payload_tokens"],
+                            "pressureTriggerTokens": budget_info["pressure_trigger_tokens"],
+                            "modelContextWindow": budget_info["model_context_window"],
+                            "reservedOutputTokens": budget_info["reserved_output_tokens"],
+                            "safetyMarginTokens": budget_info["reserved_safety_margin_tokens"],
+                            "systemPromptTokens": budget_info["system_prompt_tokens"],
+                            "toolSchemaTokens": budget_info["tool_schema_tokens"],
+                            "vampMemoryTokens": budget_info["vamp_memory_tokens"],
+                            "taskCheckpointTokens": budget_info["task_checkpoint_tokens"],
+                            "hotHistoryBudget": budget_info["hot_history_budget"],
+                            "tokenCountingMode": budget_info["token_counting_mode"],
+                            "tokenCountingReason": budget_info["token_counting_reason"],
                         })
 
                     content = msg_chunk.content
@@ -605,6 +917,7 @@ async def stream_conversation(
                 is_recursion = True
 
             if is_recursion:
+                step_limit_reached = True
                 logger.warning("Agent step limit reached for conversation %s: %s", conversation_id, graph_err)
                 try:
                     await check_and_perform_compaction(
@@ -617,10 +930,11 @@ async def stream_conversation(
                 except Exception as comp_err:
                     logger.warning("Compaction failed during GraphRecursionError handling: %s", comp_err)
                 try:
-                    from app.features.conversations.infrastructure.firestore_service import FirestoreService
+                    from app.infrastructure.firestore.service import FirestoreService
                     db = FirestoreService.get_db()
                     db.collection("conversations").document(conversation_id).update({
-                        "task_status": "paused_step_limit"
+                        "task_status": "paused_step_limit",
+                        "task_mode": task_mode,
                     })
                 except Exception as db_err:
                     logger.error("Failed to save task status: %s", db_err)
@@ -628,7 +942,13 @@ async def stream_conversation(
                     "type": "agent_step_limit_reached",
                     "task_id": conversation_id,
                     "conversation_id": conversation_id,
-                    "can_continue": True
+                    "can_continue": True,
+                    "steps_used": recursion_limit,
+                    "task_mode": task_mode,
+                    "message": (
+                        f"The agent reached its step budget ({recursion_limit} steps). "
+                        "The task context has been saved. Click \"Continue\" to resume."
+                    ),
                 })
                 yield sse_done()
                 return
@@ -638,6 +958,24 @@ async def stream_conversation(
         # Flush any remaining text in the think parser
         for token_type, content in think_parser.flush():
             yield sse_encode({"type": token_type, "content": content})
+
+        if not step_limit_reached and not str(selected_model).startswith("mock"):
+            try:
+                from app.infrastructure.firestore.service import FirestoreService
+
+                db = FirestoreService.get_db()
+                await asyncio.wait_for(
+                    run_in_threadpool(
+                        db.collection("conversations").document(conversation_id).update,
+                        {
+                            "task_status": "",
+                            "task_mode": task_mode,
+                        },
+                    ),
+                    timeout=2.0,
+                )
+            except Exception as status_err:
+                logger.warning("Failed to clear completed task status: %s", status_err)
 
         yield sse_done()
 
@@ -682,12 +1020,15 @@ async def _has_checkpoint(checkpointer, thread_id: str) -> bool:
 
 async def _load_firestore_history(conversation_id: str, message: str | None, active_context_budget: int) -> list:
     try:
-        from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
+        from app.features.agent_orchestration.application.conversation_access import (
+            get_default_conversation_state_reader,
+        )
         from app.core.token_budget import estimate_tokens
         import json
 
+        conversation_reader = get_default_conversation_state_reader()
         conv_data = await asyncio.wait_for(
-            run_in_threadpool(ConversationRepository.get, conversation_id),
+            run_in_threadpool(conversation_reader.get_conversation, conversation_id),
             timeout=5.0,
         )
         if not conv_data or not conv_data.get("messages"):

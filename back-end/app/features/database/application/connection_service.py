@@ -113,9 +113,11 @@ class ConnectionService:
         schema = db_config.get("schema", "public")
 
         try:
-            from app.features.context.application.context_service import ContextService
+            from app.features.database.application.context_sync import (
+                get_default_context_sync,
+            )
 
-            ContextService.set_connection(
+            get_default_context_sync().set_connection(
                 user_id, db_type, database, host, is_remote, schema
             )
             logger.info(f"Synced context for user {user_id}: {db_type}/{database}")
@@ -188,9 +190,11 @@ class ConnectionService:
     ) -> None:
         """Store database schema as AI context in Firestore."""
         try:
-            from app.features.context.application.context_service import ContextService
             from app.features.database.infrastructure.connection_manager import get_connection_manager
             from app.features.database.infrastructure.adapters import get_adapter
+            from app.features.database.application.context_sync import (
+                get_default_context_sync,
+            )
             from app.core.config import get_config
 
             config = get_config()
@@ -222,7 +226,9 @@ class ConnectionService:
                 if table not in columns:
                     columns[table] = []
 
-            ContextService.store_schema_context(user_id, database, tables, columns)
+            get_default_context_sync().store_schema_context(
+                user_id, database, tables, columns
+            )
             logger.info(
                 f"Stored schema context for {database}: {len(tables)} tables (limit: {max_tables})"
             )

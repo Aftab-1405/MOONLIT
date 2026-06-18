@@ -256,6 +256,21 @@ function ChatInput({
       }));
   }, [providerOptions]);
   const hasLlmOptions = llmSections.length > 0;
+  const contextUsage = useMemo(() => {
+    if (!usageMetrics) return null;
+    const activeUsed = usageMetrics.inputPayloadTokens ?? usageMetrics.totalTokens;
+    const activeBudget = usageMetrics.pressureTriggerTokens ?? usageMetrics.activeContextBudget;
+    const modelWindow = usageMetrics.modelContextWindow ?? usageMetrics.totalContextWindow;
+    if (activeUsed == null || activeBudget == null) return null;
+    return {
+      activeUsed,
+      activeBudget,
+      modelWindow,
+      tokenCountingMode: usageMetrics.tokenCountingMode,
+      contextPhase: usageMetrics.contextPhase,
+      summaryThresholdTokens: usageMetrics.summaryThresholdTokens,
+    };
+  }, [usageMetrics]);
 
   const handleCloseDbMenu = useCallback(() => setDbAnchor(null), []);
   const handleCloseSchemaMenu = useCallback(() => setSchemaAnchor(null), []);
@@ -685,7 +700,7 @@ function ChatInput({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
             <Tooltip
               title={
-                usageMetrics && usageMetrics.totalTokens != null && usageMetrics.activeContextBudget != null ? (
+                contextUsage ? (
                   <Box sx={{ p: 0.5 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600, color: 'inherit', mb: 0.5 }}>
                       {selectedModel || 'Select model'}
@@ -695,9 +710,34 @@ function ChatInput({
                         Provider: {activeProviderLabel}
                       </Typography>
                     )}
+                    {contextUsage.tokenCountingMode === 'estimated' && (
+                      <Typography variant="caption" display="block" sx={{ opacity: 0.8, mb: 0.5 }}>
+                        Token usage: conservative estimate
+                      </Typography>
+                    )}
+                    {contextUsage.contextPhase === 'pre_summary' && (
+                      <Typography variant="caption" display="block" sx={{ opacity: 0.8, mb: 0.5 }}>
+                        Context pressure: summarizing unsummarized tail
+                      </Typography>
+                    )}
                     <Typography variant="caption" display="block" sx={{ opacity: 0.8 }}>
-                      Context size: {usageMetrics.totalTokens.toLocaleString()} / {usageMetrics.activeContextBudget.toLocaleString()} ({Math.round((usageMetrics.totalTokens / usageMetrics.activeContextBudget) * 100)}%)
+                      {contextUsage.contextPhase === 'pre_summary' ? 'Summary pressure' : 'Active context'}: {contextUsage.activeUsed.toLocaleString()} / {contextUsage.activeBudget.toLocaleString()} ({Math.round((contextUsage.activeUsed / contextUsage.activeBudget) * 100)}%)
                     </Typography>
+                    {contextUsage.summaryThresholdTokens != null && (
+                      <Typography variant="caption" display="block" sx={{ opacity: 0.65 }}>
+                        Summary trigger: {contextUsage.summaryThresholdTokens.toLocaleString()} tokens
+                      </Typography>
+                    )}
+                    {contextUsage.modelWindow != null && (
+                      <Typography variant="caption" display="block" sx={{ opacity: 0.8 }}>
+                        Model window: {contextUsage.activeUsed.toLocaleString()} / {contextUsage.modelWindow.toLocaleString()} ({Math.round((contextUsage.activeUsed / contextUsage.modelWindow) * 100)}%)
+                      </Typography>
+                    )}
+                    {usageMetrics.systemPromptTokens != null && usageMetrics.toolSchemaTokens != null && (
+                      <Typography variant="caption" display="block" sx={{ opacity: 0.65, mt: 0.5 }}>
+                        Static: SI {usageMetrics.systemPromptTokens.toLocaleString()} · tools {usageMetrics.toolSchemaTokens.toLocaleString()}
+                      </Typography>
+                    )}
                     <Typography variant="caption" display="block" sx={{ opacity: 0.5, mt: 0.5, fontSize: '10px' }}>
                       (Older history dynamically trimmed to stay within budget)
                     </Typography>
@@ -716,10 +756,10 @@ function ChatInput({
                   aria-expanded={Boolean(llmAnchor)}
                   aria-label="Select model"
                   startIcon={
-                    usageMetrics && usageMetrics.totalTokens != null && usageMetrics.activeContextBudget != null ? (
+                    contextUsage ? (
                       <ContextProgressRing
-                        total={usageMetrics.totalTokens}
-                        budget={usageMetrics.activeContextBudget}
+                        total={contextUsage.activeUsed}
+                        budget={contextUsage.activeBudget}
                         theme={theme}
                       />
                     ) : undefined

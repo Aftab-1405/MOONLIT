@@ -19,6 +19,9 @@ class UserQuotaConfig:
     per_minute: int
     per_hour: int
     per_day: int
+    minute_ttl_seconds: int
+    hour_ttl_seconds: int
+    day_ttl_seconds: int
 
 
 @dataclass
@@ -37,10 +40,10 @@ class UserQuotaService:
     """
     Per-user quota tracking using Redis.
 
-    Uses Redis keys with TTL for automatic expiration:
-    - quota:{user_id}:minute (TTL 60s)
-    - quota:{user_id}:hour (TTL 3600s)
-    - quota:{user_id}:day (TTL 86400s)
+    Uses Redis keys with configurable TTLs for automatic expiration:
+    - quota:{user_id}:minute
+    - quota:{user_id}:hour
+    - quota:{user_id}:day
     """
 
     def __init__(self, redis_client, config: UserQuotaConfig):
@@ -48,9 +51,9 @@ class UserQuotaService:
         self.config = config
 
         self.limits = {
-            "minute": (config.per_minute, 60),
-            "hour": (config.per_hour, 3600),
-            "day": (config.per_day, 86400),
+            "minute": (config.per_minute, config.minute_ttl_seconds),
+            "hour": (config.per_hour, config.hour_ttl_seconds),
+            "day": (config.per_day, config.day_ttl_seconds),
         }
 
         if config.enabled:
@@ -247,5 +250,8 @@ def create_user_quota_service(redis_client, app_config) -> UserQuotaService:
         per_minute=getattr(app_config, "USER_QUOTA_PER_MINUTE", 4),
         per_hour=getattr(app_config, "USER_QUOTA_PER_HOUR", 100),
         per_day=getattr(app_config, "USER_QUOTA_PER_DAY", 500),
+        minute_ttl_seconds=getattr(app_config, "USER_QUOTA_MINUTE_TTL_SECONDS", 60),
+        hour_ttl_seconds=getattr(app_config, "USER_QUOTA_HOUR_TTL_SECONDS", 3600),
+        day_ttl_seconds=getattr(app_config, "USER_QUOTA_DAY_TTL_SECONDS", 86400),
     )
     return UserQuotaService(redis_client, config)

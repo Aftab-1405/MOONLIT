@@ -5,24 +5,26 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from app.core.config import get_config
 from app.features.context.infrastructure.context_repository import ContextRepository
 
 logger = logging.getLogger(__name__)
+Config = get_config()
 
 DEFAULT_PREFERENCES: dict[str, Any] = {
-    "theme": "dark",
-    "confirmBeforeRun": False,
-    "queryTimeout": 30,
-    "maxRows": 1000,
-    "nullDisplay": "NULL",
-    "rememberConnection": False,
-    "defaultDbType": "postgresql",
-    "connectionPersistence": 0,
-    "enableReasoning": True,
-    "reasoningEffort": "medium",
-    "responseStyle": "balanced",
-    "llmProvider": None,
-    "llmModel": None,
+    "theme": Config.USER_SETTINGS_DEFAULT_THEME,
+    "confirmBeforeRun": Config.USER_SETTINGS_DEFAULT_CONFIRM_BEFORE_RUN,
+    "queryTimeout": Config.USER_SETTINGS_DEFAULT_QUERY_TIMEOUT,
+    "maxRows": Config.USER_SETTINGS_DEFAULT_MAX_ROWS,
+    "nullDisplay": Config.USER_SETTINGS_DEFAULT_NULL_DISPLAY,
+    "rememberConnection": Config.USER_SETTINGS_DEFAULT_REMEMBER_CONNECTION,
+    "defaultDbType": Config.USER_SETTINGS_DEFAULT_DB_TYPE,
+    "connectionPersistence": Config.USER_SETTINGS_DEFAULT_CONNECTION_PERSISTENCE,
+    "enableReasoning": Config.USER_SETTINGS_DEFAULT_ENABLE_REASONING,
+    "reasoningEffort": Config.USER_SETTINGS_DEFAULT_REASONING_EFFORT,
+    "responseStyle": Config.USER_SETTINGS_DEFAULT_RESPONSE_STYLE,
+    "llmProvider": Config.USER_SETTINGS_DEFAULT_LLM_PROVIDER,
+    "llmModel": Config.USER_SETTINGS_DEFAULT_LLM_MODEL,
 }
 
 _INT_KEYS = {"queryTimeout", "maxRows", "connectionPersistence"}

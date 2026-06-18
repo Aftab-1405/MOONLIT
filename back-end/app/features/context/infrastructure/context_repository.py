@@ -40,7 +40,7 @@ class ContextRepository:
         Returns:
             DocumentReference for the user's context document
         """
-        from app.features.conversations.infrastructure.firestore_service import FirestoreService
+        from app.infrastructure.firestore.service import FirestoreService
 
         user_id = ContextRepository._normalize_user_id(user_id)
         db = FirestoreService.get_db()

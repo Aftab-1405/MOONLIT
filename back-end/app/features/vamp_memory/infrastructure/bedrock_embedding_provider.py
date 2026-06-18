@@ -1,3 +1,8 @@
+from app.core.config import get_config
+
+DEFAULT_EMBEDDING_MODEL = get_config().VAMP_EMBEDDING_MODEL
+
+
 def default_embedding_provider(text: str) -> list[float]:
     """
     Generate an embedding using Bedrock Titan Text Embeddings V2.
@@ -7,10 +12,9 @@ def default_embedding_provider(text: str) -> list[float]:
     """
     import json
     from app.infrastructure.bedrock.client import get_bedrock_client
-    from app.core.config import Config
 
     client = get_bedrock_client()
-    model_id = Config.VAMP_EMBEDDING_MODEL
+    model_id = get_config().VAMP_EMBEDDING_MODEL
     if not model_id:
         raise ValueError("VAMP_EMBEDDING_MODEL is not configured in settings/environment")
         

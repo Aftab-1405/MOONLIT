@@ -12,6 +12,12 @@ from datetime import datetime
 from typing import Optional
 
 
+def _fast_firestore_retry():
+    from google.api_core.retry import Retry
+
+    return Retry(deadline=2.0)
+
+
 class SummaryBlockRepository:
     """Data access layer for VAMP summary block documents."""
 
@@ -20,7 +26,7 @@ class SummaryBlockRepository:
 
     @staticmethod
     def _conversation_ref(conversation_id: str):
-        from app.features.conversations.infrastructure.firestore_service import FirestoreService
+        from app.infrastructure.firestore.service import FirestoreService
 
         db = FirestoreService.get_db()
         return db.collection(SummaryBlockRepository.CONVERSATION_COLLECTION).document(
@@ -37,7 +43,10 @@ class SummaryBlockRepository:
 
     @staticmethod
     def get_conversation(conversation_id: str) -> Optional[dict]:
-        doc = SummaryBlockRepository._conversation_ref(conversation_id).get()
+        doc = SummaryBlockRepository._conversation_ref(conversation_id).get(
+            retry=_fast_firestore_retry(),
+            timeout=2.0,
+        )
         return doc.to_dict() if doc.exists else None
 
     @staticmethod
@@ -114,7 +123,10 @@ class SummaryBlockRepository:
     def get_blocks_by_ids(conversation_id: str, summary_ids: list[str]) -> list[dict]:
         blocks = []
         for summary_id in summary_ids:
-            doc = SummaryBlockRepository._summary_ref(conversation_id, summary_id).get()
+            doc = SummaryBlockRepository._summary_ref(conversation_id, summary_id).get(
+                retry=_fast_firestore_retry(),
+                timeout=2.0,
+            )
             if doc.exists:
                 blocks.append(doc.to_dict())
         return blocks

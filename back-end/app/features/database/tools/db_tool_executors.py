@@ -82,9 +82,10 @@ class AIToolExecutor:
     @staticmethod
     def _get_connection_status(user_id: str) -> Dict:
         """Get current connection status from context."""
-        from app.features.context.application.context_service import ContextService
+        from app.features.database.application.context_sync import get_default_context_sync
+        context_sync = get_default_context_sync()
 
-        connection = ContextService.get_connection(user_id)
+        connection = context_sync.get_connection(user_id)
 
         if connection.get("connected"):
             return {
@@ -106,9 +107,10 @@ class AIToolExecutor:
 
         Optimized to use passed db_config for direct database queries.
         """
-        from app.features.context.application.context_service import ContextService
+        from app.features.database.application.context_sync import get_default_context_sync
+        context_sync = get_default_context_sync()
 
-        connection = ContextService.get_connection(user_id)
+        connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database server"}
 
@@ -161,10 +163,11 @@ class AIToolExecutor:
         user_id: str, database: Optional[str] = None, db_config: dict = None
     ) -> Dict:
         """Get schema (tables and columns) for a database."""
-        from app.features.context.application.context_service import ContextService
+        from app.features.database.application.context_sync import get_default_context_sync
+        context_sync = get_default_context_sync()
 
         # Get connection info
-        connection = ContextService.get_connection(user_id)
+        connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
 
@@ -172,7 +175,7 @@ class AIToolExecutor:
         target_db = database or connection.get("database")
 
         # Try to get from stored context first (with TTL check)
-        schema_context = ContextService.get_schema_context(user_id, target_db)
+        schema_context = context_sync.get_schema_context(user_id, target_db)
         if schema_context:
             tables = schema_context.get("tables", [])
             return {
@@ -199,7 +202,8 @@ class AIToolExecutor:
         Optimized with batch column query instead of per-table queries.
         Uses db_config directly when available for better reliability.
         """
-        from app.features.context.application.context_service import ContextService
+        from app.features.database.application.context_sync import get_default_context_sync
+        context_sync = get_default_context_sync()
         from app.features.database.infrastructure.operations import DatabaseOperations
 
         try:
@@ -255,7 +259,7 @@ class AIToolExecutor:
                 }
 
             # Store schema as AI context
-            ContextService.store_schema_context(user_id, database, tables, columns)
+            context_sync.store_schema_context(user_id, database, tables, columns)
 
             return {
                 "database": database,
@@ -383,12 +387,13 @@ class AIToolExecutor:
         user_id: str, table_name: str, db_config: dict = None
     ) -> Dict:
         """Get columns for a specific table."""
-        from app.features.context.application.context_service import ContextService
+        from app.features.database.application.context_sync import get_default_context_sync
+        context_sync = get_default_context_sync()
 
         if not table_name:
             return {"error": "Table name is required"}
 
-        connection = ContextService.get_connection(user_id)
+        connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
 
@@ -397,7 +402,7 @@ class AIToolExecutor:
 
         try:
             # Try stored context first
-            schema_context = ContextService.get_schema_context(user_id, database)
+            schema_context = context_sync.get_schema_context(user_id, database)
             if schema_context and table_name in schema_context.get("columns", {}):
                 return {
                     "table": table_name,
@@ -467,12 +472,13 @@ class AIToolExecutor:
         user_id: str, query: str, max_rows: int = 100, db_config: dict = None
     ) -> Dict:
         """Execute a SQL query using provided db_config."""
-        from app.features.context.application.context_service import ContextService
+        from app.features.database.application.context_sync import get_default_context_sync
+        context_sync = get_default_context_sync()
 
         if not query:
             return {"error": "Query is required"}
 
-        connection = ContextService.get_connection(user_id)
+        connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
 
@@ -517,7 +523,7 @@ class AIToolExecutor:
             database = connection.get("database")
             row_count = result.get("row_count", 0)
             status = "success" if result.get("status") == "success" else "error"
-            ContextService.add_query(user_id, query, database, row_count, status)
+            context_sync.add_query(user_id, query, database, row_count, status)
 
             if result.get("status") == "success":
                 total_rows = result.get("row_count", 0)
@@ -543,9 +549,10 @@ class AIToolExecutor:
     ) -> Dict:
         """Execute query using explicitly passed db_config."""
         from app.features.database.security.security import DatabaseSecurity
-        from app.core.config import Config
+        from app.core.config import get_config
         import time
 
+        Config = get_config()
         if not db_config:
             return {
                 "status": "error",
@@ -657,13 +664,14 @@ class AIToolExecutor:
         user_id: str, table_name: str, db_config: dict = None
     ) -> Dict:
         """Get indexes for a specific table."""
-        from app.features.context.application.context_service import ContextService
+        from app.features.database.application.context_sync import get_default_context_sync
+        context_sync = get_default_context_sync()
         from app.features.database.infrastructure.adapters import get_adapter
 
         if not table_name:
             return {"error": "Table name is required"}
 
-        connection = ContextService.get_connection(user_id)
+        connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
 
@@ -706,9 +714,10 @@ class AIToolExecutor:
         user_id: str, target_tables: Optional[List[str]] = None, db_config: dict = None
     ) -> Dict:
         """Get an overview of the schema including columns and foreign keys for specific or all tables."""
-        from app.features.context.application.context_service import ContextService
+        from app.features.database.application.context_sync import get_default_context_sync
+        context_sync = get_default_context_sync()
         
-        connection = ContextService.get_connection(user_id)
+        connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
             
@@ -717,7 +726,7 @@ class AIToolExecutor:
         
         try:
             # 1. Try to get from stored context cache first (with TTL check)
-            schema_context = ContextService.get_schema_context(user_id, database)
+            schema_context = context_sync.get_schema_context(user_id, database)
             if schema_context:
                 cached_tables = schema_context.get("tables", [])
                 cached_columns = schema_context.get("columns", {})
@@ -780,7 +789,7 @@ class AIToolExecutor:
             columns = AIToolExecutor._batch_fetch_columns(db_config, tables, db_type, db_name=database)
             
             # Store fresh tables and columns in context cache (this will also record a store operation)
-            ContextService.store_schema_context(user_id, database, all_tables, columns)
+            context_sync.store_schema_context(user_id, database, all_tables, columns)
             
             # Get Foreign Keys
             all_foreign_keys_result = AIToolExecutor._get_foreign_keys(user_id, db_config=db_config)
@@ -807,10 +816,11 @@ class AIToolExecutor:
         user_id: str, table_name: str = None, db_config: dict = None
     ) -> Dict:
         """Get foreign key relationships."""
-        from app.features.context.application.context_service import ContextService
+        from app.features.database.application.context_sync import get_default_context_sync
+        context_sync = get_default_context_sync()
         from app.features.database.infrastructure.adapters import get_adapter
 
-        connection = ContextService.get_connection(user_id)
+        connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
 

@@ -17,7 +17,8 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 from contextlib import contextmanager
-from app.core.config import Config
+from app.core.config import get_config
+Config = get_config()
 from .base_adapter import BaseDatabaseAdapter
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class OracleAdapter(BaseDatabaseAdapter):
 
     @property
     def default_port(self) -> Optional[int]:
-        return 1521
+        return Config.DEFAULT_ORACLE_PORT
 
     @property
     def requires_server(self) -> bool:
@@ -117,12 +118,12 @@ class OracleAdapter(BaseDatabaseAdapter):
                 )
             else:
                 # Local connection via individual parameters
-                host = config.get("host", "localhost")
-                port = config.get("port", 1521)
+                host = config.get("host", Config.DEFAULT_ORACLE_HOST)
+                port = config.get("port", Config.DEFAULT_ORACLE_PORT)
                 user = config.get("user", "")
                 password = config.get("password", "")
                 service_name = config.get("service_name") or config.get(
-                    "database", "ORCL"
+                    "database", Config.DEFAULT_ORACLE_SERVICE
                 )
 
                 # Easy Connect string format: host:port/service_name
@@ -137,10 +138,10 @@ class OracleAdapter(BaseDatabaseAdapter):
                 user=user,
                 password=password,
                 dsn=dsn,
-                min=2,  # Minimum connections always maintained
-                max=min(Config.MAX_WORKERS * 2, 32),  # Maximum connections under load
-                increment=1,  # Number of connections to add when pool is exhausteded
-                timeout=60,  # Wait up to 60s for available connection
+                min=Config.ORACLE_POOL_MIN_CONNECTIONS,
+                max=min(Config.MAX_WORKERS * 2, Config.DEFAULT_DB_POOL_MAX_CONNECTIONS),
+                increment=Config.ORACLE_POOL_INCREMENT,
+                timeout=Config.ORACLE_POOL_TIMEOUT_SECONDS,
                 getmode=oracledb.POOL_GETMODE_WAIT,  # Wait for connection if pool exhausted
             )
 

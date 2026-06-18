@@ -8,9 +8,13 @@ Supports local SQL Server instances and cloud providers (Azure SQL, AWS RDS, Goo
 import logging
 from typing import Any, Dict, List, Optional
 from contextlib import contextmanager
+
+from app.core.config import get_config
+
 from .base_adapter import BaseDatabaseAdapter
 
 logger = logging.getLogger(__name__)
+Config = get_config()
 
 
 class SQLServerAdapter(BaseDatabaseAdapter):
@@ -22,7 +26,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
 
     @property
     def default_port(self) -> Optional[int]:
-        return 1433
+        return Config.DEFAULT_SQLSERVER_PORT
 
     @property
     def requires_server(self) -> bool:
@@ -52,14 +56,14 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                 user_match = re.search(r"(?:UID|User ID)=([^;]+)", connection_string, re.IGNORECASE)
                 pwd_match = re.search(r"(?:PWD|Password)=([^;]+)", connection_string, re.IGNORECASE)
 
-                config["host"] = server_match.group(1).strip() if server_match else "localhost"
-                config["database"] = db_match.group(1).strip() if db_match else "master"
+                config["host"] = server_match.group(1).strip() if server_match else Config.DEFAULT_SQLSERVER_HOST
+                config["database"] = db_match.group(1).strip() if db_match else Config.DEFAULT_SQLSERVER_DATABASE
                 config["user"] = user_match.group(1).strip() if user_match else ""
                 config["password"] = pwd_match.group(1).strip() if pwd_match else ""
 
             else:
                 # Local connection via individual parameters
-                logger.info(f"Creating SQL Server config for {config.get('user')}@{config.get('host')}:{config.get('port', 1433)}")
+                logger.info(f"Creating SQL Server config for {config.get('user')}@{config.get('host')}:{config.get('port', Config.DEFAULT_SQLSERVER_PORT)}")
 
             # Return config as "pool" - we'll create connections on demand
             return config
@@ -73,20 +77,20 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         import pymssql
 
         try:
-            host = pool.get("host", "localhost")
-            port = pool.get("port", 1433)
+            host = pool.get("host", Config.DEFAULT_SQLSERVER_HOST)
+            port = pool.get("port", Config.DEFAULT_SQLSERVER_PORT)
             user = pool.get("user", "")
             password = pool.get("password", "")
-            database = pool.get("database", "master")
+            database = pool.get("database", Config.DEFAULT_SQLSERVER_DATABASE)
             
             connection = pymssql.connect(
                 server=host,
-                port=str(port) if port else "1433",
+                port=str(port) if port else str(Config.DEFAULT_SQLSERVER_PORT),
                 user=user,
                 password=password,
                 database=database,
-                timeout=5,
-                login_timeout=5
+                timeout=Config.DB_CONNECT_TIMEOUT_SECONDS,
+                login_timeout=Config.DB_LOGIN_TIMEOUT_SECONDS
             )
             return connection
         except Exception as err:

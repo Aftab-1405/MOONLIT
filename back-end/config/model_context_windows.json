@@ -1,7 +1,20 @@
 {
   "models": {
-    "moonshotai.kimi-k2.5": 262144,
-    "openai.gpt-oss-120b-1:0": 128000,
-    "mistral.devstral-2-123b": 262144
+    "moonshotai.kimi-k2.5": {
+      "context_window": 262144,
+      "supports_count_tokens": false
+    },
+    "openai.gpt-oss-120b-1:0": {
+      "context_window": 128000,
+      "supports_count_tokens": false
+    },
+    "mistral.devstral-2-123b": {
+      "context_window": 262144,
+      "supports_count_tokens": false
+    },
+      "qwen.qwen3-235b-a22b-2507-v1:0": {
+      "context_window": 50000,
+      "supports_count_tokens": false
+    }
   }
 }

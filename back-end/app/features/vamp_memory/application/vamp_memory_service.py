@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import logging
 from typing import Callable
 
@@ -7,10 +8,11 @@ from app.features.vamp_memory.infrastructure.qdrant_vector_store import QdrantVe
 from app.features.vamp_memory.infrastructure.bedrock_embedding_provider import default_embedding_provider, DEFAULT_EMBEDDING_MODEL
 from app.features.vamp_memory.application.historical_context_builder import format_historical_context
 from app.features.vamp_memory.application.budget_selection import adaptive_k, dedupe_select_budget_then_sort
+from app.core.config import get_config
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONTEXT_TOKEN_BUDGET_CHARS = 12000
+DEFAULT_CONTEXT_TOKEN_BUDGET_CHARS = get_config().VAMP_CONTEXT_BUDGET_CHARS
 _VECTOR_STORE_SINGLETON = None
 
 
@@ -20,20 +22,20 @@ def get_default_vector_store() -> VectorMemoryStore:
     if _VECTOR_STORE_SINGLETON is not None:
         return _VECTOR_STORE_SINGLETON
 
-    from app.core.config import Config
+    config = get_config()
 
-    if Config.VAMP_VECTOR_BACKEND != "qdrant":
+    if config.VAMP_VECTOR_BACKEND != "qdrant":
         raise RuntimeError(
             "VAMP requires Qdrant. Set VAMP_VECTOR_BACKEND=qdrant."
         )
-    if not Config.VAMP_QDRANT_URL:
+    if not config.VAMP_QDRANT_URL:
         raise RuntimeError("VAMP_VECTOR_BACKEND=qdrant requires VAMP_QDRANT_URL")
 
     _VECTOR_STORE_SINGLETON = QdrantVectorMemoryStore(
-        url=Config.VAMP_QDRANT_URL,
-        api_key=Config.VAMP_QDRANT_API_KEY,
-        collection_name=Config.VAMP_QDRANT_COLLECTION,
-        vector_size=Config.VAMP_EMBEDDING_DIMENSIONS,
+        url=config.VAMP_QDRANT_URL,
+        api_key=config.VAMP_QDRANT_API_KEY,
+        collection_name=config.VAMP_QDRANT_COLLECTION,
+        vector_size=config.VAMP_EMBEDDING_DIMENSIONS,
     )
     return _VECTOR_STORE_SINGLETON
 
@@ -56,19 +58,30 @@ class VampMemoryService:
         self.summary_repo = summary_repo
         if embedding_model == DEFAULT_EMBEDDING_MODEL:
             try:
-                from app.core.config import Config
+                config = get_config()
 
-                embedding_model = Config.VAMP_EMBEDDING_MODEL
-                context_budget_chars = Config.VAMP_CONTEXT_BUDGET_CHARS
+                embedding_model = config.VAMP_EMBEDDING_MODEL
+                context_budget_chars = config.VAMP_CONTEXT_BUDGET_CHARS
             except Exception:
                 pass
-        self.vector_store = vector_store or get_default_vector_store()
+        self._vector_store = vector_store
         self.embedding_provider = embedding_provider or default_embedding_provider
         self.embedding_model = embedding_model
         self.context_budget_chars = context_budget_chars
 
+    @property
+    def vector_store(self) -> VectorMemoryStore:
+        if self._vector_store is None:
+            self._vector_store = get_default_vector_store()
+        return self._vector_store
+
+    async def _call_maybe_async(self, func, /, *args, **kwargs):
+        if inspect.iscoroutinefunction(func):
+            return await func(*args, **kwargs)
+        return await asyncio.to_thread(func, *args, **kwargs)
+
     async def _embed(self, text: str) -> list[float]:
-        result = self.embedding_provider(text)
+        result = await self._call_maybe_async(self.embedding_provider, text)
         if asyncio.iscoroutine(result):
             result = await result
         return result
@@ -87,7 +100,8 @@ class VampMemoryService:
         covers_message_ids: list | None = None,
         created_from_unsummarized_tail: bool = True,
     ) -> dict:
-        block = self.summary_repo.create_block(
+        block = await asyncio.to_thread(
+            self.summary_repo.create_block,
             conversation_id,
             user_id,
             text=text,
@@ -112,7 +126,12 @@ class VampMemoryService:
             mark_indexed = getattr(self.summary_repo, "mark_vector_indexed", None)
             if callable(mark_indexed):
                 try:
-                    mark_indexed(conversation_id, block["summary_id"], status="failed")
+                    await asyncio.to_thread(
+                        mark_indexed,
+                        conversation_id,
+                        block["summary_id"],
+                        status="failed",
+                    )
                 except Exception:
                     pass
         return block
@@ -149,7 +168,11 @@ class VampMemoryService:
         mark_indexed = getattr(self.summary_repo, "mark_vector_indexed", None)
         if callable(mark_indexed):
             try:
-                mark_indexed(block["conversation_id"], block["summary_id"])
+                await asyncio.to_thread(
+                    mark_indexed,
+                    block["conversation_id"],
+                    block["summary_id"],
+                )
             except Exception:
                 pass
 
@@ -161,7 +184,11 @@ class VampMemoryService:
         *,
         k: int | None = None,
     ) -> list[dict]:
-        conv = self.summary_repo.get_conversation(conversation_id) or {}
+        conv = await asyncio.to_thread(
+            self.summary_repo.get_conversation,
+            conversation_id,
+        )
+        conv = conv or {}
         if conv and conv.get("user_id") not in (None, user_id):
             raise PermissionError("User does not own this conversation")
 
@@ -171,7 +198,8 @@ class VampMemoryService:
 
         effective_k = k or adaptive_k(total)
         query_vector = await self._embed(user_prompt)
-        vector_hits = self.vector_store.search(
+        vector_hits = await self._call_maybe_async(
+            self.vector_store.search,
             conversation_id=conversation_id,
             query_vector=query_vector,
             k=effective_k,
@@ -186,7 +214,11 @@ class VampMemoryService:
             for hit in vector_hits
             if hit.get("summary_id") is not None
         })
-        blocks = self.summary_repo.get_blocks_by_ids(conversation_id, summary_ids)
+        blocks = await asyncio.to_thread(
+            self.summary_repo.get_blocks_by_ids,
+            conversation_id,
+            summary_ids,
+        )
 
         hits_by_summary = {}
         for rank, hit in enumerate(vector_hits):

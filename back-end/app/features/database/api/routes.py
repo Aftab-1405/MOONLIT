@@ -16,7 +16,11 @@ from app.core.dependencies import (
 )
 from app.features.database.application.connection_service import ConnectionService
 from app.features.database.application.database_service import DatabaseService
-from app.core.request_schemas import RunQueryRequest, SwitchDatabaseRequest, ConnectDBRequest
+from app.features.database.schemas.request_schemas import (
+    ConnectDBRequest,
+    RunQueryRequest,
+    SwitchDatabaseRequest,
+)
 from app.core.common_schemas import COMMON_ERROR_RESPONSES, ApiSuccess
 from app.features.database.schemas.database_schemas import (
     ConnectDatabaseData,
@@ -448,7 +452,8 @@ async def run_sql_query(
     user: dict = Depends(get_current_user),
 ):
     """Execute a SQL query."""
-    from app.core.config import Config
+    from app.core.config import get_config
+    Config = get_config()
 
     user_id = user.get("uid") or user
     sql_query = data.sql_query

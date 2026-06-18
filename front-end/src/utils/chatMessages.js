@@ -15,6 +15,8 @@ export const MESSAGE_STATUS = Object.freeze({
   DONE: 'done',
   STOPPED: 'stopped',
   ERROR: 'error',
+  /** Agent hit its step budget; task is paused and can be continued. */
+  PAUSED: 'paused',
 });
 
 let messageCounter = 0;

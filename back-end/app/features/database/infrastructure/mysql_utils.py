@@ -9,7 +9,10 @@ from typing import Dict
 from urllib.parse import urlparse, unquote, parse_qs
 import logging
 
+from app.core.config import get_config
+
 logger = logging.getLogger(__name__)
+Config = get_config()
 
 
 def parse_mysql_connection_string(connection_string: str) -> Dict:
@@ -57,15 +60,14 @@ def parse_mysql_connection_string(connection_string: str) -> Dict:
             ssl_params["ca"] = query_params["ssl_ca"][0]
     elif (
         parsed.hostname
-        and parsed.hostname != "localhost"
-        and parsed.hostname != "127.0.0.1"
+        and parsed.hostname.lower() not in Config.BLOCKED_DB_HOSTS
     ):
         # Default: enable SSL for non-localhost connections (cloud providers need it)
         ssl_enabled = True
 
     result = {
-        "host": parsed.hostname or "localhost",
-        "port": parsed.port or 3306,
+        "host": parsed.hostname or Config.DEFAULT_MYSQL_HOST,
+        "port": parsed.port or Config.DEFAULT_MYSQL_PORT,
         "user": unquote(parsed.username) if parsed.username else "",
         "password": unquote(parsed.password) if parsed.password else "",
         "database": parsed.path.strip("/") if parsed.path else None,
@@ -104,9 +106,9 @@ def get_mysql_connect_kwargs(db_config: Dict, for_pool: bool = False) -> Dict:
             "port": parsed["port"],
             "user": parsed["user"],
             "password": parsed["password"],
-            "charset": "utf8mb4",
+            "charset": Config.MYSQL_CHARSET,
             "use_unicode": True,
-            "connect_timeout": 5,  # Short timeout to prevent DoS via slow IPs
+            "connect_timeout": Config.DB_CONNECT_TIMEOUT_SECONDS,
             "use_pure": True,  # Force pure Python implementation for better cross-platform support
         }
 
@@ -118,7 +120,7 @@ def get_mysql_connect_kwargs(db_config: Dict, for_pool: bool = False) -> Dict:
             kwargs["ssl_disabled"] = False
 
         if for_pool:
-            kwargs["pool_size"] = 5  # Smaller pool for remote
+            kwargs["pool_size"] = Config.MYSQL_REMOTE_POOL_SIZE
             kwargs["pool_reset_session"] = True
             kwargs["autocommit"] = False
             kwargs["buffered"] = True
@@ -127,17 +129,17 @@ def get_mysql_connect_kwargs(db_config: Dict, for_pool: bool = False) -> Dict:
         host = db_config.get("host")
 
         # Windows named-pipe guard: if host is empty or local-looking, force TCP/IP
-        if not host or host == "." or host.lower() == "localhost":
-            host = "127.0.0.1"  # Force IPv4 TCP to avoid named pipes on Windows
+        if not host or host == "." or host.lower() == Config.DEFAULT_MYSQL_HOST:
+            host = Config.MYSQL_TCP_FALLBACK_HOST
 
         kwargs = {
             "host": host,
-            "port": db_config.get("port", 3306),
+            "port": db_config.get("port", Config.DEFAULT_MYSQL_PORT),
             "user": db_config.get("user", ""),
             "password": db_config.get("password", ""),
-            "charset": "utf8mb4",
+            "charset": Config.MYSQL_CHARSET,
             "use_unicode": True,
-            "connect_timeout": 5,
+            "connect_timeout": Config.DB_CONNECT_TIMEOUT_SECONDS,
             "use_pure": True,  # Force pure Python for cross-platform
         }
 
@@ -148,9 +150,7 @@ def get_mysql_connect_kwargs(db_config: Dict, for_pool: bool = False) -> Dict:
             kwargs["pool_reset_session"] = True
             kwargs["autocommit"] = False
             kwargs["buffered"] = True
-            kwargs["collation"] = "utf8mb4_unicode_ci"
-            kwargs["sql_mode"] = (
-                "STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO"
-            )
+            kwargs["collation"] = Config.MYSQL_COLLATION
+            kwargs["sql_mode"] = Config.MYSQL_SQL_MODE
 
     return kwargs

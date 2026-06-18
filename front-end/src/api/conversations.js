@@ -80,6 +80,7 @@ export async function sendMessage({
   maxRows = 1000,
   provider = null,
   model = null,
+  taskMode = 'normal',
 }, signal) {
   return postRaw(
     CONVERSATIONS.SEND_MESSAGE,
@@ -92,6 +93,7 @@ export async function sendMessage({
       max_rows: maxRows === 0 ? null : maxRows,
       provider,
       model,
+      task_mode: taskMode,
     },
     { signal }
   );
@@ -115,6 +117,7 @@ export async function resumeAgent({
   maxRows = 1000,
   provider = null,
   model = null,
+  taskMode = 'normal',
 }, signal) {
   return postRaw(
     CONVERSATIONS.RESUME_AGENT,
@@ -127,6 +130,7 @@ export async function resumeAgent({
       max_rows: maxRows === 0 ? null : maxRows,
       provider,
       model,
+      task_mode: taskMode,
     },
     { signal }
   );

@@ -14,12 +14,6 @@ from typing import Optional, AsyncGenerator
 
 from fastapi.concurrency import run_in_threadpool
 
-from app.features.agent_orchestration.infrastructure.memory_config import (
-    ACTIVE_MESSAGE_WINDOW,
-    HOT_FIRESTORE_MESSAGES,
-    SUMMARY_BLOCK_SIZE,
-)
-
 logger = logging.getLogger(__name__)
 
 
@@ -55,8 +49,36 @@ class ConversationService:
     @staticmethod
     def delete_user_conversation(conversation_id: str, user_id: str) -> None:
         from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
+        from app.features.conversations.application.memory_cleanup import (
+            get_default_memory_cleaner,
+            run_memory_cleanup_sync,
+        )
+
+        if ConversationRepository.get_for_user(conversation_id, user_id) is None:
+            raise ValueError("Conversation not found")
+
+        memory_cleaner = get_default_memory_cleaner()
+        try:
+            run_memory_cleanup_sync(memory_cleaner, conversation_id, user_id)
+        except Exception as cleanup_err:
+            logger.warning(
+                "Failed to clean up external memory during conversation delete: %s",
+                cleanup_err,
+            )
+            ConversationRepository.create_memory_cleanup_retry(
+                conversation_id, user_id, cleanup_err
+            )
 
         ConversationRepository.delete(conversation_id, user_id)
+
+    @staticmethod
+    def retry_external_memory_cleanups() -> int:
+        from app.features.conversations.application.memory_cleanup import (
+            get_default_memory_cleaner,
+        )
+        from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
+
+        return ConversationRepository.retry_qdrant_cleanups(get_default_memory_cleaner())
 
     @staticmethod
     def rename_user_conversation(
@@ -98,7 +120,9 @@ class ConversationService:
             SSE ``data: {…}\\n\\n`` strings.
         """
         from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
-        from app.features.agent_orchestration.application.stream_conversation import stream_conversation
+        from app.features.conversations.application.agent_streaming import (
+            get_default_agent_streamer,
+        )
 
         prompt_stored = False
         response_stored = False
@@ -127,13 +151,46 @@ class ConversationService:
                 current_turn_id = last_msg.get("turn_id")
                 current_turn_index = last_msg.get("turn_index")
 
+            def ensure_turn_metadata() -> tuple[str, int]:
+                nonlocal current_turn_id, current_turn_index
+                if current_turn_id is None:
+                    import uuid
+                    current_turn_id = str(uuid.uuid4())
+                if current_turn_index is None:
+                    existing_messages = conv_data.get("messages", []) if conv_data else []
+                    max_turn_index = -1
+                    for msg in existing_messages:
+                        ti = msg.get("turn_index")
+                        if ti is not None:
+                            try:
+                                max_turn_index = max(max_turn_index, int(ti))
+                            except (ValueError, TypeError):
+                                pass
+                    current_turn_index = max_turn_index + 1
+                return current_turn_id, current_turn_index
+
+            async def store_prompt_once() -> None:
+                nonlocal prompt_stored
+                if not prompt or prompt_stored:
+                    return
+                turn_id, turn_index = ensure_turn_metadata()
+                await run_in_threadpool(
+                    ConversationRepository.store_message,
+                    conversation_id, "user", prompt, user_id,
+                    turn_id=turn_id,
+                    turn_index=turn_index,
+                    message_role="user",
+                    is_final_assistant_response=False,
+                )
+                prompt_stored = True
+
             # Persist task_mode to Firestore conversation
             if conv_data:
                 task_mode_stored = conv_data.get("task_mode", "normal") or "normal"
                 if resume is not None and task_mode == "normal" and task_mode_stored != "normal":
                     task_mode = task_mode_stored
                 try:
-                    from app.features.conversations.infrastructure.firestore_service import FirestoreService
+                    from app.infrastructure.firestore.service import FirestoreService
                     db = FirestoreService.get_db()
                     db.collection("conversations").document(conversation_id).update({
                         "task_mode": task_mode
@@ -142,7 +199,8 @@ class ConversationService:
                     logger.warning("Failed to save task_mode in Firestore: %s", e)
 
             # Stream from the LangGraph agent
-            async for sse_line in stream_conversation(
+            agent_streamer = get_default_agent_streamer()
+            async for sse_line in agent_streamer.stream(
                 conversation_id,
                 prompt,
                 user_id,
@@ -167,39 +225,17 @@ class ConversationService:
                 event_type = event.get("type")
 
                 # Core user prompt storage trigger
-                if prompt and not prompt_stored and event_type in ("token", "tool_start", "thinking_token", "agent_interrupt"):
-                    if current_turn_id is None:
-                        import uuid
-                        current_turn_id = str(uuid.uuid4())
-                    if current_turn_index is None:
-                        existing_messages = conv_data.get("messages", []) if conv_data else []
-                        max_turn_index = -1
-                        for msg in existing_messages:
-                            ti = msg.get("turn_index")
-                            if ti is not None:
-                                try:
-                                    max_turn_index = max(max_turn_index, int(ti))
-                                except (ValueError, TypeError):
-                                    pass
-                        current_turn_index = max_turn_index + 1
-
-                    await run_in_threadpool(
-                        ConversationRepository.store_message,
-                        conversation_id, "user", prompt, user_id,
-                        turn_id=current_turn_id,
-                        turn_index=current_turn_index,
-                        message_role="user",
-                        is_final_assistant_response=False,
-                    )
-                    prompt_stored = True
+                if prompt and not prompt_stored and event_type in (
+                    "token",
+                    "tool_start",
+                    "thinking_token",
+                    "agent_interrupt",
+                    "workflow_status",
+                ):
+                    await store_prompt_once()
 
                 if event_type == "token":
-                    if prompt and not prompt_stored:
-                        await run_in_threadpool(
-                            ConversationRepository.store_message,
-                            conversation_id, "user", prompt, user_id
-                        )
-                        prompt_stored = True
+                    await store_prompt_once()
                     chunk = event.get("content", "")
                     if chunk:
                         if ordered_timeline and ordered_timeline[-1]["type"] == "text":
@@ -208,12 +244,7 @@ class ConversationService:
                             ordered_timeline.append({"type": "text", "content": chunk})
 
                 elif event_type == "tool_start":
-                    if prompt and not prompt_stored:
-                        await run_in_threadpool(
-                            ConversationRepository.store_message,
-                            conversation_id, "user", prompt, user_id
-                        )
-                        prompt_stored = True
+                    await store_prompt_once()
                     # Mark any open thinking blocks as complete
                     for item in ordered_timeline:
                         if item["type"] == "thinking":
@@ -242,18 +273,39 @@ class ConversationService:
                             break
 
                 elif event_type == "thinking_token":
-                    if prompt and not prompt_stored:
-                        await run_in_threadpool(
-                            ConversationRepository.store_message,
-                            conversation_id, "user", prompt, user_id
-                        )
-                        prompt_stored = True
+                    await store_prompt_once()
                     chunk = event.get("content", "")
                     if chunk:
                         if ordered_timeline and ordered_timeline[-1]["type"] == "thinking":
                             ordered_timeline[-1]["content"] += chunk
                         else:
                             ordered_timeline.append({"type": "thinking", "content": chunk, "is_complete": False})
+
+                elif event_type == "workflow_status":
+                    await store_prompt_once()
+                    stage = event.get("stage", "status")
+                    status_val = event.get("status")
+                    content = event.get("content", "Preparing context...")
+                    step_id = f"workflow-{stage}"
+
+                    existing_item = None
+                    for item in ordered_timeline:
+                        if item.get("type") == "thinking" and item.get("id") == step_id:
+                            existing_item = item
+                            break
+
+                    if existing_item:
+                        existing_item["content"] = content
+                        existing_item["is_complete"] = (status_val == "done")
+                    else:
+                        ordered_timeline.append(
+                            {
+                                "type": "thinking",
+                                "id": step_id,
+                                "content": content,
+                                "is_complete": (status_val == "done"),
+                            }
+                        )
 
                 elif event_type == "error":
                     has_error = True
@@ -312,9 +364,6 @@ class ConversationService:
                 response_text = "".join(
                     item["content"] for item in ordered_timeline if item["type"] == "text"
                 ).strip()
-                thinking_text = "".join(
-                    item["content"] for item in ordered_timeline if item["type"] == "thinking"
-                ).strip()
                 tools_used = [
                     item for item in ordered_timeline if item["type"] == "tool"
                 ]
@@ -369,15 +418,9 @@ class ConversationService:
                         f"{len(ordered_timeline)} timeline items"
                     )
 
-                    # Fire and forget the summarization task so it doesn't block stream cleanup
-                    asyncio.create_task(
-                        ConversationService.check_and_summarize(
-                            conversation_id,
-                            user_id,
-                            model,
-                            thread_id=f"{user_id}:{conversation_id}",
-                        )
-                    )
+                    # Pre-call summarization is handled inline at the start of the next turn
+                    # to show status in the UI, so background summarization is skipped here.
+                    pass
             elif has_error:
                 logger.info(
                     f"Skipped storing error response for conversation {conversation_id}"
@@ -411,15 +454,51 @@ class ConversationService:
         try:
             from app.features.conversations.infrastructure.conversation_repository import ConversationRepository
             from app.llm.providers.model_factory import get_chat_model, get_default_model
-            from app.core.config import Config
+            from app.core.config import get_config
             from langchain_core.messages import HumanMessage, SystemMessage
-            from app.features.conversations.infrastructure.firestore_service import FirestoreService
-            from app.core.token_budget import calculate_token_budget
+            from app.infrastructure.firestore.service import FirestoreService
+            from app.core.token_budget import (
+                calculate_dynamic_token_budget,
+                count_converse_tokens_cached,
+                output_reserve_for_task_mode,
+            )
             import json
 
+            Config = get_config()
             selected_model = model or get_default_model(Config.LLM_PROVIDER)
-            budget_info = calculate_token_budget(selected_model)
+            from app.features.agent_orchestration.graph.tools import ALL_TOOLS
+            from app.features.agent_orchestration.prompts.prompt_builder import PromptBuilder
+
+            system_prompt = PromptBuilder.build_system_prompt("balanced")
+            system_prompt_count = count_converse_tokens_cached(
+                selected_model,
+                cache_key=("system", "balanced", system_prompt),
+                system=system_prompt,
+                messages=[{"role": "user", "content": [{"text": ""}]}],
+            )
+            tool_schema_count = count_converse_tokens_cached(
+                selected_model,
+                cache_key=(
+                    "tools",
+                    tuple(getattr(tool, "name", str(tool)) for tool in ALL_TOOLS),
+                ),
+                messages=[{"role": "user", "content": [{"text": ""}]}],
+                tools=ALL_TOOLS,
+            )
+            budget_info = calculate_dynamic_token_budget(
+                selected_model,
+                system_prompt_tokens=system_prompt_count["tokens"],
+                tool_schema_tokens=tool_schema_count["tokens"],
+                output_reserve_tokens=output_reserve_for_task_mode("normal"),
+                token_counting_mode=(
+                    "estimated"
+                    if system_prompt_count["mode"] == "estimated"
+                    or tool_schema_count["mode"] == "estimated"
+                    else "exact"
+                ),
+            )
             active_context_budget = budget_info["active_context_budget"]
+            summary_trigger_tokens = int(float(active_context_budget) * 0.90)
 
             db = FirestoreService.get_db()
             doc_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(
@@ -441,11 +520,15 @@ class ConversationService:
                 if not unsummarized_tail:
                     return
                 
-                # Calculate total tokens in unsummarized tail
-                tail_tokens = sum(_get_message_tokens(msg) for msg in unsummarized_tail)
+                # Calculate measured pressure in the unsummarized tail.
+                tail_tokens = sum(
+                    _get_message_tokens(msg, model_id=selected_model)
+                    for msg in unsummarized_tail
+                )
 
-                # Only summarize if unsummarized_tail_tokens >= active_context_budget
-                if tail_tokens < active_context_budget:
+                # Summarize when measured pressure reaches the same 90% trigger
+                # surfaced to the frontend.
+                if tail_tokens < summary_trigger_tokens:
                     return
 
                 # Group messages into turns
@@ -478,7 +561,10 @@ class ConversationService:
                 max_chunk_tokens = active_context_budget // 2
 
                 for turn in complete_unsummarized_turns:
-                    turn_tokens = sum(_get_message_tokens(messages[idx]) for idx in turn)
+                    turn_tokens = sum(
+                        _get_message_tokens(messages[idx], model_id=selected_model)
+                        for idx in turn
+                    )
                     if chunk_turns and chunk_tokens + turn_tokens > max_chunk_tokens:
                         break
                     chunk_turns.append(turn)
@@ -488,7 +574,6 @@ class ConversationService:
                     chunk_turns = [complete_unsummarized_turns[0]]
 
                 # The first chunk covers message range [start_idx, end_idx)
-                chunk_start_msg_idx = chunk_turns[0][0]
                 chunk_end_msg_idx = chunk_turns[-1][-1]
                 end_idx = chunk_end_msg_idx + 1
 
@@ -512,20 +597,27 @@ class ConversationService:
                     prompt = [
                         SystemMessage(
                             content=(
-                                "You are a precise memory archivist for a database assistant called Moonlit. "
-                                "Your output will be injected verbatim into the AI agent's context on future turns, "
-                                "so it must be immediately usable — not a narrative retelling.\n\n"
+                                "You are Moonlit's long-term memory archivist for an agentic database assistant. "
+                                "The summary you write will be injected into future agent context and its memory bullets "
+                                "will be embedded in Qdrant for retrieval. Preserve enough detail that the future agent can "
+                                "continue the user's work without rereading the original turns.\n\n"
+                                "QUALITY RULES:\n"
+                                "- Preserve user goals, constraints, preferences, assumptions, dates, thresholds, table names, column names, formulas, filters, file paths, model names, errors, and decisions.\n"
+                                "- Preserve tool activity with concrete inputs and outcomes when they affect future reasoning. Include failed attempts and unresolved blockers.\n"
+                                "- Do not over-compress. Prefer a rich, structured summary over a tiny summary when details are relevant.\n"
+                                "- Remove filler, greetings, repeated phrasing, and low-value narration.\n"
+                                "- Do not invent facts. If a fact is uncertain, mark it as uncertain.\n\n"
                                 "OUTPUT FORMAT — produce a strict JSON object containing two fields:\n"
-                                "1. `summary_text`: A single string containing four sections (Entities & Values, Decisions & Context, Tool Activity, Open Items) formatted as markdown bulleted lists.\n"
-                                "   - Entities & Values: `name (type)`.\n"
-                                "   - Decisions & Context: verb-first, present tense fact.\n"
-                                "   - Tool Activity: `tool_name → outcome`.\n"
-                                "   - Open Items: unresolved items.\n"
-                                "2. `memory_bullets`: A list of bullet objects. Each bullet must contain one atomic memory fact, decision, config value, error, endpoint, table, column, tool decision, or final resolved detail.\n"
-                                "   - Keep bullets short and retrieval-focused. Preserve exact values.\n"
-                                "   - Good bullet: `Backend service port is 7800.` Bad bullet: `Deployment configuration was discussed.`\n"
-                                "   - Every summary block can optionally include one broad overview bullet with type 'overview' describing the general topics covered (e.g., {\"bullet_id\": \"b000\", \"bullet_index\": 0, \"text\": \"Overview: This block covers...\", \"type\": \"overview\"}).\n"
-                                "   - Each object must have: `bullet_id` (string e.g. 'b001'), `bullet_index` (int), `text` (string), `type` (string: 'decision', 'config_fact', 'api_fact', 'database_fact', 'testing_fact', 'security_fact', 'runtime_fact', 'vamp_fact', 'overview', 'other').\n\n"
+                                "1. `summary_text`: A detailed markdown string with these sections: User Goal, Current State, Key Facts & Values, Decisions & Assumptions, Tool Activity, Open Items / Next Steps.\n"
+                                "   - Use concise bullets, but include exact values and relationships needed for future work.\n"
+                                "   - Tool Activity should include `tool_name -> input/result` when relevant.\n"
+                                "2. `memory_bullets`: A list of retrieval-focused bullet objects.\n"
+                                "   - Each bullet must contain one searchable atomic fact, decision, config value, error, endpoint, table, column, formula, user preference, tool result, or open item.\n"
+                                "   - Include enough noun context in each bullet so it can stand alone in vector search.\n"
+                                "   - Good bullet: `For the sales analysis, fading VIP customers are defined as customers whose order frequency decreased despite receiving larger discounts.`\n"
+                                "   - Bad bullet: `A sales analysis was discussed.`\n"
+                                "   - Include one broad overview bullet with type 'overview'.\n"
+                                "   - Each object must have: `bullet_id` (string e.g. 'b001'), `bullet_index` (int), `text` (string), `type` (string: 'decision', 'config_fact', 'api_fact', 'database_fact', 'testing_fact', 'security_fact', 'runtime_fact', 'vamp_fact', 'analysis_fact', 'open_item', 'overview', 'other').\n\n"
                                 "Output ONLY valid JSON. Do not include markdown codeblocks around the JSON."
                             )
                         ),
@@ -573,7 +665,9 @@ class ConversationService:
                         _clear_summary_claim(doc_ref, claim_id)
                         return
 
-                    from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService
+                    from app.features.conversations.application.summary_memory import (
+                        get_default_summary_memory_writer,
+                    )
 
                     # Check if explicit turn_index is present, otherwise fallback to index in turns list
                     covers_from_turn = messages[chunk_turns[0][0]].get("turn_index")
@@ -596,7 +690,7 @@ class ConversationService:
 
                     covers_message_ids = [messages[idx].get("id") or messages[idx].get("message_id") or idx for idx in range(start_idx, end_idx)]
 
-                    await VampMemoryService().store_summary_block(
+                    await get_default_summary_memory_writer().store_summary_block(
                         conversation_id,
                         user_id,
                         text=new_summary,
@@ -690,7 +784,8 @@ def _claim_summary_range(
 
     Returns a claim id if this worker owns the range, otherwise None.
     """
-    from app.core.config import Config
+    from app.core.config import get_config
+    Config = get_config()
 
     claim_id = str(uuid.uuid4())
     claimed_at = datetime.now(timezone.utc).isoformat()
@@ -730,7 +825,7 @@ def _claim_summary_range(
 
 def _commit_summary_claim(doc_ref, claim_id: str, end_idx: int, last_summarized_turn: int | None = None) -> bool:
     """Advance last_summarized_idx and last_summarized_turn only if this worker still owns the claim."""
-    from app.features.conversations.infrastructure.firestore_service import FirestoreService
+    from app.infrastructure.firestore.service import FirestoreService
     from firebase_admin import firestore
 
     db = FirestoreService.get_db()
@@ -763,7 +858,7 @@ def _commit_summary_claim(doc_ref, claim_id: str, end_idx: int, last_summarized_
 
 def _clear_summary_claim(doc_ref, claim_id: str) -> None:
     """Clear an active failed claim if it still belongs to this worker."""
-    from app.features.conversations.infrastructure.firestore_service import FirestoreService
+    from app.infrastructure.firestore.service import FirestoreService
     from firebase_admin import firestore
 
     db = FirestoreService.get_db()
@@ -1042,25 +1137,123 @@ def _group_messages_into_turns(messages: list) -> list[list[int]]:
         turns.append(current_turn)
     return turns
 
-def _get_message_tokens(msg: dict) -> int:
-    """Get message token size, prioritizing Bedrock usage if available."""
+
+def _get_message_tokens_cheap(msg: dict) -> int:
+    """Cheap pressure estimate for deciding whether to schedule exact summary."""
     from app.core.token_budget import estimate_tokens
     import json
-    usage = msg.get("usage")
-    if isinstance(usage, dict):
-        total = usage.get("totalTokens") or usage.get("total_tokens")
-        if total is not None:
-            return int(total)
-        inp = usage.get("inputTokens") or usage.get("input_tokens") or 0
-        out = usage.get("outputTokens") or usage.get("output_tokens") or 0
-        if inp + out > 0:
-            return inp + out
-    content = msg.get("content", "")
-    tokens = estimate_tokens(content)
+
+    return estimate_tokens(_message_countable_text(msg, json_module=json))
+
+
+def _should_schedule_background_summary(
+    conv_data: dict | None,
+    *,
+    new_messages: list[dict] | None = None,
+    assistant_message: dict | None = None,
+    pressure_budget_tokens: int | None = None,
+) -> bool:
+    """Cheaply decide whether to launch exact background summarization.
+
+    The exact summarizer still owns correctness. This gate avoids scheduling it
+    after every turn when the unsummarized tail is nowhere near pressure.
+    """
+    return _get_background_summary_pressure(
+        conv_data,
+        new_messages=new_messages,
+        assistant_message=assistant_message,
+        pressure_budget_tokens=pressure_budget_tokens,
+    )["should_schedule"]
+
+
+def _get_background_summary_pressure(
+    conv_data: dict | None,
+    *,
+    new_messages: list[dict] | None = None,
+    assistant_message: dict | None = None,
+    pressure_budget_tokens: int | None = None,
+) -> dict:
+    """Return cheap unsummarized-tail pressure used by summary scheduling."""
+    messages = list((conv_data or {}).get("messages", []) or [])
+    messages.extend(new_messages or [])
+    if assistant_message:
+        messages.append(assistant_message)
+
+    start_idx = int((conv_data or {}).get("last_summarized_idx", 0) or 0)
+    unsummarized_tail = messages[start_idx:]
+    if not unsummarized_tail:
+        return {
+            "should_schedule": False,
+            "tail_tokens": 0,
+            "pressure_budget": pressure_budget_tokens or 12000,
+            "threshold_tokens": int(float(pressure_budget_tokens or 12000) * 0.90),
+            "complete_turn_count": 0,
+            "start_idx": start_idx,
+        }
+
+    turns = _group_messages_into_turns(unsummarized_tail)
+    complete_turn_count = sum(
+        1 for turn in turns if _turn_is_complete(turn, unsummarized_tail)
+    )
+
+    pressure_budget = pressure_budget_tokens
+    if assistant_message and isinstance(assistant_message.get("usage"), dict):
+        usage = assistant_message["usage"]
+        pressure_budget = pressure_budget or (
+            usage.get("pressureTriggerTokens")
+            or usage.get("activeContextBudget")
+            or usage.get("availableInputPayloadTokens")
+        )
+
+    if pressure_budget is None:
+        pressure_budget = 12000
+
+    cheap_tail_tokens = sum(_get_message_tokens_cheap(msg) for msg in unsummarized_tail)
+    threshold_tokens = int(float(pressure_budget) * 0.90)
+    should_schedule = (
+        complete_turn_count > 0
+        and cheap_tail_tokens >= threshold_tokens
+    )
+    return {
+        "should_schedule": should_schedule,
+        "tail_tokens": cheap_tail_tokens,
+        "pressure_budget": int(pressure_budget),
+        "threshold_tokens": threshold_tokens,
+        "complete_turn_count": complete_turn_count,
+        "start_idx": start_idx,
+    }
+
+
+def _get_message_tokens(msg: dict, *, model_id: str | None = None) -> int:
+    """Get message token size, using provider token counting when possible."""
+    from app.core.token_budget import count_text_tokens_with_fallback, estimate_tokens
+    import json
+
+    countable_text = _message_countable_text(msg, json_module=json)
+    if model_id:
+        try:
+            return count_text_tokens_with_fallback(model_id, countable_text)["tokens"]
+        except Exception:
+            # Preserve non-runtime helper resilience for odd test doubles.
+            pass
+    return estimate_tokens(countable_text)
+
+
+def _message_countable_text(msg: dict, *, json_module) -> str:
+    """Return persisted message content that contributes to future context size.
+
+    Do not use provider usage totals here: those are per-request billing/context
+    metrics and include system prompt, tool schemas, memory, and prior history.
+    Counting them as a single Firestore message size causes premature summaries.
+    """
+    parts = [str(msg.get("content") or "")]
+    tool_trace_summary = msg.get("tool_trace_summary")
+    if tool_trace_summary:
+        parts.append(str(tool_trace_summary))
     timeline = msg.get("timeline", [])
     if timeline:
-        tokens += estimate_tokens(json.dumps(timeline))
-    return tokens
+        parts.append(json_module.dumps(timeline, default=str))
+    return "\n".join(part for part in parts if part)
 
 def _turn_is_complete(turn: list[int], messages: list) -> bool:
     has_user = any(str(messages[idx].get("sender", "")).lower() == "user" for idx in turn)

@@ -14,11 +14,11 @@ Reference: https://docs.langchain.com/oss/python/langgraph/persistence
 from __future__ import annotations
 
 import logging
-import os
 import json
 import asyncio
 from typing import TYPE_CHECKING, Optional, AsyncIterator, Any, Dict, List, Tuple, Union, cast
 
+from app.core.config import get_config
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.base import (
     BaseCheckpointSaver,
@@ -738,7 +738,7 @@ def get_checkpointer() -> BaseCheckpointSaver:
     if _checkpointer is not None:
         return _checkpointer
 
-    env = os.getenv("APP_ENV", "development").lower()
+    env = get_config().APP_ENV.lower()
     if env in ("production", "staging"):
         raise RuntimeError(
             "Checkpointer not initialized: ensure FastAPI lifespan calls "
@@ -751,4 +751,3 @@ def get_checkpointer() -> BaseCheckpointSaver:
     )
     _checkpointer = InMemorySaver()
     return _checkpointer
-

@@ -1,11 +1,11 @@
 from .llm_rate_limiter import (
-    MultiKeyRateLimiter,
+    SingleKeyRateLimiter,
     ProviderRateLimiter,
     create_rate_limiter,
 )
 
 __all__ = [
-    "MultiKeyRateLimiter",
+    "SingleKeyRateLimiter",
     "ProviderRateLimiter",
     "create_rate_limiter",
 ]

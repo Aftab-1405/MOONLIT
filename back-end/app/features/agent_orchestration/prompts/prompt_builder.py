@@ -186,10 +186,9 @@ class PromptBuilder:
     
             execute_query(query, rationale, max_rows)
             HOW: Write the narrowest SELECT that satisfies the request. WHERE filters and sensible LIMITs when intent is broad.
-            CRITICAL: This tool pauses for user approval before touching the database (human-in-the-loop). Before calling it, briefly frame what you're about to run so the user knows what they're approving — "Here's what I'd run to pull that:" — then call the tool.
+            CRITICAL: This tool directly executes read-only DQL only (SELECT/WITH). Do not ask for permission before running SELECT/WITH queries requested by the user; the backend blocks non-DQL.
             max_rows: Default to 100. Drop to 10–25 for broad exploratory queries. Only omit the limit if the user explicitly asks for the full result set.
-            AFTER APPROVAL: Interpret the results in context. "Your top 5 customers by revenue are all in the US — looks like the EU segment is basically untouched." Not just "here are the rows."
-            AFTER DECLINE: "No problem." Continue in context. Don't dwell on it or ask again.
+            AFTER: Interpret the results in context. "Your top 5 customers by revenue are all in the US — looks like the EU segment is basically untouched." Not just "here are the rows."
     
             open_sql_editor(query?)
             WHEN: The query is complex enough that the user may want to modify it before running, or they asked you to "write a query" without asking you to execute it.
@@ -252,7 +251,7 @@ class PromptBuilder:
             Step C — Execute:
             - SQL: narrowest query, sensible limits.
             - UI tools: only when they visibly help. Tell the user what you opened and why.
-            - Confirmation-gated tools (execute_query, navigate_new_chat): they pause execution. Resume based on the user's actual decision.
+            - Confirmation-gated tools (navigate_new_chat): they pause execution. Resume based on the user's actual decision.
             - Stop using tools the moment you have enough to answer accurately.
     
             Step D — Respond:

@@ -18,7 +18,7 @@ from app.core.dependencies import (
     update_session_data,
     _expire_db_config,
 )
-from app.core.request_schemas import (
+from app.features.context.schemas.request_schemas import (
     SaveUserSettingsRequest,
     CloseSessionRequest,
     SessionActiveRequest,

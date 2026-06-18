@@ -79,6 +79,27 @@ function upsertAssistantMessage(prevMessages, assistantId, messageData, status) 
   return updated;
 }
 
+export function mergeBaseTimelineWithText(baseText = '', baseTimeline = []) {
+  const normalizedBaseTimeline = Array.isArray(baseTimeline) ? baseTimeline : [];
+  const hasBaseText = String(baseText || '').trim().length > 0;
+  const timelineHasText = normalizedBaseTimeline.some(
+    (item) => item?.type === 'text' && String(item.content || '').trim().length > 0,
+  );
+
+  if (!hasBaseText || timelineHasText) {
+    return normalizedBaseTimeline;
+  }
+
+  return [
+    {
+      type: 'text',
+      id: 'base-text',
+      content: baseText,
+    },
+    ...normalizedBaseTimeline,
+  ];
+}
+
 export function useMessageStreaming({
   currentConversationId,
   setCurrentConversationId,
@@ -90,6 +111,7 @@ export function useMessageStreaming({
   settings,
   dispatchUiAction = () => {},
   onAgentInterrupt = () => {},
+  onAgentStepLimitReached = () => {},
   getMessages = () => [],
 }) {
   const abortControllerRef = useRef(null);
@@ -130,6 +152,8 @@ export function useMessageStreaming({
     // True when an interrupt arrived but no assistant content was produced at
     // all — in that case we remove the placeholder message entirely.
     let interruptedWithoutAssistantContent = false;
+    // True when the agent hit its step budget and the task was paused.
+    let hasStepLimitReached = false;
     let lastUsageMetrics = null;
 
     const buildMessageData = (isDone = false) => {
@@ -137,7 +161,7 @@ export function useMessageStreaming({
 
       const baseText = baseMessageData?.text || '';
       const baseSteps = Array.isArray(baseMessageData?.steps) ? baseMessageData.steps : [];
-      const baseTimeline = Array.isArray(baseMessageData?.timeline) ? baseMessageData.timeline : [];
+      const baseTimeline = mergeBaseTimelineWithText(baseText, baseMessageData?.timeline);
       const normalizedTimeline = eventTimeline.map((item) => (
         item.type === 'thinking'
           ? { ...item, isComplete: isDone || item.isComplete }
@@ -240,11 +264,37 @@ export function useMessageStreaming({
           scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
           break;
 
+        case 'workflow_status': {
+          const stepId = `workflow-${event.stage || 'status'}`;
+          const existing = eventTimeline.find((item) => item.id === stepId);
+          const content = event.content || 'Preparing context...';
+          if (existing) {
+            existing.content = content;
+            existing.isComplete = event.status === 'done';
+          } else {
+            eventTimeline.push({
+              type: 'thinking',
+              id: stepId,
+              content,
+              isComplete: event.status === 'done',
+            });
+          }
+          scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
+          break;
+        }
+
         case 'agent_interrupt':
           hasAgentInterrupt = true;
           interruptedWithoutAssistantContent = true;
           onAgentInterrupt(event, assistantMessageId);
           scheduleStreamUpdate(MESSAGE_STATUS.WAITING);
+          break;
+
+        case 'agent_step_limit_reached':
+          // The agent hit its step budget. Surface a "Continue" control.
+          hasStepLimitReached = true;
+          onAgentStepLimitReached(event, assistantMessageId);
+          scheduleStreamUpdate(MESSAGE_STATUS.PAUSED);
           break;
 
         case 'error':
@@ -259,6 +309,22 @@ export function useMessageStreaming({
             totalTokens: event.totalTokens,
             activeContextBudget: event.activeContextBudget,
             totalContextWindow: event.totalContextWindow,
+            inputPayloadTokens: event.inputPayloadTokens,
+            availableInputPayloadTokens: event.availableInputPayloadTokens,
+            pressureTriggerTokens: event.pressureTriggerTokens,
+            modelContextWindow: event.modelContextWindow,
+            reservedOutputTokens: event.reservedOutputTokens,
+            safetyMarginTokens: event.safetyMarginTokens,
+            systemPromptTokens: event.systemPromptTokens,
+            toolSchemaTokens: event.toolSchemaTokens,
+            vampMemoryTokens: event.vampMemoryTokens,
+            taskCheckpointTokens: event.taskCheckpointTokens,
+            hotHistoryBudget: event.hotHistoryBudget,
+            tokenCountingMode: event.tokenCountingMode,
+            tokenCountingReason: event.tokenCountingReason,
+            contextPhase: event.contextPhase,
+            summaryThresholdTokens: event.summaryThresholdTokens,
+            summaryCompleteTurns: event.summaryCompleteTurns,
           };
           dispatchUiAction({ action: 'usage_metrics', payload: event });
           scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
@@ -296,7 +362,12 @@ export function useMessageStreaming({
       );
     } else {
       setMessages((prev) =>
-        upsertAssistantMessage(prev, assistantMessageId, buildMessageData(true), MESSAGE_STATUS.DONE)
+        upsertAssistantMessage(
+          prev,
+          assistantMessageId,
+          buildMessageData(true),
+          hasStepLimitReached ? MESSAGE_STATUS.PAUSED : MESSAGE_STATUS.DONE,
+        )
       );
     }
     fetchConversations(undefined, { showLoading: false, force: true });
@@ -306,6 +377,7 @@ export function useMessageStreaming({
     fetchConversations,
     navigate,
     onAgentInterrupt,
+    onAgentStepLimitReached,
     registerStreamingConversation,
     setConversations,
     setCurrentConversationId,
@@ -339,6 +411,7 @@ export function useMessageStreaming({
     abortControllerRef.current = new AbortController();
 
     try {
+      const taskMode = overrides?.taskMode ?? settings.taskMode ?? 'normal';
       const response = await sendMessage({
         prompt,
         conversationId: currentConversationId,
@@ -348,6 +421,7 @@ export function useMessageStreaming({
         maxRows,
         provider,
         model,
+        taskMode,
       }, abortControllerRef.current.signal);
 
       await streamAssistantResponse({
@@ -440,6 +514,7 @@ export function useMessageStreaming({
     abortControllerRef.current = new AbortController();
 
     try {
+      const taskMode = overrides?.taskMode ?? settings.taskMode ?? 'normal';
       const response = await resumeAgent({
         conversationId: currentConversationId,
         resume: resumePayload,
@@ -449,6 +524,7 @@ export function useMessageStreaming({
         maxRows,
         provider,
         model,
+        taskMode,
       }, abortControllerRef.current.signal);
 
       await streamAssistantResponse({
@@ -484,9 +560,30 @@ export function useMessageStreaming({
     }
   }, []);
 
+  /**
+   * Continue a task that was paused due to the agent step limit.
+   * Sends a continue_task resume payload to the backend which injects a
+   * HumanMessage into the existing thread without clearing checkpoint state.
+   */
+  const handleContinueTask = useCallback(async (stepLimitEvent, assistantMessageId = null, overrides = null) => {
+    if (!currentConversationId) return;
+
+    const continuePayload = {
+      continue_task: true,
+      message: 'Continue the task from where you left off.',
+    };
+
+    await handleResumeAgent(continuePayload, {
+      ...overrides,
+      assistantMessageId,
+      taskMode: stepLimitEvent?.task_mode || 'long_task',
+    });
+  }, [currentConversationId, handleResumeAgent]);
+
   return {
     handleSendMessage,
     handleResumeAgent,
     handleStopStreaming,
+    handleContinueTask,
   };
 }

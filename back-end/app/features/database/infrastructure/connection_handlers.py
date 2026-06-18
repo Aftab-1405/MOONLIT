@@ -15,10 +15,13 @@ import ipaddress
 import logging
 from typing import Dict
 
+from app.core.config import get_config
+
 logger = logging.getLogger(__name__)
+Config = get_config()
 
 # Loopback addresses that resolve to the server itself, not the user's machine.
-_LOOPBACK = frozenset({"localhost", "127.0.0.1", "::1", "0.0.0.0"})
+_LOOPBACK = frozenset(Config.BLOCKED_DB_HOSTS)
 
 
 # =============================================================================
@@ -139,7 +142,7 @@ def connect_mysql(
     db_config = {
         "db_type": "mysql",
         "host": host,
-        "port": int(port) if port else 3306,
+        "port": int(port) if port else Config.DEFAULT_MYSQL_PORT,
         "user": user,
         "password": password,
     }
@@ -199,7 +202,7 @@ def connect_postgresql(
     db_config = {
         "db_type": "postgresql",
         "host": host,
-        "port": int(port) if port else 5432,
+        "port": int(port) if port else Config.DEFAULT_POSTGRESQL_PORT,
         "user": user,
         "password": password,
     }
@@ -258,7 +261,7 @@ def connect_sqlserver(
     db_config = {
         "db_type": "sqlserver",
         "host": host,
-        "port": int(port) if port else 1433,
+        "port": int(port) if port else Config.DEFAULT_SQLSERVER_PORT,
         "user": user,
         "password": password,
     }
@@ -318,7 +321,7 @@ def connect_oracle(
     db_config = {
         "db_type": "oracle",
         "host": host,
-        "port": int(port) if port else 1521,
+        "port": int(port) if port else Config.DEFAULT_ORACLE_PORT,
         "user": user,
         "password": password,
         "service_name": service_name or "ORCL",

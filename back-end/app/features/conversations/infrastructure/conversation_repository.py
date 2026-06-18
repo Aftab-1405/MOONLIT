@@ -17,6 +17,12 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def _fast_firestore_retry():
+    from google.api_core.retry import Retry
+
+    return Retry(deadline=2.0)
+
+
 class ConversationRepository:
     """Data access layer for conversations in Firestore."""
 
@@ -33,14 +39,14 @@ class ConversationRepository:
         Returns:
             Conversation document as dict, or None if not exists
         """
-        from app.features.conversations.infrastructure.firestore_service import FirestoreService
+        from app.infrastructure.firestore.service import FirestoreService
 
         try:
             db = FirestoreService.get_db()
             doc = (
                 db.collection(ConversationRepository.COLLECTION_NAME)
                 .document(conversation_id)
-                .get()
+                .get(retry=_fast_firestore_retry(), timeout=2.0)
             )
             if doc.exists:
                 return doc.to_dict()
@@ -82,7 +88,7 @@ class ConversationRepository:
         Returns:
             List of conversation summaries (id, timestamp, title, preview)
         """
-        from app.features.conversations.infrastructure.firestore_service import FirestoreService
+        from app.infrastructure.firestore.service import FirestoreService
         from google.cloud.firestore_v1 import FieldFilter
 
         try:
@@ -133,7 +139,7 @@ class ConversationRepository:
             PermissionError: If the user doesn't own the conversation
             ValueError: If conversation is not found
         """
-        from app.features.conversations.infrastructure.firestore_service import FirestoreService
+        from app.infrastructure.firestore.service import FirestoreService
 
         try:
             db = FirestoreService.get_db()
@@ -197,7 +203,7 @@ class ConversationRepository:
             is_final_assistant_response: whether it is the final assistant response
             tool_trace_summary: optional tool execution summary
         """
-        from app.features.conversations.infrastructure.firestore_service import FirestoreService
+        from app.infrastructure.firestore.service import FirestoreService
         from firebase_admin import firestore
 
         try:
@@ -332,7 +338,7 @@ class ConversationRepository:
             PermissionError: If the user doesn't own the conversation
             ValueError: If conversation is not found
         """
-        from app.features.conversations.infrastructure.firestore_service import FirestoreService
+        from app.infrastructure.firestore.service import FirestoreService
 
         try:
             db = FirestoreService.get_db()
@@ -348,43 +354,7 @@ class ConversationRepository:
             if conv_data["user_id"] != user_id:
                 raise PermissionError("User does not own this conversation")
 
-            # 1. Delete Qdrant vector pointers (run async cleanup in a new thread to avoid event loop issues)
-            import threading
-            import asyncio
-            from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService
-            
-            pointer_err_wrapper = []
-            def _delete_pointers():
-                try:
-                    asyncio.run(VampMemoryService().delete_conversation_pointers(conversation_id, user_id))
-                except Exception as e:
-                    pointer_err_wrapper.append(e)
-                
-            try:
-                t = threading.Thread(target=_delete_pointers)
-                t.start()
-                t.join()
-                if pointer_err_wrapper:
-                    raise pointer_err_wrapper[0]
-            except Exception as pointer_err:
-                logger.warning("Failed to clean up Qdrant pointers during conversation delete: %s", pointer_err)
-                # Create a cleanup retry record in Firestore
-                try:
-                    db.collection("qdrant_conversation_cleanup").add({
-                        "type": "qdrant_conversation_cleanup",
-                        "conversation_id": conversation_id,
-                        "user_id": user_id,
-                        "status": "pending",
-                        "attempts": 0,
-                        "last_error": str(pointer_err),
-                        "created_at": datetime.now(),
-                        "updated_at": datetime.now()
-                    })
-                    logger.info("Created qdrant_conversation_cleanup retry record for conversation %s", conversation_id)
-                except Exception as db_err:
-                    logger.error("Failed to create qdrant_conversation_cleanup retry record: %s", db_err)
-
-            # 2. Delete Firestore summary blocks subcollection
+            # 1. Delete Firestore summary blocks subcollection
             try:
                 summary_blocks_ref = conversation_ref.collection("summary_blocks")
                 summary_docs = summary_blocks_ref.get()
@@ -394,7 +364,7 @@ class ConversationRepository:
             except Exception as blocks_err:
                 logger.warning("Failed to clean up Firestore summary blocks: %s", blocks_err)
 
-            # 3. Delete the conversation document itself
+            # 2. Delete the conversation document itself
             conversation_ref.delete()
             logger.info(f"Conversation {conversation_id} deleted successfully")
             return True
@@ -405,15 +375,46 @@ class ConversationRepository:
             raise
 
     @staticmethod
-    def retry_qdrant_cleanups() -> int:
+    def create_memory_cleanup_retry(
+        conversation_id: str, user_id: str, cleanup_error: Exception
+    ) -> None:
+        """Create a Firestore retry record for failed external memory cleanup."""
+        from app.infrastructure.firestore.service import FirestoreService
+
+        try:
+            db = FirestoreService.get_db()
+            db.collection("qdrant_conversation_cleanup").add(
+                {
+                    "type": "qdrant_conversation_cleanup",
+                    "conversation_id": conversation_id,
+                    "user_id": user_id,
+                    "status": "pending",
+                    "attempts": 0,
+                    "last_error": str(cleanup_error),
+                    "created_at": datetime.now(),
+                    "updated_at": datetime.now(),
+                }
+            )
+            logger.info(
+                "Created qdrant_conversation_cleanup retry record for conversation %s",
+                conversation_id,
+            )
+        except Exception as db_err:
+            logger.error(
+                "Failed to create qdrant_conversation_cleanup retry record: %s",
+                db_err,
+            )
+
+    @staticmethod
+    def retry_qdrant_cleanups(memory_cleaner) -> int:
         """
         Scan Firestore for pending qdrant_conversation_cleanup records,
         attempt pointer deletion, and update/delete records accordingly.
         Returns the number of successfully cleaned up conversations.
         """
-        from app.features.conversations.infrastructure.firestore_service import FirestoreService
-        from app.features.vamp_memory.application.vamp_memory_service import VampMemoryService
+        from app.infrastructure.firestore.service import FirestoreService
         import asyncio
+        import threading
 
         db = FirestoreService.get_db()
         pending_docs = db.collection("qdrant_conversation_cleanup").where("status", "==", "pending").get()
@@ -430,13 +431,23 @@ class ConversationRepository:
                 continue
 
             try:
-                # Attempt to delete Qdrant pointers in a new thread to avoid event loop conflicts
-                import threading
+                cleanup_errors: list[BaseException] = []
+
                 def _delete():
-                    asyncio.run(VampMemoryService().delete_conversation_pointers(conversation_id, user_id))
-                t = threading.Thread(target=_delete)
-                t.start()
-                t.join()
+                    try:
+                        asyncio.run(
+                            memory_cleaner.delete_conversation_pointers(
+                                conversation_id, user_id
+                            )
+                        )
+                    except BaseException as exc:
+                        cleanup_errors.append(exc)
+
+                thread = threading.Thread(target=_delete)
+                thread.start()
+                thread.join()
+                if cleanup_errors:
+                    raise cleanup_errors[0]
                 doc.reference.delete()
                 success_count += 1
                 logger.info("Successfully retired cleanup for conversation %s on attempt %s", conversation_id, attempts + 1)

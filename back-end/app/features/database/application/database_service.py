@@ -140,9 +140,11 @@ class DatabaseService:
         # Update context
         if user_id:
             try:
-                from app.features.context.application.context_service import ContextService
+                from app.features.database.application.context_sync import (
+                    get_default_context_sync,
+                )
 
-                ContextService.update_schema(user_id, schema_name)
+                get_default_context_sync().update_schema(user_id, schema_name)
             except Exception as e:
                 logger.warning(f"Failed to update schema context: {e}")
 
@@ -259,9 +261,11 @@ class DatabaseService:
             # Clear Firestore context
             if user_id:
                 try:
-                    from app.features.context.application.context_service import ContextService
+                    from app.features.database.application.context_sync import (
+                        get_default_context_sync,
+                    )
 
-                    ContextService.clear_connection(user_id)
+                    get_default_context_sync().clear_connection(user_id)
                 except Exception as e:
                     logger.warning(f"Failed to clear context: {e}")
 
@@ -301,12 +305,16 @@ class DatabaseService:
         # Log query to context
         if user_id:
             try:
-                from app.features.context.application.context_service import ContextService
+                from app.features.database.application.context_sync import (
+                    get_default_context_sync,
+                )
 
                 db_name = db_config.get("database") if db_config else None
                 row_count = result.get("row_count", 0)
                 status = "success" if result["status"] == "success" else "error"
-                ContextService.add_query(user_id, sql_query, db_name, row_count, status)
+                get_default_context_sync().add_query(
+                    user_id, sql_query, db_name, row_count, status
+                )
             except Exception as e:
                 logger.warning(f"Failed to log query: {e}")
 
@@ -354,8 +362,12 @@ class DatabaseService:
     ):
         """Update user's connection context in Firestore."""
         try:
-            from app.features.context.application.context_service import ContextService
+            from app.features.database.application.context_sync import (
+                get_default_context_sync,
+            )
 
-            ContextService.set_connection(user_id, db_type, database, host, is_remote)
+            get_default_context_sync().set_connection(
+                user_id, db_type, database, host, is_remote
+            )
         except Exception as e:
             logger.warning(f"Failed to update context: {e}")

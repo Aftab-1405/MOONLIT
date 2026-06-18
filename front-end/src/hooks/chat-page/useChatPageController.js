@@ -105,6 +105,8 @@ export function useChatPageController() {
     title: '',
   });
   const resumeAgentRef = useRef(null);
+  const continueTaskRef = useRef(null);
+  const stepLimitEventRef = useRef(null);
   const messagesRef = useRef(messages);
 
   const llmSelection = useChatPageLlmSelection({ settings, updateSetting, updateSettings });
@@ -318,6 +320,34 @@ export function useChatPageController() {
     }
   }, [messages]);
 
+  const handleAgentStepLimitReached = useCallback((event, assistantMessageId = null) => {
+    stepLimitEventRef.current = event;
+    const stepsUsed = event?.steps_used ?? '?';
+    const taskMode = event?.task_mode || 'normal';
+    const message = event?.message
+      || `The agent paused after ${stepsUsed} steps to avoid runaway execution. The task context has been saved.`;
+
+    setGuidedConfirmDialog({
+      open: true,
+      title: '⏸ Task Paused',
+      message,
+      confirmText: 'Continue Task',
+      cancelText: 'Stop Here',
+      onCancel: () => {
+        stepLimitEventRef.current = null;
+      },
+      onConfirm: () => {
+        const storedEvent = stepLimitEventRef.current;
+        stepLimitEventRef.current = null;
+        continueTaskRef.current?.(storedEvent, assistantMessageId, {
+          provider: selectedProvider || null,
+          model: selectedModel || null,
+          taskMode,
+        });
+      },
+    });
+  }, [selectedModel, selectedProvider]);
+
   const handleAgentInterrupt = useCallback((event, assistantMessageId = null) => {
     const payload = event?.payload || {};
     const action = payload.action || payload.sourceTool;
@@ -353,6 +383,7 @@ export function useChatPageController() {
     handleSendMessage,
     handleResumeAgent,
     handleStopStreaming,
+    handleContinueTask,
   } = useMessageStreaming({
     currentConversationId,
     setCurrentConversationId,
@@ -364,11 +395,13 @@ export function useChatPageController() {
     settings,
     dispatchUiAction,
     onAgentInterrupt: handleAgentInterrupt,
+    onAgentStepLimitReached: handleAgentStepLimitReached,
     getMessages: () => messagesRef.current,
   });
   useEffect(() => {
     resumeAgentRef.current = handleResumeAgent;
-  }, [handleResumeAgent]);
+    continueTaskRef.current = handleContinueTask;
+  }, [handleResumeAgent, handleContinueTask]);
 
   useChatPageSessionLifecycle({
     isDbConnected,

@@ -4,20 +4,21 @@ Model factory — provider-agnostic ChatModel instantiation.
 Now explicitly uses AWS Bedrock via ChatBedrockConverse for robust tool calling.
 """
 
-import os
 import logging
 from functools import lru_cache
 from typing import Optional
 
 from langchain_core.language_models.chat_models import BaseChatModel
 
+from app.core.config import get_config
+
 logger = logging.getLogger(__name__)
 
 def get_default_model(provider: str) -> str:
     """Return the configured default model for *provider*."""
+    config = get_config()
     provider = provider.strip().lower()
-    env_key = f"{provider.upper()}_MODEL"
-    return os.getenv(env_key, "")
+    return getattr(config, f"{provider.upper()}_MODEL", "")
 
 def get_chat_model(
     provider: str,
@@ -62,21 +63,23 @@ def get_supported_providers() -> tuple[str, ...]:
 
 def get_provider_models(provider: str) -> list[str]:
     """Return the comma-separated model list from env, or the single default."""
+    config = get_config()
     provider = provider.strip().lower()
-    env_key = f"{provider.upper()}_MODELS"
-    raw = os.getenv(env_key, "")
-    if raw.strip():
-        return [m.strip() for m in raw.split(",") if m.strip()]
+    models = getattr(config, f"{provider.upper()}_MODELS", [])
+    if models:
+        return list(models)
     default = get_default_model(provider)
     return [default] if default else []
 
-def get_provider_api_keys(provider: str) -> list[str]:
+def get_provider_api_key(provider: str) -> str | None:
     """
-    Return API keys configured for *provider*.
+    Return the API key configured for *provider*.
     For Bedrock, this returns a dummy key if AWS_ACCESS_KEY_ID is set
-    so that rate limiting and key-check logic doesn't break.
+    so that rate limiting and credentials-check logic doesn't break.
     """
+    config = get_config()
     if provider.strip().lower() == "bedrock":
-        if os.getenv("AWS_ACCESS_KEY_ID"):
-            return ["aws_credentials_present"]
-    return []
+        if config.AWS_ACCESS_KEY_ID:
+            return "aws_credentials_present"
+    return None
+

@@ -8,16 +8,17 @@ from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
 
-from app.core.config import Config
+from app.core.config import get_config
+Config = get_config()
 from app.core.dependencies import get_current_user, get_db_config
 from app.features.conversations.application.conversation_service import ConversationService
 from app.llm.providers.model_factory import (
     get_supported_providers,
     get_provider_models,
     get_default_model,
-    get_provider_api_keys,
+    get_provider_api_key,
 )
-from app.core.request_schemas import (
+from app.features.conversations.schemas.request_schemas import (
     AgentResumeRequest,
     ChatRequest,
     RenameConversationRequest,
@@ -43,7 +44,7 @@ def _build_provider_options() -> tuple[list[dict], str]:
                 "label": provider_name.capitalize(),
                 "models": models,
                 "default_model": models[0] if models else None,
-                "has_api_key": bool(get_provider_api_keys(provider_name)),
+                "has_api_key": bool(get_provider_api_key(provider_name)),
             }
         )
 

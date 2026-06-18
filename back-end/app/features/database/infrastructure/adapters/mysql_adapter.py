@@ -10,7 +10,8 @@ from typing import Any, Dict, Optional
 from contextlib import contextmanager
 import logging
 from .base_adapter import BaseDatabaseAdapter
-from app.core.config import Config
+from app.core.config import get_config
+Config = get_config()
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
 
     @property
     def default_port(self) -> Optional[int]:
-        return 3306
+        return Config.DEFAULT_MYSQL_PORT
 
     @property
     def requires_server(self) -> bool:
@@ -52,7 +53,9 @@ class MySQLAdapter(BaseDatabaseAdapter):
                 pool_config["pool_name"] = f"mysql_remote_pool_{id(config)}"
             else:
                 pool_config["pool_name"] = f"mysql_pool_{id(config)}"
-                pool_config["pool_size"] = min(Config.MAX_WORKERS * 2, 32)
+                pool_config["pool_size"] = min(
+                    Config.MAX_WORKERS * 2, Config.DEFAULT_DB_POOL_MAX_CONNECTIONS
+                )
 
             pool = pooling.MySQLConnectionPool(**pool_config)
 

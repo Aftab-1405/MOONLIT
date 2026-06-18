@@ -10,7 +10,8 @@ import logging
 import time
 from typing import Dict, List, Tuple, Optional
 import threading
-from app.core.config import Config
+from app.core.config import get_config
+Config = get_config()
 
 logger = logging.getLogger(__name__)
 

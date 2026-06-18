@@ -7,7 +7,8 @@ Implements database operations for PostgreSQL using psycopg2.
 import logging
 from typing import Any, Dict, Optional
 from contextlib import contextmanager
-from app.core.config import Config
+from app.core.config import get_config
+Config = get_config()
 from .base_adapter import BaseDatabaseAdapter
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
 
     @property
     def default_port(self) -> Optional[int]:
-        return 5432
+        return Config.DEFAULT_POSTGRESQL_PORT
 
     @property
     def requires_server(self) -> bool:
@@ -75,10 +76,10 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                 db_name = db_match.group(1) if db_match else "unknown"
 
                 connection_pool = pool.ThreadedConnectionPool(
-                    minconn=1,
-                    maxconn=min(Config.MAX_WORKERS * 2, 32),
+                    minconn=Config.DEFAULT_DB_POOL_MIN_CONNECTIONS,
+                    maxconn=min(Config.MAX_WORKERS * 2, Config.DEFAULT_DB_POOL_MAX_CONNECTIONS),
                     dsn=connection_string,
-                    connect_timeout=5,
+                    connect_timeout=Config.DB_CONNECT_TIMEOUT_SECONDS,
                 )
                 logger.info(
                     f"Created PostgreSQL connection pool using connection string for database: {db_name}"
@@ -88,12 +89,12 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                 # Use individual parameters for local connections
                 pool_config = {
                     "host": config["host"],
-                    "port": config.get("port", 5432),
+                    "port": config.get("port", Config.DEFAULT_POSTGRESQL_PORT),
                     "user": config["user"],
                     "password": config["password"],
-                    "minconn": 1,
-                    "maxconn": min(Config.MAX_WORKERS * 2, 32),
-                    "connect_timeout": 5,  # Important for preventing DoS
+                    "minconn": Config.DEFAULT_DB_POOL_MIN_CONNECTIONS,
+                    "maxconn": min(Config.MAX_WORKERS * 2, Config.DEFAULT_DB_POOL_MAX_CONNECTIONS),
+                    "connect_timeout": Config.DB_CONNECT_TIMEOUT_SECONDS,
                 }
 
                 # Add SSL mode if specified (for remote DBs)
@@ -105,7 +106,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                     pool_config["database"] = config["database"]
                 else:
                     # Connect to default 'postgres' database if none specified
-                    pool_config["database"] = "postgres"
+                    pool_config["database"] = Config.DEFAULT_POSTGRESQL_DATABASE
 
                 connection_pool = pool.ThreadedConnectionPool(**pool_config)
                 logger.info(

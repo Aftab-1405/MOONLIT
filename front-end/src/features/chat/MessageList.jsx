@@ -4,6 +4,7 @@ import Fade from '@mui/material/Fade';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import PauseCircleOutlineRoundedIcon from '@mui/icons-material/PauseCircleOutlineRounded';
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from 'react';
 import { StepsAccordion } from '@/features/chat/ai-response-steps';
 import MarkdownRenderer from '@/features/chat/MarkdownRenderer';
@@ -241,6 +242,7 @@ const AIMessage = memo(function AIMessage({
 
   const isStreaming = status === MESSAGE_STATUS.STREAMING;
   const isWaiting = status === MESSAGE_STATUS.WAITING;
+  const isPaused = status === MESSAGE_STATUS.PAUSED;
 
   const wasStreamingOrWaitingRef = useRef(false);
   useEffect(() => {
@@ -469,6 +471,43 @@ const AIMessage = memo(function AIMessage({
             </Box>
           )}
         </Box>
+
+        {isPaused && (
+          <Box
+            role="status"
+            aria-label="Task paused"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              mt: 1.5,
+              ml: 1,
+              py: 0.9,
+              px: 1.5,
+              borderRadius: '8px',
+              bgcolor: (th) =>
+                alpha(th.palette.warning.main, th.palette.mode === 'dark' ? 0.1 : 0.06),
+              border: '1px solid',
+              borderColor: (th) =>
+                alpha(th.palette.warning.main, th.palette.mode === 'dark' ? 0.28 : 0.22),
+              maxWidth: 'max-content',
+            }}
+          >
+            <PauseCircleOutlineRoundedIcon
+              sx={{ fontSize: 16, color: 'warning.main', flexShrink: 0 }}
+            />
+            <Typography
+              variant="caption"
+              sx={{
+                color: 'warning.main',
+                fontWeight: 600,
+                letterSpacing: 0.1,
+              }}
+            >
+              Task paused · step budget reached. A &quot;Continue Task&quot; dialog should have appeared.
+            </Typography>
+          </Box>
+        )}
 
         <Box
           className="msg-actions-row"

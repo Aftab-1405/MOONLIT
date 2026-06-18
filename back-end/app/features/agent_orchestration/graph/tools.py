@@ -54,7 +54,8 @@ def _effective_max_rows(user_max_rows):
     """Return user's max_rows setting, or the server-configured cap if unset."""
     if user_max_rows is not None:
         return user_max_rows
-    from app.core.config import Config
+    from app.core.config import get_config
+    Config = get_config()
 
     return Config.MAX_QUERY_RESULTS
 
@@ -199,7 +200,8 @@ def _execute_tool(
         if user_max_rows is not None:
             display_args["max_rows"] = user_max_rows
         else:
-            from app.core.config import Config
+            from app.core.config import get_config
+            Config = get_config()
 
             display_args["max_rows"] = (
                 f"No Limit (server max: {Config.MAX_QUERY_RESULTS})"
@@ -282,7 +284,7 @@ def execute_query(
     *,
     config: RunnableConfig,
 ) -> str:
-    """Ask the user to approve a SQL SELECT query, then execute it only after approval. Only SELECT queries are allowed for safety."""
+    """Execute a read-only SQL query. Only SELECT/WITH queries are allowed for safety."""
     tool_name = "execute_query"
     raw_args = {"query": query, "rationale": rationale, "max_rows": max_rows}
     
@@ -290,28 +292,6 @@ def execute_query(
         validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
     except ValueError as e:
         return f"Tool Argument Validation Error: {str(e)}. Please correct your arguments and try again."
-    decision = interrupt(
-        _guided_interrupt_payload(
-            tool_name,
-            {"query": validated["query"]},
-            title="Run this query?",
-            message="Review the query before running it.",
-            confirm_text="Run Query",
-            intent="confirm",
-        )
-    )
-
-    if not _is_user_approved(decision):
-        writer = _try_writer()
-        result = {
-            "success": True,
-            "action": tool_name,
-            "approved": False,
-            "requiresConfirmation": True,
-        }
-        writer({"type": "tool_start", "name": tool_name, "args": validated})
-        writer({"type": "tool_end", "name": tool_name, "args": validated, "result": result})
-        return "The user declined the SQL query. Do not run it; continue without executing SQL."
 
     return _execute_tool(
         tool_name,
@@ -573,10 +553,10 @@ def get_query_history(rationale: str, *, config: RunnableConfig) -> str:
     writer({"type": "tool_start", "name": "get_query_history", "args": {"rationale": rationale}})
     
     uid = config["configurable"]["user_id"]
-    from app.features.context.application.context_service import ContextService
+    from app.features.database.application.context_sync import get_default_context_sync
     import json
     
-    queries = ContextService.get_full_context(uid).get("recent_queries", [])
+    queries = get_default_context_sync().get_recent_queries(uid)
     if not queries:
         return "No recent queries found in long-term memory."
         
