@@ -224,7 +224,6 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
   isConversationLoading,
   conversationLoadState,
   handleRunQuery,
-  handleOpenSqlEditor,
   handleOpenCanvasArtifact,
   guidedConfirmDialog,
   handleGuidedCancel,
@@ -296,7 +295,6 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
               isLoadingConversation={isConversationLoading}
               loadError={conversationLoadState === 'error'}
               onRunQuery={handleRunQuery}
-              onOpenSqlEditor={handleOpenSqlEditor}
               onOpenCanvasArtifact={handleOpenCanvasArtifact}
             />
           </Box>
@@ -400,7 +398,6 @@ function MainInterface() {
     isConversationLoading,
     conversationLoadState,
     handleRunQuery,
-    handleOpenSqlEditor,
     handleOpenCanvasArtifact,
     chatInputSharedProps,
     workspaceCanvasOpen,
@@ -559,7 +556,6 @@ function MainInterface() {
             isConversationLoading={isConversationLoading}
             conversationLoadState={conversationLoadState}
             handleRunQuery={handleRunQuery}
-            handleOpenSqlEditor={handleOpenSqlEditor}
             handleOpenCanvasArtifact={handleOpenCanvasArtifact}
             guidedConfirmDialog={guidedConfirmDialog}
             handleGuidedCancel={handleGuidedCancel}

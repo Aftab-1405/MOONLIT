@@ -229,7 +229,6 @@ const AIMessage = memo(function AIMessage({
   timeline,
   status,
   onRunQuery,
-  onOpenSqlEditor,
   onOpenCanvasArtifact,
 }) {
   const { copied, copyRich } = useCopyToClipboard();
@@ -269,7 +268,10 @@ const AIMessage = memo(function AIMessage({
   }, []);
 
   useEffect(() => {
-    if (!onOpenSqlEditor || isWaiting || isStreaming) return;
+    if (!onOpenCanvasArtifact || isWaiting || isStreaming) return;
+
+    // Only auto-trigger the results loader if the message was actively streamed/generated in this session
+    if (!wasStreamingOrWaitingRef.current) return;
 
     displaySteps.forEach((step, idx) => {
       if (step.type !== 'tool' || step.name !== 'execute_query' || step.status !== 'done') return;
@@ -296,10 +298,18 @@ const AIMessage = memo(function AIMessage({
 
       if (sqlEditorTimeoutRef.current) clearTimeout(sqlEditorTimeoutRef.current);
       sqlEditorTimeoutRef.current = setTimeout(() => {
-        onOpenSqlEditor(query, normalizedResults);
+        onOpenCanvasArtifact({
+          type: 'results',
+          title: 'Query results',
+          props: {
+            data: normalizedResults,
+            sourceQuery: query,
+            sourceType: 'sql-editor',
+          },
+        });
       }, 100);
     });
-  }, [displaySteps, id, isStreaming, isWaiting, onOpenSqlEditor]);
+  }, [displaySteps, id, isStreaming, isWaiting, onOpenCanvasArtifact]);
 
   useEffect(() => {
     if (!onOpenCanvasArtifact || isWaiting || isStreaming) return;
@@ -599,7 +609,6 @@ const MessageList = memo(function MessageList({
   isLoadingConversation = false,
   loadError = false,
   onRunQuery,
-  onOpenSqlEditor,
   onOpenCanvasArtifact,
 }) {
   const [visibleCount, setVisibleCount] = useState(60);
@@ -689,7 +698,6 @@ const MessageList = memo(function MessageList({
                 timeline={message.timeline}
                 status={message.status}
                 onRunQuery={onRunQuery}
-                onOpenSqlEditor={onOpenSqlEditor}
                 onOpenCanvasArtifact={onOpenCanvasArtifact}
               />
             )
