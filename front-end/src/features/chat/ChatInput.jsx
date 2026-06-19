@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, memo } from 'react';
+import { useState, useCallback, useMemo, memo } from "react";
 import {
   Box,
   TextField,
@@ -6,47 +6,41 @@ import {
   Button,
   Tooltip,
   Typography,
-  Chip,
-  Switch,
   Skeleton,
   useMediaQuery,
-} from '@mui/material';
-import { alpha, useTheme, keyframes } from '@mui/material/styles';
-import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import StopRoundedIcon from '@mui/icons-material/StopRounded';
+} from "@mui/material";
+import { alpha, keyframes, useTheme } from "@mui/material/styles";
+import SendRoundedIcon from "@mui/icons-material/SendRounded";
+import StopRoundedIcon from "@mui/icons-material/StopRounded";
 
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
-import { AppPopover } from '@/components';
-import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
-import DatabaseIcon from '@/components/icons/DatabaseIcon';
-import SchemaIcon from '@/components/icons/SchemaIcon';
-import { useDatabaseConnection } from '@/contexts/DatabaseContext';
-import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
-import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
-import logger from '@/utils/logger';
+import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
+import { AppPopover } from "@/components";
+import CodeEditorIcon from "@/components/icons/CodeEditorIcon";
+import DatabaseIcon from "@/components/icons/DatabaseIcon";
+import SchemaIcon from "@/components/icons/SchemaIcon";
+import { useDatabaseConnection } from "@/contexts/DatabaseContext";
+import { HOVER_CAPABLE_QUERY } from "@/styles/mediaQueries";
+import logger from "@/utils/logger";
 import {
   getComposerHoverShadow,
   getComposerSurfaceSx,
-} from '@/features/styles/interfaceChrome';
+} from "@/features/styles/interfaceChrome";
 import {
   getInteractionColors,
   getPopoverSectionLabelSx,
   getSelectableMenuItemSx,
   UI_LAYOUT,
-} from '@/styles/shared';
+} from "@/styles/shared";
 
-
-const blurReveal = keyframes`
-  0% {
+const softReveal = keyframes`
+  from {
     opacity: 0;
-    filter: blur(12px);
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(4px);
   }
-  100% {
+  to {
     opacity: 1;
-    filter: blur(0px);
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 `;
 
@@ -74,10 +68,10 @@ const ContextProgressRing = ({ total, budget, theme }) => {
       height={size}
       viewBox={`0 0 ${size} ${size}`}
       sx={{
-        transform: 'rotate(-90deg)',
-        transformOrigin: 'center',
+        transform: "rotate(-90deg)",
+        transformOrigin: "center",
         flexShrink: 0,
-        display: 'block',
+        display: "block",
       }}
     >
       <circle
@@ -99,7 +93,7 @@ const ContextProgressRing = ({ total, budget, theme }) => {
         strokeDashoffset={strokeDashoffset}
         strokeLinecap="round"
         style={{
-          transition: 'stroke-dashoffset 0.35s ease-in-out',
+          transition: "stroke-dashoffset 0.35s ease-in-out",
         }}
       />
     </Box>
@@ -117,19 +111,18 @@ function ChatInput({
   availableDatabases = [],
   onDatabaseSwitch,
   onOpenSqlEditor,
-  selectedProvider = '',
-  selectedModel = '',
+  selectedProvider = "",
+  selectedModel = "",
   providerOptions = [],
   llmOptionsLoading = false,
   onSelectLlm,
   usageMetrics = null,
   children,
 }) {
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const theme = useTheme();
-  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  useAppTheme();
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [schemaAnchor, setSchemaAnchor] = useState(null);
   const [dbAnchor, setDbAnchor] = useState(null);
   const [llmAnchor, setLlmAnchor] = useState(null);
@@ -139,116 +132,151 @@ function ChatInput({
     selectSchema,
   } = useDatabaseConnection();
 
-  const isPostgreSQL = useMemo(() =>
-    dbType?.toLowerCase() === 'postgresql',
-  [dbType]);
+  const isPostgreSQL = useMemo(
+    () => dbType?.toLowerCase() === "postgresql",
+    [dbType],
+  );
 
-  const connectionMetadataReady = useMemo(() =>
-    Boolean(isConnected && currentDatabase && dbType),
-  [isConnected, currentDatabase, dbType]);
-  const connectionChipKey = useMemo(() =>
-    `${dbType || 'unknown'}:${currentDatabase || ''}`,
-  [dbType, currentDatabase]);
-  const showSchemaSelector = useMemo(() =>
-    connectionMetadataReady && isPostgreSQL && Boolean(currentSchema),
-  [connectionMetadataReady, isPostgreSQL, currentSchema]);
-  const showDatabaseSelector = useMemo(() =>
-    connectionMetadataReady,
-  [connectionMetadataReady]);
-  const canSwitchDatabase = useMemo(() =>
-    availableDatabases.length > 1,
-  [availableDatabases.length]);
+  const connectionMetadataReady = useMemo(
+    () => Boolean(isConnected && currentDatabase && dbType),
+    [isConnected, currentDatabase, dbType],
+  );
+  const connectionChipKey = useMemo(
+    () => `${dbType || "unknown"}:${currentDatabase || ""}`,
+    [dbType, currentDatabase],
+  );
+  const showSchemaSelector = useMemo(
+    () => connectionMetadataReady && isPostgreSQL && Boolean(currentSchema),
+    [connectionMetadataReady, isPostgreSQL, currentSchema],
+  );
+  const showDatabaseSelector = useMemo(
+    () => connectionMetadataReady,
+    [connectionMetadataReady],
+  );
+  const canSwitchDatabase = useMemo(
+    () => availableDatabases.length > 1,
+    [availableDatabases.length],
+  );
 
-  const hasText = useMemo(() =>
-    message.trim().length > 0,
-  [message]);
+  const hasText = useMemo(() => message.trim().length > 0, [message]);
 
-  const neutralInteraction = useMemo(() => getInteractionColors(theme), [theme]);
-  const toolbarActionButtonStyles = useMemo(() => ({
-    height: 32,
-    minHeight: 32,
-    minWidth: 32,
-    maxWidth: { xs: 'min(42vw, 152px)', sm: 208 },
-    flexShrink: 0,
-    borderRadius: '8px',
-    px: { xs: 1, sm: 1.25 },
-    py: 0,
-    gap: 0.5,
-    justifyContent: 'flex-start',
-    borderColor: neutralInteraction.border,
-    color: 'text.secondary',
-    backgroundColor: 'transparent',
-    ...theme.typography.uiBodySm,
-    lineHeight: 1,
-    transition: theme.transitions.create(['background-color', 'border-color', 'color', 'transform'], {
-      duration: theme.transitions.duration.shorter,
-    }),
-    '& .MuiButton-startIcon': {
-      m: 0,
-      mr: 0.5,
-      color: alpha(theme.palette.text.primary, 0.45),
+  const neutralInteraction = useMemo(
+    () => getInteractionColors(theme),
+    [theme],
+  );
+  const toolbarActionButtonStyles = useMemo(
+    () => ({
+      height: 30,
+      minHeight: 30,
+      minWidth: 32,
+      maxWidth: { xs: "min(42vw, 152px)", sm: 208 },
       flexShrink: 0,
-      '& > *:nth-of-type(1)': {
-        fontSize: 16,
-      },
-    },
-    '& .MuiButton-endIcon': {
-      m: 0,
-      ml: 0.25,
-      color: 'inherit',
-      flexShrink: 0,
-      opacity: 0.75,
-      '& > *:nth-of-type(1)': {
-        fontSize: 12,
-      },
-    },
-    '& .MuiButton-iconSizeSmall': {
-      '& > *:nth-of-type(1)': {
-        fontSize: 16,
-      },
-    },
-    '&:active': { transform: 'scale(0.995)' },
-    [HOVER_CAPABLE_QUERY]: {
-      '&:hover': {
-        borderColor: neutralInteraction.hoverBorder,
-        backgroundColor: neutralInteraction.hoverBackground,
-        color: 'text.primary',
-        '& .MuiButton-startIcon': {
-          color: alpha(theme.palette.text.primary, 0.65),
+      borderRadius: "8px",
+      px: { xs: 1, sm: 1.25 },
+      py: 0,
+      gap: 0.5,
+      justifyContent: "flex-start",
+      borderColor: neutralInteraction.border,
+      color: "text.secondary",
+      backgroundColor: "transparent",
+      ...theme.typography.uiBodySm,
+      lineHeight: 1,
+      transition: theme.transitions.create(
+        ["background-color", "border-color", "color", "transform"],
+        {
+          duration: theme.transitions.duration.shorter,
+        },
+      ),
+      "& .MuiButton-startIcon": {
+        m: 0,
+        mr: 0.5,
+        color: alpha(theme.palette.text.primary, 0.45),
+        flexShrink: 0,
+        "& > *:nth-of-type(1)": {
+          fontSize: 16,
         },
       },
-    },
-    '&[aria-expanded="true"]': {
-      borderColor: neutralInteraction.activeBorder,
-      backgroundColor: neutralInteraction.activeBackground,
-      color: 'text.primary',
-    },
-    '&.Mui-disabled': {
-      opacity: 0.42,
-      borderColor: 'transparent',
-      color: 'text.secondary',
-      backgroundColor: 'transparent',
-    },
-  }), [neutralInteraction, theme]);
+      "& .MuiButton-endIcon": {
+        m: 0,
+        ml: 0.25,
+        color: "inherit",
+        flexShrink: 0,
+        opacity: 0.75,
+        "& > *:nth-of-type(1)": {
+          fontSize: 12,
+        },
+      },
+      "& .MuiButton-iconSizeSmall": {
+        "& > *:nth-of-type(1)": {
+          fontSize: 16,
+        },
+      },
+      "&:active": { transform: "translateY(1px)" },
+      [HOVER_CAPABLE_QUERY]: {
+        "&:hover": {
+          borderColor: neutralInteraction.hoverBorder,
+          backgroundColor: neutralInteraction.hoverBackground,
+          color: "text.primary",
+          "& .MuiButton-startIcon": {
+            color: alpha(theme.palette.text.primary, 0.65),
+          },
+        },
+      },
+      '&[aria-expanded="true"]': {
+        borderColor: neutralInteraction.activeBorder,
+        backgroundColor: neutralInteraction.activeBackground,
+        color: "text.primary",
+      },
+      "&.Mui-disabled": {
+        opacity: 0.42,
+        borderColor: "transparent",
+        color: "text.secondary",
+        backgroundColor: "transparent",
+      },
+    }),
+    [neutralInteraction, theme],
+  );
 
-  const errorInteraction = useMemo(() => getInteractionColors(theme, { tone: 'error' }), [theme]);
+  const errorInteraction = useMemo(
+    () => getInteractionColors(theme, { tone: "error" }),
+    [theme],
+  );
+  const connectedControlSx = useMemo(
+    () => ({
+      borderColor: neutralInteraction.border,
+      [HOVER_CAPABLE_QUERY]: {
+        "&:hover": {
+          borderColor: neutralInteraction.hoverBorder,
+          backgroundColor: neutralInteraction.hoverBackground,
+        },
+      },
+    }),
+    [neutralInteraction],
+  );
   const composerSurfaceSx = useMemo(
     () => getComposerSurfaceSx(theme, { isFocused }),
     [theme, isFocused],
   );
   const inputPlaceholder = isStreaming
-    ? 'Please wait for response to finish...'
+    ? "Please wait for response to finish..."
     : isConnected
-    ? 'Ask about your database or anything else...'
-    : 'How can I help you today?';
+      ? "Ask about your database or anything else..."
+      : "How can I help you today?";
 
   const selectedProviderOption = useMemo(() => {
-    return providerOptions.find((provider) => provider.name === selectedProvider) || null;
+    return (
+      providerOptions.find((provider) => provider.name === selectedProvider) ||
+      null
+    );
   }, [providerOptions, selectedProvider]);
-  const activeProviderLabel = selectedProviderOption?.label || selectedProvider || '';
+  const activeProviderLabel =
+    selectedProviderOption?.label || selectedProvider || "";
   const llmSections = useMemo(() => {
     return providerOptions
-      .filter((provider) => Array.isArray(provider.models) && provider.models.length > 0)
+      .filter(
+        (provider) =>
+          Array.isArray(provider.models) && provider.models.length > 0,
+      )
       .map((provider) => ({
         name: provider.name,
         label: provider.label || provider.name,
@@ -258,9 +286,12 @@ function ChatInput({
   const hasLlmOptions = llmSections.length > 0;
   const contextUsage = useMemo(() => {
     if (!usageMetrics) return null;
-    const activeUsed = usageMetrics.inputPayloadTokens ?? usageMetrics.totalTokens;
-    const activeBudget = usageMetrics.pressureTriggerTokens ?? usageMetrics.activeContextBudget;
-    const modelWindow = usageMetrics.modelContextWindow ?? usageMetrics.totalContextWindow;
+    const activeUsed =
+      usageMetrics.inputPayloadTokens ?? usageMetrics.totalTokens;
+    const activeBudget =
+      usageMetrics.pressureTriggerTokens ?? usageMetrics.activeContextBudget;
+    const modelWindow =
+      usageMetrics.modelContextWindow ?? usageMetrics.totalContextWindow;
     if (activeUsed == null || activeBudget == null) return null;
     return {
       activeUsed,
@@ -276,36 +307,48 @@ function ChatInput({
   const handleCloseSchemaMenu = useCallback(() => setSchemaAnchor(null), []);
   const handleCloseLlmPopover = useCallback(() => setLlmAnchor(null), []);
 
-  const handleSchemaChange = useCallback(async (schema) => {
-    setSchemaAnchor(null);
-    if (schema === currentSchema) return;
+  const handleSchemaChange = useCallback(
+    async (schema) => {
+      setSchemaAnchor(null);
+      if (schema === currentSchema) return;
 
-    const result = await selectSchema?.(schema);
-    if (result && !result.success) {
-      logger.error('Failed to select schema:', result.error);
-    }
-  }, [currentSchema, selectSchema]);
+      const result = await selectSchema?.(schema);
+      if (result && !result.success) {
+        logger.error("Failed to select schema:", result.error);
+      }
+    },
+    [currentSchema, selectSchema],
+  );
 
-  const handleDatabaseChange = useCallback((dbName) => {
-    setDbAnchor(null);
-    if (dbName === currentDatabase) return;
-    onDatabaseSwitch?.(dbName);
-  }, [currentDatabase, onDatabaseSwitch]);
+  const handleDatabaseChange = useCallback(
+    (dbName) => {
+      setDbAnchor(null);
+      if (dbName === currentDatabase) return;
+      onDatabaseSwitch?.(dbName);
+    },
+    [currentDatabase, onDatabaseSwitch],
+  );
 
-  const handleSubmit = useCallback((e) => {
-    e?.preventDefault();
-    if (message.trim() && !disabled && !isStreaming) {
-      onSend(message.trim());
-      setMessage('');
-    }
-  }, [message, disabled, isStreaming, onSend]);
+  const handleSubmit = useCallback(
+    (e) => {
+      e?.preventDefault();
+      if (message.trim() && !disabled && !isStreaming) {
+        onSend(message.trim());
+        setMessage("");
+      }
+    },
+    [message, disabled, isStreaming, onSend],
+  );
 
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit();
-    }
-  }, [handleSubmit]);
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        handleSubmit();
+      }
+    },
+    [handleSubmit],
+  );
 
   const handleInputChange = useCallback((e) => {
     setMessage(e.target.value);
@@ -320,8 +363,14 @@ function ChatInput({
   }, []);
 
   const handleOpenDbMenu = useCallback((e) => setDbAnchor(e.currentTarget), []);
-  const handleOpenSchemaMenu = useCallback((e) => setSchemaAnchor(e.currentTarget), []);
-  const handleOpenLlmPopover = useCallback((e) => setLlmAnchor(e.currentTarget), []);
+  const handleOpenSchemaMenu = useCallback(
+    (e) => setSchemaAnchor(e.currentTarget),
+    [],
+  );
+  const handleOpenLlmPopover = useCallback(
+    (e) => setLlmAnchor(e.currentTarget),
+    [],
+  );
 
   const handleOpenSqlEditorClick = useCallback(() => {
     onOpenSqlEditor?.();
@@ -331,16 +380,21 @@ function ChatInput({
     onStop?.();
   }, [onStop]);
 
-  const handleLlmSelection = useCallback((providerName, modelName) => {
-    onSelectLlm?.(providerName, modelName);
-    setLlmAnchor(null);
-  }, [onSelectLlm]);
+  const handleLlmSelection = useCallback(
+    (providerName, modelName) => {
+      onSelectLlm?.(providerName, modelName);
+      setLlmAnchor(null);
+    },
+    [onSelectLlm],
+  );
 
   const handleMenuItemKeyDown = useCallback((event, onSelect) => {
     const items = Array.from(
       event.currentTarget
         .closest('[role="menu"]')
-        ?.querySelectorAll('[role="menuitemradio"]:not([aria-disabled="true"])') || [],
+        ?.querySelectorAll(
+          '[role="menuitemradio"]:not([aria-disabled="true"])',
+        ) || [],
     );
     const currentIndex = items.indexOf(event.currentTarget);
     const focusItem = (index) => {
@@ -348,26 +402,26 @@ function ChatInput({
     };
 
     switch (event.key) {
-      case 'Enter':
-      case ' ':
+      case "Enter":
+      case " ":
         event.preventDefault();
         onSelect();
         break;
-      case 'ArrowDown':
-      case 'ArrowRight':
+      case "ArrowDown":
+      case "ArrowRight":
         event.preventDefault();
         focusItem((currentIndex + 1) % items.length);
         break;
-      case 'ArrowUp':
-      case 'ArrowLeft':
+      case "ArrowUp":
+      case "ArrowLeft":
         event.preventDefault();
         focusItem((currentIndex - 1 + items.length) % items.length);
         break;
-      case 'Home':
+      case "Home":
         event.preventDefault();
         focusItem(0);
         break;
-      case 'End':
+      case "End":
         event.preventDefault();
         focusItem(items.length - 1);
         break;
@@ -382,8 +436,8 @@ function ChatInput({
       onSubmit={handleSubmit}
       sx={{
         px: { xs: 0.5, sm: 0.75 },
-        pb: { xs: 'max(env(safe-area-inset-bottom), 8px)', sm: 0.75 },
-        position: 'relative',
+        pb: { xs: "max(env(safe-area-inset-bottom), 8px)", sm: 0.75 },
+        position: "relative",
         zIndex: 2,
       }}
     >
@@ -391,15 +445,19 @@ function ChatInput({
         anchorEl={dbAnchor}
         open={Boolean(dbAnchor)}
         onClose={handleCloseDbMenu}
-        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        anchorOrigin={{ vertical: "top", horizontal: "left" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "left" }}
         width={220}
         paperSx={{ mt: -1 }}
       >
         <Typography sx={getPopoverSectionLabelSx(theme)}>
           Switch Database
         </Typography>
-        <Box role="menu" aria-label="Switch database" sx={{ maxHeight: 280, overflowY: 'auto', mt: 0.5 }}>
+        <Box
+          role="menu"
+          aria-label="Switch database"
+          sx={{ maxHeight: 280, overflowY: "auto", mt: 0.5 }}
+        >
           {availableDatabases.map((db) => {
             const isActive = db === currentDatabase;
             return (
@@ -410,13 +468,29 @@ function ChatInput({
                 tabIndex={0}
                 key={db}
                 onClick={() => handleDatabaseChange(db)}
-                onKeyDown={(event) => handleMenuItemKeyDown(event, () => handleDatabaseChange(db))}
+                onKeyDown={(event) =>
+                  handleMenuItemKeyDown(event, () => handleDatabaseChange(db))
+                }
                 sx={getSelectableMenuItemSx(theme, { isActive })}
               >
-                <Typography sx={{ ...theme.typography.uiNavItem, color: isActive ? 'text.primary' : 'text.primary', fontWeight: isActive ? 500 : 400 }}>
+                <Typography
+                  sx={{
+                    ...theme.typography.uiNavItem,
+                    color: "text.primary",
+                    fontWeight: isActive ? 500 : 400,
+                  }}
+                >
                   {db}
                 </Typography>
-                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
+                {isActive && (
+                  <CheckRoundedIcon
+                    sx={{
+                      fontSize: 14,
+                      color: "text.secondary",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
               </Box>
             );
           })}
@@ -426,15 +500,19 @@ function ChatInput({
         anchorEl={schemaAnchor}
         open={Boolean(schemaAnchor)}
         onClose={handleCloseSchemaMenu}
-        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        anchorOrigin={{ vertical: "top", horizontal: "left" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "left" }}
         width={200}
         paperSx={{ mt: -1 }}
       >
         <Typography sx={getPopoverSectionLabelSx(theme)}>
           PostgreSQL Schema
         </Typography>
-        <Box role="menu" aria-label="Select PostgreSQL schema" sx={{ maxHeight: 260, overflowY: 'auto', mt: 0.5 }}>
+        <Box
+          role="menu"
+          aria-label="Select PostgreSQL schema"
+          sx={{ maxHeight: 260, overflowY: "auto", mt: 0.5 }}
+        >
           {availableSchemas.map((schema) => {
             const isActive = schema === currentSchema;
             return (
@@ -445,13 +523,29 @@ function ChatInput({
                 tabIndex={0}
                 key={schema}
                 onClick={() => handleSchemaChange(schema)}
-                onKeyDown={(event) => handleMenuItemKeyDown(event, () => handleSchemaChange(schema))}
+                onKeyDown={(event) =>
+                  handleMenuItemKeyDown(event, () => handleSchemaChange(schema))
+                }
                 sx={getSelectableMenuItemSx(theme, { isActive })}
               >
-                <Typography sx={{ ...theme.typography.uiNavItem, color: isActive ? 'text.primary' : 'text.primary', fontWeight: isActive ? 500 : 400 }}>
+                <Typography
+                  sx={{
+                    ...theme.typography.uiNavItem,
+                    color: "text.primary",
+                    fontWeight: isActive ? 500 : 400,
+                  }}
+                >
                   {schema}
                 </Typography>
-                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
+                {isActive && (
+                  <CheckRoundedIcon
+                    sx={{
+                      fontSize: 14,
+                      color: "text.secondary",
+                      flexShrink: 0,
+                    }}
+                  />
+                )}
               </Box>
             );
           })}
@@ -461,30 +555,48 @@ function ChatInput({
         anchorEl={llmAnchor}
         open={Boolean(llmAnchor)}
         onClose={handleCloseLlmPopover}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        transformOrigin={{ vertical: "bottom", horizontal: "right" }}
         width={288}
         paperSx={{ mt: -1 }}
       >
         {/* Model list */}
-        <Box role="menu" aria-label="Select model" sx={{ maxHeight: 280, overflowY: 'auto' }}>
+        <Box
+          role="menu"
+          aria-label="Select model"
+          sx={{ maxHeight: 280, overflowY: "auto" }}
+        >
           {llmOptionsLoading ? (
-            <Box sx={{ display: 'grid', gap: 0.5 }}>
+            <Box sx={{ display: "grid", gap: 0.5 }}>
               {[0, 1, 2].map((i) => (
-                <Skeleton key={i} variant="rounded" height={44} sx={{ borderRadius: '8px' }} />
+                <Skeleton
+                  key={i}
+                  variant="rounded"
+                  height={44}
+                  sx={{ borderRadius: "8px" }}
+                />
               ))}
             </Box>
           ) : hasLlmOptions ? (
             llmSections.map((section, sectionIndex) => (
               <Box key={section.name}>
                 {sectionIndex > 0 && (
-                  <Box sx={{ height: '0.5px', backgroundColor: alpha(theme.palette.text.primary, 0.07), my: 0.75, mx: 0.5 }} />
+                  <Box
+                    sx={{
+                      height: "0.5px",
+                      backgroundColor: alpha(theme.palette.text.primary, 0.07),
+                      my: 0.75,
+                      mx: 0.5,
+                    }}
+                  />
                 )}
                 <Typography sx={getPopoverSectionLabelSx(theme, { pt: 0.75 })}>
-                {section.label}
-              </Typography>
-          {section.models.map((model) => {
-                  const isActive = section.name === selectedProvider && model === selectedModel;
+                  {section.label}
+                </Typography>
+                {section.models.map((model) => {
+                  const isActive =
+                    section.name === selectedProvider &&
+                    model === selectedModel;
                   return (
                     <Box
                       component="div"
@@ -493,16 +605,32 @@ function ChatInput({
                       tabIndex={0}
                       key={`${section.name}-${model}`}
                       onClick={() => handleLlmSelection(section.name, model)}
-                      onKeyDown={(event) => handleMenuItemKeyDown(event, () => handleLlmSelection(section.name, model))}
+                      onKeyDown={(event) =>
+                        handleMenuItemKeyDown(event, () =>
+                          handleLlmSelection(section.name, model),
+                        )
+                      }
                       sx={getSelectableMenuItemSx(theme, { isActive })}
                     >
                       <Box>
-                        <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary', fontWeight: isActive ? 500 : 400 }}>
+                        <Typography
+                          sx={{
+                            ...theme.typography.uiNavItem,
+                            color: "text.primary",
+                            fontWeight: isActive ? 500 : 400,
+                          }}
+                        >
                           {model}
                         </Typography>
                       </Box>
                       {isActive && (
-                        <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />
+                        <CheckRoundedIcon
+                          sx={{
+                            fontSize: 14,
+                            color: "text.secondary",
+                            flexShrink: 0,
+                          }}
+                        />
                       )}
                     </Box>
                   );
@@ -511,41 +639,58 @@ function ChatInput({
             ))
           ) : (
             <Box sx={{ px: 1, py: 1 }}>
-              <Typography sx={{ ...theme.typography.uiNavItem, fontWeight: 500, color: 'text.primary' }}>
+              <Typography
+                sx={{
+                  ...theme.typography.uiNavItem,
+                  fontWeight: 500,
+                  color: "text.primary",
+                }}
+              >
                 No models available
               </Typography>
-              <Typography sx={{ ...theme.typography.uiNavShortcut, color: 'text.secondary', mt: 0.25 }}>
+              <Typography
+                sx={{
+                  ...theme.typography.uiNavShortcut,
+                  color: "text.secondary",
+                  mt: 0.25,
+                }}
+              >
                 Model options could not be loaded.
               </Typography>
             </Box>
           )}
         </Box>
-
       </AppPopover>
       <Box
         sx={{
           maxWidth: UI_LAYOUT.chatInputMaxWidth,
-          mx: 'auto',
-          position: 'relative',
+          mx: "auto",
+          position: "relative",
           ...composerSurfaceSx,
           opacity: isStreaming ? 0.72 : 1,
-          transition: theme.transitions.create(['opacity', 'box-shadow', 'border-color'], {
-            duration: theme.transitions.duration.shorter,
-          }),
+          transition: theme.transitions.create(
+            ["opacity", "box-shadow", "border-color", "transform"],
+            {
+              duration: theme.transitions.duration.shorter,
+            },
+          ),
           [HOVER_CAPABLE_QUERY]: {
-            '&:hover': {
+            "&:hover": {
               boxShadow: getComposerHoverShadow(theme, { isFocused }),
             },
           },
-          cursor: isStreaming ? 'wait' : 'text',
+          cursor: isStreaming ? "wait" : "text",
+          "@media (prefers-reduced-motion: no-preference)": {
+            transform: isFocused ? "translateY(-1px)" : "translateY(0)",
+          },
         }}
       >
         <Box
           sx={{
-            p: { xs: 1.75, sm: 1.75 },
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 1.5,
+            p: { xs: 1.25, sm: 1.5 },
+            display: "flex",
+            flexDirection: "column",
+            gap: { xs: 1.1, sm: 1.25 },
           }}
         >
           <TextField
@@ -553,309 +698,442 @@ function ChatInput({
             multiline
             minRows={isCompactMobile ? 1 : 2}
             maxRows={6}
-          placeholder={inputPlaceholder}
-          value={message}
-          onChange={handleInputChange}
-          onKeyDown={handleKeyDown}
-          onFocus={handleFocus}
-          onBlur={handleBlur}
-          disabled={disabled || isStreaming}
-          variant="standard"
-          InputProps={{
-            disableUnderline: true,
-            sx: {
-              lineHeight: 1.5,
-              py: 0,
-              px: 0,
-              color: 'text.primary',
-              alignItems: 'flex-start',
-            },
-          }}
-          inputProps={{ 'data-ui-target': 'chat_input' }}
-          sx={{
-            '& .MuiInputBase-root': { p: 0 },
-            '& .MuiInputBase-input': {
-              py: 0.1,
-              ...theme.typography.uiInput,
-              '&::placeholder': {
-                color: 'text.secondary',
-                opacity: 0.72,
+            placeholder={inputPlaceholder}
+            value={message}
+            onChange={handleInputChange}
+            onKeyDown={handleKeyDown}
+            onFocus={handleFocus}
+            onBlur={handleBlur}
+            disabled={disabled || isStreaming}
+            variant="standard"
+            InputProps={{
+              disableUnderline: true,
+              sx: {
+                lineHeight: 1.55,
+                py: 0,
+                px: 0,
+                color: "text.primary",
+                alignItems: "flex-start",
               },
-            },
-          }}
-        />
+            }}
+            inputProps={{ "data-ui-target": "chat_input" }}
+            sx={{
+              "& .MuiInputBase-root": { p: 0 },
+              "& .MuiInputBase-input": {
+                py: 0.1,
+                ...theme.typography.uiInput,
+                lineHeight: 1.55,
+                "&::placeholder": {
+                  color: "text.secondary",
+                  opacity: 0.62,
+                },
+              },
+            }}
+          />
 
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.75 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0, flex: 1, overflowX: 'auto', overflowY: 'hidden', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
-
-            {showDatabaseSelector && (
-              <Box
-                key={`database-${connectionChipKey}`}
-                sx={{
-                  display: 'inline-flex',
-                  flexShrink: 0,
-                  animation: `${blurReveal} 0.65s cubic-bezier(0.16, 1, 0.3, 1) both`,
-                  animationDelay: '0ms',
-                  '@media (prefers-reduced-motion: reduce)': {
-                    animation: 'none',
-                  },
-                }}
-              >
-                <Tooltip title={canSwitchDatabase ? `Database: ${currentDatabase} (click to switch)` : `Database: ${currentDatabase}`}>
-                  <span>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<DatabaseIcon />}
-                    onClick={canSwitchDatabase ? handleOpenDbMenu : undefined}
-                    disabled={!canSwitchDatabase}
-                    sx={{
-                      ...toolbarActionButtonStyles,
-                      borderColor: alpha(theme.palette.success.main, 0.35),
-                      [HOVER_CAPABLE_QUERY]: {
-                        '&:hover': {
-                          borderColor: alpha(theme.palette.success.main, 0.6),
-                          backgroundColor: alpha(theme.palette.success.main, 0.04),
-                        },
-                      },
-                      '&.Mui-disabled': {
-                        opacity: 1,
-                        borderColor: alpha(theme.palette.success.main, 0.35),
-                        color: 'text.secondary',
-                        backgroundColor: 'transparent',
-                      },
-                    }}
-                  >
-                    <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {currentDatabase}
-                    </Box>
-                  </Button>
-                  </span>
-                </Tooltip>
-              </Box>
-            )}
-            {showSchemaSelector && (
-              <Box
-                key={`schema-${connectionChipKey}`}
-                sx={{
-                  display: 'inline-flex',
-                  flexShrink: 0,
-                  animation: `${blurReveal} 0.65s cubic-bezier(0.16, 1, 0.3, 1) both`,
-                  animationDelay: '60ms',
-                  '@media (prefers-reduced-motion: reduce)': {
-                    animation: 'none',
-                  },
-                }}
-              >
-                <Tooltip title={`Schema: ${currentSchema}`}>
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<SchemaIcon />}
-                    onClick={handleOpenSchemaMenu}
-                    sx={{
-                      ...toolbarActionButtonStyles,
-                      borderColor: alpha(theme.palette.success.main, 0.35),
-                      [HOVER_CAPABLE_QUERY]: {
-                        '&:hover': {
-                          borderColor: alpha(theme.palette.success.main, 0.6),
-                          backgroundColor: alpha(theme.palette.success.main, 0.04),
-                        },
-                      },
-                    }}
-                  >
-                    <Box component="span" sx={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {currentSchema}
-                    </Box>
-                  </Button>
-                </Tooltip>
-              </Box>
-            )}
-            {onOpenSqlEditor && (
-              <Tooltip title="Open SQL Editor">
-                <Button
-                  variant="outlined"
-                  size="small"
-                  startIcon={<CodeEditorIcon />}
-                  onClick={handleOpenSqlEditorClick}
-                  sx={{
-                    ...toolbarActionButtonStyles,
-                    maxWidth: { xs: 40, sm: 128 },
-                    px: { xs: 0, sm: 1.25 },
-                    justifyContent: 'center',
-                    '& .MuiButton-startIcon': {
-                      ...toolbarActionButtonStyles['& .MuiButton-startIcon'],
-                      mr: { xs: 0, sm: 0.5 },
-                    },
-                  }}
-                >
-                  <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' }, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    SQL Editor
-                  </Box>
-                </Button>
-              </Tooltip>
-            )}
-          </Box>
-
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, flexShrink: 0 }}>
-            <Tooltip
-              title={
-                contextUsage ? (
-                  <Box sx={{ p: 0.5 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'inherit', mb: 0.5 }}>
-                      {selectedModel || 'Select model'}
-                    </Typography>
-                    {activeProviderLabel && (
-                      <Typography variant="caption" display="block" sx={{ opacity: 0.8, mb: 0.5 }}>
-                        Provider: {activeProviderLabel}
-                      </Typography>
-                    )}
-                    {contextUsage.tokenCountingMode === 'estimated' && (
-                      <Typography variant="caption" display="block" sx={{ opacity: 0.8, mb: 0.5 }}>
-                        Token usage: conservative estimate
-                      </Typography>
-                    )}
-                    {contextUsage.contextPhase === 'pre_summary' && (
-                      <Typography variant="caption" display="block" sx={{ opacity: 0.8, mb: 0.5 }}>
-                        Context pressure: summarizing unsummarized tail
-                      </Typography>
-                    )}
-                    <Typography variant="caption" display="block" sx={{ opacity: 0.8 }}>
-                      {contextUsage.contextPhase === 'pre_summary' ? 'Summary pressure' : 'Active context'}: {contextUsage.activeUsed.toLocaleString()} / {contextUsage.activeBudget.toLocaleString()} ({Math.round((contextUsage.activeUsed / contextUsage.activeBudget) * 100)}%)
-                    </Typography>
-                    {contextUsage.summaryThresholdTokens != null && (
-                      <Typography variant="caption" display="block" sx={{ opacity: 0.65 }}>
-                        Summary trigger: {contextUsage.summaryThresholdTokens.toLocaleString()} tokens
-                      </Typography>
-                    )}
-                    {contextUsage.modelWindow != null && (
-                      <Typography variant="caption" display="block" sx={{ opacity: 0.8 }}>
-                        Model window: {contextUsage.activeUsed.toLocaleString()} / {contextUsage.modelWindow.toLocaleString()} ({Math.round((contextUsage.activeUsed / contextUsage.modelWindow) * 100)}%)
-                      </Typography>
-                    )}
-                    {usageMetrics.systemPromptTokens != null && usageMetrics.toolSchemaTokens != null && (
-                      <Typography variant="caption" display="block" sx={{ opacity: 0.65, mt: 0.5 }}>
-                        Static: SI {usageMetrics.systemPromptTokens.toLocaleString()} · tools {usageMetrics.toolSchemaTokens.toLocaleString()}
-                      </Typography>
-                    )}
-                    <Typography variant="caption" display="block" sx={{ opacity: 0.5, mt: 0.5, fontSize: '10px' }}>
-                      (Older history dynamically trimmed to stay within budget)
-                    </Typography>
-                  </Box>
-                ) : (
-                  activeProviderLabel ? `${selectedModel || 'Select model'} - ${activeProviderLabel}` : 'Select model'
-                )
-              }
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: 0.75,
+            }}
+          >
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+                minWidth: 0,
+                flex: 1,
+                overflowX: "auto",
+                overflowY: "hidden",
+                scrollbarWidth: "none",
+                "&::-webkit-scrollbar": { display: "none" },
+              }}
             >
-              <span>
-                <Button
-                  variant="outlined"
-                  size="small"
-                  onClick={handleOpenLlmPopover}
-                  disabled={!hasLlmOptions && !llmOptionsLoading}
-                  aria-expanded={Boolean(llmAnchor)}
-                  aria-label="Select model"
-                  startIcon={
-                    contextUsage ? (
-                      <ContextProgressRing
-                        total={contextUsage.activeUsed}
-                        budget={contextUsage.activeBudget}
-                        theme={theme}
-                      />
-                    ) : undefined
-                  }
-                  endIcon={(
-                    <KeyboardArrowDownRoundedIcon sx={{
-                      transform: llmAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
-                      transition: theme.transitions.create('transform', { duration: 150 }),
+              {showDatabaseSelector && (
+                <Box
+                  key={`database-${connectionChipKey}`}
+                  sx={{
+                    display: "inline-flex",
+                    flexShrink: 0,
+                    animation: `${softReveal} 180ms ease-out both`,
+                    "@media (prefers-reduced-motion: reduce)": {
+                      animation: "none",
+                    },
+                  }}
+                >
+                  <Tooltip
+                    title={
+                      canSwitchDatabase
+                        ? `Database: ${currentDatabase} (click to switch)`
+                        : `Database: ${currentDatabase}`
+                    }
+                  >
+                    <span>
+                      <Button
+                        variant="outlined"
+                        size="small"
+                        startIcon={<DatabaseIcon />}
+                        onClick={
+                          canSwitchDatabase ? handleOpenDbMenu : undefined
+                        }
+                        disabled={!canSwitchDatabase}
+                        sx={{
+                          ...toolbarActionButtonStyles,
+                          ...connectedControlSx,
+                          "&.Mui-disabled": {
+                            opacity: 1,
+                            borderColor: neutralInteraction.border,
+                            color: "text.secondary",
+                            backgroundColor: "transparent",
+                          },
+                        }}
+                      >
+                        <Box
+                          component="span"
+                          sx={{
+                            minWidth: 0,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {currentDatabase}
+                        </Box>
+                      </Button>
+                    </span>
+                  </Tooltip>
+                </Box>
+              )}
+              {showSchemaSelector && (
+                <Box
+                  key={`schema-${connectionChipKey}`}
+                  sx={{
+                    display: "inline-flex",
+                    flexShrink: 0,
+                    animation: `${softReveal} 180ms ease-out both`,
+                    animationDelay: "35ms",
+                    "@media (prefers-reduced-motion: reduce)": {
+                      animation: "none",
+                    },
+                  }}
+                >
+                  <Tooltip title={`Schema: ${currentSchema}`}>
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      startIcon={<SchemaIcon />}
+                      onClick={handleOpenSchemaMenu}
+                      sx={{
+                        ...toolbarActionButtonStyles,
+                        ...connectedControlSx,
+                      }}
+                    >
+                      <Box
+                        component="span"
+                        sx={{
+                          minWidth: 0,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {currentSchema}
+                      </Box>
+                    </Button>
+                  </Tooltip>
+                </Box>
+              )}
+              {onOpenSqlEditor && (
+                <Tooltip title="Open SQL Editor">
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    startIcon={<CodeEditorIcon />}
+                    onClick={handleOpenSqlEditorClick}
+                    sx={{
+                      ...toolbarActionButtonStyles,
+                      maxWidth: { xs: 40, sm: 128 },
+                      px: { xs: 0, sm: 1.25 },
+                      justifyContent: "center",
+                      "& .MuiButton-startIcon": {
+                        ...toolbarActionButtonStyles["& .MuiButton-startIcon"],
+                        mr: { xs: 0, sm: 0.5 },
+                      },
                     }}
-                    />
-                  )}
-                  sx={{
-                    ...toolbarActionButtonStyles,
-                    width: { xs: 130, sm: 170 },
-                    flexShrink: 0,
-                  }}
-                >
-                  <Box component="span" sx={{ overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'clip', flex: 1, textAlign: 'left' }}>
-                    {selectedModel || (llmOptionsLoading ? 'Loading...' : 'Choose model')}
-                  </Box>
-                </Button>
-              </span>
-            </Tooltip>
+                  >
+                    <Box
+                      component="span"
+                      sx={{
+                        display: { xs: "none", sm: "inline" },
+                        minWidth: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      SQL Editor
+                    </Box>
+                  </Button>
+                </Tooltip>
+              )}
+            </Box>
 
-            <Tooltip title={isStreaming ? 'Stop generating' : (hasText ? 'Send message' : 'Type a message')}>
-              <span>
-                <IconButton
-                  type={isStreaming ? 'button' : 'submit'}
-                  onClick={isStreaming ? handleStopClick : undefined}
-                  disabled={!isStreaming && (!hasText || disabled)}
-                  aria-label={isStreaming ? 'Stop generating response' : 'Send message'}
-                  sx={{
-                    width: 36,
-                    height: 36,
-                    flexShrink: 0,
-                    borderRadius: '10px',
-                    color: isStreaming
-                      ? theme.palette.error.main
-                      : (hasText ? '#ffffff' : alpha(theme.palette.text.primary, 0.28)),
-                    backgroundColor: isStreaming
-                      ? errorInteraction.activeBackground
-                      : (hasText ? theme.palette.primary.main : alpha(theme.palette.text.primary, 0.05)),
-                    backgroundImage: (!isStreaming && hasText)
-                      ? `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`
-                      : 'none',
-                    border: '1px solid',
-                    borderColor: isStreaming
-                      ? alpha(theme.palette.error.main, 0.2)
-                      : (hasText ? 'transparent' : alpha(theme.palette.text.primary, 0.07)),
-                    boxShadow: (!isStreaming && hasText)
-                      ? `0 4px 12px ${alpha(theme.palette.primary.main, 0.35)}`
-                      : 'none',
-                    transition: 'all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1)',
-                    '&:hover': {
-                      transform: (!isStreaming && hasText) ? 'scale(1.06)' : 'none',
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 0.5,
+                flexShrink: 0,
+              }}
+            >
+              <Tooltip
+                title={
+                  contextUsage ? (
+                    <Box sx={{ p: 0.5 }}>
+                      <Typography
+                        variant="body2"
+                        sx={{ fontWeight: 600, color: "inherit", mb: 0.5 }}
+                      >
+                        {selectedModel || "Select model"}
+                      </Typography>
+                      {activeProviderLabel && (
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{ opacity: 0.8, mb: 0.5 }}
+                        >
+                          Provider: {activeProviderLabel}
+                        </Typography>
+                      )}
+                      {contextUsage.tokenCountingMode === "estimated" && (
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{ opacity: 0.8, mb: 0.5 }}
+                        >
+                          Token usage: conservative estimate
+                        </Typography>
+                      )}
+                      {contextUsage.contextPhase === "pre_summary" && (
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{ opacity: 0.8, mb: 0.5 }}
+                        >
+                          Context pressure: summarizing unsummarized tail
+                        </Typography>
+                      )}
+                      <Typography
+                        variant="caption"
+                        display="block"
+                        sx={{ opacity: 0.8 }}
+                      >
+                        {contextUsage.contextPhase === "pre_summary"
+                          ? "Summary pressure"
+                          : "Active context"}
+                        : {contextUsage.activeUsed.toLocaleString()} /{" "}
+                        {contextUsage.activeBudget.toLocaleString()} (
+                        {Math.round(
+                          (contextUsage.activeUsed /
+                            contextUsage.activeBudget) *
+                            100,
+                        )}
+                        %)
+                      </Typography>
+                      {contextUsage.summaryThresholdTokens != null && (
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{ opacity: 0.65 }}
+                        >
+                          Summary trigger:{" "}
+                          {contextUsage.summaryThresholdTokens.toLocaleString()}{" "}
+                          tokens
+                        </Typography>
+                      )}
+                      {contextUsage.modelWindow != null && (
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{ opacity: 0.8 }}
+                        >
+                          Model window:{" "}
+                          {contextUsage.activeUsed.toLocaleString()} /{" "}
+                          {contextUsage.modelWindow.toLocaleString()} (
+                          {Math.round(
+                            (contextUsage.activeUsed /
+                              contextUsage.modelWindow) *
+                              100,
+                          )}
+                          %)
+                        </Typography>
+                      )}
+                      {usageMetrics.systemPromptTokens != null &&
+                        usageMetrics.toolSchemaTokens != null && (
+                          <Typography
+                            variant="caption"
+                            display="block"
+                            sx={{ opacity: 0.65, mt: 0.5 }}
+                          >
+                            Static: SI{" "}
+                            {usageMetrics.systemPromptTokens.toLocaleString()} ·
+                            tools{" "}
+                            {usageMetrics.toolSchemaTokens.toLocaleString()}
+                          </Typography>
+                        )}
+                      <Typography
+                        variant="caption"
+                        display="block"
+                        sx={{ opacity: 0.5, mt: 0.5, fontSize: "10px" }}
+                      >
+                        (Older history dynamically trimmed to stay within
+                        budget)
+                      </Typography>
+                    </Box>
+                  ) : activeProviderLabel ? (
+                    `${selectedModel || "Select model"} - ${activeProviderLabel}`
+                  ) : (
+                    "Select model"
+                  )
+                }
+              >
+                <span>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={handleOpenLlmPopover}
+                    disabled={!hasLlmOptions && !llmOptionsLoading}
+                    aria-expanded={Boolean(llmAnchor)}
+                    aria-label="Select model"
+                    startIcon={
+                      contextUsage ? (
+                        <ContextProgressRing
+                          total={contextUsage.activeUsed}
+                          budget={contextUsage.activeBudget}
+                          theme={theme}
+                        />
+                      ) : undefined
+                    }
+                    endIcon={
+                      <KeyboardArrowDownRoundedIcon
+                        sx={{
+                          transform: llmAnchor
+                            ? "rotate(180deg)"
+                            : "rotate(0deg)",
+                          transition: theme.transitions.create("transform", {
+                            duration: 150,
+                          }),
+                        }}
+                      />
+                    }
+                    sx={{
+                      ...toolbarActionButtonStyles,
+                      width: { xs: 124, sm: 164 },
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Box
+                      component="span"
+                      sx={{
+                        overflow: "hidden",
+                        whiteSpace: "nowrap",
+                        textOverflow: "ellipsis",
+                        flex: 1,
+                        textAlign: "left",
+                      }}
+                    >
+                      {selectedModel ||
+                        (llmOptionsLoading ? "Loading..." : "Choose model")}
+                    </Box>
+                  </Button>
+                </span>
+              </Tooltip>
+
+              <Tooltip
+                title={
+                  isStreaming
+                    ? "Stop generating"
+                    : hasText
+                      ? "Send message"
+                      : "Type a message"
+                }
+              >
+                <span>
+                  <IconButton
+                    type={isStreaming ? "button" : "submit"}
+                    onClick={isStreaming ? handleStopClick : undefined}
+                    disabled={!isStreaming && (!hasText || disabled)}
+                    aria-label={
+                      isStreaming ? "Stop generating response" : "Send message"
+                    }
+                    sx={{
+                      width: 36,
+                      height: 36,
+                      flexShrink: 0,
+                      borderRadius: "9px",
+                      color: isStreaming
+                        ? theme.palette.error.main
+                        : hasText
+                          ? theme.palette.primary.contrastText
+                          : alpha(theme.palette.text.primary, 0.28),
                       backgroundColor: isStreaming
-                        ? errorInteraction.activeHoverBackground
-                        : (hasText ? theme.palette.primary.dark : alpha(theme.palette.text.primary, 0.08)),
-                      boxShadow: (!isStreaming && hasText)
-                        ? `0 6px 16px ${alpha(theme.palette.primary.main, 0.45)}`
-                        : 'none',
-                    },
-                    '&:active': { transform: 'scale(0.92)' },
-                    '&.Mui-disabled': {
-                      backgroundColor: alpha(theme.palette.text.primary, 0.04),
-                      borderColor: alpha(theme.palette.text.primary, 0.06),
-                      color: alpha(theme.palette.text.primary, 0.2),
-                    },
-                  }}
-                >
-                  {isStreaming
-                    ? <StopRoundedIcon sx={{ fontSize: 14 }} />
-                    : <SendRoundedIcon sx={{ fontSize: 14, ml: '1px' }} />}
-                </IconButton>
-              </span>
-            </Tooltip>
+                        ? errorInteraction.activeBackground
+                        : hasText
+                          ? theme.palette.primary.main
+                          : alpha(theme.palette.text.primary, 0.05),
+                      backgroundImage: "none",
+                      border: "1px solid",
+                      borderColor: isStreaming
+                        ? alpha(theme.palette.error.main, 0.2)
+                        : hasText
+                          ? "transparent"
+                          : alpha(theme.palette.text.primary, 0.07),
+                      boxShadow:
+                        !isStreaming && hasText
+                          ? `0 5px 14px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.28 : 0.16)}`
+                          : "none",
+                      transition:
+                        "transform 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, border-color 120ms ease",
+                      "&:hover": {
+                        transform:
+                          !isStreaming && hasText ? "translateY(-1px)" : "none",
+                        backgroundColor: isStreaming
+                          ? errorInteraction.activeHoverBackground
+                          : hasText
+                            ? theme.palette.primary.dark
+                            : alpha(theme.palette.text.primary, 0.08),
+                        boxShadow:
+                          !isStreaming && hasText
+                            ? `0 7px 18px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.32 : 0.2)}`
+                            : "none",
+                      },
+                      "&:active": { transform: "translateY(0) scale(0.97)" },
+                      "&.Mui-disabled": {
+                        backgroundColor: alpha(
+                          theme.palette.text.primary,
+                          0.04,
+                        ),
+                        borderColor: alpha(theme.palette.text.primary, 0.06),
+                        color: alpha(theme.palette.text.primary, 0.2),
+                      },
+                    }}
+                  >
+                    {isStreaming ? (
+                      <StopRoundedIcon sx={{ fontSize: 14 }} />
+                    ) : (
+                      <SendRoundedIcon sx={{ fontSize: 14, ml: "1px" }} />
+                    )}
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Box>
           </Box>
-        </Box>
         </Box>
       </Box>
       {children}
-      <Typography
-        variant="caption"
-        sx={{
-          display: 'block',
-          textAlign: 'center',
-          mt: 1,
-          px: 1,
-          ...theme.typography.uiCaption2xs,
-          color: 'text.secondary',
-          opacity: 0.55,
-          letterSpacing: '0.015em',
-        }}
-      >
-        Moonlit can make mistakes. Verify important info.
-      </Typography>
     </Box>
   );
 }
@@ -877,15 +1155,19 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.onSelectLlm !== nextProps.onSelectLlm) return false;
   if (prevProps.usageMetrics !== nextProps.usageMetrics) return false;
   if (prevProps.children !== nextProps.children) return false;
-  if (prevProps.availableDatabases?.length !== nextProps.availableDatabases?.length) return false;
+  if (
+    prevProps.availableDatabases?.length !==
+    nextProps.availableDatabases?.length
+  )
+    return false;
   // Compare actual database identifiers, not just count, so a rename still
   // triggers a re-render even when the number of databases is unchanged.
   const prevDbKey = prevProps.availableDatabases
     ?.map((db) => db?.name || db?.database || db?.id || String(db))
-    .join('\x1f');
+    .join("\x1f");
   const nextDbKey = nextProps.availableDatabases
     ?.map((db) => db?.name || db?.database || db?.id || String(db))
-    .join('\x1f');
+    .join("\x1f");
   if (prevDbKey !== nextDbKey) return false;
   return true;
 }

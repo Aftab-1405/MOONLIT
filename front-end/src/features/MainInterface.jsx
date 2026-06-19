@@ -1,6 +1,6 @@
 // Main Interface - Logged-in application shell
 
-import { lazy, memo, Suspense, useRef, useState } from 'react';
+import { lazy, memo, Suspense, useRef, useState } from "react";
 import {
   Box,
   Typography,
@@ -18,16 +18,15 @@ import {
   DialogContent,
   DialogTitle,
   TextField,
-  Chip,
-} from '@mui/material';
-import { alpha } from '@mui/material/styles';
-import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
-import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
-import Sidebar from '@/features/sidebar-left';
-import { ChatInput, MessageList, WelcomeScreen } from '@/features/chat';
-import ArtifactLoader from '@/features/sidebar-right/index';
-import { ConfirmDialog, ResizeHandle } from '@/components';
+} from "@mui/material";
+import { alpha } from "@mui/material/styles";
+import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
+import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
+import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
+import Sidebar from "@/features/sidebar-left";
+import { ChatInput, MessageList, WelcomeScreen } from "@/features/chat";
+import ArtifactLoader from "@/features/sidebar-right/index";
+import { ConfirmDialog, ResizeHandle } from "@/components";
 import {
   getInteractionColors,
   getInteractiveIconButtonSx,
@@ -37,12 +36,16 @@ import {
   getScrollbarStyles,
   UI_LAYOUT,
   UI_Z_INDEX,
-} from '@/styles/shared';
-import { useChatPageController } from '@/hooks/chat-page/useChatPageController';
-import { getShellWorkspaceSx } from '@/features/styles/interfaceChrome';
+} from "@/styles/shared";
+import { useChatPageController } from "@/hooks/chat-page/useChatPageController";
+import { getShellWorkspaceSx } from "@/features/styles/interfaceChrome";
 
-const DatabaseModal = lazy(() => import('@/features/overlays/database/DatabaseModal'));
-const SettingsModal = lazy(() => import('@/features/overlays/settings/SettingsModal'));
+const DatabaseModal = lazy(
+  () => import("@/features/overlays/database/DatabaseModal"),
+);
+const SettingsModal = lazy(
+  () => import("@/features/overlays/settings/SettingsModal"),
+);
 
 const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
   open,
@@ -54,7 +57,7 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
   onConfirm,
   theme,
 }) {
-  const isDark = theme.palette.mode === 'dark';
+  const isDark = theme.palette.mode === "dark";
 
   return (
     <Collapse in={open} timeout={250}>
@@ -64,28 +67,31 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
           aria-live="polite"
           aria-atomic="true"
           sx={{
-            width: '100%',
+            width: "100%",
             maxWidth: UI_LAYOUT.chatInputMaxWidth,
-            mx: 'auto',
-            position: 'relative',
+            mx: "auto",
+            position: "relative",
             zIndex: 1,
           }}
         >
           <Box
             sx={{
-              position: 'relative',
+              position: "relative",
               zIndex: 1,
               mx: { xs: 1, sm: 0 },
               mb: -3.5, // Slide behind composer
-              display: 'flex',
-              flexDirection: { xs: 'column', sm: 'row' },
-              alignItems: { xs: 'flex-start', sm: 'center' },
-              justifyContent: 'space-between',
+              display: "flex",
+              flexDirection: { xs: "column", sm: "row" },
+              alignItems: { xs: "flex-start", sm: "center" },
+              justifyContent: "space-between",
               gap: { xs: 1.5, sm: 2 },
-              borderTopLeftRadius: '20px',
-              borderTopRightRadius: '20px',
-              border: '1px solid',
-              borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
+              borderTopLeftRadius: "20px",
+              borderTopRightRadius: "20px",
+              border: "1px solid",
+              borderColor: alpha(
+                theme.palette.text.primary,
+                isDark ? 0.12 : 0.08,
+              ),
               borderBottom: 0,
               bgcolor: theme.palette.background.paper,
               px: { xs: 2.25, sm: 3 },
@@ -100,21 +106,21 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
               <Typography
                 sx={{
                   ...theme.typography.uiBodySm,
-                  color: 'text.primary',
+                  color: "text.primary",
                   fontWeight: 700,
                   lineHeight: 1.35,
                 }}
               >
-                {title || 'Confirm action'}
+                {title || "Confirm action"}
               </Typography>
               {message && (
                 <Typography
                   sx={{
                     mt: 0.25,
                     ...theme.typography.uiCaptionMd,
-                    color: 'text.secondary',
+                    color: "text.secondary",
                     lineHeight: 1.45,
-                    overflowWrap: 'anywhere',
+                    overflowWrap: "anywhere",
                   }}
                 >
                   {message}
@@ -123,11 +129,11 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
             </Box>
             <Box
               sx={{
-                display: 'flex',
-                alignItems: 'center',
+                display: "flex",
+                alignItems: "center",
                 gap: 1.5,
                 flexShrink: 0,
-                alignSelf: { xs: 'flex-end', sm: 'center' },
+                alignSelf: { xs: "flex-end", sm: "center" },
               }}
             >
               <Button
@@ -135,39 +141,47 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                 onClick={onCancel}
                 sx={{
                   minHeight: 28,
-                  borderRadius: '6px',
-                  textTransform: 'none',
-                  color: 'text.secondary',
+                  borderRadius: "6px",
+                  textTransform: "none",
+                  color: "text.secondary",
                   px: 1.5,
                   ...theme.typography.uiCaptionMd,
                   fontWeight: 500,
-                  '&:hover': {
+                  "&:hover": {
                     bgcolor: alpha(theme.palette.text.primary, 0.06),
+                  },
+                  "&.Mui-focusVisible": {
+                    boxShadow: `0 0 0 3px ${alpha(theme.palette.text.primary, isDark ? 0.18 : 0.12)}`,
+                    outline: "none",
                   },
                 }}
               >
-                {cancelText || 'Not now'}
+                {cancelText || "Not now"}
               </Button>
               <Button
                 size="small"
                 onClick={onConfirm}
                 sx={{
                   minHeight: 28,
-                  borderRadius: '6px',
-                  textTransform: 'none',
+                  borderRadius: "6px",
+                  textTransform: "none",
                   color: theme.palette.primary.main,
                   px: 1.5,
                   ...theme.typography.uiCaptionMd,
                   fontWeight: 700,
-                  textDecoration: 'underline',
-                  textUnderlineOffset: '3px',
-                  '&:hover': {
-                    textDecoration: 'underline',
+                  textDecoration: "underline",
+                  textUnderlineOffset: "3px",
+                  "&:hover": {
+                    textDecoration: "underline",
                     bgcolor: alpha(theme.palette.primary.main, 0.08),
+                  },
+                  "&.Mui-focusVisible": {
+                    boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, isDark ? 0.28 : 0.2)}`,
+                    outline: "none",
                   },
                 }}
               >
-                {confirmText || 'Confirm'}
+                {confirmText || "Confirm"}
               </Button>
             </Box>
           </Box>
@@ -186,30 +200,30 @@ const MobileSidebarOpenButton = memo(function MobileSidebarOpenButton({
 
   return (
     <Tooltip title="Open sidebar">
-    <IconButton
-      size="small"
-      onClick={onOpen}
-      aria-label="Open sidebar"
-      sx={{
-        position: 'absolute',
-        top: 'max(env(safe-area-inset-top), 12px)',
-        left: 12,
-        zIndex: UI_Z_INDEX.mainContentControl,
-        ...getInteractiveIconButtonSx(theme, { size: 44, radius: '8px' }),
-        width: 44,
-        height: 44,
-        backgroundColor: alpha(theme.palette.background.paper, 0.96),
-        boxShadow: `0 6px 18px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.18 : 0.08)}`,
-        opacity: 0.82,
-        transition: 'opacity 0.15s ease',
-        '&:hover': {
-          opacity: 1,
-          backgroundColor: getInteractionColors(theme).hoverBackground,
-        },
-      }}
-    >
-      <MenuRoundedIcon sx={{ fontSize: 20 }} />
-    </IconButton>
+      <IconButton
+        size="small"
+        onClick={onOpen}
+        aria-label="Open sidebar"
+        sx={{
+          position: "absolute",
+          top: "max(env(safe-area-inset-top), 12px)",
+          left: 12,
+          zIndex: UI_Z_INDEX.mainContentControl,
+          ...getInteractiveIconButtonSx(theme, { size: 44, radius: "8px" }),
+          width: 44,
+          height: 44,
+          backgroundColor: alpha(theme.palette.background.paper, 0.96),
+          boxShadow: `0 6px 18px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.18 : 0.08)}`,
+          opacity: 0.82,
+          transition: "opacity 0.15s ease",
+          "&:hover": {
+            opacity: 1,
+            backgroundColor: getInteractionColors(theme).hoverBackground,
+          },
+        }}
+      >
+        <MenuRoundedIcon sx={{ fontSize: 20 }} />
+      </IconButton>
     </Tooltip>
   );
 });
@@ -233,13 +247,13 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
   return (
     <Box
       sx={{
-        position: 'relative',
+        position: "relative",
         zIndex: UI_Z_INDEX.mainContentBase,
         flex: 1,
         minHeight: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        contain: 'layout paint style',
+        display: "flex",
+        flexDirection: "column",
+        contain: "layout paint style",
       }}
     >
       <WelcomeScreen
@@ -249,41 +263,22 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
       />
 
       <Fade in={showConversationPanel} timeout={300} unmountOnExit>
-        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, position: 'relative' }}>
-          {messages.length > 0 && (
-            <Box
-              sx={{
-                position: 'absolute',
-                top: { xs: 8, sm: 16 },
-                right: { xs: 8, sm: 24 },
-                zIndex: UI_Z_INDEX.mainContentControl,
-                pointerEvents: 'none',
-              }}
-            >
-              <Chip
-                label={`Turns: ${Math.floor(messages.length / 2)}`}
-                size="small"
-                variant="outlined"
-                sx={{
-                  height: 26,
-                  fontSize: '0.7rem',
-                  fontWeight: 600,
-                  backgroundColor: alpha(theme.palette.background.paper, 0.6),
-                  backdropFilter: 'blur(8px)',
-                  borderColor: alpha(theme.palette.divider, 0.4),
-                  color: 'text.secondary',
-                  boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, 0.05)}`,
-                }}
-              />
-            </Box>
-          )}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            minHeight: 0,
+            position: "relative",
+          }}
+        >
           <Box
             ref={setScrollContainerRef}
             sx={{
               flex: 1,
               minHeight: 0,
-              overflowY: 'auto',
-              overflowX: 'hidden',
+              overflowY: "auto",
+              overflowX: "hidden",
               px: { xs: 0, sm: 1 },
               pt: { xs: 2, sm: 3 },
               pb: { xs: 1, sm: 2 },
@@ -293,7 +288,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
             <MessageList
               messages={messages}
               isLoadingConversation={isConversationLoading}
-              loadError={conversationLoadState === 'error'}
+              loadError={conversationLoadState === "error"}
               onRunQuery={handleRunQuery}
               onOpenCanvasArtifact={handleOpenCanvasArtifact}
             />
@@ -305,7 +300,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
               zIndex: 2,
               px: { xs: 0, sm: 1 },
               pt: { xs: 1, sm: 1.5 },
-              pb: 'max(env(safe-area-inset-bottom), 8px)',
+              pb: "max(env(safe-area-inset-bottom), 8px)",
             }}
           >
             <GuidedConfirmationPrompt
@@ -329,47 +324,49 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
   );
 });
 
-const WorkspaceOverlayLayer = memo(function WorkspaceOverlayLayer({
-  dbModalOpen,
-  handleCloseDbModal,
-  handleDbConnect,
-  isDbConnected,
-  currentDatabase,
-  availableDatabases,
-  dbModalInitialType,
-  settingsOpen,
-  handleCloseSettings,
-  settingsInitialSection,
-}) {
-  return (
-    <>
-      <Suspense fallback={null}>
-        <DatabaseModal
-          open={dbModalOpen}
-          onClose={handleCloseDbModal}
-          onConnect={handleDbConnect}
-          isConnected={isDbConnected}
-          currentDatabase={currentDatabase}
-          availableDatabases={availableDatabases}
-          initialDbType={dbModalInitialType}
-        />
-      </Suspense>
-      <Suspense fallback={null}>
-        <SettingsModal
-          open={settingsOpen}
-          onClose={handleCloseSettings}
-          initialSection={settingsInitialSection}
-        />
-      </Suspense>
-    </>
-  );
-}, (prev, next) => (
-  prev.dbModalOpen === next.dbModalOpen &&
-  prev.settingsOpen === next.settingsOpen &&
-  prev.isDbConnected === next.isDbConnected &&
-  prev.currentDatabase === next.currentDatabase &&
-  prev.availableDatabases === next.availableDatabases
-));
+const WorkspaceOverlayLayer = memo(
+  function WorkspaceOverlayLayer({
+    dbModalOpen,
+    handleCloseDbModal,
+    handleDbConnect,
+    isDbConnected,
+    currentDatabase,
+    availableDatabases,
+    dbModalInitialType,
+    settingsOpen,
+    handleCloseSettings,
+    settingsInitialSection,
+  }) {
+    return (
+      <>
+        <Suspense fallback={null}>
+          <DatabaseModal
+            open={dbModalOpen}
+            onClose={handleCloseDbModal}
+            onConnect={handleDbConnect}
+            isConnected={isDbConnected}
+            currentDatabase={currentDatabase}
+            availableDatabases={availableDatabases}
+            initialDbType={dbModalInitialType}
+          />
+        </Suspense>
+        <Suspense fallback={null}>
+          <SettingsModal
+            open={settingsOpen}
+            onClose={handleCloseSettings}
+            initialSection={settingsInitialSection}
+          />
+        </Suspense>
+      </>
+    );
+  },
+  (prev, next) =>
+    prev.dbModalOpen === next.dbModalOpen &&
+    prev.settingsOpen === next.settingsOpen &&
+    prev.isDbConnected === next.isDbConnected &&
+    prev.currentDatabase === next.currentDatabase &&
+    prev.availableDatabases === next.availableDatabases,
+);
 
 function MainInterface() {
   const workspaceContainerRef = useRef(null);
@@ -438,28 +435,31 @@ function MainInterface() {
     <Box
       id="app-shell"
       sx={{
-        display: 'flex',
-        flexDirection: 'row',
-        width: '100%',
+        display: "flex",
+        flexDirection: "row",
+        width: "100%",
         minWidth: 0,
         minHeight: 0,
-        overflow: 'hidden',
-        bgcolor: 'background.default',
+        overflow: "hidden",
+        bgcolor: "background.default",
       }}
     >
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
-        anchorOrigin={{ vertical: 'top', horizontal: sidebarOpen ? 'left' : 'right' }}
-        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+        anchorOrigin={{
+          vertical: "top",
+          horizontal: sidebarOpen ? "left" : "right",
+        }}
+        transformOrigin={{ vertical: "bottom", horizontal: "left" }}
         MenuListProps={{ sx: getPopoverMenuListSx() }}
         PaperProps={{
           sx: {
-            ...getPopoverPaperSx(theme, theme.palette.mode === 'dark'),
+            ...getPopoverPaperSx(theme, theme.palette.mode === "dark"),
             width: 240,
             p: 0,
-            overflow: 'hidden',
+            overflow: "hidden",
           },
         }}
       >
@@ -468,10 +468,10 @@ function MainInterface() {
           <Typography
             sx={{
               ...theme.typography.uiCaptionXs,
-              color: 'text.secondary',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+              color: "text.secondary",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
             }}
           >
             {user?.email}
@@ -484,19 +484,36 @@ function MainInterface() {
             ...getPopoverMenuItemSx(theme),
           }}
         >
-          <SettingsOutlinedIcon sx={{ color: 'text.secondary', flexShrink: 0 }} />
-          <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary' }}>Settings</Typography>
+          <SettingsOutlinedIcon
+            sx={{ color: "text.secondary", flexShrink: 0 }}
+          />
+          <Typography
+            sx={{ ...theme.typography.uiNavItem, color: "text.primary" }}
+          >
+            Settings
+          </Typography>
         </MenuItem>
         {/* Separator */}
-        <Box sx={{ height: '0.5px', backgroundColor: alpha(theme.palette.text.primary, 0.07), my: 0.75, mx: 0.5 }} />
+        <Box
+          sx={{
+            height: "0.5px",
+            backgroundColor: alpha(theme.palette.text.primary, 0.07),
+            my: 0.75,
+            mx: 0.5,
+          }}
+        />
         <MenuItem
           onClick={handleLogout}
           sx={{
             ...getPopoverMenuItemSx(theme),
           }}
         >
-          <LogoutOutlinedIcon sx={{ color: 'text.secondary', flexShrink: 0 }} />
-          <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary' }}>Sign out</Typography>
+          <LogoutOutlinedIcon sx={{ color: "text.secondary", flexShrink: 0 }} />
+          <Typography
+            sx={{ ...theme.typography.uiNavItem, color: "text.primary" }}
+          >
+            Sign out
+          </Typography>
         </MenuItem>
       </Menu>
       <Sidebar
@@ -516,11 +533,11 @@ function MainInterface() {
           flex: 1,
           minWidth: 0,
           minHeight: 0,
-          display: 'flex',
-          flexDirection: 'row',
-          alignItems: 'stretch',
-          overflow: 'hidden',
-          position: 'relative',
+          display: "flex",
+          flexDirection: "row",
+          alignItems: "stretch",
+          overflow: "hidden",
+          position: "relative",
         }}
       >
         <Box
@@ -529,13 +546,13 @@ function MainInterface() {
           aria-label="Chat workspace"
           sx={{
             flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
+            display: "flex",
+            flexDirection: "column",
             mt: 0,
             minWidth: 0,
             minHeight: 0,
-            overflow: 'hidden',
-            position: 'relative',
+            overflow: "hidden",
+            position: "relative",
             zIndex: UI_Z_INDEX.mainContentBase,
             ...getShellWorkspaceSx(theme),
           }}
@@ -568,11 +585,11 @@ function MainInterface() {
             component="section"
             data-ui-target="workspace_canvas"
             sx={{
-              display: 'flex',
+              display: "flex",
               flexShrink: 0,
               minHeight: 0,
-              alignSelf: 'stretch',
-              height: '100%',
+              alignSelf: "stretch",
+              height: "100%",
             }}
             aria-label="Workspace canvas"
           >
@@ -597,18 +614,23 @@ function MainInterface() {
         )}
       </Box>
       {isNarrowLayout && (
-        <Slide direction="up" in={workspaceCanvasOpen} mountOnEnter unmountOnExit>
+        <Slide
+          direction="up"
+          in={workspaceCanvasOpen}
+          mountOnEnter
+          unmountOnExit
+        >
           <Box
             sx={{
-              position: 'fixed',
+              position: "fixed",
               top: 0,
               left: 0,
               right: 0,
               bottom: 0,
               zIndex: UI_Z_INDEX.artifactFullscreen,
-              display: 'flex',
-              flexDirection: 'column',
-              bgcolor: 'background.default',
+              display: "flex",
+              flexDirection: "column",
+              bgcolor: "background.default",
             }}
           >
             <ArtifactLoader
@@ -644,9 +666,14 @@ function MainInterface() {
         message={snackbar.message}
         ContentProps={snackbarContentProps}
         sx={{
-          maxWidth: 'min(420px, calc(100vw - 32px))',
-          '& .MuiSnackbarContent-root': {
-            width: '100%',
+          maxWidth: "min(420px, calc(100vw - 32px))",
+          "& .MuiSnackbarContent-root": { width: "100%" },
+          // Respect the iOS notch safe area when the snackbar is anchored to the top.
+          // env() falls back to 8px on platforms that don't support it.
+          "@media (max-width: 599.95px)": {
+            "&.MuiSnackbar-anchorOriginTopCenter": {
+              top: "max(8px, env(safe-area-inset-top)) !important",
+            },
           },
         }}
       />
@@ -668,17 +695,19 @@ function MainInterface() {
         maxWidth="xs"
         fullWidth
         PaperProps={{
-          component: 'form',
+          component: "form",
           onSubmit: (event) => {
             event.preventDefault();
             handleRenameConversationConfirm();
           },
           sx: {
-            borderRadius: '12px',
+            borderRadius: "12px",
           },
         }}
       >
-        <DialogTitle sx={{ ...theme.typography.uiCardTitle, fontWeight: 700, pb: 1 }}>
+        <DialogTitle
+          sx={{ ...theme.typography.uiCardTitle, fontWeight: 700, pb: 1 }}
+        >
           Rename conversation
         </DialogTitle>
         <DialogContent sx={{ pt: 1 }}>
@@ -693,9 +722,7 @@ function MainInterface() {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleRenameConversationDialogClose}>
-            Cancel
-          </Button>
+          <Button onClick={handleRenameConversationDialogClose}>Cancel</Button>
           <Button
             type="submit"
             variant="contained"

@@ -315,8 +315,20 @@ function SidebarOverlays({
         />
         <Box sx={{ maxHeight: 360, overflowY: 'auto', mt: 0.25 }}>
           {searchedConversations.length === 0 ? (
-            <Box sx={{ px: 1, py: 1.5 }}>
-              <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary' }}>
+            <Box
+              role="status"
+              aria-live="polite"
+              sx={{
+                mx: 0.5,
+                px: 1,
+                py: 1.25,
+                borderRadius: '10px',
+                border: '1px solid',
+                borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
+                bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.35 : 0.65),
+              }}
+            >
+              <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary', lineHeight: 1.35 }}>
                 {conversations.length === 0 ? 'No conversations yet' : 'No matching chats'}
               </Typography>
             </Box>
@@ -352,8 +364,20 @@ function SidebarOverlays({
         </Typography>
         <Box sx={{ maxHeight: 360, overflowY: 'auto', mt: 0.5 }}>
           {conversations.length === 0 ? (
-            <Box sx={{ px: 1, py: 1.5 }}>
-              <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary' }}>
+            <Box
+              role="status"
+              aria-live="polite"
+              sx={{
+                mx: 0.5,
+                px: 1,
+                py: 1.25,
+                borderRadius: '10px',
+                border: '1px solid',
+                borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
+                bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.35 : 0.65),
+              }}
+            >
+              <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary', lineHeight: 1.35 }}>
                 No conversations yet
               </Typography>
             </Box>

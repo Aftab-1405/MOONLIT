@@ -129,7 +129,7 @@ function DemoSection() {
                   ...theme.typography.uiBodySm,
                   fontFamily: theme.typography.fontFamilyMono,
                   opacity: 0.7,
-                  letterSpacing: '0.01em',
+                  letterSpacing: 0,
                 }}
               >
                 moonlit.app/chat

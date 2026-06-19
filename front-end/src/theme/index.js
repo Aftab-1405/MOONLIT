@@ -12,9 +12,12 @@
  */
 
 // ─── Moonlit MUI themes ───────────────────────────────────────────────────────
-export { createDarkTheme } from '@/theme/darkTheme';
-export { createLightTheme } from '@/theme/lightTheme';
+export { createDarkTheme } from "@/theme/darkTheme";
+export { createLightTheme } from "@/theme/lightTheme";
 
 // ─── Style utilities ──────────────────────────────────────────────────────────
-export { TRANSITIONS, getMoonlitGradient } from '@/theme/themeEffects';
-export { getMonacoThemeName, registerMonacoThemes } from '@/theme/themeMonaco';
+export { TRANSITIONS, getMoonlitGradient } from "@/theme/themeEffects";
+export {
+  getCodeMirrorTheme,
+  getCodeMirrorHighlighting,
+} from "@/theme/themeCodeMirror";

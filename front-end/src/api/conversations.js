@@ -1,22 +1,22 @@
 /**
  * Conversations API Module
- * 
+ *
  * Handles conversation-related API calls:
  * - List conversations
  * - Get single conversation
  * - Rename conversation
  * - Delete conversation
  * - Send message to LLM (streaming)
- * 
+ *
  * @module api/conversations
  */
 
-import { get, del, patch, postRaw } from '@/api/client';
-import { CONVERSATIONS } from '@/api/endpoints';
+import { get, del, patch, postRaw } from "@/api/client";
+import { CONVERSATIONS } from "@/api/endpoints";
 
 /**
  * Get all conversations for current user.
- * 
+ *
  * @param {AbortSignal} [signal] - Optional abort signal for cancellation
  * @returns {Promise<{status: string, conversations: Array}>}
  */
@@ -26,7 +26,7 @@ export async function getConversations(signal) {
 
 /**
  * Get a single conversation by ID.
- * 
+ *
  * @param {string} id - Conversation ID
  * @param {AbortSignal} [signal] - Optional abort signal for cancellation
  * @returns {Promise<{status: string, conversation: Object}>}
@@ -37,7 +37,7 @@ export async function getConversation(id, signal) {
 
 /**
  * Delete a conversation by ID.
- * 
+ *
  * @param {string} id - Conversation ID
  * @returns {Promise<{status: string}>}
  */
@@ -58,7 +58,7 @@ export async function renameConversation(id, title) {
 
 /**
  * Send a message to the LLM and receive streaming response.
- * 
+ *
  * @param {Object} params - Message parameters
  * @param {string} params.prompt - User message
  * @param {string|null} params.conversationId - Current conversation ID
@@ -71,17 +71,20 @@ export async function renameConversation(id, title) {
  * @param {AbortSignal} [signal] - Optional abort signal for cancellation
  * @returns {Promise<Response>} Raw response for streaming
  */
-export async function sendMessage({
-  prompt,
-  conversationId = null,
-  enableReasoning = true,
-  reasoningEffort = 'medium',
-  responseStyle = 'balanced',
-  maxRows = 1000,
-  provider = null,
-  model = null,
-  taskMode = 'normal',
-}, signal) {
+export async function sendMessage(
+  {
+    prompt,
+    conversationId = null,
+    enableReasoning = true,
+    reasoningEffort = "medium",
+    responseStyle = "balanced",
+    maxRows = 1000,
+    provider = null,
+    model = null,
+    taskMode = "normal",
+  },
+  signal,
+) {
   return postRaw(
     CONVERSATIONS.SEND_MESSAGE,
     {
@@ -95,7 +98,14 @@ export async function sendMessage({
       model,
       task_mode: taskMode,
     },
-    { signal }
+    {
+      signal,
+      // Opt out of content-encoding negotiation. If the Vite dev proxy (or any
+      // upstream proxy) negotiates gzip with the backend, it buffers the entire
+      // compressed SSE stream before forwarding it — making all tokens arrive
+      // simultaneously and killing the streaming effect.
+      headers: { "Accept-Encoding": "identity" },
+    },
   );
 }
 
@@ -108,17 +118,20 @@ export async function sendMessage({
  * @param {AbortSignal} [signal] - Optional abort signal for cancellation
  * @returns {Promise<Response>} Raw response for streaming
  */
-export async function resumeAgent({
-  conversationId,
-  resume,
-  enableReasoning = true,
-  reasoningEffort = 'medium',
-  responseStyle = 'balanced',
-  maxRows = 1000,
-  provider = null,
-  model = null,
-  taskMode = 'normal',
-}, signal) {
+export async function resumeAgent(
+  {
+    conversationId,
+    resume,
+    enableReasoning = true,
+    reasoningEffort = "medium",
+    responseStyle = "balanced",
+    maxRows = 1000,
+    provider = null,
+    model = null,
+    taskMode = "normal",
+  },
+  signal,
+) {
   return postRaw(
     CONVERSATIONS.RESUME_AGENT,
     {
@@ -132,6 +145,10 @@ export async function resumeAgent({
       model,
       task_mode: taskMode,
     },
-    { signal }
+    {
+      signal,
+      // Same reason as sendMessage — prevent proxy compression buffering.
+      headers: { "Accept-Encoding": "identity" },
+    },
   );
 }

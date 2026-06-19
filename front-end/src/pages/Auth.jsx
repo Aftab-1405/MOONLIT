@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -22,49 +22,58 @@ import {
   Snackbar,
   SvgIcon,
   useMediaQuery,
-} from '@mui/material';
-import GlobalStyles from '@mui/material/GlobalStyles';
-import { useNavigate } from 'react-router-dom';
-import { useTheme, alpha } from '@mui/material/styles';
-import GitHubIcon from '@mui/icons-material/GitHub';
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
-import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
-import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import { useAuth } from '@/contexts/AuthContext';
-import { ButtonLoadingSpinner } from '@/components';
-import { useFormValidation } from '@/hooks/useFormValidation';
+} from "@mui/material";
+import GlobalStyles from "@mui/material/GlobalStyles";
+import { useNavigate } from "react-router-dom";
+import { useTheme, alpha } from "@mui/material/styles";
+import GitHubIcon from "@mui/icons-material/GitHub";
+import VisibilityOutlinedIcon from "@mui/icons-material/VisibilityOutlined";
+import VisibilityOffOutlinedIcon from "@mui/icons-material/VisibilityOffOutlined";
+import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
+import PersonOutlineRoundedIcon from "@mui/icons-material/PersonOutlineRounded";
+import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import { useAuth } from "@/contexts/AuthContext";
+import { ButtonLoadingSpinner } from "@/components";
+import { useFormValidation } from "@/hooks/useFormValidation";
 import {
   signInSchema,
   signUpSchema,
   resetPasswordSchema,
   authFieldSchemas,
-} from '@/utils/validationSchemas';
-import { BACKDROP_FILTER_FALLBACK_QUERY } from '@/styles/mediaQueries';
-import { getMoonlitBrandGradients } from '@/theme/themeEffects';
-import logger from '@/utils/logger';
+} from "@/utils/validationSchemas";
+import { BACKDROP_FILTER_FALLBACK_QUERY } from "@/styles/mediaQueries";
+import { getMoonlitBrandGradients } from "@/theme/themeEffects";
+import logger from "@/utils/logger";
 
 // ─── Keyframes ────────────────────────────────────────────────────────────────
 const AUTH_KEYFRAMES = (
   <GlobalStyles
     styles={{
-      '@keyframes authSlideIn': {
-        from: { opacity: 0, transform: 'translateX(20px)' },
-        to: { opacity: 1, transform: 'translateX(0)' },
+      "@keyframes authSlideIn": {
+        from: { opacity: 0, transform: "translateX(20px)" },
+        to: { opacity: 1, transform: "translateX(0)" },
       },
-      '@keyframes authFadeUp': {
-        from: { opacity: 0, transform: 'translateY(10px)' },
-        to: { opacity: 1, transform: 'translateY(0)' },
+      "@keyframes authFadeUp": {
+        from: { opacity: 0, transform: "translateY(10px)" },
+        to: { opacity: 1, transform: "translateY(0)" },
       },
-      '@keyframes mockupReveal': {
-        '0%, 55%': { opacity: 0, transform: 'translateY(8px)' },
-        '75%, 100%': { opacity: 1, transform: 'translateY(0)' },
+      "@keyframes mockupReveal": {
+        "0%, 55%": { opacity: 0, transform: "translateY(8px)" },
+        "75%, 100%": { opacity: 1, transform: "translateY(0)" },
       },
-      '@keyframes pulse-dot': {
-        '0%, 100%': { opacity: 1, transform: 'scale(1)' },
-        '50%': { opacity: 0.3, transform: 'scale(0.8)' },
+      "@keyframes pulse-dot": {
+        "0%, 100%": { opacity: 1, transform: "scale(1)" },
+        "50%": { opacity: 0.3, transform: "scale(0.8)" },
+      },
+      // Honour the OS motion preference — collapse all auth animations to instant.
+      "@media (prefers-reduced-motion: reduce)": {
+        "[data-auth-page] *, [data-auth-page] *::before, [data-auth-page] *::after":
+          {
+            animationDuration: "0.01ms !important",
+            animationIterationCount: "1 !important",
+            transitionDuration: "0.01ms !important",
+          },
       },
     }}
   />
@@ -102,7 +111,7 @@ function QueryMockup({ isDark }) {
       ? alpha(theme.palette.common.white, 0.04)
       : alpha(theme.palette.text.primary, 0.035),
     panelBorder: isDark
-      ? alpha(theme.palette.common.white, 0.10)
+      ? alpha(theme.palette.common.white, 0.1)
       : alpha(theme.palette.text.primary, 0.12),
     text: isDark
       ? alpha(theme.palette.common.white, 0.9)
@@ -127,55 +136,56 @@ function QueryMockup({ isDark }) {
   const SQL_LINES = [
     {
       tokens: [
-        { kw: true, v: 'SELECT' },
-        { v: ' c.name, ' },
-        { kw: true, v: 'SUM' },
-        { v: '(o.amount) ' },
-        { kw: true, v: 'AS' },
-        { v: ' revenue' },
+        { kw: true, v: "SELECT" },
+        { v: " c.name, " },
+        { kw: true, v: "SUM" },
+        { v: "(o.amount) " },
+        { kw: true, v: "AS" },
+        { v: " revenue" },
       ],
     },
-    { tokens: [{ kw: true, v: 'FROM' }, { v: ' customers c' }] },
+    { tokens: [{ kw: true, v: "FROM" }, { v: " customers c" }] },
     {
       tokens: [
-        { kw: true, v: 'JOIN' },
-        { v: ' orders o ' },
-        { kw: true, v: 'ON' },
-        { v: ' c.id = o.customer_id' },
+        { kw: true, v: "JOIN" },
+        { v: " orders o " },
+        { kw: true, v: "ON" },
+        { v: " c.id = o.customer_id" },
       ],
     },
     {
       tokens: [
-        { kw: true, v: 'WHERE' },
+        { kw: true, v: "WHERE" },
         { v: " o.created_at >= DATE_TRUNC('quarter', NOW())" },
       ],
     },
-    { tokens: [{ kw: true, v: 'GROUP BY' }, { v: ' c.name' }] },
+    { tokens: [{ kw: true, v: "GROUP BY" }, { v: " c.name" }] },
     {
       tokens: [
-        { kw: true, v: 'ORDER BY' },
-        { v: ' revenue ' },
-        { kw: true, v: 'DESC' },
+        { kw: true, v: "ORDER BY" },
+        { v: " revenue " },
+        { kw: true, v: "DESC" },
       ],
     },
-    { tokens: [{ kw: true, v: 'LIMIT' }, { v: ' 10;' }] },
+    { tokens: [{ kw: true, v: "LIMIT" }, { v: " 10;" }] },
   ];
 
   const ROWS = [
-    { name: 'Acme Corp', revenue: '$284,920', top: true },
-    { name: 'Globex Ltd', revenue: '$198,455', top: false },
-    { name: 'Initech', revenue: '$176,310', top: false },
+    { name: "Acme Corp", revenue: "$284,920", top: true },
+    { name: "Globex Ltd", revenue: "$198,455", top: false },
+    { name: "Initech", revenue: "$176,310", top: false },
   ];
 
   return (
     <Box
       sx={{
-        width: '100%',
+        width: "100%",
         maxWidth: { md: 340, lg: 390 },
-        display: 'flex',
-        flexDirection: 'column',
+        display: "flex",
+        flexDirection: "column",
         gap: 1.25,
-        animation: 'authFadeUp 0.6s ease-out 0.4s both',
+        animation: "authFadeUp 0.6s ease-out 0.4s both",
+        "@media (prefers-reduced-motion: reduce)": { animation: "none" },
       }}
     >
       <Box
@@ -184,21 +194,24 @@ function QueryMockup({ isDark }) {
           border: `1px solid ${C.panelBorder}`,
           backgroundColor: C.panelBg,
           p: 1.35,
-          display: 'flex',
+          display: "flex",
           gap: 1.1,
-          alignItems: 'flex-start',
+          alignItems: "flex-start",
         }}
       >
         <Box
           sx={{
             width: 26,
             height: 26,
-            borderRadius: '50%',
-            backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.07 : 0.05),
+            borderRadius: "50%",
+            backgroundColor: alpha(
+              theme.palette.text.primary,
+              isDark ? 0.07 : 0.05,
+            ),
             border: `1px solid ${C.panelBorder}`,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             flexShrink: 0,
             mt: 0.125,
           }}
@@ -207,7 +220,7 @@ function QueryMockup({ isDark }) {
             sx={{
               width: 7,
               height: 7,
-              borderRadius: '50%',
+              borderRadius: "50%",
               backgroundColor: C.dot,
             }}
           />
@@ -216,11 +229,11 @@ function QueryMockup({ isDark }) {
         <Box>
           <Typography
             sx={{
-              fontSize: '0.75rem',
+              fontSize: "0.75rem",
               fontWeight: 700,
               color: C.muted,
               letterSpacing: 0,
-              textTransform: 'none',
+              textTransform: "none",
               mb: 0.5,
             }}
           >
@@ -228,7 +241,7 @@ function QueryMockup({ isDark }) {
           </Typography>
           <Typography
             sx={{
-              fontSize: '0.78rem',
+              fontSize: "0.78rem",
               color: C.text,
               lineHeight: 1.5,
             }}
@@ -243,16 +256,17 @@ function QueryMockup({ isDark }) {
           borderRadius: 2,
           border: `1px solid ${C.panelBorder}`,
           backgroundColor: C.panelBg,
-          overflow: 'hidden',
-          animation: 'mockupReveal 3s ease-out 1s both',
+          overflow: "hidden",
+          animation: "mockupReveal 3s ease-out 1s both",
+          "@media (prefers-reduced-motion: reduce)": { animation: "none" },
         }}
       >
         <Box
           sx={{
             px: 1.4,
             py: 0.85,
-            display: 'flex',
-            alignItems: 'center',
+            display: "flex",
+            alignItems: "center",
             gap: 0.875,
             borderBottom: `1px solid ${C.panelBorder}`,
           }}
@@ -260,11 +274,11 @@ function QueryMockup({ isDark }) {
           <AutoAwesomeIcon sx={{ fontSize: 12, color: C.muted }} />
           <Typography
             sx={{
-              fontSize: '0.75rem',
+              fontSize: "0.75rem",
               fontWeight: 700,
               color: C.muted,
               letterSpacing: 0,
-              textTransform: 'none',
+              textTransform: "none",
             }}
           >
             Moonlit
@@ -274,9 +288,10 @@ function QueryMockup({ isDark }) {
             sx={{
               width: 5,
               height: 5,
-              borderRadius: '50%',
+              borderRadius: "50%",
               backgroundColor: C.dot,
-              animation: 'pulse-dot 2s ease-in-out infinite',
+              animation: "pulse-dot 2s ease-in-out infinite",
+              "@media (prefers-reduced-motion: reduce)": { animation: "none" },
             }}
           />
         </Box>
@@ -290,24 +305,26 @@ function QueryMockup({ isDark }) {
             backgroundColor: C.codeBg,
           }}
         >
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.625, mb: 0.85 }}>
+          <Box
+            sx={{ display: "flex", alignItems: "center", gap: 0.625, mb: 0.85 }}
+          >
             {[0.24, 0.15, 0.1].map((o, i) => (
               <Box
                 key={i}
                 sx={{
                   width: 7,
                   height: 7,
-                  borderRadius: '50%',
+                  borderRadius: "50%",
                   backgroundColor: alpha(theme.palette.text.primary, o),
                 }}
               />
             ))}
             <Typography
               sx={{
-                fontSize: '0.7rem',
+                fontSize: "0.7rem",
                 color: C.muted,
                 letterSpacing: 0,
-                textTransform: 'none',
+                textTransform: "none",
                 ml: 0.5,
               }}
             >
@@ -319,16 +336,16 @@ function QueryMockup({ isDark }) {
             component="pre"
             sx={{
               m: 0,
-              fontFamily: theme.typography.fontFamilyMono || 'monospace',
-              fontSize: '0.7rem',
+              fontFamily: theme.typography.fontFamilyMono || "monospace",
+              fontSize: "0.7rem",
               lineHeight: 1.7,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
-              overflow: 'hidden',
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+              overflow: "hidden",
             }}
           >
             {SQL_LINES.map((line, li) => (
-              <Box key={li} component="span" sx={{ display: 'block' }}>
+              <Box key={li} component="span" sx={{ display: "block" }}>
                 {line.tokens.map((t, ti) => (
                   <Box
                     key={ti}
@@ -349,27 +366,27 @@ function QueryMockup({ isDark }) {
         <Box sx={{ px: 1.4, py: 1.15 }}>
           <Typography
             sx={{
-              fontSize: '0.72rem',
+              fontSize: "0.72rem",
               color: C.muted,
               letterSpacing: 0,
-              textTransform: 'none',
+              textTransform: "none",
               mb: 0.8,
             }}
           >
             10 rows returned
           </Typography>
 
-          <Box sx={{ display: 'flex', gap: 1, mb: 0.5 }}>
-            {['Customer', 'Revenue'].map((h) => (
+          <Box sx={{ display: "flex", gap: 1, mb: 0.5 }}>
+            {["Customer", "Revenue"].map((h) => (
               <Typography
                 key={h}
                 sx={{
                   flex: 1,
-                  fontSize: '0.7rem',
+                  fontSize: "0.7rem",
                   fontWeight: 700,
                   color: C.muted,
                   letterSpacing: 0,
-                  textTransform: 'none',
+                  textTransform: "none",
                 }}
               >
                 {h}
@@ -377,25 +394,27 @@ function QueryMockup({ isDark }) {
             ))}
           </Box>
 
-          <Box sx={{ height: '1px', backgroundColor: C.panelBorder, mb: 0.6 }} />
+          <Box
+            sx={{ height: "1px", backgroundColor: C.panelBorder, mb: 0.6 }}
+          />
 
           {ROWS.map((row) => (
             <Box
               key={row.name}
               sx={{
-                display: 'flex',
+                display: "flex",
                 gap: 1,
                 py: 0.35,
                 px: 0.5,
                 mx: -0.5,
                 borderRadius: 0.75,
-                backgroundColor: row.top ? C.highlight : 'transparent',
+                backgroundColor: row.top ? C.highlight : "transparent",
               }}
             >
               <Typography
                 sx={{
                   flex: 1,
-                  fontSize: '0.7rem',
+                  fontSize: "0.7rem",
                   color: row.top ? C.text : C.codeText,
                 }}
               >
@@ -404,9 +423,9 @@ function QueryMockup({ isDark }) {
               <Typography
                 sx={{
                   flex: 1,
-                  fontSize: '0.7rem',
+                  fontSize: "0.7rem",
                   color: row.top ? C.text : C.codeText,
-                  fontFamily: theme.typography.fontFamilyMono || 'monospace',
+                  fontFamily: theme.typography.fontFamilyMono || "monospace",
                 }}
               >
                 {row.revenue}
@@ -414,9 +433,22 @@ function QueryMockup({ isDark }) {
             </Box>
           ))}
 
-          <Box sx={{ display: 'flex', gap: 1, py: 0.35, px: 0.5, mx: -0.5, opacity: 0.2 }}>
-            <Typography sx={{ flex: 1, fontSize: '0.7rem', color: C.text }}>···</Typography>
-            <Typography sx={{ flex: 1, fontSize: '0.7rem', color: C.text }}>···</Typography>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 1,
+              py: 0.35,
+              px: 0.5,
+              mx: -0.5,
+              opacity: 0.2,
+            }}
+          >
+            <Typography sx={{ flex: 1, fontSize: "0.7rem", color: C.text }}>
+              ···
+            </Typography>
+            <Typography sx={{ flex: 1, fontSize: "0.7rem", color: C.text }}>
+              ···
+            </Typography>
           </Box>
         </Box>
       </Box>
@@ -427,7 +459,7 @@ function QueryMockup({ isDark }) {
 // ─── TabPanel ─────────────────────────────────────────────────────────────────
 function TabPanel({ children, value, index }) {
   return (
-    <Box role="tabpanel" hidden={value !== index} sx={{ width: '100%' }}>
+    <Box role="tabpanel" hidden={value !== index} sx={{ width: "100%" }}>
       {value === index && children}
     </Box>
   );
@@ -437,13 +469,13 @@ function TabPanel({ children, value, index }) {
 function Auth() {
   const navigate = useNavigate();
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDark = theme.palette.mode === "dark";
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  const isSmall = useMediaQuery(theme.breakpoints.down("sm"));
   const brandGradients = getMoonlitBrandGradients(theme);
 
   useEffect(() => {
-    document.title = 'Moonlit - Sign In';
+    document.title = "Moonlit - Sign In";
   }, []);
 
   const {
@@ -459,17 +491,17 @@ function Auth() {
   } = useAuth();
 
   const [tabValue, setTabValue] = useState(0);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [displayName, setDisplayName] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [displayName, setDisplayName] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState('');
-  const [snackbarSeverity, setSnackbarSeverity] = useState('error');
+  const [snackbarMessage, setSnackbarMessage] = useState("");
+  const [snackbarSeverity, setSnackbarSeverity] = useState("error");
   const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
-  const [resetEmail, setResetEmail] = useState('');
+  const [resetEmail, setResetEmail] = useState("");
   const [resetLoading, setResetLoading] = useState(false);
 
   const {
@@ -481,7 +513,7 @@ function Auth() {
   } = useFormValidation(authFieldSchemas);
 
   useEffect(() => {
-    if (isAuthenticated) navigate('/chat');
+    if (isAuthenticated) navigate("/chat");
   }, [isAuthenticated, navigate]);
 
   useEffect(() => {
@@ -492,13 +524,13 @@ function Auth() {
   useEffect(() => {
     if (error) {
       setSnackbarMessage(error);
-      setSnackbarSeverity('error');
+      setSnackbarSeverity("error");
       setSnackbarOpen(true);
     }
   }, [error]);
 
   const handleSnackbarClose = (_, reason) => {
-    if (reason === 'clickaway') return;
+    if (reason === "clickaway") return;
     setSnackbarOpen(false);
     clearAuthError?.();
   };
@@ -511,7 +543,7 @@ function Auth() {
     try {
       await signInWithEmail(email, password);
     } catch (err) {
-      logger.error('Sign in failed:', err);
+      logger.error("Sign in failed:", err);
     } finally {
       setFormLoading(false);
     }
@@ -519,13 +551,21 @@ function Auth() {
 
   const handleEmailSignUp = async (e) => {
     e.preventDefault();
-    if (!validateForm(signUpSchema, { email, passwordSignUp: password, confirmPassword, displayName })) return;
+    if (
+      !validateForm(signUpSchema, {
+        email,
+        passwordSignUp: password,
+        confirmPassword,
+        displayName,
+      })
+    )
+      return;
 
     setFormLoading(true);
     try {
       await signUpWithEmail(email, password, displayName);
     } catch (err) {
-      logger.error('Sign up failed:', err);
+      logger.error("Sign up failed:", err);
     } finally {
       setFormLoading(false);
     }
@@ -554,9 +594,9 @@ function Auth() {
     try {
       await resetPassword(resetEmail);
       setForgotDialogOpen(false);
-      setResetEmail('');
+      setResetEmail("");
     } catch (err) {
-      logger.error('Password reset failed:', err);
+      logger.error("Password reset failed:", err);
     } finally {
       setResetLoading(false);
     }
@@ -566,44 +606,47 @@ function Auth() {
     return (
       <Box
         sx={{
-          height: '100dvh',
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: 'background.default',
-          overflow: 'hidden',
+          height: "100dvh",
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "background.default",
+          overflow: "hidden",
         }}
       >
-        <CircularProgress sx={{ color: 'primary.main' }} size={28} />
+        <CircularProgress sx={{ color: "primary.main" }} size={28} />
       </Box>
     );
   }
 
   const tabsSx = {
-    width: '100%',
+    width: "100%",
     minHeight: 36,
     borderRadius: 1.5,
     backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.05 : 0.04),
     border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
     p: 0.5,
-    '& .MuiTabs-indicator': {
-      height: '100%',
+    "& .MuiTabs-indicator": {
+      height: "100%",
       borderRadius: 1,
       backgroundImage: brandGradients.static,
-      backgroundColor: 'transparent',
+      backgroundColor: "transparent",
       boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, isDark ? 0.28 : 0.1)}`,
       zIndex: 0,
     },
-    '& .MuiTab-root': {
+    "& .MuiTab-root": {
       minHeight: 32,
       py: 0.5,
       borderRadius: 1,
       fontWeight: 500,
-      color: 'text.secondary',
+      color: "text.secondary",
       zIndex: 1,
-      transition: theme.transitions.create('color', { duration: 150 }),
-      '&.Mui-selected': { color: theme.palette.primary.contrastText, fontWeight: 600 },
+      transition: theme.transitions.create("color", { duration: 150 }),
+      "&.Mui-selected": {
+        color: theme.palette.primary.contrastText,
+        fontWeight: 600,
+      },
     },
   };
 
@@ -612,48 +655,50 @@ function Auth() {
       {AUTH_KEYFRAMES}
 
       <Box
+        data-auth-page=""
         sx={{
-          height: '100dvh',
-          minHeight: '100vh',
-          width: '100%',
-          display: 'flex',
-          flexDirection: { xs: 'column', md: 'row' },
-          backgroundColor: 'background.default',
+          height: "100dvh",
+          minHeight: "100vh",
+          width: "100%",
+          display: "flex",
+          flexDirection: { xs: "column", md: "row" },
+          backgroundColor: "background.default",
           backgroundImage: isDark
-            ? 'none'
+            ? "none"
             : `linear-gradient(
                 180deg,
                 ${alpha(theme.palette.text.primary, 0.015)} 0%,
                 transparent 30%
               )`,
-          position: 'relative',
-          overflow: 'hidden',
+          position: "relative",
+          overflow: "hidden",
         }}
       >
         {!isMobile && (
           <Box
             sx={{
-              flex: '0 0 50%',
+              flex: "0 0 50%",
               minWidth: 0,
               minHeight: 0,
-              height: '100%',
-              position: 'relative',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
+              height: "100%",
+              position: "relative",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
               px: { md: 4, lg: 6 },
               py: { md: 3.5, lg: 4.5 },
-              overflow: 'hidden',
+              overflow: "hidden",
+              animation: "authFadeUp 0.5s ease-out both",
               borderRight: `1px solid ${alpha(
                 theme.palette.text.primary,
-                isDark ? 0.07 : 0.08
+                isDark ? 0.07 : 0.08,
               )}`,
               backgroundColor: isDark
-                ? 'transparent'
+                ? "transparent"
                 : alpha(theme.palette.background.paper, 0.72),
               backgroundImage: isDark
-                ? 'none'
+                ? "none"
                 : `
                     radial-gradient(circle at 12% 8%, ${alpha(theme.palette.text.primary, 0.045)}, transparent 32%),
                     linear-gradient(180deg, ${alpha(theme.palette.text.primary, 0.02)} 0%, transparent 42%)
@@ -663,34 +708,34 @@ function Auth() {
             <Box
               aria-hidden
               sx={{
-                position: 'absolute',
-                top: '-20%',
-                left: '-10%',
-                width: '60%',
-                height: '60%',
+                position: "absolute",
+                top: "-20%",
+                left: "-10%",
+                width: "60%",
+                height: "60%",
                 background: `radial-gradient(circle, ${alpha(
                   theme.palette.text.primary,
-                  isDark ? 0.075 : 0.045
+                  isDark ? 0.075 : 0.045,
                 )} 0%, transparent 70%)`,
-                filter: 'blur(70px)',
-                pointerEvents: 'none',
+                filter: "blur(70px)",
+                pointerEvents: "none",
                 zIndex: 1,
               }}
             />
             <Box
               aria-hidden
               sx={{
-                position: 'absolute',
-                bottom: '-15%',
-                right: '-5%',
-                width: '50%',
-                height: '50%',
+                position: "absolute",
+                bottom: "-15%",
+                right: "-5%",
+                width: "50%",
+                height: "50%",
                 background: `radial-gradient(circle, ${alpha(
                   theme.palette.text.primary,
-                  isDark ? 0.055 : 0.035
+                  isDark ? 0.055 : 0.035,
                 )} 0%, transparent 70%)`,
-                filter: 'blur(60px)',
-                pointerEvents: 'none',
+                filter: "blur(60px)",
+                pointerEvents: "none",
                 zIndex: 1,
               }}
             />
@@ -698,19 +743,19 @@ function Auth() {
             <Box
               aria-hidden
               sx={{
-                position: 'absolute',
+                position: "absolute",
                 inset: 0,
                 zIndex: 1,
                 backgroundImage: `radial-gradient(${alpha(
                   theme.palette.text.primary,
-                  isDark ? 0.07 : 0.08
+                  isDark ? 0.07 : 0.08,
                 )} 1px, transparent 1px)`,
-                backgroundSize: '26px 26px',
+                backgroundSize: "26px 26px",
                 maskImage:
-                  'radial-gradient(ellipse 90% 90% at 40% 50%, black 20%, transparent 90%)',
+                  "radial-gradient(ellipse 90% 90% at 40% 50%, black 20%, transparent 90%)",
                 WebkitMaskImage:
-                  'radial-gradient(ellipse 90% 90% at 40% 50%, black 20%, transparent 90%)',
-                pointerEvents: 'none',
+                  "radial-gradient(ellipse 90% 90% at 40% 50%, black 20%, transparent 90%)",
+                pointerEvents: "none",
                 opacity: isDark ? 1 : 0.55,
               }}
             />
@@ -718,11 +763,11 @@ function Auth() {
             <Stack
               spacing={3}
               sx={{
-                position: 'relative',
+                position: "relative",
                 zIndex: 2,
-                width: '100%',
+                width: "100%",
                 maxWidth: 390,
-                justifyContent: 'center',
+                justifyContent: "center",
                 minHeight: 0,
               }}
             >
@@ -732,11 +777,14 @@ function Auth() {
                   sx={{
                     ...theme.typography.uiBrandWordmark,
                     background: brandGradients.shimmer,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                    letterSpacing: '-0.02em',
-                    animation: 'authFadeUp 0.5s ease-out 0.15s both',
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    letterSpacing: 0,
+                    animation: "authFadeUp 0.5s ease-out 0.15s both",
+                    "@media (prefers-reduced-motion: reduce)": {
+                      animation: "none",
+                    },
                   }}
                 >
                   Moonlit
@@ -750,37 +798,37 @@ function Auth() {
 
         <Box
           sx={{
-            flex: { xs: '1 1 auto', md: '0 0 50%' },
+            flex: { xs: "1 1 auto", md: "0 0 50%" },
             minWidth: 0,
             minHeight: 0,
-            height: '100%',
-            position: 'relative',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
+            height: "100%",
+            position: "relative",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             py: { xs: 2, sm: 3, md: 4 },
             px: { xs: 2, sm: 3, md: 4 },
             backgroundColor: isDark
               ? alpha(theme.palette.background.paper, 0.3)
               : alpha(theme.palette.background.default, 0.68),
-            overflow: 'hidden',
+            overflow: "hidden",
           }}
         >
           <Box
             aria-hidden
             sx={{
-              position: 'absolute',
-              top: '20%',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: '80%',
-              height: '50%',
+              position: "absolute",
+              top: "20%",
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: "80%",
+              height: "50%",
               background: `radial-gradient(ellipse at center, ${alpha(
                 theme.palette.text.primary,
-                isDark ? 0.055 : 0.035
+                isDark ? 0.055 : 0.035,
               )}, transparent 70%)`,
-              filter: 'blur(50px)',
-              pointerEvents: 'none',
+              filter: "blur(50px)",
+              pointerEvents: "none",
               zIndex: 0,
             }}
           />
@@ -789,13 +837,13 @@ function Auth() {
             maxWidth="xs"
             disableGutters
             sx={{
-              width: '100%',
+              width: "100%",
               maxWidth: { xs: 420, sm: 440 },
-              position: 'relative',
+              position: "relative",
               zIndex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: 'center',
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: "center",
               minHeight: 0,
             }}
           >
@@ -804,17 +852,22 @@ function Auth() {
                 spacing={0.5}
                 alignItems="center"
                 mb={{ xs: 2, sm: 2.5 }}
-                sx={{ animation: 'authFadeUp 0.5s ease-out both' }}
+                sx={{
+                  animation: "authFadeUp 0.5s ease-out both",
+                  "@media (prefers-reduced-motion: reduce)": {
+                    animation: "none",
+                  },
+                }}
               >
                 <Typography
                   component="span"
                   sx={{
                     ...theme.typography.uiBrandWordmark,
                     background: brandGradients.shimmer,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                    letterSpacing: '-0.02em',
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    backgroundClip: "text",
+                    letterSpacing: 0,
                   }}
                 >
                   Moonlit
@@ -822,11 +875,11 @@ function Auth() {
 
                 <Typography
                   sx={{
-                    color: 'text.secondary',
+                    color: "text.secondary",
                     opacity: 0.55,
                     ...theme.typography.uiCaptionSm,
                     letterSpacing: 0,
-                    textTransform: 'none',
+                    textTransform: "none",
                   }}
                 >
                   AI Database Assistant
@@ -837,52 +890,63 @@ function Auth() {
             <Paper
               elevation={0}
               sx={{
-                width: '100%',
+                width: "100%",
                 p: { xs: 2.25, sm: 3 },
                 backgroundColor: isDark
                   ? alpha(theme.palette.background.paper, 0.78)
                   : alpha(theme.palette.background.paper, 0.94),
-                backdropFilter: 'blur(24px)',
-                WebkitBackdropFilter: 'blur(24px)',
+                backdropFilter: "blur(24px)",
+                WebkitBackdropFilter: "blur(24px)",
                 [BACKDROP_FILTER_FALLBACK_QUERY]: {
-                  backdropFilter: 'none',
-                  WebkitBackdropFilter: 'none',
+                  backdropFilter: "none",
+                  WebkitBackdropFilter: "none",
                   backgroundColor: theme.palette.background.paper,
                 },
-                [theme.breakpoints.down('sm')]: {
-                  backdropFilter: 'none',
-                  WebkitBackdropFilter: 'none',
+                [theme.breakpoints.down("sm")]: {
+                  backdropFilter: "none",
+                  WebkitBackdropFilter: "none",
                   backgroundColor: theme.palette.background.paper,
                 },
                 border: `1px solid ${alpha(
                   theme.palette.text.primary,
-                  isDark ? 0.1 : 0.08
+                  isDark ? 0.1 : 0.08,
                 )}`,
                 borderRadius: { xs: 2.5, sm: 3 },
                 boxShadow: isDark
-                  ? `0 32px 64px -16px ${alpha('#000', 0.45)}`
-                  : `0 24px 48px -12px ${alpha('#000', 0.1)}`,
-                animation: 'authSlideIn 0.45s cubic-bezier(0.4, 0, 0.2, 1) 0.15s both',
-                '& .MuiInputBase-input': { ...theme.typography.uiInput },
+                  ? `0 32px 64px -16px ${alpha("#000", 0.45)}`
+                  : `0 24px 48px -12px ${alpha("#000", 0.1)}`,
+                animation:
+                  "authSlideIn 0.45s cubic-bezier(0.4, 0, 0.2, 1) 0.15s both",
+                "@media (prefers-reduced-motion: reduce)": {
+                  animation: "none",
+                },
+                "& .MuiInputBase-input": { ...theme.typography.uiInput },
               }}
             >
               <Stack spacing={{ xs: 2, sm: 2.5 }} alignItems="center">
-                <Box sx={{ textAlign: 'center' }}>
+                <Box sx={{ textAlign: "center" }}>
                   <Typography
                     variant="h5"
                     sx={{
                       mb: 0.35,
                       fontWeight: 700,
-                      fontSize: { xs: '1.45rem', sm: theme.typography.h5.fontSize },
+                      fontSize: {
+                        xs: "1.45rem",
+                        sm: theme.typography.h5.fontSize,
+                      },
                     }}
                   >
-                    {tabValue === 0 ? 'Welcome back' : 'Create account'}
+                    {tabValue === 0 ? "Welcome back" : "Create account"}
                   </Typography>
 
-                  <Typography variant="body2" color="text.secondary" sx={{ opacity: 0.72 }}>
+                  <Typography
+                    variant="body2"
+                    color="text.secondary"
+                    sx={{ opacity: 0.72 }}
+                  >
                     {tabValue === 0
-                      ? 'Sign in to start querying with AI'
-                      : 'Join Moonlit and unlock your data'}
+                      ? "Sign in to start querying with AI"
+                      : "Join Moonlit and unlock your data"}
                   </Typography>
                 </Box>
 
@@ -896,248 +960,22 @@ function Auth() {
                   <Tab label="Sign Up" />
                 </Tabs>
 
-                <TabPanel value={tabValue} index={0}>
-                  <Stack spacing={{ xs: 1.25, sm: 1.5 }} component="form" onSubmit={handleEmailSignIn}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type="email"
-                      label="Email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        clearFieldError('email');
-                      }}
-                      onBlur={() => validateField('email', email)}
-                      error={!!fieldErrors.email}
-                      helperText={fieldErrors.email}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <EmailOutlinedIcon
-                              sx={{ color: 'text.secondary', fontSize: 17, opacity: 0.65 }}
-                            />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type={showPassword ? 'text' : 'password'}
-                      label="Password"
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        clearFieldError('password');
-                      }}
-                      onBlur={() => validateField('password', password)}
-                      error={!!fieldErrors.password}
-                      helperText={fieldErrors.password}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockOutlinedIcon
-                              sx={{ color: 'text.secondary', fontSize: 17, opacity: 0.65 }}
-                            />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              aria-label={showPassword ? 'Hide password' : 'Show password'}
-                              onClick={() => setShowPassword((p) => !p)}
-                              edge="end"
-                              size="small"
-                              sx={{ color: 'text.secondary', opacity: 0.55 }}
-                            >
-                              {showPassword ? (
-                                <VisibilityOffOutlinedIcon fontSize="small" />
-                              ) : (
-                                <VisibilityOutlinedIcon fontSize="small" />
-                              )}
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <Box sx={{ textAlign: 'right', mt: -0.35 }}>
-                      <Link
-                        component="button"
-                        type="button"
-                        variant="caption"
-                        onClick={() => {
-                          setResetEmail(email);
-                          setForgotDialogOpen(true);
-                        }}
-                        sx={{
-                          color: 'text.secondary',
-                          opacity: 0.72,
-                          textDecoration: 'none',
-                          ...theme.typography.uiCaptionXs,
-                          transition: theme.transitions.create(['opacity', 'color'], { duration: 150 }),
-                          '@media (hover: hover)': { '&:hover': { opacity: 1, color: 'text.primary' } },
-                        }}
-                      >
-                        Forgot password?
-                      </Link>
-                    </Box>
-
-                    <Button
-                      fullWidth
-                      type="submit"
-                      disabled={formLoading}
-                      variant="outlined"
-                      color="primary"
-                      startIcon={formLoading ? <ButtonLoadingSpinner size={18} /> : null}
-                    >
-                      {formLoading ? 'Signing in...' : 'Sign In'}
-                    </Button>
-                  </Stack>
-                </TabPanel>
-
-                <TabPanel value={tabValue} index={1}>
-                  <Stack spacing={{ xs: 1.25, sm: 1.5 }} component="form" onSubmit={handleEmailSignUp}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type="text"
-                      label="Display Name (optional)"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PersonOutlineRoundedIcon
-                              sx={{ color: 'text.secondary', fontSize: 17, opacity: 0.65 }}
-                            />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type="email"
-                      label="Email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        clearFieldError('email');
-                      }}
-                      onBlur={() => validateField('email', email)}
-                      error={!!fieldErrors.email}
-                      helperText={fieldErrors.email}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <EmailOutlinedIcon
-                              sx={{ color: 'text.secondary', fontSize: 17, opacity: 0.65 }}
-                            />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type={showPassword ? 'text' : 'password'}
-                      label="Password"
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        clearFieldError('passwordSignUp');
-                      }}
-                      onBlur={() => validateField('passwordSignUp', password)}
-                      error={!!fieldErrors.passwordSignUp}
-                      helperText={fieldErrors.passwordSignUp || 'At least 6 characters'}
-                      FormHelperTextProps={{ sx: { mt: 0.25 } }}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockOutlinedIcon
-                              sx={{ color: 'text.secondary', fontSize: 17, opacity: 0.65 }}
-                            />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              aria-label={showPassword ? 'Hide password' : 'Show password'}
-                              onClick={() => setShowPassword((p) => !p)}
-                              edge="end"
-                              size="small"
-                              sx={{ color: 'text.secondary', opacity: 0.55 }}
-                            >
-                              {showPassword ? (
-                                <VisibilityOffOutlinedIcon fontSize="small" />
-                              ) : (
-                                <VisibilityOutlinedIcon fontSize="small" />
-                              )}
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type={showPassword ? 'text' : 'password'}
-                      label="Confirm Password"
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        clearFieldError('confirmPassword');
-                      }}
-                      onBlur={() => validateField('confirmPassword', confirmPassword)}
-                      error={!!fieldErrors.confirmPassword}
-                      helperText={fieldErrors.confirmPassword}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockOutlinedIcon
-                              sx={{ color: 'text.secondary', fontSize: 17, opacity: 0.65 }}
-                            />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <Button
-                      fullWidth
-                      type="submit"
-                      disabled={formLoading}
-                      variant="outlined"
-                      color="primary"
-                      startIcon={formLoading ? <ButtonLoadingSpinner size={18} /> : null}
-                    >
-                      {formLoading ? 'Creating...' : 'Create Account'}
-                    </Button>
-                  </Stack>
-                </TabPanel>
-
-                <Divider sx={{ width: '100%' }}>
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      color: 'text.secondary',
-                      opacity: 0.5,
-                      ...theme.typography.uiCaptionXs,
-                    }}
-                  >
-                    or continue with
-                  </Typography>
-                </Divider>
-
-                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ width: '100%' }}>
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1.25}
+                  sx={{ width: "100%" }}
+                >
                   {[
-                    { label: 'Google', icon: <GoogleBrandIcon sx={{ fontSize: 17 }} />, handler: handleGoogleSignIn },
-                    { label: 'GitHub', icon: <GitHubIcon sx={{ fontSize: 17 }} />, handler: handleGitHubSignIn },
+                    {
+                      label: "Google",
+                      icon: <GoogleBrandIcon sx={{ fontSize: 17 }} />,
+                      handler: handleGoogleSignIn,
+                    },
+                    {
+                      label: "GitHub",
+                      icon: <GitHubIcon sx={{ fontSize: 17 }} />,
+                      handler: handleGitHubSignIn,
+                    },
                   ].map(({ label, icon, handler }) => (
                     <Button
                       key={label}
@@ -1148,20 +986,29 @@ function Auth() {
                       sx={{
                         py: 0.8,
                         borderRadius: 1.5,
-                        borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.1),
-                        color: 'text.primary',
-                        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.03 : 0.02),
+                        borderColor: alpha(
+                          theme.palette.text.primary,
+                          isDark ? 0.12 : 0.1,
+                        ),
+                        color: "text.primary",
+                        backgroundColor: alpha(
+                          theme.palette.text.primary,
+                          isDark ? 0.03 : 0.02,
+                        ),
                         fontWeight: 500,
                         transition: theme.transitions.create(
-                          ['border-color', 'background-color', 'box-shadow'],
-                          { duration: 180 }
+                          ["border-color", "background-color", "box-shadow"],
+                          { duration: 180 },
                         ),
-                        '@media (hover: hover)': {
-                          '&:hover': {
-                            borderColor: alpha(theme.palette.text.primary, isDark ? 0.28 : 0.18),
+                        "@media (hover: hover)": {
+                          "&:hover": {
+                            borderColor: alpha(
+                              theme.palette.text.primary,
+                              isDark ? 0.28 : 0.18,
+                            ),
                             backgroundColor: alpha(
                               theme.palette.text.primary,
-                              isDark ? 0.07 : 0.04
+                              isDark ? 0.07 : 0.04,
                             ),
                             boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, isDark ? 0.22 : 0.08)}`,
                           },
@@ -1173,6 +1020,291 @@ function Auth() {
                   ))}
                 </Stack>
 
+                <Divider sx={{ width: "100%" }}>
+                  <Typography
+                    sx={{
+                      color: "text.secondary",
+                      opacity: 0.5,
+                      ...theme.typography.uiCaptionXs,
+                    }}
+                  >
+                    or continue with email
+                  </Typography>
+                </Divider>
+
+                <TabPanel value={tabValue} index={0}>
+                  <Stack
+                    spacing={{ xs: 1.5, sm: 2 }}
+                    component="form"
+                    onSubmit={handleEmailSignIn}
+                  >
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="email"
+                      label="Email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        clearFieldError("email");
+                      }}
+                      onBlur={() => validateField("email", email)}
+                      error={!!fieldErrors.email}
+                      helperText={fieldErrors.email}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <EmailOutlinedIcon
+                              sx={{
+                                color: "text.secondary",
+                                fontSize: 17,
+                                opacity: 0.65,
+                              }}
+                            />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type={showPassword ? "text" : "password"}
+                      label="Password"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        clearFieldError("password");
+                      }}
+                      onBlur={() => validateField("password", password)}
+                      error={!!fieldErrors.password}
+                      helperText={fieldErrors.password}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockOutlinedIcon
+                              sx={{
+                                color: "text.secondary",
+                                fontSize: 17,
+                                opacity: 0.65,
+                              }}
+                            />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              aria-label={
+                                showPassword ? "Hide password" : "Show password"
+                              }
+                              onClick={() => setShowPassword((p) => !p)}
+                              edge="end"
+                              size="small"
+                              sx={{ color: "text.secondary", opacity: 0.55 }}
+                            >
+                              {showPassword ? (
+                                <VisibilityOffOutlinedIcon fontSize="small" />
+                              ) : (
+                                <VisibilityOutlinedIcon fontSize="small" />
+                              )}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+
+                    <Box sx={{ textAlign: "right" }}>
+                      <Link
+                        component="button"
+                        type="button"
+                        variant="caption"
+                        onClick={() => {
+                          setResetEmail(email);
+                          setForgotDialogOpen(true);
+                        }}
+                        sx={{
+                          color: "text.secondary",
+                          opacity: 0.72,
+                          textDecoration: "none",
+                          ...theme.typography.uiCaptionXs,
+                          transition: theme.transitions.create(
+                            ["opacity", "color"],
+                            { duration: 150 },
+                          ),
+                          "@media (hover: hover)": {
+                            "&:hover": { opacity: 1, color: "text.primary" },
+                          },
+                        }}
+                      >
+                        Forgot password?
+                      </Link>
+                    </Box>
+
+                    <Button
+                      fullWidth
+                      type="submit"
+                      disabled={formLoading}
+                      variant="contained"
+                      color="primary"
+                      startIcon={
+                        formLoading ? <ButtonLoadingSpinner size={18} /> : null
+                      }
+                    >
+                      {formLoading ? "Signing in..." : "Sign In"}
+                    </Button>
+                  </Stack>
+                </TabPanel>
+
+                <TabPanel value={tabValue} index={1}>
+                  <Stack
+                    spacing={{ xs: 1.5, sm: 2 }}
+                    component="form"
+                    onSubmit={handleEmailSignUp}
+                  >
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="text"
+                      label="Display Name (optional)"
+                      value={displayName}
+                      onChange={(e) => setDisplayName(e.target.value)}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <PersonOutlineRoundedIcon
+                              sx={{
+                                color: "text.secondary",
+                                fontSize: 17,
+                                opacity: 0.65,
+                              }}
+                            />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="email"
+                      label="Email"
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        clearFieldError("email");
+                      }}
+                      onBlur={() => validateField("email", email)}
+                      error={!!fieldErrors.email}
+                      helperText={fieldErrors.email}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <EmailOutlinedIcon
+                              sx={{
+                                color: "text.secondary",
+                                fontSize: 17,
+                                opacity: 0.65,
+                              }}
+                            />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type={showPassword ? "text" : "password"}
+                      label="Password"
+                      value={password}
+                      onChange={(e) => {
+                        setPassword(e.target.value);
+                        clearFieldError("passwordSignUp");
+                      }}
+                      onBlur={() => validateField("passwordSignUp", password)}
+                      error={!!fieldErrors.passwordSignUp}
+                      helperText={
+                        fieldErrors.passwordSignUp || "At least 6 characters"
+                      }
+                      FormHelperTextProps={{ sx: { mt: 0.25 } }}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockOutlinedIcon
+                              sx={{
+                                color: "text.secondary",
+                                fontSize: 17,
+                                opacity: 0.65,
+                              }}
+                            />
+                          </InputAdornment>
+                        ),
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              aria-label={
+                                showPassword ? "Hide password" : "Show password"
+                              }
+                              onClick={() => setShowPassword((p) => !p)}
+                              edge="end"
+                              size="small"
+                              sx={{ color: "text.secondary", opacity: 0.55 }}
+                            >
+                              {showPassword ? (
+                                <VisibilityOffOutlinedIcon fontSize="small" />
+                              ) : (
+                                <VisibilityOutlinedIcon fontSize="small" />
+                              )}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type={showPassword ? "text" : "password"}
+                      label="Confirm Password"
+                      value={confirmPassword}
+                      onChange={(e) => {
+                        setConfirmPassword(e.target.value);
+                        clearFieldError("confirmPassword");
+                      }}
+                      onBlur={() =>
+                        validateField("confirmPassword", confirmPassword)
+                      }
+                      error={!!fieldErrors.confirmPassword}
+                      helperText={fieldErrors.confirmPassword}
+                      InputProps={{
+                        startAdornment: (
+                          <InputAdornment position="start">
+                            <LockOutlinedIcon
+                              sx={{
+                                color: "text.secondary",
+                                fontSize: 17,
+                                opacity: 0.65,
+                              }}
+                            />
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+
+                    <Button
+                      fullWidth
+                      type="submit"
+                      disabled={formLoading}
+                      variant="contained"
+                      color="primary"
+                      startIcon={
+                        formLoading ? <ButtonLoadingSpinner size={18} /> : null
+                      }
+                    >
+                      {formLoading ? "Creating..." : "Create Account"}
+                    </Button>
+                  </Stack>
+                </TabPanel>
               </Stack>
             </Paper>
 
@@ -1180,8 +1312,8 @@ function Auth() {
               variant="caption"
               color="text.secondary"
               sx={{
-                display: 'block',
-                textAlign: 'center',
+                display: "block",
+                textAlign: "center",
                 mt: 1.5,
                 opacity: 0.45,
                 ...theme.typography.uiCaptionXs,
@@ -1206,28 +1338,32 @@ function Auth() {
             backgroundColor: isDark
               ? alpha(theme.palette.background.paper, 0.9)
               : alpha(theme.palette.background.paper, 0.96),
-            backdropFilter: 'blur(24px)',
-            WebkitBackdropFilter: 'blur(24px)',
+            backdropFilter: "blur(24px)",
+            WebkitBackdropFilter: "blur(24px)",
             [BACKDROP_FILTER_FALLBACK_QUERY]: {
-              backdropFilter: 'none',
-              WebkitBackdropFilter: 'none',
+              backdropFilter: "none",
+              WebkitBackdropFilter: "none",
               backgroundColor: theme.palette.background.paper,
             },
             border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08)}`,
             boxShadow: isDark
-              ? `0 32px 64px -16px ${alpha('#000', 0.5)}`
-              : `0 24px 48px -12px ${alpha('#000', 0.12)}`,
+              ? `0 32px 64px -16px ${alpha("#000", 0.5)}`
+              : `0 24px 48px -12px ${alpha("#000", 0.12)}`,
             m: 2,
-            backgroundImage: 'none',
+            backgroundImage: "none",
           },
         }}
       >
-        <DialogTitle sx={{ pb: 0.5, fontWeight: 700, fontSize: '1rem' }}>
+        <DialogTitle sx={{ pb: 0.5, fontWeight: 700, fontSize: "1rem" }}>
           Reset Password
         </DialogTitle>
 
-        <DialogContent sx={{ pt: '12px !important' }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, opacity: 0.7 }}>
+        <DialogContent sx={{ pt: "12px !important" }}>
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ mb: 2, opacity: 0.7 }}
+          >
             Enter your email and we'll send you a reset link.
           </Typography>
 
@@ -1238,9 +1374,9 @@ function Auth() {
             value={resetEmail}
             onChange={(e) => {
               setResetEmail(e.target.value);
-              clearFieldError('email');
+              clearFieldError("email");
             }}
-            onBlur={() => validateField('email', resetEmail)}
+            onBlur={() => validateField("email", resetEmail)}
             error={!!fieldErrors.email}
             helperText={fieldErrors.email}
             size="small"
@@ -1269,7 +1405,7 @@ function Auth() {
             color="primary"
             startIcon={resetLoading ? <ButtonLoadingSpinner size={14} /> : null}
           >
-            {resetLoading ? 'Sending...' : 'Send Reset Link'}
+            {resetLoading ? "Sending..." : "Send Reset Link"}
           </Button>
         </DialogActions>
       </Dialog>
@@ -1278,9 +1414,16 @@ function Auth() {
         open={snackbarOpen}
         autoHideDuration={6000}
         onClose={handleSnackbarClose}
-        anchorOrigin={{ vertical: 'top', horizontal: isSmall ? 'center' : 'right' }}
+        anchorOrigin={{
+          vertical: "top",
+          horizontal: isSmall ? "center" : "right",
+        }}
       >
-        <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>
+        <Alert
+          onClose={handleSnackbarClose}
+          severity={snackbarSeverity}
+          sx={{ width: "100%" }}
+        >
           {snackbarMessage}
         </Alert>
       </Snackbar>

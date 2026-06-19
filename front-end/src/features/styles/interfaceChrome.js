@@ -9,8 +9,8 @@ import { alpha } from '@mui/material/styles';
 export const INTERFACE_RADIUS = Object.freeze({
   row: '10px',
   control: '8px',
-  composer: '22px',
-  panel: '16px',
+  composer: '18px',
+  panel: '14px',
   popover: '14px',
 });
 
@@ -22,16 +22,15 @@ function getHairlineBorder(theme, opacity = null) {
 
 export function getShellWorkspaceSx(theme) {
   const isDark = theme.palette.mode === 'dark';
-  const glow = isDark
-    ? alpha(theme.palette.common.white, 0.035)
-    : alpha(theme.palette.common.black, 0.025);
   return {
     backgroundColor: theme.palette.background.default,
     backgroundImage: [
-      `radial-gradient(ellipse 120% 80% at 50% -20%, ${glow} 0%, transparent 55%)`,
       isDark
-        ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.02)} 0%, transparent 28%)`
-        : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.018)} 0%, transparent 32%)`,
+        ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.018)} 0%, transparent 32%)`
+        : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.012)} 0%, transparent 34%)`,
+      isDark
+        ? `radial-gradient(ellipse 90% 56% at 50% 0%, ${alpha(theme.palette.common.white, 0.025)} 0%, transparent 62%)`
+        : `radial-gradient(ellipse 90% 56% at 50% 0%, ${alpha(theme.palette.common.black, 0.018)} 0%, transparent 64%)`,
     ].join(', '),
   };
 }
@@ -48,36 +47,36 @@ export function getSidebarChromeSx(theme) {
 
 export function getComposerSurfaceSx(theme, { isFocused = false } = {}) {
   const isDark = theme.palette.mode === 'dark';
-  const ring = alpha(theme.palette.text.primary, isDark ? 0.2 : 0.16);
-  const ringFocus = alpha(theme.palette.text.primary, isDark ? 0.35 : 0.25);
-  const shadowBase = isDark ? 0.16 : 0.04;
-  const shadowFocus = isDark ? 0.28 : 0.08;
+  const ring = alpha(theme.palette.text.primary, isDark ? 0.18 : 0.14);
+  const ringFocus = alpha(theme.palette.text.primary, isDark ? 0.36 : 0.28);
+  const shadowBase = isDark ? 0.18 : 0.055;
+  const shadowFocus = isDark ? 0.3 : 0.095;
 
   return {
     borderRadius: INTERFACE_RADIUS.composer,
     border: '1px solid transparent',
     backgroundColor: isDark
-      ? alpha(theme.palette.background.paper, 0.92)
-      : alpha(theme.palette.background.paper, 0.99),
+      ? alpha(theme.palette.background.paper, 0.94)
+      : alpha(theme.palette.background.paper, 1),
     backgroundImage: isDark
-      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.04)} 0%, transparent 42%)`
-      : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.85)} 0%, ${alpha(theme.palette.background.paper, 0.98)} 100%)`,
+      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.035)} 0%, transparent 48%)`
+      : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.88)} 0%, ${alpha(theme.palette.background.paper, 0.98)} 100%)`,
     boxShadow: isFocused
-      ? `0 8px 32px ${alpha(theme.palette.common.black, shadowFocus)}, 0 0 0 0.5px ${ringFocus}`
-      : `0 6px 24px ${alpha(theme.palette.common.black, shadowBase)}, 0 0 0 0.5px ${ring}`,
-    transition: 'box-shadow 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), background-color 0.2s ease',
+      ? `0 8px 22px ${alpha(theme.palette.common.black, shadowFocus)}, 0 0 0 1px ${ringFocus}`
+      : `0 4px 14px ${alpha(theme.palette.common.black, shadowBase)}, 0 0 0 1px ${ring}`,
+    transition: 'box-shadow 160ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 140ms ease, transform 140ms ease',
   };
 }
 
 export function getComposerHoverShadow(theme, { isFocused = false } = {}) {
   const isDark = theme.palette.mode === 'dark';
   const ring = alpha(theme.palette.text.primary, isDark ? 0.24 : 0.2);
-  const ringFocus = alpha(theme.palette.text.primary, isDark ? 0.4 : 0.3);
-  const shadowBase = isDark ? 0.2 : 0.06;
-  const shadowFocus = isDark ? 0.32 : 0.1;
+  const ringFocus = alpha(theme.palette.text.primary, isDark ? 0.42 : 0.32);
+  const shadowBase = isDark ? 0.22 : 0.07;
+  const shadowFocus = isDark ? 0.34 : 0.11;
   return isFocused
-    ? `0 10px 40px ${alpha(theme.palette.common.black, shadowFocus)}, 0 0 0 0.5px ${ringFocus}`
-    : `0 8px 28px ${alpha(theme.palette.common.black, shadowBase)}, 0 0 0 0.5px ${ring}`;
+    ? `0 9px 24px ${alpha(theme.palette.common.black, shadowFocus)}, 0 0 0 1px ${ringFocus}`
+    : `0 5px 16px ${alpha(theme.palette.common.black, shadowBase)}, 0 0 0 1px ${ring}`;
 }
 
 export function getArtifactPanelChromeSx(theme) {
@@ -137,8 +136,8 @@ export function getPreferenceSectionSurfaceSx(theme) {
 export function getWelcomeHeroSx(theme) {
   return {
     ...theme.typography.uiHeadingHero,
-    fontWeight: 500,
-    letterSpacing: '-0.035em',
+    fontWeight: 560,
+    letterSpacing: 0,
     color: 'text.primary',
     textWrap: 'balance',
   };
