@@ -1,4 +1,4 @@
-import { memo, useCallback, useState } from 'react';
+import { memo, useCallback, useState } from "react";
 import {
   Box,
   Typography,
@@ -10,28 +10,27 @@ import {
   Skeleton,
   Menu,
   MenuItem,
-} from '@mui/material';
-import { useTheme } from '@mui/material/styles';
-import QuestionAnswerOutlinedIcon from '@mui/icons-material/QuestionAnswerOutlined';
-import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import DriveFileRenameOutlineRoundedIcon from '@mui/icons-material/DriveFileRenameOutlineRounded';
-import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import { HOVER_CAPABLE_QUERY, TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
+} from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
+import QuestionAnswerOutlinedIcon from "@mui/icons-material/QuestionAnswerOutlined";
+import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
+import DriveFileRenameOutlineRoundedIcon from "@mui/icons-material/DriveFileRenameOutlineRounded";
+import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
+import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded";
+import { HOVER_CAPABLE_QUERY, TOUCH_DEVICE_QUERY } from "@/styles/mediaQueries";
 import {
-  getInteractionColors,
   getPopoverMenuItemSx,
   getPopoverMenuListSx,
   getPopoverPaperSx,
   getSelectableMenuItemSx,
   getUtilityIconButtonSx,
   UI_POPOVER,
-} from '@/styles/shared';
+} from "@/styles/shared";
 import {
   buildNavRowSx,
   buildConversationRowSx,
   ICON_COL,
-} from '@/features/sidebar-left/styles/sidebarStyles';
+} from "@/features/sidebar-left/styles/sidebarStyles";
 
 // ─── ConversationItem ─────────────────────────────────────────────────────────
 export const ConversationItem = memo(function ConversationItem({
@@ -42,13 +41,12 @@ export const ConversationItem = memo(function ConversationItem({
   onRename,
 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+  const isDark = theme.palette.mode === "dark";
   const [menuAnchor, setMenuAnchor] = useState(null);
   const menuOpen = Boolean(menuAnchor);
   const utilityIconButtonSx = getUtilityIconButtonSx(theme);
-  const neutralInteraction = getInteractionColors(theme);
   const renameMenuItemSx = getPopoverMenuItemSx(theme);
-  const deleteMenuItemSx = getPopoverMenuItemSx(theme, { tone: 'error' });
+  const deleteMenuItemSx = getPopoverMenuItemSx(theme, { tone: "error" });
 
   const handleClick = useCallback(() => onSelect(conv.id), [onSelect, conv.id]);
   const handleMenuOpen = useCallback((e) => {
@@ -56,40 +54,51 @@ export const ConversationItem = memo(function ConversationItem({
     setMenuAnchor(e.currentTarget);
   }, []);
   const handleMenuClose = useCallback(() => setMenuAnchor(null), []);
-  const handleDelete = useCallback((e) => {
-    e.stopPropagation();
-    setMenuAnchor(null);
-    onDelete(conv.id);
-  }, [onDelete, conv.id]);
-  const handleRename = useCallback((e) => {
-    e.stopPropagation();
-    setMenuAnchor(null);
-    onRename(conv.id, conv.title || 'New Conversation');
-  }, [onRename, conv.id, conv.title]);
+  const handleDelete = useCallback(
+    (e) => {
+      e.stopPropagation();
+      setMenuAnchor(null);
+      onDelete(conv.id);
+    },
+    [onDelete, conv.id],
+  );
+  const handleRename = useCallback(
+    (e) => {
+      e.stopPropagation();
+      setMenuAnchor(null);
+      onRename(conv.id, conv.title || "New Conversation");
+    },
+    [onRename, conv.id, conv.title],
+  );
 
-  const handleKeyDown = useCallback((e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      handleClick();
-    }
-  }, [handleClick]);
+  const handleKeyDown = useCallback(
+    (e) => {
+      if (e.key === "Enter" || e.key === " ") {
+        e.preventDefault();
+        handleClick();
+      }
+    },
+    [handleClick],
+  );
 
   return (
-    <Box component="li" sx={{ listStyle: 'none' }}>
+    <Box component="li" sx={{ listStyle: "none" }}>
       <Box
         component="div"
         role="button"
         tabIndex={0}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
-        aria-current={isActive ? 'true' : undefined}
+        aria-current={isActive ? "true" : undefined}
         sx={{
           ...buildConversationRowSx(theme, { isActive, menuOpen }),
           [TOUCH_DEVICE_QUERY]: {
-            '& .options-btn': { opacity: 1 },
-            '& .conv-title': {
-              maskImage: 'linear-gradient(to right, black 75%, transparent 95%)',
-              WebkitMaskImage: 'linear-gradient(to right, black 75%, transparent 95%)',
+            "& .options-btn": { opacity: 1 },
+            "& .conv-title": {
+              maskImage:
+                "linear-gradient(to right, black 75%, transparent 95%)",
+              WebkitMaskImage:
+                "linear-gradient(to right, black 75%, transparent 95%)",
             },
           },
         }}
@@ -97,9 +106,14 @@ export const ConversationItem = memo(function ConversationItem({
         <Typography
           className="conv-title"
           noWrap
-          sx={{ flex: '1 1 auto', minWidth: 0, ...theme.typography.uiNavItem, fontWeight: isActive ? 500 : 400 }}
+          sx={{
+            flex: "1 1 auto",
+            minWidth: 0,
+            ...theme.typography.uiNavItem,
+            fontWeight: isActive ? 500 : 400,
+          }}
         >
-          {conv.title || 'New Conversation'}
+          {conv.title || "New Conversation"}
         </Typography>
 
         <Tooltip title="Conversation options">
@@ -112,12 +126,12 @@ export const ConversationItem = memo(function ConversationItem({
             aria-expanded={menuOpen}
             sx={{
               ...utilityIconButtonSx,
-              position: 'absolute',
+              position: "absolute",
               right: 4,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              '&:active': {
-                transform: 'translateY(-50%)',
+              top: "50%",
+              transform: "translateY(-50%)",
+              "&:active": {
+                transform: "translateY(-50%)",
               },
             }}
           >
@@ -131,11 +145,16 @@ export const ConversationItem = memo(function ConversationItem({
         open={menuOpen}
         onClose={handleMenuClose}
         onClick={(e) => e.stopPropagation()}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "right" }}
         slotProps={{
           paper: {
-            sx: getPopoverPaperSx(theme, isDark, { borderRadius: '12px', minWidth: 160, mt: 0.75, p: 0 }),
+            sx: getPopoverPaperSx(theme, isDark, {
+              borderRadius: "12px",
+              minWidth: 160,
+              mt: 0.75,
+              p: 0,
+            }),
           },
           list: { sx: getPopoverMenuListSx() },
         }}
@@ -151,19 +170,7 @@ export const ConversationItem = memo(function ConversationItem({
           </ListItemIcon>
           Rename
         </MenuItem>
-        <MenuItem
-          onClick={handleDelete}
-          sx={{
-            ...deleteMenuItemSx,
-            '&:hover': {
-              backgroundColor: neutralInteraction.hoverBackground,
-              color: theme.palette.error.main,
-            },
-            '&:active': {
-              backgroundColor: neutralInteraction.hoverBackground,
-            },
-          }}
-        >
+        <MenuItem onClick={handleDelete} sx={deleteMenuItemSx}>
           <ListItemIcon>
             <DeleteOutlineRoundedIcon />
           </ListItemIcon>
@@ -199,7 +206,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   uiTarget,
 }) {
   const theme = useTheme();
-  const tooltipTitle = disabled || isCollapsed ? (tooltip || label) : '';
+  const tooltipTitle = disabled || isCollapsed ? tooltip || label : "";
 
   return (
     <Tooltip
@@ -210,10 +217,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
       disableFocusListener={!tooltipTitle}
       disableTouchListener={!tooltipTitle}
     >
-      <Box
-        component="span"
-        sx={{ display: 'block' }}
-      >
+      <Box component="span" sx={{ display: "block" }}>
         <Box
           component="button"
           type="button"
@@ -224,35 +228,38 @@ export const SidebarNavItem = memo(function SidebarNavItem({
           sx={{
             ...buildNavRowSx(theme, { isActive, disabled }),
             px: 0,
-            width: '100%',
-            '&:hover:not(:disabled) .shortcut-hint': { opacity: 1 },
+            width: "100%",
+            "&:hover:not(:disabled) .shortcut-hint": { opacity: 1 },
           }}
         >
           {/* ── Icon column ── always ICON_COL wide, icon centered inside ── */}
           <Box
             component="span"
             sx={{
-              display: 'inline-flex',
+              display: "inline-flex",
               flexShrink: 0,
               width: ICON_COL,
-              justifyContent: 'center',
-              alignItems: 'center',
-              position: 'relative',
+              justifyContent: "center",
+              alignItems: "center",
+              position: "relative",
             }}
           >
-            <Box component="span" sx={{ display: 'inline-flex', color: 'inherit' }}>
+            <Box
+              component="span"
+              sx={{ display: "inline-flex", color: "inherit" }}
+            >
               {icon}
             </Box>
 
             {showStatus && (
               <Box
                 sx={{
-                  position: 'absolute',
+                  position: "absolute",
                   top: 6,
                   right: 6,
                   width: 6,
                   height: 6,
-                  borderRadius: '50%',
+                  borderRadius: "50%",
                   backgroundColor: theme.palette.success.main,
                   boxShadow: `0 0 0 1.5px ${theme.palette.background.paper}`,
                 }}
@@ -263,19 +270,24 @@ export const SidebarNavItem = memo(function SidebarNavItem({
           {/* ── Label — collapses to zero when sidebar is collapsed ── */}
           <Box
             sx={{
-              flex: '1 1 auto',
+              flex: "1 1 auto",
               minWidth: 0,
               maxWidth: isCollapsed ? 0 : 200,
               opacity: isCollapsed ? 0 : 1,
-              overflow: 'hidden',
-              transition: theme.transitions.create(['max-width', 'opacity'], {
+              overflow: "hidden",
+              transition: theme.transitions.create(["max-width", "opacity"], {
                 duration: theme.transitions.duration.shortest,
               }),
             }}
           >
             <Typography
               noWrap
-              sx={{ ...theme.typography.uiNavItem, fontWeight: isActive ? 500 : 400, color: 'inherit', textAlign: 'left' }}
+              sx={{
+                ...theme.typography.uiNavItem,
+                fontWeight: isActive ? 500 : 400,
+                color: "inherit",
+                textAlign: "left",
+              }}
             >
               {label}
             </Typography>
@@ -288,11 +300,11 @@ export const SidebarNavItem = memo(function SidebarNavItem({
               component="span"
               sx={{
                 ...theme.typography.uiNavShortcut,
-                color: 'text.disabled',
+                color: "text.disabled",
                 flexShrink: 0,
                 opacity: 0,
-                transition: 'opacity 0.15s ease',
-                whiteSpace: 'nowrap',
+                transition: "opacity 0.15s ease",
+                whiteSpace: "nowrap",
                 pr: 0.5,
               }}
             >
@@ -317,7 +329,7 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
   const utilityIconButtonSx = getUtilityIconButtonSx(theme);
   const rowSx = getSelectableMenuItemSx(theme, {
     isActive,
-    columns: 'auto minmax(0, 1fr) auto',
+    columns: "auto minmax(0, 1fr) auto",
   });
 
   const handleClick = useCallback(() => {
@@ -325,10 +337,13 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
     onSelect(conv.id);
   }, [onClosePopover, onSelect, conv.id]);
 
-  const handleDelete = useCallback((e) => {
-    e.stopPropagation();
-    onDelete(conv.id);
-  }, [onDelete, conv.id]);
+  const handleDelete = useCallback(
+    (e) => {
+      e.stopPropagation();
+      onDelete(conv.id);
+    },
+    [onDelete, conv.id],
+  );
 
   return (
     <ListItemButton
@@ -336,25 +351,40 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
       onClick={handleClick}
       sx={{
         ...rowSx,
-        '&.Mui-selected': {
+        "&.Mui-selected": {
           backgroundColor: rowSx.backgroundColor,
         },
-        '&.Mui-selected:hover': {
-          backgroundColor: rowSx[HOVER_CAPABLE_QUERY]?.['&:hover']?.backgroundColor || rowSx.backgroundColor,
+        "&.Mui-selected:hover": {
+          backgroundColor:
+            rowSx[HOVER_CAPABLE_QUERY]?.["&:hover"]?.backgroundColor ||
+            rowSx.backgroundColor,
         },
       }}
     >
-      <ListItemIcon sx={{ minWidth: UI_POPOVER.iconSlotWidth, width: UI_POPOVER.iconSlotWidth }}>
-        {isActive
-          ? <CheckCircleOutlineRoundedIcon sx={{ fontSize: 16, color: theme.palette.text.primary }} />
-          : <QuestionAnswerOutlinedIcon sx={{ fontSize: 14, color: theme.palette.text.secondary }} />
-        }
+      <ListItemIcon
+        sx={{
+          minWidth: UI_POPOVER.iconSlotWidth,
+          width: UI_POPOVER.iconSlotWidth,
+        }}
+      >
+        {isActive ? (
+          <CheckCircleOutlineRoundedIcon
+            sx={{ fontSize: 16, color: theme.palette.text.primary }}
+          />
+        ) : (
+          <QuestionAnswerOutlinedIcon
+            sx={{ fontSize: 14, color: theme.palette.text.secondary }}
+          />
+        )}
       </ListItemIcon>
       <ListItemText
-        primary={conv.title || 'New Conversation'}
+        primary={conv.title || "New Conversation"}
         primaryTypographyProps={{
           noWrap: true,
-          sx: { ...theme.typography.uiNavItem, fontWeight: isActive ? 500 : 400 },
+          sx: {
+            ...theme.typography.uiNavItem,
+            fontWeight: isActive ? 500 : 400,
+          },
         }}
       />
       <Tooltip title="Delete conversation">
@@ -366,9 +396,9 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
             ...utilityIconButtonSx,
             opacity: 0.5,
             [HOVER_CAPABLE_QUERY]: {
-              '&:hover': {
-                ...utilityIconButtonSx[HOVER_CAPABLE_QUERY]?.['&:hover'],
-                color: 'error.main',
+              "&:hover": {
+                ...utilityIconButtonSx[HOVER_CAPABLE_QUERY]?.["&:hover"],
+                color: "error.main",
                 opacity: 1,
               },
             },
@@ -383,14 +413,21 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
 
 // ─── HistoryListSkeleton ──────────────────────────────────────────────────────
 export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+
   return (
-    <Box sx={{ px: 1, pb: 1 }}>
+    <Box
+      role="status"
+      aria-label="Loading recent conversations"
+      sx={{ px: 1, pb: 1 }}
+    >
       {[0, 1, 2, 3, 4].map((i) => (
         <Box
           key={i}
           sx={{
-            display: 'flex',
-            alignItems: 'center',
+            display: "flex",
+            alignItems: "center",
             gap: 1.25,
             px: 1.5,
             py: 0.5,
@@ -398,10 +435,25 @@ export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
             minHeight: 32,
           }}
         >
-          <Skeleton variant="circular" width={14} height={14} />
+          <Skeleton
+            variant="circular"
+            width={14}
+            height={14}
+            animation="wave"
+            sx={{
+              bgcolor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
+            }}
+          />
           <Skeleton
             variant="rounded"
-            sx={{ width: `${90 - (i % 3) * 14}%`, maxWidth: 170, height: 11, borderRadius: 999 }}
+            animation="wave"
+            sx={{
+              width: `${88 - (i % 3) * 12}%`,
+              maxWidth: 168,
+              height: 10,
+              borderRadius: 999,
+              bgcolor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
+            }}
           />
         </Box>
       ))}

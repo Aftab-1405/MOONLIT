@@ -4,22 +4,60 @@
  * Parses Server-Sent Events (SSE) from a ReadableStream and dispatches
  * typed event objects to a callback.
  *
+ * Conformant with the SSE specification:
+ * - Events are separated by blank lines (\n\n)
+ * - Supports both "data: value" and "data:value" (with and without space)
+ * - Supports multi-line data fields (joined with \n)
+ * - Ignores comment lines beginning with ":"
+ * - Terminates on "[DONE]" payload or event type "done"
+ *
  * @module utils/streamParser
  */
 
-const DATA_PREFIX = 'data: ';
 const DONE_PAYLOAD = '[DONE]';
 
 /**
- * @param {string} line
- * @returns {string|null}
+ * Parse a single SSE event block (text between blank lines) into a typed
+ * event object and invoke onEvent.
+ *
+ * @param {string} block - Raw SSE event block (may contain multiple lines)
+ * @param {(event: object) => void} onEvent
+ * @returns {boolean} true if the stream should terminate (done event received)
  */
-function extractDataPayload(line) {
-  const prefixAt = line.indexOf(DATA_PREFIX);
-  if (prefixAt === -1) return null;
+function processEventBlock(block, onEvent) {
+  const lines = block.split('\n');
+  const dataLines = [];
 
-  const payload = line.slice(prefixAt + DATA_PREFIX.length).trim();
-  return payload.length ? payload : null;
+  for (const line of lines) {
+    // Ignore comment lines
+    if (line.startsWith(':')) continue;
+
+    if (line.startsWith('data:')) {
+      // Support both "data: value" and "data:value"
+      const payload = line.slice(5).replace(/^ /, '');
+      dataLines.push(payload);
+    }
+    // Other SSE fields (event, id, retry) are not currently used but are
+    // silently ignored to avoid crashing on valid SSE frames.
+  }
+
+  if (dataLines.length === 0) return false;
+
+  const payload = dataLines.join('\n');
+
+  if (payload === DONE_PAYLOAD) {
+    onEvent({ type: 'done' });
+    return true;
+  }
+
+  try {
+    const event = JSON.parse(payload);
+    onEvent(event);
+    return event.type === 'done';
+  } catch {
+    // Malformed JSON — skip silently rather than crashing the stream.
+    return false;
+  }
 }
 
 /**
@@ -33,41 +71,30 @@ function extractDataPayload(line) {
 export async function parseSSEStream(reader, decoder, onEvent) {
   let buffer = '';
 
-  const processLine = (line) => {
-    const payload = extractDataPayload(line);
-    if (!payload) return false;
-
-    if (payload === DONE_PAYLOAD) {
-      onEvent({ type: 'done' });
-      return true;
-    }
-
-    try {
-      const event = JSON.parse(payload);
-      onEvent(event);
-      return event.type === 'done';
-    } catch {
-      return false;
-    }
-  };
-
   try {
     while (true) {
       const { done, value } = await reader.read();
+
       if (done) {
-        if (buffer.trim()) {
-          processLine(buffer);
+        // Flush any remaining buffered content
+        const remaining = buffer.trim();
+        if (remaining) {
+          processEventBlock(remaining, onEvent);
         }
         break;
       }
 
       buffer += decoder.decode(value, { stream: true });
 
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
+      // SSE events are delimited by blank lines (\n\n or \r\n\r\n)
+      const blocks = buffer.split(/\n\n|\r\n\r\n/);
+      // The last element is an incomplete block — keep it in the buffer
+      buffer = blocks.pop() ?? '';
 
-      for (let i = 0; i < lines.length; i += 1) {
-        if (processLine(lines[i])) return;
+      for (const block of blocks) {
+        const trimmed = block.trim();
+        if (!trimmed) continue; // Empty block (e.g. keep-alive blank line)
+        if (processEventBlock(trimmed, onEvent)) return;
       }
     }
   } finally {

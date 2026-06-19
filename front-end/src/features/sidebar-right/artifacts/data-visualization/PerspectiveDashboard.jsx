@@ -271,7 +271,7 @@ function PerspectiveDashboard({ data }) {
               ...theme.typography.uiCaptionMd,
               color: 'text.secondary',
               fontWeight: 600,
-              letterSpacing: '0.02em',
+              letterSpacing: 0,
             }}
           >
             {loadingMessage || 'Loading analytics workspace'}

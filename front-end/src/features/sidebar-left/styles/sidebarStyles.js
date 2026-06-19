@@ -13,6 +13,7 @@ const SIDEBAR_RADIUS = '10px';
 export const ROW_PX = 1;        // MUI spacing → 8px each side
 export const ICON_COL = 36;     // px — fixed icon column width only (not height)
 const ROW_HEIGHT = 36;   // px — single consistent row height for all items
+const focusRing = (theme) => `0 0 0 3px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.16 : 0.1)}`;
 
 // ─── Nav row (toggle, nav items, footer) ─────────────────────────────────────
 export function buildNavRowSx(theme, { isActive = false, disabled = false } = {}) {
@@ -47,8 +48,10 @@ export function buildNavRowSx(theme, { isActive = false, disabled = false } = {}
       color: theme.palette.text.primary,
     },
     '&:focus-visible': {
-      outline: `2px solid ${alpha(theme.palette.text.primary, 0.4)}`,
-      outlineOffset: -2,
+      outline: 'none',
+      boxShadow: isActive
+        ? `inset 0 0 0 1px ${interaction.activeBorder}, ${focusRing(theme)}`
+        : focusRing(theme),
     },
   };
 }
@@ -99,8 +102,10 @@ export function buildConversationRowSx(theme, { isActive = false, menuOpen = fal
       color: theme.palette.text.primary,
     },
     '&:focus-visible': {
-      outline: `2px solid ${alpha(theme.palette.text.primary, 0.4)}`,
-      outlineOffset: -2,
+      outline: 'none',
+      boxShadow: isActive
+        ? `inset 0 0 0 1px ${interaction.activeBorder}, ${focusRing(theme)}`
+        : focusRing(theme),
     },
   };
 }
@@ -127,8 +132,8 @@ export function buildDesktopNavSx(theme, open) {
     }),
     backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.94 : 0.99),
     backgroundImage: isDark
-      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.045)} 0%, transparent 22%)`
-      : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.025)} 0%, transparent 22%)`,
+      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.035)} 0%, transparent 24%)`
+      : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.018)} 0%, transparent 24%)`,
     ...getSidebarChromeSx(theme),
   };
 }
@@ -147,8 +152,8 @@ export function buildMobileDrawerPaperStyles(theme) {
     boxSizing: 'border-box',
     backgroundColor: theme.palette.background.paper,
     backgroundImage: theme.palette.mode === 'dark'
-      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.045)} 0%, transparent 22%)`
-      : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.025)} 0%, transparent 22%)`,
+      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.035)} 0%, transparent 24%)`
+      : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.018)} 0%, transparent 24%)`,
     borderRight: 'none',
   };
 }
@@ -161,7 +166,7 @@ export function buildSidebarSectionLabelSx() {
     px: 2,
     pt: 2,
     pb: 0.75,
-    fontSize: '0.875rem',
+    fontSize: '0.8125rem',
     fontWeight: 650,
     lineHeight: 1.3,
     color: 'text.secondary',

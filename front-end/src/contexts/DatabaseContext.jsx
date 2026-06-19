@@ -46,6 +46,7 @@ import {
   getTables,
   getTableSchema as getTableSchemaApi,
 } from '@/api';
+import { getSelectedDatabase } from '@/utils/databaseResponse';
 
 const SESSION_INSTANCE_KEY = 'moonlit-session-instance-id';
 
@@ -188,7 +189,8 @@ function getDatabaseList(connectionData = {}) {
     : connectionData.schemas;
   if (databases?.length) return databases;
 
-  const selectedDatabase = connectionData.selected_database || connectionData.db_config?.database;
+  // Use centralized helper to find the DB name across all field variants.
+  const selectedDatabase = getSelectedDatabase(connectionData);
   return selectedDatabase ? [selectedDatabase] : [];
 }
 
@@ -314,7 +316,8 @@ export function DatabaseProvider({ children }) {
   }, [isAuthenticated, queryClient]);
 
   const connect = useCallback((connectionData) => {
-    const database = connectionData.selected_database || connectionData.db_config?.database;
+    // Use centralized helper so all backend response shapes are supported.
+    const database = getSelectedDatabase(connectionData);
     invalidateSchemaTables(database);
     queryClient.setQueryData(queryKeys.dbStatus, {
       status: 'success',
@@ -381,13 +384,15 @@ export function DatabaseProvider({ children }) {
         : await selectDatabase(dbName);
 
       if (response.status === 'success') {
-        invalidateSchemaTables(response.data.selected_database || dbName);
+        // Use centralized helper to resolve DB name from switch response.
+        const resolvedDb = getSelectedDatabase(response.data) || dbName;
+        invalidateSchemaTables(resolvedDb);
         queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
         queryClient.invalidateQueries({ queryKey: queryKeys.dbDatabases });
         dispatch({
           type: ActionTypes.SWITCH_DATABASE,
           payload: {
-            database: response.data.selected_database,
+            database: resolvedDb,
             schemas: getSchemaList(response.data),
             currentSchema: getCurrentSchema(response.data),
           }

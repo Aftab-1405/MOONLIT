@@ -148,7 +148,7 @@ async def _expire_db_config(request: Request, db_config: dict, reason: str) -> N
         user_id = None
 
     try:
-        from services.database_service import DatabaseService
+        from service.database.database_service import DatabaseService
 
         await run_in_threadpool(DatabaseService.disconnect, db_config, user_id)
     except Exception as e:
@@ -192,14 +192,12 @@ async def get_current_user(request: Request) -> dict:
         user = {
             "uid": Config.DEV_AUTH_USER_ID,
             "email": Config.DEV_AUTH_EMAIL,
-            "name": "Local Dev",
+            "name": Config.DEV_AUTH_NAME,
             "verified": True,
         }
         request.state.user = user
         logger.debug("Development auth bypass for user: %s", user["uid"])
         return user
-
-    print(f"\n[DEBUG] get_current_user: Config={Config}, id(Config)={id(Config)}, DEBUG={Config.DEBUG}, DEV_AUTH_BYPASS={Config.DEV_AUTH_BYPASS}, APP_ENV={Config.APP_ENV}\n")
 
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"

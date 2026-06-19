@@ -48,4 +48,9 @@ export const UI_ACTIONS = {
     done: 'Started new chat',
     validate: ({ payload }) => ({ ok: true, payload: payload || {} }),
   },
+  usage_metrics: {
+    running: 'Updating usage metrics',
+    done: 'Updated usage metrics',
+    validate: ({ payload }) => ({ ok: true, payload: payload || {} }),
+  },
 };

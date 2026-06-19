@@ -29,7 +29,7 @@ export function PreferencePageHeader({ title, onClose }) {
           typography: { xs: 'h4', md: 'h3' },
           color: 'text.primary',
           fontWeight: 700,
-          letterSpacing: '-0.02em',
+          letterSpacing: 0,
           pb: { xs: 0, md: 2 },
           borderBottom: { md: '1px solid' },
           borderColor: { md: 'divider' },

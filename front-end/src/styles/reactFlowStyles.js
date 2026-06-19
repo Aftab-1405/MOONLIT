@@ -417,7 +417,7 @@ export const getReactFlowTagChipSx = (theme) => {
     fontSize: 9,
     fontWeight: 600,
     lineHeight: 1,
-    letterSpacing: '0.02em',
+    letterSpacing: 0,
     color: alpha(theme.palette.text.primary, isDark ? 0.5 : 0.44),
     boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.03 : 0.42)}`,
     whiteSpace: 'nowrap',
@@ -447,7 +447,7 @@ export const getReactFlowCountBadgeSx = (theme) => {
     fontSize: 10,
     fontWeight: 700,
     lineHeight: 1,
-    letterSpacing: '-0.02em',
+    letterSpacing: 0,
     color: alpha(theme.palette.text.primary, isDark ? 0.72 : 0.62),
     boxShadow: [
       `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.04 : 0.52)}`,

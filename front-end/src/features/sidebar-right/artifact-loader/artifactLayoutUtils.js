@@ -25,7 +25,7 @@ export const getArtifactActionButtonSx = (theme, { active = false, size = 36 } =
     width: size,
     height: size,
     flexShrink: 0,
-    borderRadius: '10px',
+    borderRadius: '8px',
     border: '0.5px solid transparent',
     color: interaction.color,
     bgcolor: active ? interaction.activeBackground : 'transparent',
@@ -36,6 +36,9 @@ export const getArtifactActionButtonSx = (theme, { active = false, size = 36 } =
       color: interaction.hoverColor,
       bgcolor: active ? interaction.activeHoverBackground : interaction.hoverBackground,
       borderColor: 'transparent',
+    },
+    '&.Mui-focusVisible': {
+      boxShadow: `0 0 0 3px ${interaction.focusRing}`,
     },
     '&.Mui-disabled': {
       opacity: 0.38,

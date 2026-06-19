@@ -278,7 +278,7 @@ CORS_ORIGINS=https://your-app.vercel.app
 # ── Optional ────────────────────────────────────────────────────────────────────
 MAX_QUERY_RESULTS=5000           # Max rows returned per query (prod default: 5000)
 QUERY_TIMEOUT_SECONDS=15         # Query execution timeout (prod default: 15s)
-MAX_WORKERS=32                   # Thread pool size for blocking DB operations
+DB_POOL_WORKER_BASIS=32          # Basis for DB pool sizing; capped by DEFAULT_DB_POOL_MAX_CONNECTIONS
 ```
 
 ---

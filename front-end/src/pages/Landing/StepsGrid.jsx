@@ -1,45 +1,51 @@
-import { useMemo } from 'react';
-import { Box, Container, Typography, Stack } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
-import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from '@/pages/Landing/index';
-import { getMoonlitBrandGradients } from '@/theme/themeEffects';
+import { useMemo } from "react";
+import { Box, Container, Typography, Stack } from "@mui/material";
+import { useTheme, alpha } from "@mui/material/styles";
+import {
+  Section,
+  REDUCED_MOTION_QUERY,
+  HOVER_CAPABLE_QUERY,
+} from "@/pages/Landing/index";
+import { getMoonlitBrandGradients } from "@/theme/themeEffects";
 
 function StepsGrid() {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+  const isDark = theme.palette.mode === "dark";
   const brandGradients = getMoonlitBrandGradients(theme);
 
-  const steps = useMemo(() => [
-    {
-      num: '01',
-      title: 'Connect',
-      desc: 'Link your PostgreSQL, MySQL, SQL Server, or Oracle database in seconds.',
-    },
-    {
-      num: '02',
-      title: 'Ask',
-      desc: 'Type your question in plain English. No SQL syntax needed.',
-    },
-    {
-      num: '03',
-      title: 'Get Answers',
-      desc: 'View results as tables, visualize as charts, or export to CSV.',
-    },
-  ], []);
+  const steps = useMemo(
+    () => [
+      {
+        num: "01",
+        title: "Connect",
+        desc: "Link your PostgreSQL, MySQL, SQL Server, or Oracle database in seconds.",
+      },
+      {
+        num: "02",
+        title: "Ask",
+        desc: "Type your question in plain English. No SQL syntax needed.",
+      },
+      {
+        num: "03",
+        title: "Get Answers",
+        desc: "View results as tables, visualize as charts, or export to CSV.",
+      },
+    ],
+    [],
+  );
 
   return (
     <Section tinted sx={{ py: { xs: 8, md: 10 } }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={6}>
           <Typography
-            variant="caption"
-            fontWeight="bold"
             sx={{
-              textTransform: 'none',
-              letterSpacing: 0,
-              color: 'text.secondary',
               ...theme.typography.uiCaptionSm,
-              display: 'block',
+              color: "text.secondary",
+              fontWeight: 600,
+              letterSpacing: 0,
+              textTransform: "none",
+              display: "block",
               mb: 1.5,
             }}
           >
@@ -50,16 +56,16 @@ function StepsGrid() {
             fontWeight="bold"
             sx={{ ...theme.typography.uiHeadingLandingLg }}
           >
-            Three Steps.{' '}
+            Three Steps.{" "}
             <Box
               component="span"
               sx={{
                 background: brandGradients.shimmer,
-                backgroundSize: '200% auto',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                animation: 'shimmer 5s linear infinite',
+                backgroundSize: "200% auto",
+                WebkitBackgroundClip: "text",
+                WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
+                animation: "shimmer 5s linear infinite",
               }}
             >
               Zero Learning Curve.
@@ -68,23 +74,22 @@ function StepsGrid() {
         </Box>
 
         {/* Steps layout */}
-        <Box sx={{ position: 'relative' }}>
-
+        <Box sx={{ position: "relative" }}>
           <Box
             sx={{
-              display: 'flex',
-              flexDirection: { xs: 'column', md: 'row' },
+              display: "flex",
+              flexDirection: { xs: "column", md: "row" },
               gap: 3,
-              justifyContent: 'center',
+              justifyContent: "center",
             }}
           >
             {steps.map((s, i) => (
               <Box
                 key={s.num}
                 sx={{
-                  flex: { xs: '1 1 auto', md: '1 1 0' },
+                  flex: { xs: "1 1 auto", md: "1 1 0" },
                   minWidth: 0,
-                  position: 'relative',
+                  position: "relative",
                   zIndex: 1,
                 }}
               >
@@ -93,25 +98,39 @@ function StepsGrid() {
                   sx={{
                     p: { xs: 3, md: 4 },
                     pt: { xs: 4.5, md: 5 },
-                    position: 'relative',
+                    position: "relative",
                     backgroundColor: isDark
                       ? alpha(theme.palette.text.primary, 0.03)
                       : alpha(theme.palette.text.primary, 0.02),
                     border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
                     borderRadius: 3,
                     transition: theme.transitions.create(
-                      ['border-color', 'background-color', 'transform', 'box-shadow'],
-                      { duration: 250 }
+                      [
+                        "border-color",
+                        "background-color",
+                        "transform",
+                        "box-shadow",
+                      ],
+                      { duration: 250 },
                     ),
-                    animation: { xs: 'none', md: `fadeIn 0.5s ease-out ${i * 0.12}s both` },
-                    [REDUCED_MOTION_QUERY]: { animation: 'none', transition: 'none' },
+                    animation: {
+                      xs: "none",
+                      md: `fadeIn 0.5s ease-out ${i * 0.12}s both`,
+                    },
+                    [REDUCED_MOTION_QUERY]: {
+                      animation: "none",
+                      transition: "none",
+                    },
                     [HOVER_CAPABLE_QUERY]: {
-                      '&:hover': {
-                        borderColor: alpha(theme.palette.text.primary, isDark ? 0.22 : 0.14),
+                      "&:hover": {
+                        borderColor: alpha(
+                          theme.palette.text.primary,
+                          isDark ? 0.22 : 0.14,
+                        ),
                         backgroundColor: isDark
                           ? alpha(theme.palette.text.primary, 0.055)
                           : alpha(theme.palette.text.primary, 0.035),
-                        transform: 'translateY(-5px)',
+                        transform: "translateY(-5px)",
                         boxShadow: isDark
                           ? `0 20px 42px -18px ${alpha(theme.palette.common.black, 0.44)}`
                           : `0 20px 40px -18px ${alpha(theme.palette.common.black, 0.12)}`,
@@ -122,18 +141,18 @@ function StepsGrid() {
                   {/* Step badge */}
                   <Box
                     sx={{
-                      position: 'absolute',
+                      position: "absolute",
                       top: -22,
-                      left: '50%',
-                      transform: 'translateX(-50%)',
+                      left: "50%",
+                      transform: "translateX(-50%)",
                       width: 44,
                       height: 44,
-                      borderRadius: '50%',
+                      borderRadius: "50%",
                       backgroundImage: brandGradients.static,
-                      backgroundColor: 'transparent',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
+                      backgroundColor: "transparent",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
                       boxShadow: `0 8px 22px ${alpha(theme.palette.common.black, isDark ? 0.34 : 0.12)}`,
                       border: `3px solid ${theme.palette.background.default}`,
                     }}
@@ -143,7 +162,7 @@ function StepsGrid() {
                         ...theme.typography.uiStepNumber,
                         fontWeight: 700,
                         color: theme.palette.primary.contrastText,
-                        letterSpacing: '0.02em',
+                        letterSpacing: 0,
                       }}
                     >
                       {s.num}

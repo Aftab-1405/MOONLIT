@@ -12,6 +12,7 @@ import {
 } from 'firebase/auth';
 import { initializeFirebase, getFirebaseAuth, getGoogleProvider, getGithubProvider } from '@/config/firebase';
 import { setSession as setBackendSession, logout as logoutBackend } from '@/api';
+import { queryClient } from '@/api/queryClient';
 import logger from '@/utils/logger';
 const isMobileDevice = () => {
   return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
@@ -99,14 +100,6 @@ export const AuthProvider = ({ children }) => {
       resetPassword: () => Promise.resolve(true),
     };
   }, [isMock, mockUser]);
-
-  if (isMock) {
-    return (
-      <AuthContext.Provider value={mockValue}>
-        {children}
-      </AuthContext.Provider>
-    );
-  }
 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -283,6 +276,9 @@ export const AuthProvider = ({ children }) => {
         await signOut(auth);
       }
       await logoutBackend();
+      // Clear the React Query cache so stale data from this user cannot
+      // be seen by the next user or after re-login with a different account.
+      queryClient.clear();
       setUser(null);
     } catch (err) {
       logger.error('Logout error:', err);
@@ -308,6 +304,14 @@ export const AuthProvider = ({ children }) => {
     signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithGitHub,
     resetPassword, logout, clearError
   ]);
+
+  if (isMock) {
+    return (
+      <AuthContext.Provider value={mockValue}>
+        {children}
+      </AuthContext.Provider>
+    );
+  }
 
   return (
     <AuthContext.Provider value={value}>

@@ -141,13 +141,24 @@ export function buildStepsSummary(normalizedSteps) {
   if (activeTool) return activeTool.actionText;
 
   const activeThinking = normalizedSteps.find((s) => s.type === 'thinking' && !s.isComplete);
-  if (activeThinking) return 'Thinking…';
+  if (activeThinking) {
+    if (activeThinking.id?.startsWith('workflow-')) {
+      return activeThinking.content;
+    }
+    return 'Thinking…';
+  }
 
   const completedTools = normalizedSteps.filter((s) => s.type === 'tool' && !s.isRunning);
   const thinkingSteps = normalizedSteps.filter((s) => s.type === 'thinking');
 
   if (completedTools.length === 0) {
-    if (thinkingSteps.length > 0) return 'Reasoned through the request';
+    if (thinkingSteps.length > 0) {
+      const workflowStep = thinkingSteps.find((s) => s.id?.startsWith('workflow-'));
+      if (workflowStep) {
+        return workflowStep.content;
+      }
+      return 'Reasoned through the request';
+    }
     return 'Processing…';
   }
 

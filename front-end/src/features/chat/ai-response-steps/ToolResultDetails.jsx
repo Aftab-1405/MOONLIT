@@ -56,7 +56,7 @@ const getStepTypeScale = (theme) => {
       ...theme.typography.uiBodySm,
       fontFamily: theme.typography.fontFamily,
       fontWeight: theme.typography.fontWeightRegular,
-      letterSpacing: '0.008em',
+      letterSpacing: 0,
     },
   };
 };

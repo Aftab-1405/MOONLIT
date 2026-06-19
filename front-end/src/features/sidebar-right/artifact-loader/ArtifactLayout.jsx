@@ -96,8 +96,8 @@ function ArtifactHeader({
         borderColor: theme.palette.border.subtle,
         bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.55 : 0.98),
         backgroundImage: theme.palette.mode === 'dark'
-          ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.04)} 0%, transparent 100%)`
-          : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.7)} 0%, transparent 100%)`,
+          ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.03)} 0%, transparent 100%)`
+          : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.55)} 0%, transparent 100%)`,
         ...sx,
       }}
     >
@@ -276,12 +276,12 @@ function ArtifactShell({
       elevation={0}
       sx={{
         ...ARTIFACT_ROOT_SX,
-        borderRadius: isStandalone ? (isMobile ? '12px' : '16px') : 0,
+        borderRadius: isStandalone ? (isMobile ? '10px' : '14px') : 0,
         border: isStandalone ? '1px solid' : 0,
         borderColor: theme.palette.border.subtle,
         bgcolor: 'background.paper',
         boxShadow: isStandalone
-          ? `0 2px 8px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.24 : 0.06)}`
+          ? `0 8px 24px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.07)}`
           : 'none',
       }}
     >

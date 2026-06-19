@@ -409,8 +409,21 @@ function Sidebar({
           {isConversationsLoading ? (
             <HistoryListSkeleton />
           ) : conversations.length === 0 ? (
-            <Box sx={{ px: 1.5, py: 1.5, opacity: 0.55 }}>
-              <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary' }}>
+            <Box
+              role="status"
+              aria-live="polite"
+              sx={{
+                mx: 1,
+                mt: 0.5,
+                px: 1.25,
+                py: 1.1,
+                borderRadius: '10px',
+                border: '1px solid',
+                borderColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
+                bgcolor: alpha(theme.palette.background.paper, isDark ? 0.3 : 0.55),
+              }}
+            >
+              <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary', lineHeight: 1.35 }}>
                 No conversations yet
               </Typography>
             </Box>

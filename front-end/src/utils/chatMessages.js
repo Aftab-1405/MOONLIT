@@ -15,6 +15,8 @@ export const MESSAGE_STATUS = Object.freeze({
   DONE: 'done',
   STOPPED: 'stopped',
   ERROR: 'error',
+  /** Agent hit its step budget; task is paused and can be continued. */
+  PAUSED: 'paused',
 });
 
 let messageCounter = 0;
@@ -46,6 +48,7 @@ export function createAssistantMessage({
   textOverride = null,
   stepsOverride = null,
   timelineOverride = null,
+  usage = null,
 } = {}) {
   const parsed = (textOverride !== null || Array.isArray(stepsOverride))
     ? {
@@ -62,6 +65,7 @@ export function createAssistantMessage({
     steps: parsed.steps,
     timeline: parsed.timeline ?? [],
     status,
+    usage,
   };
 }
 
@@ -96,6 +100,7 @@ export function normalizeConversationMessage(message, index = 0) {
     tools: Array.isArray(message?.tools) ? message.tools : null,
     status: MESSAGE_STATUS.DONE,
     timelineOverride: storedTimeline,
+    usage: message?.usage || null,
   });
 }
 

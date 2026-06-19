@@ -1,6 +1,5 @@
 """FastAPI application entry point"""
 
-import os
 import logging
 from contextlib import asynccontextmanager
 
@@ -15,36 +14,33 @@ from slowapi.errors import RateLimitExceeded
 import redis.asyncio as redis
 
 from config import get_config, ProductionConfig
-from services.firestore_service import FirestoreService
-from services.rate_limiting import create_rate_limiter, create_user_quota_service
-from agent.checkpointing import init_checkpointer, shutdown_checkpointer
-from api.schemas.common import ApiError
+from service.firestore.firestore_service import FirestoreService
+from service.quota import create_rate_limiter, create_user_quota_service
+from langgraph_orchestration.checkpointing import init_checkpointer, shutdown_checkpointer
+from api_contract.common import ApiError
+from composition import configure_runtime_ports
 
+
+# Get environment-specific configuration
+AppConfig = get_config()
+configure_runtime_ports()
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=getattr(logging, AppConfig.LOG_LEVEL, logging.INFO),
+    format=AppConfig.LOG_FORMAT,
     handlers=[
-        logging.FileHandler("backend.log"),
+        logging.FileHandler(AppConfig.LOG_FILE),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger(__name__)
-
-# Get environment-specific configuration
-AppConfig = get_config()
 logging.getLogger().setLevel(getattr(logging, AppConfig.LOG_LEVEL, logging.INFO))
-for noisy_logger in (
-    "boto3",
-    "botocore",
-    "urllib3",
-    "s3transfer",
-    "cachecontrol",
-    "watchfiles",
-    "watchfiles.main",
-):
-    logging.getLogger(noisy_logger).setLevel(logging.WARNING)
+third_party_log_level = getattr(
+    logging, AppConfig.THIRD_PARTY_LOG_LEVEL, logging.WARNING
+)
+for noisy_logger in AppConfig.NOISY_LOGGER_NAMES:
+    logging.getLogger(noisy_logger).setLevel(third_party_log_level)
 
 # Rate limiter - uses storage from config (memory:// for dev, redis:// for prod)
 limiter = Limiter(
@@ -78,7 +74,7 @@ async def lifespan(app: FastAPI):
     FirestoreService.initialize()
 
     # Initialize Redis for sessions
-    redis_url = os.getenv("UPSTASH_REDIS_URL")
+    redis_url = AppConfig.UPSTASH_REDIS_URL
     env = (AppConfig.APP_ENV or "development").lower()
     is_prod_like = env in ("staging", "production")
 
@@ -138,9 +134,9 @@ async def lifespan(app: FastAPI):
 def create_app() -> FastAPI:
     """Application factory pattern."""
     app = FastAPI(
-        title="Moonlit API",
-        description="AI-powered database assistant API",
-        version="2.0.0",
+        title=AppConfig.APP_TITLE,
+        description=AppConfig.APP_DESCRIPTION,
+        version=AppConfig.APP_VERSION,
         lifespan=lifespan,
         docs_url="/docs" if AppConfig.DEBUG else None,
         redoc_url="/redoc" if AppConfig.DEBUG else None,
@@ -160,63 +156,57 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
-        logger.debug(f"Incoming request: {request.method} {request.url}")
-        
-        # Redact sensitive headers
-        sensitive_headers = {"cookie", "authorization", "x-csrf-token"}
-        safe_headers = {
-            k: ("***REDACTED***" if k.lower() in sensitive_headers else v)
-            for k, v in request.headers.items()
-        }
-        logger.debug(f"Headers: {safe_headers}")
-        
-        if logger.isEnabledFor(logging.DEBUG):
-            sensitive_body_paths = {
-                "/api/v1/pass_user_prompt_to_llm",
-                "/api/v1/resume_agent",
+        should_log_request = request.url.path not in AppConfig.REQUEST_LOG_EXCLUDED_PATHS
+        if should_log_request:
+            logger.debug(f"Incoming request: {request.method} {request.url}")
+
+            # Redact sensitive headers
+            safe_headers = {
+                k: (
+                    "***REDACTED***"
+                    if k.lower() in AppConfig.SENSITIVE_HEADER_NAMES
+                    else v
+                )
+                for k, v in request.headers.items()
             }
-            try:
-                body = await request.body()
-                if body:
-                    if request.url.path in sensitive_body_paths:
-                        logger.debug("Body: ***REDACTED***")
-                    else:
-                        body_str = body.decode('utf-8')
-                        # Truncate large bodies to prevent log bombing / disk exhaustion
-                        if len(body_str) > 200:
-                            body_str = body_str[:200] + f"... [TRUNCATED {len(body_str) - 200} bytes]"
-                        logger.debug(f"Body: {body_str}")
-            except Exception:
-                pass
-        
+            logger.debug(f"Headers: {safe_headers}")
+
+        if should_log_request and logger.isEnabledFor(logging.DEBUG):
+            content_length = request.headers.get("content-length")
+            if request.url.path in AppConfig.SENSITIVE_BODY_LOG_PATHS:
+                logger.debug("Body: ***REDACTED***")
+            elif content_length:
+                logger.debug("Body: %s bytes", content_length)
+
         response = await call_next(request)
-        logger.debug(f"Response status: {response.status_code}")
+        if should_log_request:
+            logger.debug(f"Response status: {response.status_code}")
         return response
 
     @app.middleware("http")
     async def add_security_headers(request: Request, call_next):
         response = await call_next(request)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
-        response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-        response.headers["Referrer-Policy"] = "no-referrer-when-downgrade"
-        response.headers["Permissions-Policy"] = "geolocation=()"
-        
+        response.headers["X-Content-Type-Options"] = AppConfig.SECURITY_HEADER_CONTENT_TYPE_OPTIONS
+        response.headers["X-Frame-Options"] = AppConfig.SECURITY_HEADER_FRAME_OPTIONS
+        response.headers["X-XSS-Protection"] = AppConfig.SECURITY_HEADER_XSS_PROTECTION
+        response.headers["Strict-Transport-Security"] = AppConfig.SECURITY_HEADER_HSTS
+        response.headers["Referrer-Policy"] = AppConfig.SECURITY_HEADER_REFERRER_POLICY
+        response.headers["Permissions-Policy"] = AppConfig.SECURITY_HEADER_PERMISSIONS_POLICY
+
         # Mask server header to prevent information disclosure
-        response.headers["Server"] = "Moonlit"
+        response.headers["Server"] = AppConfig.SERVER_HEADER_VALUE
         if "x-powered-by" in response.headers:
             del response.headers["x-powered-by"]
-            
+
         return response
 
     @app.middleware("http")
     async def csrf_middleware(request: Request, call_next):
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
-            if request.url.path not in {"/api/v1/user/session/close"}:
+            if request.url.path not in AppConfig.CSRF_EXEMPT_PATHS:
                 try:
                     from dependencies import verify_csrf
-    
+
                     verify_csrf(request)
                 except HTTPException as exc:
                     return JSONResponse(
@@ -236,7 +226,7 @@ def create_app() -> FastAPI:
         app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
         logger.info(f"Rate limiting enabled: {AppConfig.RATELIMIT_DEFAULT}")
 
-    # Configure LLM rate limiter (multi-key load balancing)
+    # Configure LLM rate limiter (single-key rate limiting)
     app.state.llm_rate_limiter = create_rate_limiter(AppConfig)
     logger.info(
         f"LLM provider: {AppConfig.LLM_PROVIDER}; "
@@ -252,8 +242,8 @@ def create_app() -> FastAPI:
     _register_error_handlers(app)
 
     # Register routers
-    from auth.routes import router as auth_router
-    from api.routes import combined_router as api_router
+    from controller.auth_controller import router as auth_router
+    from api_router import combined_router as api_router
 
     app.include_router(auth_router)
     app.include_router(api_router, prefix="/api/v1")
@@ -353,8 +343,8 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app",
-        host="0.0.0.0",
-        port=5000,
+        host=AppConfig.UVICORN_HOST,
+        port=AppConfig.UVICORN_PORT,
         reload=AppConfig.DEBUG,
-        log_level="debug" if AppConfig.DEBUG else "info",
+        log_level=AppConfig.UVICORN_DEBUG_LOG_LEVEL if AppConfig.DEBUG else AppConfig.UVICORN_LOG_LEVEL,
     )

@@ -84,6 +84,7 @@ export function useChatPageController() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [dbModalInitialType, setDbModalInitialType] = useState(null);
   const [settingsInitialSection, setSettingsInitialSection] = useState(null);
+  const [usageMetrics, setUsageMetrics] = useState(null);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [guidedConfirmDialog, setGuidedConfirmDialog] = useState({
     open: false,
@@ -104,6 +105,8 @@ export function useChatPageController() {
     title: '',
   });
   const resumeAgentRef = useRef(null);
+  const continueTaskRef = useRef(null);
+  const stepLimitEventRef = useRef(null);
   const messagesRef = useRef(messages);
 
   const llmSelection = useChatPageLlmSelection({ settings, updateSetting, updateSettings });
@@ -278,6 +281,9 @@ export function useChatPageController() {
         handleSidebarNewChat();
       }, Number(payload?.delayMs) || 900);
     },
+    usage_metrics: (payload) => {
+      if (payload) setUsageMetrics(payload);
+    },
     onInvalidAction: ({ reason }) => {
       if (reason) showSnackbar(reason, 'warning');
     },
@@ -285,7 +291,62 @@ export function useChatPageController() {
 
   useEffect(() => {
     messagesRef.current = messages;
+    
+    // Extract usage metrics from the loaded conversation history
+    let nextUsage = null;
+    let foundUsage = false;
+    
+    if (messages && messages.length > 0) {
+      for (let i = messages.length - 1; i >= 0; i--) {
+        const isAssistant = messages[i].role === 'assistant' || messages[i].sender === 'ai';
+        if (isAssistant && messages[i].usage) {
+          nextUsage = messages[i].usage;
+          foundUsage = true;
+          break;
+        }
+      }
+    }
+
+    const isLastUser = messages && messages.length === 1 && (messages[0].role === 'user' || messages[0].sender === 'user');
+    
+    if (foundUsage) {
+      setTimeout(() => {
+        setUsageMetrics(nextUsage);
+      }, 0);
+    } else if (!isLastUser || !messages || messages.length === 0) {
+      setTimeout(() => {
+        setUsageMetrics(null);
+      }, 0);
+    }
   }, [messages]);
+
+  const handleAgentStepLimitReached = useCallback((event, assistantMessageId = null) => {
+    stepLimitEventRef.current = event;
+    const stepsUsed = event?.steps_used ?? '?';
+    const taskMode = event?.task_mode || 'normal';
+    const message = event?.message
+      || `The agent paused after ${stepsUsed} steps to avoid runaway execution. The task context has been saved.`;
+
+    setGuidedConfirmDialog({
+      open: true,
+      title: '⏸ Task Paused',
+      message,
+      confirmText: 'Continue Task',
+      cancelText: 'Stop Here',
+      onCancel: () => {
+        stepLimitEventRef.current = null;
+      },
+      onConfirm: () => {
+        const storedEvent = stepLimitEventRef.current;
+        stepLimitEventRef.current = null;
+        continueTaskRef.current?.(storedEvent, assistantMessageId, {
+          provider: selectedProvider || null,
+          model: selectedModel || null,
+          taskMode,
+        });
+      },
+    });
+  }, [selectedModel, selectedProvider]);
 
   const handleAgentInterrupt = useCallback((event, assistantMessageId = null) => {
     const payload = event?.payload || {};
@@ -322,6 +383,7 @@ export function useChatPageController() {
     handleSendMessage,
     handleResumeAgent,
     handleStopStreaming,
+    handleContinueTask,
   } = useMessageStreaming({
     currentConversationId,
     setCurrentConversationId,
@@ -333,11 +395,13 @@ export function useChatPageController() {
     settings,
     dispatchUiAction,
     onAgentInterrupt: handleAgentInterrupt,
+    onAgentStepLimitReached: handleAgentStepLimitReached,
     getMessages: () => messagesRef.current,
   });
   useEffect(() => {
     resumeAgentRef.current = handleResumeAgent;
-  }, [handleResumeAgent]);
+    continueTaskRef.current = handleContinueTask;
+  }, [handleResumeAgent, handleContinueTask]);
 
   useChatPageSessionLifecycle({
     isDbConnected,
@@ -475,6 +539,7 @@ export function useChatPageController() {
     providerOptions,
     llmOptionsLoading,
     onSelectLlm: handleLlmSelection,
+    usageMetrics,
   }), [
     handleSendMessageWithModel,
     handleStopStreaming,
@@ -490,6 +555,7 @@ export function useChatPageController() {
     providerOptions,
     llmOptionsLoading,
     handleLlmSelection,
+    usageMetrics,
   ]);
   const commonSidebarProps = useMemo(() => ({
     conversations,
