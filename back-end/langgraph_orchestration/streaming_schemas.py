@@ -51,6 +51,41 @@ class DoneEvent(BaseModel):
     type: Literal["done"]
 
 
+class UsageMetricsEvent(BaseModel):
+    type: Literal["usage_metrics"]
+    activeContextBudget: int | None = None
+    totalContextWindow: int | None = None
+    availableInputPayloadTokens: int | None = None
+    pressureTriggerTokens: int | None = None
+    modelContextWindow: int | None = None
+    reservedOutputTokens: int | None = None
+    safetyMarginTokens: int | None = None
+    systemPromptTokens: int | None = None
+    toolSchemaTokens: int | None = None
+    vampMemoryTokens: int | None = None
+    taskCheckpointTokens: int | None = None
+    hotHistoryBudget: int | None = None
+    tokenCountingMode: str | None = None
+    tokenCountingReason: str | None = None
+    inputPayloadTokens: int | None = None
+    model_extra: dict[str, Any] | None = None
+
+    class Config:
+        extra = "allow"
+
+
+class WorkflowStatusEvent(BaseModel):
+    type: Literal["workflow_status"]
+    stage: str
+    status: Literal["running", "done", "failed"]
+    content: str
+
+
+class SkillsActivatedEvent(BaseModel):
+    type: Literal["skills_activated"]
+    skills: list[str]
+
+
 SseEvent = Annotated[
     Union[
         TokenEvent,
@@ -61,6 +96,9 @@ SseEvent = Annotated[
         InterruptEvent,
         StreamErrorEvent,
         DoneEvent,
+        UsageMetricsEvent,
+        WorkflowStatusEvent,
+        SkillsActivatedEvent,
     ],
     Field(discriminator="type"),
 ]

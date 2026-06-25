@@ -216,6 +216,108 @@ export const ThinkingStep = memo(function ThinkingStep({
   );
 });
 
+// ─── SkillStep ─────────────────────────────────────────────────────────────────
+
+function humanizeSkillName(name) {
+  return name
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
+ * Renders activated skills as plain shimmer text.
+ * Format: "Skills → Database, Web Research"
+ * Intentionally matches the accordion summary text style (uiBodySm + shimmer)
+ * — no pills, icons, or borders.
+ *
+ * ``isStreaming`` drives the shimmer: active while the turn is live, static
+ * once the turn is complete.
+ */
+export const SkillStep = memo(function SkillStep({
+  skills = [],
+  isStreaming = false,
+}) {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+
+  if (!skills.length) return null;
+
+  const SKILL_LABELS = {
+    database_querying: 'Database',
+    react_flow_diagram: 'Diagram',
+    web_research: 'Web Research',
+    query_history: 'Query History',
+  };
+
+  const label = skills
+    .map((s) => SKILL_LABELS[s] || humanizeSkillName(s))
+    .join(', ');
+
+  const textColor = alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.55);
+  const highlightColor = alpha(theme.palette.text.primary, isDark ? 0.92 : 0.82);
+
+  return (
+    <Box
+      sx={{
+        width: '100%',
+        textAlign: 'left',
+        mb: 1.5,
+        animation: `${slideIn} 0.22s ease-out both`,
+        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+      }}
+    >
+      {/* Mimic the accordion ButtonBase row geometry so SkillStep sits flush
+          at the same height and weight as Thinking… / tool action lines. */}
+      <Box
+        sx={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: { xs: 0.75, sm: 1 },
+          px: 0,
+          py: { xs: 0.3, sm: 0.4 },
+          minHeight: 32,
+          minWidth: 0,
+        }}
+      >
+        <Typography
+          sx={{
+            ...theme.typography.uiBodySm,
+            fontFamily: theme.typography.fontFamily,
+            fontWeight: 500,
+            flex: 1,
+            minWidth: 0,
+            textAlign: 'left',
+            whiteSpace: 'normal',
+            overflowWrap: 'anywhere',
+            lineHeight: 1.4,
+            ...(isStreaming
+              ? {
+                  backgroundImage: `linear-gradient(90deg, ${textColor} 0%, ${textColor} 36%, ${highlightColor} 50%, ${textColor} 64%, ${textColor} 100%)`,
+                  backgroundSize: '220% 100%',
+                  backgroundClip: 'text',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  color: 'transparent',
+                  animation: `${shimmer} 2.8s linear infinite`,
+                  '@media (prefers-reduced-motion: reduce)': {
+                    backgroundImage: 'none',
+                    WebkitTextFillColor: 'currentColor',
+                    color: textColor,
+                    animation: 'none',
+                  },
+                }
+              : { color: textColor }),
+          }}
+        >
+          {`Picked ${label} skill${skills.length > 1 ? 's' : ''}`}
+        </Typography>
+      </Box>
+    </Box>
+  );
+});
+
 // ─── ToolStep ─────────────────────────────────────────────────────────────────
 
 export const ToolStep = memo(function ToolStep({

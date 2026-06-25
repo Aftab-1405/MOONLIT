@@ -8,6 +8,8 @@ Event types:
   ui_action      – guided frontend action for the browser UI
   agent_interrupt – graph paused for human input; resume with /resume_agent
   thinking_token – reasoning/chain-of-thought token
+  skills_activated – skill modules loaded for this turn (emitted once, before
+                     the first token/tool)
   error          – recoverable error message
   done           – stream complete
 """
@@ -56,3 +58,16 @@ def sse_ui_action(action: str, payload: dict | None = None) -> str:
     ``payload`` is serialised to ``null`` when ``None`` is passed.
     """
     return sse_encode({"type": "ui_action", "action": action, "payload": payload})
+
+
+def sse_skills_activated(skills: list[str]) -> str:
+    """Emit the list of skill modules activated for the current turn.
+
+    Shape: { "type": "skills_activated", "skills": ["database_querying", ...] }
+
+    Emitted once per turn, immediately after the system prompt is built and
+    before the first LLM token or tool call. Allows the frontend to show which
+    domain expertise modules were loaded for a given user request.
+    """
+    return sse_encode({"type": "skills_activated", "skills": list(skills)})
+

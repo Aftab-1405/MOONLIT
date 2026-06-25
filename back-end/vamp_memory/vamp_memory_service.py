@@ -14,6 +14,15 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CONTEXT_TOKEN_BUDGET_CHARS = get_config().VAMP_CONTEXT_BUDGET_CHARS
 _VECTOR_STORE_SINGLETON = None
+_VAMP_MEMORY_SERVICE_SINGLETON = None
+
+
+def get_vamp_memory_service():
+    """Create or return the configured VampMemoryService singleton."""
+    global _VAMP_MEMORY_SERVICE_SINGLETON
+    if _VAMP_MEMORY_SERVICE_SINGLETON is None:
+        _VAMP_MEMORY_SERVICE_SINGLETON = VampMemoryService()
+    return _VAMP_MEMORY_SERVICE_SINGLETON
 
 
 def get_default_vector_store() -> VectorMemoryStore:
@@ -100,6 +109,11 @@ class VampMemoryService:
         covers_message_ids: list | None = None,
         created_from_unsummarized_tail: bool = True,
     ) -> dict:
+        if memory_bullets:
+            for bullet in memory_bullets:
+                if "text" in bullet and "char_length" not in bullet:
+                    bullet["char_length"] = len(str(bullet["text"]))
+
         block = await asyncio.to_thread(
             self.summary_repo.create_block,
             conversation_id,

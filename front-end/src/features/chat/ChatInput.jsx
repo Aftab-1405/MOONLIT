@@ -8,6 +8,7 @@ import {
   Typography,
   Skeleton,
   useMediaQuery,
+  LinearProgress,
 } from "@mui/material";
 import { alpha, keyframes, useTheme } from "@mui/material/styles";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
@@ -292,9 +293,16 @@ function ChatInput({
       usageMetrics.pressureTriggerTokens ?? usageMetrics.activeContextBudget;
     const modelWindow =
       usageMetrics.modelContextWindow ?? usageMetrics.totalContextWindow;
+    const totalUsed = activeUsed 
+      + (usageMetrics.systemPromptTokens || 0) 
+      + (usageMetrics.toolSchemaTokens || 0)
+      + (usageMetrics.vampMemoryTokens || 0)
+      + (usageMetrics.taskCheckpointTokens || 0);
+
     if (activeUsed == null || activeBudget == null) return null;
     return {
       activeUsed,
+      totalUsed,
       activeBudget,
       modelWindow,
       tokenCountingMode: usageMetrics.tokenCountingMode,
@@ -899,99 +907,48 @@ function ChatInput({
                       >
                         {selectedModel || "Select model"}
                       </Typography>
-                      {activeProviderLabel && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.8, mb: 0.5 }}
-                        >
-                          Provider: {activeProviderLabel}
-                        </Typography>
-                      )}
-                      {contextUsage.tokenCountingMode === "estimated" && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.8, mb: 0.5 }}
-                        >
-                          Token usage: conservative estimate
-                        </Typography>
-                      )}
-                      {contextUsage.contextPhase === "pre_summary" && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.8, mb: 0.5 }}
-                        >
-                          Context pressure: summarizing unsummarized tail
-                        </Typography>
-                      )}
-                      <Typography
-                        variant="caption"
-                        display="block"
-                        sx={{ opacity: 0.8 }}
-                      >
-                        {contextUsage.contextPhase === "pre_summary"
-                          ? "Summary pressure"
-                          : "Active context"}
-                        : {contextUsage.activeUsed.toLocaleString()} /{" "}
-                        {contextUsage.activeBudget.toLocaleString()} (
-                        {Math.round(
-                          (contextUsage.activeUsed /
-                            contextUsage.activeBudget) *
-                            100,
-                        )}
-                        %)
-                      </Typography>
-                      {contextUsage.summaryThresholdTokens != null && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.65 }}
-                        >
-                          Summary trigger:{" "}
-                          {contextUsage.summaryThresholdTokens.toLocaleString()}{" "}
-                          tokens
-                        </Typography>
-                      )}
-                      {contextUsage.modelWindow != null && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.8 }}
-                        >
-                          Model window:{" "}
-                          {contextUsage.activeUsed.toLocaleString()} /{" "}
-                          {contextUsage.modelWindow.toLocaleString()} (
-                          {Math.round(
-                            (contextUsage.activeUsed /
-                              contextUsage.modelWindow) *
-                              100,
-                          )}
-                          %)
-                        </Typography>
-                      )}
-                      {usageMetrics.systemPromptTokens != null &&
-                        usageMetrics.toolSchemaTokens != null && (
-                          <Typography
-                            variant="caption"
-                            display="block"
-                            sx={{ opacity: 0.65, mt: 0.5 }}
-                          >
-                            Static: SI{" "}
-                            {usageMetrics.systemPromptTokens.toLocaleString()} ·
-                            tools{" "}
-                            {usageMetrics.toolSchemaTokens.toLocaleString()}
+                      <Box sx={{ mt: 1.5, mb: 1 }}>
+                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5, alignItems: "center" }}>
+                          <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                            {contextUsage.contextPhase === "pre_summary" ? "Summary Progress" : "Active Context"}
                           </Typography>
+                          <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                            {Math.round((contextUsage.activeUsed / contextUsage.activeBudget) * 100)}%
+                          </Typography>
+                        </Box>
+                        <LinearProgress 
+                          variant="determinate" 
+                          value={Math.min(100, (contextUsage.activeUsed / contextUsage.activeBudget) * 100)} 
+                          color={(contextUsage.activeUsed / contextUsage.activeBudget) > 0.9 ? "error" : (contextUsage.activeUsed / contextUsage.activeBudget) > 0.75 ? "warning" : "primary"}
+                          sx={{ height: 6, borderRadius: 3, mb: 1.5, bgcolor: "background.default" }}
+                        />
+
+                        {contextUsage.modelWindow != null && (
+                          <>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5, alignItems: "center" }}>
+                              <Typography variant="caption" sx={{ fontWeight: 500 }}>
+                                Model Capacity
+                              </Typography>
+                              <Typography variant="caption" sx={{ opacity: 0.8 }}>
+                                {Math.round((contextUsage.totalUsed / contextUsage.modelWindow) * 100)}%
+                              </Typography>
+                            </Box>
+                            <LinearProgress 
+                              variant="determinate" 
+                              value={Math.min(100, (contextUsage.totalUsed / contextUsage.modelWindow) * 100)} 
+                              color={(contextUsage.totalUsed / contextUsage.modelWindow) > 0.9 ? "error" : (contextUsage.totalUsed / contextUsage.modelWindow) > 0.75 ? "warning" : "primary"}
+                              sx={{ height: 6, borderRadius: 3, bgcolor: "background.default" }}
+                            />
+                          </>
                         )}
-                      <Typography
-                        variant="caption"
-                        display="block"
-                        sx={{ opacity: 0.5, mt: 0.5, fontSize: "10px" }}
-                      >
-                        (Older history dynamically trimmed to stay within
-                        budget)
-                      </Typography>
+                        <Typography
+                          variant="caption"
+                          display="block"
+                          sx={{ opacity: 0.5, mt: 1, fontSize: "10px", lineHeight: 1.2 }}
+                        >
+                          Background context dynamically manages these budgets to prevent memory crashes.
+                        </Typography>
+                      </Box>
                     </Box>
                   ) : activeProviderLabel ? (
                     `${selectedModel || "Select model"} - ${activeProviderLabel}`

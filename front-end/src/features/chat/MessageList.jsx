@@ -22,6 +22,10 @@ import {
   slideIn,
 } from "@/features/chat/ai-response-steps/timelineShared";
 import { StepsAccordion } from "@/features/chat/ai-response-steps";
+import {
+  ThinkingStep,
+  ToolStep,
+} from "@/features/chat/ai-response-steps/StepTimelineItems";
 import MarkdownRenderer from "@/features/chat/MarkdownRenderer";
 import { MESSAGE_STATUS } from "@/utils/chatMessages";
 import {
@@ -717,7 +721,11 @@ const AIMessage = memo(function AIMessage({
                   item.id || `text-${index}`,
                 );
               }
-              if (item.type === "thinking" || item.type === "tool") {
+              if (
+                item.type === "thinking" ||
+                item.type === "tool" ||
+                item.type === "skill"
+              ) {
                 return renderStepBlock(
                   item,
                   item.id || `${item.type}-${index}`,

@@ -264,6 +264,21 @@ export function useMessageStreaming({
           scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
           break;
 
+        case 'skills_activated': {
+          // Insert a single skills step at position 0 (or update it if already present).
+          // The skills_activated event fires once per turn before any tokens/tools.
+          const existingSkillStep = eventTimeline.find((item) => item.type === 'skill');
+          if (!existingSkillStep) {
+            eventTimeline.unshift({
+              type: 'skill',
+              id: 'skills-activated',
+              skills: Array.isArray(event.skills) ? event.skills : [],
+            });
+          }
+          scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
+          break;
+        }
+
         case 'workflow_status': {
           const stepId = `workflow-${event.stage || 'status'}`;
           const existing = eventTimeline.find((item) => item.id === stepId);

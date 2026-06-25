@@ -1,7 +1,7 @@
 """Historical-context provider backed by VAMP memory."""
 
 from api_contract.orchestration_protocols import HistoricalContextProvider
-from vamp_memory.vamp_memory_service import VampMemoryService
+from vamp_memory.vamp_memory_service import get_vamp_memory_service
 
 
 class VampHistoricalContextProvider:
@@ -10,7 +10,7 @@ class VampHistoricalContextProvider:
     async def retrieve_context(
         self, conversation_id: str, user_id: str, user_prompt: str
     ) -> str:
-        return await VampMemoryService().retrieve_context(
+        return await get_vamp_memory_service().retrieve_context(
             conversation_id,
             user_id,
             user_prompt,

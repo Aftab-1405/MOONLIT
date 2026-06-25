@@ -1,8 +1,9 @@
 """Agent orchestration protocols."""
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 
+@runtime_checkable
 class HistoricalContextProvider(Protocol):
     """Port for retrieving historical context for an agent turn."""
 
@@ -12,6 +13,7 @@ class HistoricalContextProvider(Protocol):
         """Return formatted historical context relevant to the prompt."""
 
 
+@runtime_checkable
 class ConversationStateReader(Protocol):
     """Port for reading persisted conversation state."""
 
@@ -19,6 +21,7 @@ class ConversationStateReader(Protocol):
         """Return a conversation document by id."""
 
 
+@runtime_checkable
 class ConversationSummarizer(Protocol):
     """Port for updating conversation summaries before orchestration."""
 
@@ -42,6 +45,7 @@ class ConversationSummarizer(Protocol):
         """Summarize conversation history when needed."""
 
 
+@runtime_checkable
 class ConversationTaskStateStore(Protocol):
     """Port for task-mode state persisted with a conversation."""
 

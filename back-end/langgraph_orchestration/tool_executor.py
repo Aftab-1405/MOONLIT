@@ -36,33 +36,23 @@ class ToolExecutor:
         return validated.model_dump()
 
     @staticmethod
-    def summarize_for_ui(tool_name: str, result: Dict[str, Any]) -> str:
+    def summarize(tool_name: str, result: Dict[str, Any]) -> tuple[Dict[str, Any], str]:
         """
-        Create a structured summary of the tool result for the UI stream.
-
-        Includes full data for frontend rendering.
+        Create structured summaries of the tool result.
+        Returns:
+            tuple: (ui_result_dict, llm_summary_json_string)
         """
-        structured = structure_tool_result(tool_name, result)
-        return json.dumps(structured)
-
-    @staticmethod
-    def summarize_for_llm(tool_name: str, result: Dict[str, Any]) -> str:
-        """
-        Create a token-efficient summary for LLM context.
-
-        For execute_query, excludes the full 'data' field — LLM only sees 'preview'.
-        This prevents token limit issues with large query results.
-        """
-        structured = structure_tool_result(tool_name, result)
+        ui_structured = structure_tool_result(tool_name, result)
+        llm_structured = dict(ui_structured)
 
         # Remove full data field for execute_query - LLM only needs preview.
         # Add explicit anti-hallucination guardrails because preview rows may be partial.
         if tool_name == "execute_query":
-            if "data" in structured:
-                del structured["data"]
-            structured["llm_guardrails"] = {
+            if "data" in llm_structured:
+                del llm_structured["data"]
+            llm_structured["llm_guardrails"] = {
                 "preview_only_context": bool(
-                    structured.get("preview_is_partial", False)
+                    llm_structured.get("preview_is_partial", False)
                 ),
                 "do_not_fabricate_unseen_rows": True,
                 "when_user_requests_full_results": (
@@ -70,4 +60,4 @@ class ToolExecutor:
                 ),
             }
 
-        return json.dumps(structured)
+        return ui_structured, json.dumps(llm_structured)

@@ -12,6 +12,7 @@ Each tool:
 
 import json
 import logging
+import threading
 from typing import Optional
 
 from langchain_core.runnables import RunnableConfig
@@ -22,6 +23,8 @@ from langgraph_orchestration.tool_executor import ToolExecutor
 from service.database.ai_tool_executor import AIToolExecutor as DBTools
 
 logger = logging.getLogger(__name__)
+
+_TAVILY_LOCK = threading.Lock()
 
 # Tools whose results can be cached within a single conversation turn set.
 CACHEABLE_TOOLS = {
@@ -165,8 +168,6 @@ def _execute_tool(
     raw_args: dict,
     config: RunnableConfig,
     executor_fn,
-    *,
-    _pre_validated: dict | None = None,
 ) -> str:
     """
     Shared execution pipeline used by every tool function.
@@ -175,22 +176,13 @@ def _execute_tool(
     is a callable that performs the actual DB work for each specific tool.
 
     Returns the LLM-efficient summary string (becomes ``ToolMessage.content``).
-
-    Args:
-        _pre_validated: Pass already-validated args to skip redundant Pydantic
-            validation. Used by ``execute_query`` which validates before the
-            human-in-the-loop interrupt and must not re-validate on resume.
     """
     cfg = _cfg(config)
     writer = _try_writer()
 
-    # 1. Validate with Pydantic schemas (skip if caller already validated)
+    # 1. Validate with Pydantic schemas
     try:
-        validated = (
-            _pre_validated
-            if _pre_validated is not None
-            else ToolExecutor.validate_and_parse_args(tool_name, raw_args)
-        )
+        validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
     except ValueError as e:
         return f"Tool Argument Validation Error: {str(e)}. Please correct your arguments and try again."
 
@@ -216,7 +208,7 @@ def _execute_tool(
     cache = cfg.get("tool_cache", {})
     cache_key = None
     if tool_name in CACHEABLE_TOOLS:
-        cache_args = {k: v for k, v in validated.items() if k != "rationale"}
+        cache_args = dict(validated)
         cache_key = f"{tool_name}:{json.dumps(cache_args, sort_keys=True)}"
 
     if cache_key and cache_key in cache:
@@ -235,8 +227,7 @@ def _execute_tool(
             logger.info(f"Cached result for {tool_name}")
 
     # 6. Dual summarization
-    ui_summary = ToolExecutor.summarize_for_ui(tool_name, parsed)
-    llm_summary = ToolExecutor.summarize_for_llm(tool_name, parsed)
+    ui_result, llm_summary = ToolExecutor.summarize(tool_name, parsed)
 
     # 7. Emit tool_end with full UI data
     writer(
@@ -244,7 +235,7 @@ def _execute_tool(
             "type": "tool_end",
             "name": tool_name,
             "args": display_args,
-            "result": json.loads(ui_summary),
+            "result": ui_result,
         }
     )
 
@@ -256,22 +247,22 @@ def _execute_tool(
 
 
 @tool
-def get_connection_status(rationale: str, *, config: RunnableConfig) -> str:
+def get_connection_status(*, config: RunnableConfig) -> str:
     """Check if user is connected to a database and get connection details like database type, name, host, and whether it's a remote connection."""
     return _execute_tool(
         "get_connection_status",
-        {"rationale": rationale},
+        {},
         config,
         lambda v, uid, db_cfg, mx: DBTools._get_connection_status(uid),
     )
 
 
 @tool
-def get_database_list(rationale: str, *, config: RunnableConfig) -> str:
+def get_database_list(*, config: RunnableConfig) -> str:
     """Get list of all databases available on the connected server."""
     return _execute_tool(
         "get_database_list",
-        {"rationale": rationale},
+        {},
         config,
         lambda v, uid, db_cfg, mx: DBTools._get_database_list(uid, db_config=db_cfg),
     )
@@ -280,19 +271,13 @@ def get_database_list(rationale: str, *, config: RunnableConfig) -> str:
 @tool
 def execute_query(
     query: str,
-    rationale: str,
     max_rows: int = 100,
     *,
     config: RunnableConfig,
 ) -> str:
     """Execute a read-only SQL query. Only SELECT/WITH queries are allowed for safety."""
     tool_name = "execute_query"
-    raw_args = {"query": query, "rationale": rationale, "max_rows": max_rows}
-
-    try:
-        validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
-    except ValueError as e:
-        return f"Tool Argument Validation Error: {str(e)}. Please correct your arguments and try again."
+    raw_args = {"query": query, "max_rows": max_rows}
 
     return _execute_tool(
         tool_name,
@@ -301,21 +286,19 @@ def execute_query(
         lambda v, uid, db_cfg, mx: DBTools._execute_query(
             uid, v["query"], _effective_max_rows(mx), db_config=db_cfg
         ),
-        _pre_validated=validated,  # reuse the validated args from before interrupt()
     )
 
 
 @tool
 def get_table_indexes(
     table_name: str,
-    rationale: str,
     *,
     config: RunnableConfig,
 ) -> str:
     """Get all indexes defined on a specific table, including index name, columns, uniqueness, and whether it's a primary key index."""
     return _execute_tool(
         "get_table_indexes",
-        {"table_name": table_name, "rationale": rationale},
+        {"table_name": table_name, },
         config,
         lambda v, uid, db_cfg, mx: DBTools._get_table_indexes(
             uid, v["table_name"], db_config=db_cfg
@@ -325,7 +308,6 @@ def get_table_indexes(
 
 @tool
 def get_schema_overview(
-    rationale: str,
     target_tables: Optional[list[str]] = None,
     *,
     config: RunnableConfig,
@@ -333,7 +315,7 @@ def get_schema_overview(
     """Get an overview of the database schema including tables, columns, and foreign keys in a single call. Use this instead of making multiple calls to get_table_columns and get_foreign_keys."""
     return _execute_tool(
         "get_schema_overview",
-        {"rationale": rationale, "target_tables": target_tables},
+        {"target_tables": target_tables},
         config,
         lambda v, uid, db_cfg, mx: DBTools._get_schema_overview(
             uid, v.get("target_tables"), db_config=db_cfg
@@ -342,7 +324,7 @@ def get_schema_overview(
 
 
 @tool
-def web_search(query: str, rationale: str, *, config: RunnableConfig) -> str:
+def web_search(query: str, *, config: RunnableConfig) -> str:
     """Search the web for current information, recent news, external documentation, or any topic not available in the connected database. Use this when the user needs up-to-date knowledge, real-world context, or information that cannot be answered from database data alone."""
     writer = _try_writer()
     writer({"type": "tool_start", "name": "web_search", "args": {"query": query}})
@@ -350,9 +332,11 @@ def web_search(query: str, rationale: str, *, config: RunnableConfig) -> str:
     try:
         global _tavily_searcher
         if "_tavily_searcher" not in globals():
-            from langchain_tavily import TavilySearch
+            with _TAVILY_LOCK:
+                if "_tavily_searcher" not in globals():
+                    from langchain_tavily import TavilySearch
 
-            _tavily_searcher = TavilySearch(max_results=5, topic="general")
+                    _tavily_searcher = TavilySearch(max_results=5, topic="general")
 
         raw = _tavily_searcher.invoke({"query": query})
 
@@ -417,17 +401,13 @@ def web_search(query: str, rationale: str, *, config: RunnableConfig) -> str:
 
 @tool
 def open_sql_editor(
-    rationale: str,
     query: Optional[str] = None,
     *,
     config: RunnableConfig,
 ) -> str:
     """Opens the SQL editor panel in the UI. Optionally pre-populates the editor with a SQL query."""
     tool_name = "open_sql_editor"
-    validated = ToolExecutor.validate_and_parse_args(
-        tool_name, {"rationale": rationale, "query": query}
-    )
-    q = validated.get("query")
+    q = query
     summary = (
         "Opened the SQL editor with the provided query pre-populated."
         if q
@@ -435,7 +415,7 @@ def open_sql_editor(
     )
     return _emit_ui_action_tool(
         tool_name,
-        {"rationale": rationale, "query": query},
+        {"query": query},
         {"query": q},
         summary,
         title="SQL editor ready",
@@ -446,17 +426,13 @@ def open_sql_editor(
 
 @tool
 def open_database_modal(
-    rationale: str,
     db_type: Optional[str] = None,
     *,
     config: RunnableConfig,
 ) -> str:
     """Opens the database connection modal in the UI. Optionally pre-selects a database type."""
     tool_name = "open_database_modal"
-    validated = ToolExecutor.validate_and_parse_args(
-        tool_name, {"rationale": rationale, "db_type": db_type}
-    )
-    dt = validated.get("db_type")
+    dt = db_type
     summary = (
         f"Opened the database connection modal with '{dt}' pre-selected."
         if dt
@@ -464,7 +440,7 @@ def open_database_modal(
     )
     return _emit_ui_action_tool(
         tool_name,
-        {"rationale": rationale, "db_type": db_type},
+        {"db_type": db_type},
         {"db_type": dt},
         summary,
         title="Connect a database",
@@ -475,17 +451,13 @@ def open_database_modal(
 
 @tool
 def open_settings_modal(
-    rationale: str,
     section: Optional[str] = None,
     *,
     config: RunnableConfig,
 ) -> str:
     """Opens the settings modal in the UI. Optionally navigates to a specific section (appearance, ai, database, context)."""
     tool_name = "open_settings_modal"
-    validated = ToolExecutor.validate_and_parse_args(
-        tool_name, {"rationale": rationale, "section": section}
-    )
-    sec = validated.get("section")
+    sec = section
     summary = (
         f"Opened the settings modal on the '{sec}' section."
         if sec
@@ -493,7 +465,7 @@ def open_settings_modal(
     )
     return _emit_ui_action_tool(
         tool_name,
-        {"rationale": rationale, "section": section},
+        {"section": section},
         {"section": sec},
         summary,
         title="Settings opened",
@@ -504,14 +476,13 @@ def open_settings_modal(
 
 @tool
 def navigate_new_chat(
-    rationale: str,
     *,
     config: RunnableConfig,
 ) -> str:
     """Navigates to a new chat conversation, clearing the current context."""
     tool_name = "navigate_new_chat"
     validated = ToolExecutor.validate_and_parse_args(
-        tool_name, {"rationale": rationale}
+        tool_name, {}
     )
     decision = interrupt(
         _guided_interrupt_payload(
@@ -555,12 +526,12 @@ def navigate_new_chat(
 
 
 @tool
-def get_query_history(rationale: str, *, config: RunnableConfig) -> str:
+def get_query_history(*, config: RunnableConfig) -> str:
     """Retrieve the 10 most recently executed SQL queries from your long-term episodic memory. Use this tool if the user asks about a past query, requests a modification to a previous query, or refers to context that is no longer visible in your active conversation history."""
     import json
 
     tool_name = "get_query_history"
-    tool_args = {"rationale": rationale}
+    tool_args = {}
     writer = _try_writer()
     writer({"type": "tool_start", "name": tool_name, "args": tool_args})
 

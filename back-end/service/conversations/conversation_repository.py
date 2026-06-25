@@ -11,7 +11,7 @@ Messages are stored as structured fields only:
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
@@ -96,27 +96,25 @@ class ConversationRepository:
             conversations = (
                 db.collection(ConversationRepository.COLLECTION_NAME)
                 .where(filter=FieldFilter("user_id", "==", user_id))
+                .select(["timestamp", "title", "preview"])
                 .get()
             )
 
             conversation_list = []
             for conv in conversations:
                 conv_data = conv.to_dict()
-                if conv_data.get("messages"):
-                    first_msg = conv_data["messages"][0]["content"]
-                    title = conv_data.get("title") or first_msg[:40] + (
-                        "..." if len(first_msg) > 40 else ""
-                    )
-                    conversation_list.append(
-                        {
-                            "id": conv.id,
-                            "timestamp": conv_data["timestamp"],
-                            "title": title,
-                            "preview": first_msg[:50] + "...",
-                        }
-                    )
+                title = conv_data.get("title") or "Conversation"
+                preview = conv_data.get("preview") or "Open to view messages..."
+                conversation_list.append(
+                    {
+                        "id": conv.id,
+                        "timestamp": conv_data.get("timestamp"),
+                        "title": title,
+                        "preview": preview,
+                    }
+                )
 
-            conversation_list.sort(key=lambda x: x["timestamp"], reverse=True)
+            conversation_list.sort(key=lambda x: x["timestamp"] if x["timestamp"] else datetime.min, reverse=True)
             return conversation_list
         except Exception as e:
             logger.error(f"Error retrieving conversations for user {user_id}: {e}")
@@ -218,14 +216,19 @@ class ConversationRepository:
                 if conv_data.get("user_id") != user_id:
                     raise PermissionError("User does not own this conversation")
             else:
+                content_str = (message or "").strip()
+                preview = content_str[:50] + "..." if len(content_str) > 50 else content_str
+                title = content_str[:40] + ("..." if len(content_str) > 40 else "")
                 conversation_ref.set(
                     {
                         "user_id": user_id,
-                        "timestamp": datetime.now(),
+                        "timestamp": datetime.now(timezone.utc),
                         "messages": [],
+                        "title": title,
+                        "preview": preview,
                     }
                 )
-                conv_data = {"user_id": user_id, "messages": []}
+                conv_data = {"user_id": user_id, "messages": [], "title": title, "preview": preview}
 
             # If append is requested, modify the last message in-place if sender matches
             if append and existing_doc.exists and conv_data.get("messages"):
@@ -288,7 +291,7 @@ class ConversationRepository:
             message_data: Dict = {
                 "sender": sender,
                 "content": content,
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(timezone.utc),
             }
 
             if sender == "ai" and thinking and thinking.strip():
@@ -391,8 +394,8 @@ class ConversationRepository:
                     "status": "pending",
                     "attempts": 0,
                     "last_error": str(cleanup_error),
-                    "created_at": datetime.now(),
-                    "updated_at": datetime.now(),
+                    "created_at": datetime.now(timezone.utc),
+                    "updated_at": datetime.now(timezone.utc),
                 }
             )
             logger.info(
@@ -458,7 +461,7 @@ class ConversationRepository:
                     "attempts": attempts,
                     "status": status,
                     "last_error": str(e),
-                    "updated_at": datetime.now()
+                    "updated_at": datetime.now(timezone.utc)
                 })
                 logger.warning("Retry cleanup attempt %s failed for conversation %s: %s", attempts, conversation_id, e)
 

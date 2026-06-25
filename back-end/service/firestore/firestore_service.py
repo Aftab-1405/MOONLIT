@@ -1,7 +1,7 @@
 """Firestore service for application storage."""
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import lru_cache
 
 import firebase_admin
@@ -53,7 +53,7 @@ def store_conversation(conversation_id, sender, message, user_id, tools=None):
 
         if not conversation_ref.get().exists:
             conversation_ref.set(
-                {"user_id": user_id, "timestamp": datetime.now(), "messages": []}
+                {"user_id": user_id, "timestamp": datetime.now(timezone.utc), "messages": []}
             )
 
         content = str(message or "").strip()
@@ -61,7 +61,7 @@ def store_conversation(conversation_id, sender, message, user_id, tools=None):
         message_data = {
             "sender": sender,
             "content": content,
-            "timestamp": datetime.now(),
+            "timestamp": datetime.now(timezone.utc),
         }
 
         if tools:

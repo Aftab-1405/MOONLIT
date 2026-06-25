@@ -39,7 +39,7 @@ class SingleKeyRateLimiter:
 
     def __init__(self, config: RateLimiterConfig):
         self.config = config
-        self.semaphore = asyncio.Semaphore(config.max_concurrent)
+        self.semaphore = asyncio.BoundedSemaphore(config.max_concurrent)
         self.lock = asyncio.Lock()
         self.timestamps = deque()
 
@@ -75,26 +75,31 @@ class SingleKeyRateLimiter:
                 logger.warning("Rate limiter timeout - queue full")
                 return False
 
-            wait_time = 0.0
-            async with self.lock:
-                now = time.time()
+            try:
+                wait_time = 0.0
+                async with self.lock:
+                    now = time.time()
 
-                # Clean old timestamps (older than 60 seconds)
-                while self.timestamps and now - self.timestamps[0] > 60:
-                    self.timestamps.popleft()
+                    # Clean old timestamps (older than 60 seconds)
+                    while self.timestamps and now - self.timestamps[0] > 60:
+                        self.timestamps.popleft()
 
-                # Check if this provider has RPM capacity
-                if len(self.timestamps) < self.config.max_rpm:
-                    self.timestamps.append(now)
-                    logger.debug(
-                        f"Rate limiter slot acquired. "
-                        f"RPM: {len(self.timestamps)}/{self.config.max_rpm}"
-                    )
-                    return True
+                    # Check if this provider has RPM capacity
+                    if len(self.timestamps) < self.config.max_rpm:
+                        self.timestamps.append(now)
+                        logger.debug(
+                            "Rate limiter slot acquired. RPM: %d/%d",
+                            len(self.timestamps),
+                            self.config.max_rpm,
+                        )
+                        return True
 
-                # RPM limit reached - compute wait time without blocking the semaphore
-                wait_time = 60 - (now - self.timestamps[0])
-                logger.info(f"RPM limit reached, waiting {wait_time:.1f}s")
+                    # RPM limit reached - compute wait time without blocking the semaphore
+                    wait_time = 60 - (now - self.timestamps[0])
+                    logger.info("RPM limit reached, waiting %.1fs", wait_time)
+            except BaseException:
+                self.semaphore.release()
+                raise
 
             # No capacity available; release semaphore before waiting
             self.semaphore.release()
@@ -111,7 +116,10 @@ class SingleKeyRateLimiter:
     def release(self):
         """Release semaphore after LLM call completes."""
         if self.config.enabled:
-            self.semaphore.release()
+            try:
+                self.semaphore.release()
+            except ValueError:
+                logger.warning("Rate limiter semaphore released too many times.")
 
     def get_stats(self) -> dict:
         """Get current rate limiter statistics."""

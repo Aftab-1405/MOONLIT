@@ -8,7 +8,7 @@ conversation document. The vector database stores only pointers to these docs.
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -70,54 +70,67 @@ class SummaryBlockRepository:
         created_from_unsummarized_tail: bool = True,
     ) -> dict:
         """
-        Append one immutable summary block.
-
-        The caller owns concurrency control. This method intentionally does not
-        call an LLM or vector DB inside a Firestore transaction.
+        Append one immutable summary block safely using a Firestore transaction.
         """
         from firebase_admin import firestore
+        from service.firestore.firestore_service import FirestoreService
 
-        idx = SummaryBlockRepository.next_idx(conversation_id)
-        summary_id = f"{idx:06d}"
-        content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
-        block = {
-            "conversation_id": conversation_id,
-            "user_id": user_id,
-            "summary_id": summary_id,
-            "idx": idx,
-            "text": text,
-            "start_message_idx": start_message_idx,
-            "end_message_idx": end_message_idx,
-            "content_hash": content_hash,
-            "embedding_model": embedding_model,
-            "vector_status": "pending",
-            "created_at": datetime.now(),
-            "covers_from_turn": covers_from_turn,
-            "covers_to_turn": covers_to_turn,
-            "covers_message_ids": covers_message_ids,
-            "created_from_unsummarized_tail": created_from_unsummarized_tail,
-        }
+        db = FirestoreService.get_db()
+        conv_ref = SummaryBlockRepository._conversation_ref(conversation_id)
 
-        if memory_bullets is not None:
-            for b in memory_bullets:
-                if "bullet_id" not in b:
-                    b["bullet_id"] = f"b{b.get('bullet_index', 0):03d}"
-                if not str(b["bullet_id"]).startswith(f"{summary_id}#"):
-                    b["bullet_id"] = f"{summary_id}#{b['bullet_id']}"
-            block["schema_version"] = 2
-            block["memory_bullets"] = memory_bullets
+        @firestore.transactional
+        def update_in_transaction(transaction):
+            conv_snapshot = conv_ref.get(transaction=transaction)
+            if conv_snapshot.exists:
+                idx = int(conv_snapshot.get("summary_count") or 0)
+            else:
+                idx = 0
 
-        SummaryBlockRepository._summary_ref(conversation_id, summary_id).set(block)
-        SummaryBlockRepository._conversation_ref(conversation_id).set(
-            {
+            summary_id = f"{idx:06d}"
+            content_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+            block = {
+                "conversation_id": conversation_id,
                 "user_id": user_id,
-                "summary_count": idx + 1,
-                "latest_summary_block_idx": idx,
-                "updated_at": firestore.SERVER_TIMESTAMP,
-            },
-            merge=True,
-        )
-        return block
+                "summary_id": summary_id,
+                "idx": idx,
+                "text": text,
+                "start_message_idx": start_message_idx,
+                "end_message_idx": end_message_idx,
+                "content_hash": content_hash,
+                "embedding_model": embedding_model,
+                "vector_status": "pending",
+                "created_at": datetime.now(timezone.utc),
+                "covers_from_turn": covers_from_turn,
+                "covers_to_turn": covers_to_turn,
+                "covers_message_ids": covers_message_ids,
+                "created_from_unsummarized_tail": created_from_unsummarized_tail,
+            }
+
+            if memory_bullets is not None:
+                for b in memory_bullets:
+                    if "bullet_id" not in b:
+                        b["bullet_id"] = f"b{b.get('bullet_index', 0):03d}"
+                    if not str(b["bullet_id"]).startswith(f"{summary_id}#"):
+                        b["bullet_id"] = f"{summary_id}#{b['bullet_id']}"
+                block["schema_version"] = 2
+                block["memory_bullets"] = memory_bullets
+
+            summary_ref = SummaryBlockRepository._summary_ref(conversation_id, summary_id)
+            transaction.set(summary_ref, block)
+            transaction.set(
+                conv_ref,
+                {
+                    "user_id": user_id,
+                    "summary_count": idx + 1,
+                    "latest_summary_block_idx": idx,
+                    "updated_at": firestore.SERVER_TIMESTAMP,
+                },
+                merge=True,
+            )
+            return block
+
+        transaction = db.transaction()
+        return update_in_transaction(transaction)
 
     @staticmethod
     def get_blocks_by_ids(conversation_id: str, summary_ids: list[str]) -> list[dict]:

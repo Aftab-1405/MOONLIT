@@ -94,13 +94,17 @@ async def generate_task_checkpoint_summary(
         from langchain_core.messages import HumanMessage
 
         summary_prompt = (
-            "You are a precise task-trace summarizer. Create a compact, token-efficient checkpoint summary of the following database assistant task execution trace.\n"
-            "Your summary must explicitly cover:\n"
-            "1. Original user goal\n"
+            "You are a precise task-trace summarizer. Create a compact, token-efficient checkpoint summary of the following database assistant task execution trace.\n\n"
+            "ANALYSIS PROCESS:\n"
+            "Before providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts.\n"
+            "Inside the <analysis> tags, chronically evaluate the trace. Identify errors, key decisions, user constraints, and specific file/schema names that were interacted with.\n\n"
+            "FINAL SUMMARY FORMAT:\n"
+            "After your <analysis> block, provide the final summary. Your summary must explicitly cover:\n"
+            "1. Original user goal & constraints (preserve verbatim if security/privacy related)\n"
             "2. Completed steps\n"
-            "3. Important facts discovered\n"
-            "4. Important tool results\n"
-            "5. Decisions made\n"
+            "3. Important facts discovered (tables, schema details, file paths)\n"
+            "4. Important tool results and SQL snippets\n"
+            "5. Errors encountered and how they were resolved\n"
             "6. Pending work\n"
             "7. Next recommended action\n\n"
             "Format the output compactly with bullet points.\n\n"
@@ -138,48 +142,13 @@ async def check_and_perform_compaction(
     try:
         from langchain_core.messages import RemoveMessage
 
-        from llm_provider.token_budget import estimate_tokens
-
         state = await agent.aget_state(config)
         if not state or "messages" not in state.values:
             return
 
         messages = list(state.values["messages"])
-        total_tokens = 0
-        start_idx = len(messages)
-
-        for i in range(len(messages) - 1, -1, -1):
-            msg = messages[i]
-            content = msg.content if hasattr(msg, "content") else str(msg)
-            tokens = estimate_tokens(content)
-            tool_calls = getattr(msg, "tool_calls", [])
-            if tool_calls:
-                tokens += estimate_tokens(str(tool_calls))
-            if total_tokens + tokens > active_context_budget:
-                break
-            total_tokens += tokens
-            start_idx = i
-
-        if start_idx >= len(messages):
-            return
-
-        original_start_idx = start_idx
-        while start_idx > 0:
-            if messages[start_idx].type == "human":
-                break
-            start_idx -= 1
-
-        if start_idx == 0 and len(messages) > 0 and messages[0].type != "human":
-            start_idx = original_start_idx
-            while start_idx < len(messages):
-                msg = messages[start_idx]
-                if msg.type == "human":
-                    break
-                if msg.type == "ai" and not getattr(msg, "tool_calls", None):
-                    break
-                start_idx += 1
-
-        dropped_messages = messages[:start_idx]
+        from llm_provider.token_budget import truncate_messages_to_budget
+        dropped_messages, _ = truncate_messages_to_budget(messages, active_context_budget)
         if dropped_messages:
             lines = []
             for msg in dropped_messages:
@@ -207,11 +176,11 @@ async def check_and_perform_compaction(
                     from langgraph_orchestration.conversation_access import (
                         get_default_conversation_state_reader,
                     )
+                    from fastapi.concurrency import run_in_threadpool
 
-                    conv_data = (
-                        get_default_conversation_state_reader().get_conversation(
-                            conversation_id
-                        )
+                    conv_data = await run_in_threadpool(
+                        get_default_conversation_state_reader().get_conversation,
+                        conversation_id
                     )
                     if conv_data:
                         existing_summary = (
@@ -264,47 +233,16 @@ from langgraph_orchestration.stream_protocol import (
     sse_done,
     sse_encode,
     sse_error,
+    sse_skills_activated,
 )
 from llm_provider.model_factory import get_chat_model, get_default_model
 
 logger = logging.getLogger(__name__)
 
-# Process-wide compiled-agent cache — avoids recompiling the LangGraph state
-# machine on every request. Key: (provider, model, enable_reasoning,
-# reasoning_effort, response_style). api_key is excluded because Bedrock
-# resolves credentials from AWS env vars, not the key argument.
-# Stores (compiled_agent, chat_model) tuples so chat_model is always available
-# for async compaction without re-instantiation on every request.
-_AGENT_CACHE_MAX = 8
+def eagerly_initialize_langgraph_agent():
+    """No-op. Graph compilation is fast and doesn't require eager caching."""
+    pass
 
-
-class _LRUAgentCache:
-    """Bounded LRU cache for compiled LangGraph agents."""
-
-    def __init__(self, maxsize: int = _AGENT_CACHE_MAX) -> None:
-        self._cache: OrderedDict = OrderedDict()
-        self._maxsize = maxsize
-
-    def __contains__(self, key: tuple) -> bool:
-        return key in self._cache
-
-    def __getitem__(self, key: tuple):
-        self._cache.move_to_end(key)
-        return self._cache[key]
-
-    def __setitem__(self, key: tuple, value) -> None:
-        if key in self._cache:
-            self._cache.move_to_end(key)
-        else:
-            if len(self._cache) >= self._maxsize:
-                evicted, _ = self._cache.popitem(last=False)
-                logger.info(
-                    "Agent cache full; evicted compiled agent for key %s", evicted
-                )
-        self._cache[key] = value
-
-
-_agent_cache = _LRUAgentCache()
 
 
 async def _count_converse_tokens_for_stream(
@@ -377,69 +315,30 @@ async def clear_checkpointer_thread(checkpointer, thread_id: str) -> None:
         logger.warning("Failed to clear checkpoint for thread %s: %s", thread_id, e)
 
 
-def group_messages_into_turns(messages: list) -> list[list[int]]:
-    """Groups message indices into turns, with explicit turn_index/turn_id or fallback."""
-    turns = []
-    current_turn = []
+from langgraph_orchestration.conversation_access import group_messages_into_turns
+from llm_provider.token_budget import get_message_tokens
 
-    # We will build turns based on turn_index or turn_id if they exist,
-    # otherwise fallback to grouping where 'user' starts a new turn.
-    for idx, msg in enumerate(messages):
-        key = msg.get("turn_index") or msg.get("turn_id")
-
-        # If we have a key, we group by key
-        if key is not None:
-            # If there's a current turn and the last message in it had the same key
-            if current_turn:
-                last_msg = messages[current_turn[-1]]
-                last_key = last_msg.get("turn_index") or last_msg.get("turn_id")
-                if last_key == key:
-                    current_turn.append(idx)
-                    continue
-            # Otherwise, start a new turn
-            if current_turn:
-                turns.append(current_turn)
-            current_turn = [idx]
-        else:
-            # Fallback grouping: 'user' starts a turn
-            sender = str(msg.get("sender", "user")).lower()
-            if sender == "user":
-                if current_turn:
-                    turns.append(current_turn)
-                current_turn = [idx]
-            else:
-                if not current_turn:
-                    current_turn = [idx]
-                else:
-                    current_turn.append(idx)
-
-    if current_turn:
-        turns.append(current_turn)
-    return turns
-
-
-def get_message_tokens(msg: dict) -> int:
-    """Get message token size, prioritizing Bedrock usage if available."""
-    import json
-
-    from llm_provider.token_budget import estimate_tokens
-
-    usage = msg.get("usage")
-    if isinstance(usage, dict):
-        total = usage.get("totalTokens") or usage.get("total_tokens")
-        if total is not None:
-            return int(total)
-        inp = usage.get("inputTokens") or usage.get("input_tokens") or 0
-        out = usage.get("outputTokens") or usage.get("output_tokens") or 0
-        if inp + out > 0:
-            return inp + out
-    content = msg.get("content", "")
-    tokens = estimate_tokens(content)
-    timeline = msg.get("timeline", [])
-    if timeline:
-        tokens += estimate_tokens(json.dumps(timeline))
-    return tokens
-
+def _build_usage_metrics(budget_info: dict, **kwargs) -> dict:
+    base = {
+        "type": "usage_metrics",
+        "activeContextBudget": budget_info.get("active_context_budget"),
+        "totalContextWindow": budget_info.get("model_context_window"),
+        "availableInputPayloadTokens": budget_info.get("available_input_payload_tokens"),
+        "pressureTriggerTokens": budget_info.get("pressure_trigger_tokens"),
+        "modelContextWindow": budget_info.get("model_context_window"),
+        "reservedOutputTokens": budget_info.get("reserved_output_tokens"),
+        "safetyMarginTokens": budget_info.get("reserved_safety_margin_tokens"),
+        "systemPromptTokens": budget_info.get("system_prompt_tokens"),
+        "toolSchemaTokens": budget_info.get("tool_schema_tokens"),
+        "vampMemoryTokens": budget_info.get("vamp_memory_tokens"),
+        "taskCheckpointTokens": budget_info.get("task_checkpoint_tokens"),
+        "hotHistoryBudget": budget_info.get("hot_history_budget"),
+        "tokenCountingMode": budget_info.get("token_counting_mode"),
+        "tokenCountingReason": budget_info.get("token_counting_reason"),
+        "inputPayloadTokens": budget_info.get("tail_tokens"),
+    }
+    base.update(kwargs)
+    return base
 
 async def stream_conversation(
     conversation_id: str,
@@ -462,7 +361,7 @@ async def stream_conversation(
 
     Yields ``data: {…}\\n\\n`` strings ready for a ``StreamingResponse``.
     Event types: ``token``, ``tool_start``, ``tool_end``,
-    ``thinking_token``, ``error``, ``done``.
+    ``thinking_token``, ``skills_activated``, ``error``, ``done``.
     """
     last_completed_tool: dict | None = None
     think_parser = ThinkTagParser()
@@ -471,44 +370,30 @@ async def stream_conversation(
     try:
         selected_model = model or get_default_model(provider)
 
-        # Compile the ReAct graph once per unique (provider, model, …) configuration.
-        # Both the compiled agent and its chat_model are stored together so
-        # check_and_perform_compaction can always call chat_model.ainvoke() without
-        # re-instantiating a client on every request.
-        cache_key = (
+        system_prompt = PromptBuilder.build_system_prompt(response_style, user_message=message or "")
+
+        # Determine which skills were activated for this turn and surface them
+        # as an SSE event so the frontend can display it.
+        try:
+            from skills.skill_registry import get_skill_registry
+            activated_skills = get_skill_registry().match_skills(message or "")
+        except Exception:
+            activated_skills = []
+
+        chat_model = get_chat_model(
             provider,
             selected_model,
-            enable_reasoning,
-            reasoning_effort,
-            response_style,
+            api_key,
+            enable_reasoning=enable_reasoning,
+            reasoning_effort=reasoning_effort,
         )
-        system_prompt = PromptBuilder.build_system_prompt(response_style)
-
-        if cache_key not in _agent_cache:
-            chat_model = get_chat_model(
-                provider,
-                selected_model,
-                api_key,
-                enable_reasoning=enable_reasoning,
-                reasoning_effort=reasoning_effort,
-            )
-            checkpointer = get_checkpointer()
-            compiled_agent = build_react_agent(
-                chat_model,
-                ALL_TOOLS,
-                system_prompt=system_prompt,
-                checkpointer=checkpointer,
-            )
-            _agent_cache[cache_key] = (compiled_agent, chat_model)
-            logger.info(
-                "Compiled and cached new agent: provider=%s, model=%s, conversation=%s",
-                provider,
-                selected_model,
-                conversation_id,
-            )
-
-        agent, chat_model = _agent_cache[cache_key]
         checkpointer = get_checkpointer()
+        agent = build_react_agent(
+            chat_model,
+            ALL_TOOLS,
+            system_prompt=system_prompt,
+            checkpointer=checkpointer,
+        )
 
         # Namespace thread_id by user_id to prevent unauthenticated checkpoint access.
         namespaced_thread_id = f"{user_id}:{conversation_id}"
@@ -592,29 +477,30 @@ async def stream_conversation(
         # For continue_task resumes: restore task_mode from persisted Firestore state
         # so the step budget scales correctly across continuation calls.
         from config import get_config
-
         Config = get_config()
-        if is_continue_task and task_mode in (None, "normal", ""):
-            try:
-                from langgraph_orchestration.conversation_access import (
-                    get_default_conversation_state_reader,
-                )
 
-                conv_data = await asyncio.to_thread(
-                    get_default_conversation_state_reader().get_conversation,
-                    conversation_id,
-                )
-                if conv_data:
-                    stored_task_mode = conv_data.get("task_mode", "normal") or "normal"
-                    if stored_task_mode != "normal":
-                        task_mode = stored_task_mode
-                        logger.info(
-                            "Restored task_mode=%s from Firestore for continue_task on %s",
-                            task_mode,
-                            conversation_id,
-                        )
-            except Exception as tm_err:
-                logger.warning("Could not restore task_mode from Firestore: %s", tm_err)
+        conv_data = None
+        try:
+            from langgraph_orchestration.conversation_access import (
+                get_default_conversation_state_reader,
+            )
+            conv_data = await asyncio.to_thread(
+                get_default_conversation_state_reader().get_conversation,
+                conversation_id,
+            )
+        except Exception as e:
+            logger.warning("Failed to fetch conversation data: %s", e)
+
+        if is_continue_task and task_mode in (None, "normal", ""):
+            if conv_data:
+                stored_task_mode = conv_data.get("task_mode", "normal") or "normal"
+                if stored_task_mode != "normal":
+                    task_mode = stored_task_mode
+                    logger.info(
+                        "Restored task_mode=%s from Firestore for continue_task on %s",
+                        task_mode,
+                        conversation_id,
+                    )
 
         task_mode = task_mode or "normal"
         if task_mode == "tool_task":
@@ -628,21 +514,7 @@ async def stream_conversation(
         recursion_limit = min(recursion_limit, Config.AGENT_TOTAL_STEP_BUDGET)
 
         # Load task_checkpoint_summary from Firestore if available
-        task_checkpoint_summary = ""
-        conv_data = None
-        try:
-            from langgraph_orchestration.conversation_access import (
-                get_default_conversation_state_reader,
-            )
-
-            conv_data = await asyncio.to_thread(
-                get_default_conversation_state_reader().get_conversation,
-                conversation_id,
-            )
-            if conv_data:
-                task_checkpoint_summary = conv_data.get("task_checkpoint_summary", "")
-        except Exception as e:
-            logger.warning("Failed to load task_checkpoint_summary for config: %s", e)
+        task_checkpoint_summary = conv_data.get("task_checkpoint_summary", "") if conv_data else ""
 
         from llm_provider.token_budget import (
             TokenCountingError,
@@ -651,47 +523,55 @@ async def stream_conversation(
         )
 
         try:
-            system_prompt_count = await _count_converse_tokens_for_stream(
-                selected_model,
-                cache_key=("system", response_style, system_prompt),
-                system=system_prompt,
-                messages=[{"role": "user", "content": [{"text": ""}]}],
-            )
-            tool_schema_count = await _count_converse_tokens_for_stream(
-                selected_model,
-                cache_key=(
-                    "tools",
-                    tuple(getattr(tool, "name", str(tool)) for tool in ALL_TOOLS),
+            count_tasks = [
+                _count_converse_tokens_for_stream(
+                    selected_model,
+                    cache_key=("system", response_style, system_prompt),
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": [{"text": ""}]}],
                 ),
-                messages=[{"role": "user", "content": [{"text": ""}]}],
-                tools=ALL_TOOLS,
-            )
-            vamp_memory_count = (
-                await _count_converse_tokens_for_stream(
+                _count_converse_tokens_for_stream(
                     selected_model,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [{"text": historical_context or ""}],
-                        }
-                    ],
+                    cache_key=(
+                        "tools",
+                        tuple(getattr(tool, "name", str(tool)) for tool in ALL_TOOLS),
+                    ),
+                    messages=[{"role": "user", "content": [{"text": ""}]}],
+                    tools=ALL_TOOLS,
+                ),
+            ]
+
+            if historical_context:
+                count_tasks.append(
+                    _count_converse_tokens_for_stream(
+                        selected_model,
+                        messages=[{"role": "user", "content": [{"text": historical_context}]}],
+                    )
                 )
-                if historical_context
-                else {"tokens": 0, "mode": "exact", "reason": None}
-            )
-            task_checkpoint_count = (
-                await _count_converse_tokens_for_stream(
-                    selected_model,
-                    messages=[
-                        {
-                            "role": "user",
-                            "content": [{"text": task_checkpoint_summary or ""}],
-                        }
-                    ],
+                
+            if task_checkpoint_summary:
+                count_tasks.append(
+                    _count_converse_tokens_for_stream(
+                        selected_model,
+                        messages=[{"role": "user", "content": [{"text": task_checkpoint_summary}]}],
+                    )
                 )
-                if task_checkpoint_summary
-                else {"tokens": 0, "mode": "exact", "reason": None}
-            )
+
+            results = await asyncio.gather(*count_tasks)
+            
+            system_prompt_count = results[0]
+            tool_schema_count = results[1]
+            
+            idx = 2
+            vamp_memory_count = {"tokens": 0, "mode": "exact", "reason": None}
+            if historical_context:
+                vamp_memory_count = results[idx]
+                idx += 1
+                
+            task_checkpoint_count = {"tokens": 0, "mode": "exact", "reason": None}
+            if task_checkpoint_summary:
+                task_checkpoint_count = results[idx]
+
         except TokenCountingError as count_err:
             logger.error("Exact token counting failed before model call: %s", count_err)
             yield sse_error("Unable to count request tokens exactly. Please try again.")
@@ -742,6 +622,20 @@ async def stream_conversation(
             }
         )
 
+        try:
+            from langgraph_orchestration.conversation_access import get_default_conversation_summarizer
+            summarizer = get_default_conversation_summarizer()
+            new_msgs = [{"role": "user", "text": message}] if message else []
+            summary_pressure = summarizer.get_background_summary_pressure(
+                conv_data,
+                new_messages=new_msgs,
+                pressure_budget_tokens=budget_info["hot_history_budget"],
+            )
+            budget_info["tail_tokens"] = summary_pressure["tail_tokens"]
+        except Exception as e:
+            logger.warning("Failed to calculate tail_tokens for usage metrics: %s", e)
+            budget_info["tail_tokens"] = 0
+
         config = {
             "configurable": {
                 "thread_id": namespaced_thread_id,
@@ -751,6 +645,7 @@ async def stream_conversation(
                 "tool_cache": {},
                 "historical_context": historical_context,
                 "task_checkpoint_summary": task_checkpoint_summary,
+                "active_context_budget": active_context_budget,
             },
             "recursion_limit": recursion_limit,
         }
@@ -785,45 +680,19 @@ async def stream_conversation(
                 summarizer = get_default_conversation_summarizer()
                 summary_pressure = summarizer.get_background_summary_pressure(
                     conv_data,
-                    pressure_budget_tokens=budget_info["pressure_trigger_tokens"],
+                    pressure_budget_tokens=budget_info["hot_history_budget"],
                 )
                 if summary_pressure["should_schedule"]:
                     yield sse_encode(
-                        {
-                            "type": "usage_metrics",
-                            "inputPayloadTokens": summary_pressure["tail_tokens"],
-                            "activeContextBudget": summary_pressure["pressure_budget"],
-                            "pressureTriggerTokens": summary_pressure[
-                                "pressure_budget"
-                            ],
-                            "availableInputPayloadTokens": budget_info[
-                                "available_input_payload_tokens"
-                            ],
-                            "modelContextWindow": budget_info["model_context_window"],
-                            "totalContextWindow": budget_info["model_context_window"],
-                            "reservedOutputTokens": budget_info[
-                                "reserved_output_tokens"
-                            ],
-                            "safetyMarginTokens": budget_info[
-                                "reserved_safety_margin_tokens"
-                            ],
-                            "systemPromptTokens": budget_info["system_prompt_tokens"],
-                            "toolSchemaTokens": budget_info["tool_schema_tokens"],
-                            "vampMemoryTokens": budget_info["vamp_memory_tokens"],
-                            "taskCheckpointTokens": budget_info[
-                                "task_checkpoint_tokens"
-                            ],
-                            "hotHistoryBudget": budget_info["hot_history_budget"],
-                            "tokenCountingMode": budget_info["token_counting_mode"],
-                            "tokenCountingReason": budget_info["token_counting_reason"],
-                            "contextPhase": "pre_summary",
-                            "summaryThresholdTokens": summary_pressure[
-                                "threshold_tokens"
-                            ],
-                            "summaryCompleteTurns": summary_pressure[
-                                "complete_turn_count"
-                            ],
-                        }
+                        _build_usage_metrics(
+                            budget_info,
+                            inputPayloadTokens=summary_pressure["tail_tokens"],
+                            activeContextBudget=summary_pressure["pressure_budget"],
+                            pressureTriggerTokens=summary_pressure["pressure_budget"],
+                            contextPhase="pre_summary",
+                            summaryThresholdTokens=summary_pressure["threshold_tokens"],
+                            summaryCompleteTurns=summary_pressure["complete_turn_count"],
+                        )
                     )
                     yield sse_encode(
                         {
@@ -839,6 +708,23 @@ async def stream_conversation(
                         selected_model,
                         thread_id=namespaced_thread_id,
                     )
+                    
+                    try:
+                        from langgraph_orchestration.conversation_access import get_default_conversation_state_reader
+                        conversation_reader = get_default_conversation_state_reader()
+                        conv_data_post = await asyncio.wait_for(
+                            run_in_threadpool(conversation_reader.get_conversation, conversation_id),
+                            timeout=5.0,
+                        )
+                        summary_pressure_post = summarizer.get_background_summary_pressure(
+                            conv_data_post,
+                            pressure_budget_tokens=budget_info["hot_history_budget"],
+                        )
+                        budget_info["tail_tokens"] = summary_pressure_post["tail_tokens"]
+                        logger.info("Recalculated tail_tokens post-summarization: %s", budget_info["tail_tokens"])
+                    except Exception as e:
+                        logger.warning("Failed to recalculate tail_tokens post-summarization: %s", e)
+
                     yield sse_encode(
                         {
                             "type": "workflow_status",
@@ -877,6 +763,14 @@ async def stream_conversation(
                         )
             except Exception as sum_err:
                 logger.warning("Pre-call summarization failed: %s", sum_err)
+                yield sse_encode(
+                    {
+                        "type": "workflow_status",
+                        "stage": "summarizing_context",
+                        "status": "done",
+                        "content": "Context summarization bypassed.",
+                    }
+                )
 
             history = await _load_firestore_history(
                 conversation_id, message, hot_history_budget
@@ -893,6 +787,28 @@ async def stream_conversation(
         else:
             initial_messages = [HumanMessage(content=message or "")]
             graph_input = {"messages": initial_messages}
+
+        from service.conversations.conversation_service import _get_message_tokens_cheap
+        try:
+            # We map LangChain messages back to dict shapes expected by the cheap estimator
+            msg_dicts = []
+            messages_to_count = []
+            if isinstance(graph_input, dict) and "messages" in graph_input:
+                messages_to_count = graph_input["messages"]
+            elif "initial_messages" in locals():
+                messages_to_count = initial_messages
+                
+            for m in messages_to_count:
+                msg_dicts.append({"role": getattr(m, "type", "user"), "content": str(getattr(m, "content", m))})
+            budget_info["_tail_estimate"] = sum(_get_message_tokens_cheap(m) for m in msg_dicts)
+        except Exception as e:
+            logger.warning("Failed to calculate _tail_estimate: %s", e)
+            budget_info["_tail_estimate"] = 0
+
+        # Emit activated skills event before the LLM loop so the frontend
+        # can display which domain skill modules were loaded for this turn.
+        if activated_skills:
+            yield sse_skills_activated(activated_skills)
 
         try:
             async for part in agent.astream(
@@ -939,51 +855,36 @@ async def stream_conversation(
                     )
                     latency_ms = metrics.get("latencyMs")
 
+                    if input_tokens is not None:
+                        # The baseline tail is strictly the history size pre-computed using _get_message_tokens_cheap
+                        # This mathematically perfectly aligns the UI with the summarization trigger condition!
+                        if budget_info.get("_baseline_tail") is None:
+                            budget_info["_baseline_tail"] = budget_info.get("_tail_estimate", 0)
+                            
+                        # Track cumulative output tokens across multi-turn tool loops.
+                        # Since output_tokens resets to 0 (or a tiny number) when a new Bedrock call starts,
+                        # we detect drops to accumulate the finished loop's tokens.
+                        current_output = output_tokens or 0
+                        last_output = budget_info.get("_last_output_tokens", 0)
+                        if current_output < last_output:
+                            # Tool loop restarted! Accumulate the finished tokens.
+                            budget_info["_cumulative_output_tokens"] = budget_info.get("_cumulative_output_tokens", 0) + last_output
+                            
+                        budget_info["_last_output_tokens"] = current_output
+                        
+                        total_generated = budget_info.get("_cumulative_output_tokens", 0) + current_output
+                        budget_info["tail_tokens"] = max(0, budget_info["_baseline_tail"] + total_generated)
+
                     if total_tokens is not None or latency_ms is not None:
                         yield sse_encode(
-                            {
-                                "type": "usage_metrics",
-                                "inputTokens": input_tokens,
-                                "outputTokens": output_tokens,
-                                "totalTokens": total_tokens,
-                                "latencyMs": latency_ms,
-                                "stopReason": stop_reason,
-                                "activeContextBudget": budget_info[
-                                    "active_context_budget"
-                                ],
-                                "totalContextWindow": budget_info[
-                                    "model_context_window"
-                                ],
-                                "inputPayloadTokens": input_tokens,
-                                "availableInputPayloadTokens": budget_info[
-                                    "available_input_payload_tokens"
-                                ],
-                                "pressureTriggerTokens": budget_info[
-                                    "pressure_trigger_tokens"
-                                ],
-                                "modelContextWindow": budget_info[
-                                    "model_context_window"
-                                ],
-                                "reservedOutputTokens": budget_info[
-                                    "reserved_output_tokens"
-                                ],
-                                "safetyMarginTokens": budget_info[
-                                    "reserved_safety_margin_tokens"
-                                ],
-                                "systemPromptTokens": budget_info[
-                                    "system_prompt_tokens"
-                                ],
-                                "toolSchemaTokens": budget_info["tool_schema_tokens"],
-                                "vampMemoryTokens": budget_info["vamp_memory_tokens"],
-                                "taskCheckpointTokens": budget_info[
-                                    "task_checkpoint_tokens"
-                                ],
-                                "hotHistoryBudget": budget_info["hot_history_budget"],
-                                "tokenCountingMode": budget_info["token_counting_mode"],
-                                "tokenCountingReason": budget_info[
-                                    "token_counting_reason"
-                                ],
-                            }
+                            _build_usage_metrics(
+                                budget_info,
+                                inputTokens=input_tokens,
+                                outputTokens=output_tokens,
+                                totalTokens=total_tokens,
+                                latencyMs=latency_ms,
+                                stopReason=stop_reason,
+                            )
                         )
 
                     content = msg_chunk.content
@@ -1135,6 +1036,8 @@ async def stream_conversation(
             except Exception as status_err:
                 logger.warning("Failed to clear completed task status: %s", status_err)
 
+
+
         yield sse_done()
 
     except Exception as e:
@@ -1165,6 +1068,7 @@ async def stream_conversation(
             and "config" in locals()
             and "active_context_budget" in locals()
             and "chat_model" in locals()
+            and not step_limit_reached
         ):
             try:
                 await check_and_perform_compaction(
@@ -1210,17 +1114,8 @@ async def _load_firestore_history(
         messages = conv_data.get("messages", [])
         last_summarized_idx = conv_data.get("last_summarized_idx", 0)
 
-        # Find the highest summarized turn index
-        last_summarized_turn = -1
-        for idx in range(min(last_summarized_idx, len(messages))):
-            t_idx = messages[idx].get("turn_index")
-            if t_idx is not None and t_idx > last_summarized_turn:
-                last_summarized_turn = t_idx
-
         # Select raw active tail from unsummarized turns only
-        recent_messages = [
-            msg for msg in messages if msg.get("turn_index", -1) > last_summarized_turn
-        ]
+        recent_messages = messages[last_summarized_idx:]
 
         # Select active tail from newest backward until token budget is reached.
         recent_turns = group_messages_into_turns(recent_messages)
@@ -1247,14 +1142,27 @@ async def _load_firestore_history(
 
         lc_messages = []
         for msg in selected_messages:
-            sender = msg.get("sender")
+            sender = msg.get("sender", "user")
             content = msg.get("content", "")
-            if not content and not msg.get("timeline"):
-                continue
+            
             if sender == "user":
                 lc_messages.append(HumanMessage(content=content or ""))
             elif sender == "ai":
-                lc_messages.append(AIMessage(content=content or ""))
+                parts = []
+                if content.strip():
+                    parts.append(content)
+                tool_trace = msg.get("tool_trace_summary")
+                if tool_trace:
+                    parts.append(f"[Tool Trace Summary: {tool_trace}]")
+                tool_calls = msg.get("tool_calls", [])
+                if tool_calls:
+                    import json
+                    parts.append(f"[Tools Invoked: {json.dumps(tool_calls, default=str)}]")
+                    
+                final_content = "\n\n".join(parts)
+                if not final_content.strip():
+                    final_content = "(Used tools to gather information)"
+                lc_messages.append(AIMessage(content=final_content))
 
         return lc_messages
 

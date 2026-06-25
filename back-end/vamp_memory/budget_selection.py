@@ -44,7 +44,7 @@ def dedupe_select_budget_then_sort(
 
     for block in candidates:
         text = str(block.get("text", ""))
-        size = len(text)
+        size = int(block.get("char_length", len(text)))
         if size <= 0:
             continue
 

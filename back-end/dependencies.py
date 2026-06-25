@@ -28,8 +28,7 @@ _memory_state: dict[str, tuple[dict, float]] = {}
 
 async def get_redis():
     """Get Redis client from application state."""
-    from main import get_redis_client
-
+    from service.redis_service import get_redis_client
     return get_redis_client()
 
 

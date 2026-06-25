@@ -9,7 +9,8 @@ No Flask dependencies - context validation is done by caller.
 import hashlib
 import json
 import logging
-from datetime import datetime
+import uuid
+from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
 from config import get_config
@@ -198,7 +199,7 @@ class ContextService:
                 "host": host,
                 "is_remote": is_remote,
                 "schema": schema,
-                "connected_at": datetime.now().isoformat(),
+                "connected_at": datetime.now(timezone.utc).isoformat(),
             }
         }
         logger.info(
@@ -217,7 +218,7 @@ class ContextService:
                 "host": None,
                 "is_remote": False,
                 "schema": None,
-                "disconnected_at": datetime.now().isoformat(),
+                "disconnected_at": datetime.now(timezone.utc).isoformat(),
             }
         }
         logger.info(f"Clearing connection context for user {user_id}")
@@ -319,8 +320,8 @@ class ContextService:
                     )
 
                 if cache_time.tzinfo:
-                    cache_time = cache_time.replace(tzinfo=None)
-                age_seconds = (datetime.now() - cache_time).total_seconds()
+                    cache_time = cache_time.replace(tzinfo=timezone.utc)
+                age_seconds = (datetime.now(timezone.utc) - cache_time).total_seconds()
 
                 ttl = _config.SCHEMA_CONTEXT_TTL_SECONDS
                 if age_seconds > ttl:
@@ -350,7 +351,7 @@ class ContextService:
             "tables": tables,
             "columns": columns,
             "schema_hash": ContextService.compute_schema_hash(tables, columns),
-            "cached_at": datetime.now().isoformat(),
+            "cached_at": datetime.now(timezone.utc).isoformat(),
         }
 
         context = ContextService._get_context(user_id)
@@ -446,7 +447,7 @@ class ContextService:
             "database": database,
             "row_count": row_count,
             "status": status,
-            "executed_at": datetime.now().isoformat(),
+            "executed_at": datetime.now(timezone.utc).isoformat(),
         }
 
         context = ContextService._get_context(user_id)

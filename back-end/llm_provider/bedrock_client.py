@@ -38,6 +38,7 @@ def _model_match_key(model: str) -> str:
     return _model_suffix_from_arn(_strip_geography_prefix(str(model or "").strip()))
 
 
+@lru_cache(maxsize=2)
 def get_bedrock_control_client(region_name: str | None = None):
     """Get a boto3 Bedrock control-plane client for model/profile discovery."""
     creds = get_aws_credentials()
@@ -135,6 +136,7 @@ def get_aws_credentials() -> dict:
         "region_name": Config.AWS_REGION,
     }
 
+@lru_cache(maxsize=1)
 def get_bedrock_client():
     """Get a boto3 Bedrock runtime client with resolved credentials."""
     creds = get_aws_credentials()

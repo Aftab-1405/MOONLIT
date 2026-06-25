@@ -33,10 +33,7 @@ SUPPORTED_SETTINGS_SECTIONS = {"appearance", "ai", "database", "context"}
 
 class BaseToolArgs(BaseModel):
     """Base class for all tool arguments."""
-
-    rationale: str = Field(
-        ..., description="A natural, friendly sentence explaining what the AI is doing"
-    )
+    pass
 
 
 class GetConnectionStatusArgs(BaseToolArgs):
@@ -85,43 +82,39 @@ class ExecuteQueryArgs(BaseToolArgs):
     def validate_query_is_read_only(cls, v: str) -> str:
         """
         Ensure query is read-only by blocking mutation keywords.
-
-        This is database-agnostic - works with PostgreSQL, MySQL, SQL Server, Oracle, SQLite.
-        Instead of whitelisting SELECT/WITH, we blacklist dangerous operations.
         """
-        normalized = v.strip().upper()
-
-        # Remove string literals to avoid false positives (e.g., "INSERT" as data)
-        # Simple approach: replace quoted strings with empty
-        import re
-
-        cleaned = re.sub(r"'[^']*'", "", normalized)  # Remove single-quoted strings
-        cleaned = re.sub(r'"[^"]*"', "", cleaned)  # Remove double-quoted strings
-
-        # Dangerous keywords that indicate write operations
-        DANGEROUS_KEYWORDS = {
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-            "DROP",
-            "CREATE",
-            "ALTER",
-            "TRUNCATE",
-            "GRANT",
-            "REVOKE",
-            "EXEC",
-            "EXECUTE",
-        }
-
-        # Check for dangerous keywords as whole words
-        words = set(re.findall(r"\b[A-Z_]+\b", cleaned))
-        dangerous_found = words & DANGEROUS_KEYWORDS
-
-        if dangerous_found:
-            raise ValueError(
-                f"Query contains blocked keywords: {', '.join(dangerous_found)}. "
-                "Only read-only queries are allowed."
-            )
+        try:
+            import sqlglot
+            from sqlglot.expressions import Insert, Update, Delete, Drop, Alter, Command, Create
+            
+            expressions = sqlglot.parse(v)
+            for expr in expressions:
+                if not expr:
+                    continue
+                # We specifically look for node types that mutate data or schema.
+                if isinstance(expr, (Insert, Update, Delete, Drop, Alter, Create)) or type(expr).__name__ == "TruncateTable":
+                    raise ValueError(
+                        f"Query contains blocked operation: {expr.__class__.__name__.upper()}. "
+                        "Only read-only queries are allowed."
+                    )
+                if isinstance(expr, Command):
+                    cmd_name = str(expr.name).upper()
+                    if cmd_name in ("EXEC", "EXECUTE", "GRANT", "REVOKE"):
+                        raise ValueError(f"Query contains blocked command: {cmd_name}. Only read-only queries are allowed.")
+        except sqlglot.errors.ParseError:
+            # Fallback for complex unsupported dialect features
+            normalized = v.strip().upper()
+            import re
+            cleaned = re.sub(r"'[^']*'", "", normalized)
+            cleaned = re.sub(r'"[^"]*"', "", cleaned)
+            DANGEROUS_KEYWORDS = {"INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "TRUNCATE", "GRANT", "REVOKE", "EXEC", "EXECUTE"}
+            words = set(re.findall(r"\b[A-Z_]+\b", cleaned))
+            dangerous_found = words & DANGEROUS_KEYWORDS
+            if dangerous_found:
+                raise ValueError(
+                    f"Query contains blocked keywords: {', '.join(dangerous_found)}. "
+                    "Only read-only queries are allowed."
+                )
 
         return v
 

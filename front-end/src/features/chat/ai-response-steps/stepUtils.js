@@ -112,6 +112,14 @@ export function normalizeSteps(steps) {
         };
       }
 
+      if (step.type === 'skill') {
+        return {
+          id: step.id || `skill-${idx}`,
+          type: 'skill',
+          skills: Array.isArray(step.skills) ? step.skills : [],
+        };
+      }
+
       if (step.type === 'tool') {
         const parsedArgs = parseJSON(step.args);
         const parsedResult = parseJSON(step.result);
@@ -159,6 +167,10 @@ export function buildStepsSummary(normalizedSteps) {
       }
       return 'Reasoned through the request';
     }
+    const skillSteps = normalizedSteps.filter((s) => s.type === 'skill');
+    if (skillSteps.length > 0) {
+      return 'Loaded skills';
+    }
     return 'Processing…';
   }
 
@@ -187,6 +199,7 @@ export function areAllStepsComplete(normalizedSteps, isStreaming) {
   return !isStreaming && normalizedSteps.every((step) =>
     (step.type === 'thinking' && step.isComplete)
     || (step.type === 'tool' && !step.isRunning)
+    || (step.type === 'skill')
   );
 }
 

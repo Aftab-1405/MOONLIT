@@ -1,8 +1,9 @@
 import json
+import fnmatch
 from pathlib import Path
 from typing import Callable, Sequence, TypedDict
 
-import fnmatch
+import tiktoken
 
 from config import get_config
 
@@ -190,26 +191,25 @@ def calculate_dynamic_token_budget(
         "reserved_safety_margin_tokens": reserved_safety_margin_tokens,
         "usable_input_budget": usable_input_budget,
         "available_input_payload_tokens": usable_input_budget,
-        "pressure_trigger_tokens": pressure_trigger_tokens,
-        "active_context_budget": pressure_trigger_tokens,
-        "vamp_memory_budget": vamp_memory_budget,
+        "pressure_trigger_tokens": hot_history_budget,
+        "active_context_budget": hot_history_budget,
         "hot_history_budget": hot_history_budget,
         "pressure_ratio": pressure_ratio,
         "token_counting_mode": token_counting_mode,
     }
+_TIKTOKEN_ENCODER = None
+
+def _get_encoder():
+    global _TIKTOKEN_ENCODER
+    if _TIKTOKEN_ENCODER is None:
+        _TIKTOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")
+    return _TIKTOKEN_ENCODER
 
 def estimate_tokens(text: str) -> int:
-    """Rough estimation of tokens for a string."""
+    """Accurate local estimation of tokens using tiktoken (cl100k_base)."""
     if not text:
         return 0
-    return len(str(text)) // 4
-
-
-def estimate_tokens_conservative(text: str) -> int:
-    """Conservative local estimate used when provider token counting is unavailable."""
-    if not text:
-        return 0
-    return max(1, (len(str(text)) + 2) // 3)
+    return len(_get_encoder().encode(str(text), disallowed_special=()))
 
 
 def estimate_converse_tokens_conservative(
@@ -218,19 +218,16 @@ def estimate_converse_tokens_conservative(
     messages: Sequence[dict] | None = None,
     tools: Sequence | None = None,
 ) -> int:
-    """Estimate a Converse request with a high-side local tokenizer fallback."""
+    """Estimate a Converse request using the tiktoken fallback."""
     payload = _build_bedrock_converse_payload(
         system=system,
         messages=messages,
         tools=tools,
     )
     serialized = json.dumps(payload, default=str, separators=(",", ":"))
-    message_count = len(messages or [])
-    tool_count = len(tools or [])
-    structural_overhead = message_count * 8 + tool_count * 32
-    if system:
-        structural_overhead += 16
-    return int((estimate_tokens_conservative(serialized) + structural_overhead) * 1.15)
+    # Serializing to JSON natively captures the structural overhead 
+    # (brackets, keys) so we can just run the string through tiktoken.
+    return estimate_tokens(serialized)
 
 
 def _tool_to_bedrock_spec(tool_obj) -> dict:
@@ -242,6 +239,9 @@ def _tool_to_bedrock_spec(tool_obj) -> dict:
     cache_key = (tool_name, tool_description, id(args_schema), id(args_obj))
     if cache_key in _TOOL_SPEC_CACHE:
         return _TOOL_SPEC_CACHE[cache_key]
+
+    if len(_TOOL_SPEC_CACHE) > 1000:
+        _TOOL_SPEC_CACHE.clear()
 
     input_schema = {"type": "object", "properties": {}}
     if args_schema is not None:
@@ -410,6 +410,8 @@ def count_converse_tokens_cached(
         messages=messages,
         tools=tools,
     )
+    if len(_TOKEN_COUNT_RESULT_CACHE) > 1000:
+        _TOKEN_COUNT_RESULT_CACHE.clear()
     _TOKEN_COUNT_RESULT_CACHE[full_key] = dict(result)
     return result
 
@@ -436,3 +438,114 @@ def get_default_token_counter() -> Callable[[str], int]:
 
     model_id = get_default_model(Config.LLM_PROVIDER)
     return lambda text: count_text_tokens_with_fallback(model_id, text)["tokens"]
+
+
+def truncate_messages_to_budget(messages: list, active_context_budget: int) -> tuple[list, list]:
+    """Truncates messages to fit the budget, preserving turn boundaries.
+    Returns (dropped_messages, kept_messages).
+    """
+    total_tokens = 0
+    start_idx = len(messages)
+
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        content = msg.content if hasattr(msg, "content") else str(msg)
+        tokens = estimate_tokens(content)
+
+        tool_calls = getattr(msg, "tool_calls", [])
+        if tool_calls:
+            tokens += estimate_tokens(str(tool_calls))
+
+        if total_tokens + tokens > active_context_budget:
+            break
+
+        total_tokens += tokens
+        start_idx = i
+
+    original_start_idx = start_idx
+    while start_idx > 0:
+        if getattr(messages[start_idx], "type", "") == "human":
+            break
+        start_idx -= 1
+
+    if start_idx == 0 and len(messages) > 0 and getattr(messages[0], "type", "") != "human":
+        start_idx = original_start_idx
+        while start_idx < len(messages):
+            msg = messages[start_idx]
+            if getattr(msg, "type", "") == "human":
+                break
+            if getattr(msg, "type", "") == "ai" and not getattr(msg, "tool_calls", None):
+                break
+            start_idx += 1
+
+    dropped_messages = messages[:start_idx]
+    kept_messages = messages[start_idx:]
+    return dropped_messages, kept_messages
+
+
+def get_message_tokens(msg: dict, *, model_id: str | None = None) -> int:
+    """Get message token size, prioritizing Bedrock usage if available."""
+    usage = msg.get("usage")
+    if isinstance(usage, dict):
+        out = usage.get("outputTokens") or usage.get("output_tokens") or 0
+        if out > 0:
+            return out
+    content = msg.get("content", "")
+    tokens = estimate_tokens(content)
+    timeline = msg.get("timeline", [])
+    if timeline:
+        tokens += estimate_tokens(json.dumps(timeline))
+    return tokens
+
+# Static Pre-computation
+STATIC_SYSTEM_TOKENS = 0
+STATIC_TOOL_TOKENS = 0
+
+def eagerly_initialize_static_budgets():
+    """
+    Pre-computes and caches the Bedrock tool specs and exact token counts 
+    for the static system prompt and ALL_TOOLS to prevent runtime latency.
+    """
+    global STATIC_SYSTEM_TOKENS, STATIC_TOOL_TOKENS
+    import logging
+    logger = logging.getLogger(__name__)
+
+    try:
+        from langgraph_orchestration.prompt_builder import PromptBuilder
+        from langgraph_orchestration.tools import ALL_TOOLS
+        from config import get_config
+        
+        provider = get_config().LLM_PROVIDER
+        from llm_provider.model_factory import get_default_model
+        model_id = get_default_model(provider)
+
+        # 1. Pre-compute and cache Bedrock tool specs
+        for tool in ALL_TOOLS:
+            _tool_to_bedrock_spec(tool)
+
+        # 2. Pre-compute system prompt tokens
+        system_prompt = PromptBuilder.build_system_prompt("balanced")
+        sys_res = count_converse_tokens_cached(
+            model_id,
+            cache_key=("system", "balanced", system_prompt),
+            system=system_prompt,
+            messages=[{"role": "user", "content": [{"text": ""}]}],
+        )
+        STATIC_SYSTEM_TOKENS = int(sys_res.get("tokens", 0))
+
+        # 3. Pre-compute tool schema tokens
+        tool_res = count_converse_tokens_cached(
+            model_id,
+            cache_key=(
+                "tools",
+                tuple(getattr(tool, "name", str(tool)) for tool in ALL_TOOLS),
+            ),
+            messages=[{"role": "user", "content": [{"text": ""}]}],
+            tools=ALL_TOOLS,
+        )
+        STATIC_TOOL_TOKENS = int(tool_res.get("tokens", 0))
+        
+        logger.info(f"Pre-computed static budgets: system={STATIC_SYSTEM_TOKENS}, tools={STATIC_TOOL_TOKENS}")
+    except Exception as e:
+        logger.warning(f"Failed to eagerly initialize static token budgets: {e}")
+

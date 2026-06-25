@@ -48,13 +48,12 @@ limiter = Limiter(
 )
 
 # Redis client for sessions (initialized in lifespan)
-redis_client: redis.Redis | None = None
+from service.redis_service import get_redis_client, set_redis_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle management."""
-    global redis_client
 
     logger.info(f"🚀 Starting application in {AppConfig.APP_ENV.upper()} mode")
     logger.info(f"   Debug: {AppConfig.DEBUG}, Testing: {AppConfig.TESTING}")
@@ -100,7 +99,8 @@ async def lifespan(app: FastAPI):
             redis_url = redis_url.replace("redis://", "rediss://", 1)
 
         checkpoint_redis_url = redis_url
-        redis_client = redis.from_url(redis_url, decode_responses=True)
+        client = redis.from_url(redis_url, decode_responses=True)
+        set_redis_client(client)
         logger.info("✅ Redis application state storage enabled (Upstash)")
     else:
         logger.warning(
@@ -114,11 +114,16 @@ async def lifespan(app: FastAPI):
     )
 
     # Initialize per-user quota service (needs Redis)
-    app.state.user_quota = create_user_quota_service(redis_client, AppConfig)
+    app.state.user_quota = create_user_quota_service(get_redis_client(), AppConfig)
     logger.info(
         f"User quota: {AppConfig.USER_QUOTA_PER_MINUTE}/min, "
         f"enabled={AppConfig.USER_QUOTA_ENABLED}"
     )
+
+    # Eagerly pre-compute static budgets and tool schemas
+    from llm_provider.token_budget import eagerly_initialize_static_budgets
+    logger.info("Initializing static token budgets...")
+    eagerly_initialize_static_budgets()
 
     logger.info("✅ Application initialized successfully")
 
@@ -126,8 +131,9 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     await shutdown_checkpointer()
-    if redis_client:
-        await redis_client.close()
+    client = get_redis_client()
+    if client:
+        await client.close()
         logger.info("Redis connection closed")
 
 
@@ -329,9 +335,7 @@ def _register_error_handlers(app: FastAPI):
         )
 
 
-def get_redis_client() -> redis.Redis | None:
-    """Get the Redis client instance."""
-    return redis_client
+
 
 
 # Application instance

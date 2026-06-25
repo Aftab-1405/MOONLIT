@@ -14,6 +14,7 @@ import {
   ThinkingStep,
   ToolStep,
   DoneIndicator,
+  SkillStep,
 } from "@/features/chat/ai-response-steps/StepTimelineItems";
 import {
   TIMELINE_LINE_X,
@@ -25,6 +26,7 @@ import {
   buildStepsSummary,
   getCurrentStepIndex,
   areAllStepsComplete,
+  isAnyStepActive,
 } from "@/features/chat/ai-response-steps/stepUtils";
 
 export const StepsAccordion = memo(function StepsAccordion({
@@ -36,6 +38,8 @@ export const StepsAccordion = memo(function StepsAccordion({
   const isCompactMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const isDark = theme.palette.mode === "dark";
 
+  // Skill items are filtered out upstream (MessageList renders them directly).
+  // normalizedSteps here will only ever contain thinking + tool steps.
   const normalizedSteps = useMemo(() => normalizeSteps(steps), [steps]);
   const summaryText = useMemo(
     () => buildStepsSummary(normalizedSteps),
@@ -49,14 +53,20 @@ export const StepsAccordion = memo(function StepsAccordion({
     () => areAllStepsComplete(normalizedSteps, isStreaming),
     [normalizedSteps, isStreaming],
   );
-  // Shimmer runs for the entire duration the response is streaming — not just
-  // while a step is active. This keeps the accordion header visually alive while
-  // tool steps finish and the text body continues to stream in below.
-  const isLive = isStreaming;
+  // Shimmer is "live" when the outer turn is streaming AND this accordion
+  // still has active work (a running tool or an incomplete thinking step).
+  // This ensures a completed workflow step (e.g. summarization) stops
+  // shimmering the moment it finishes — even if the LLM is still generating
+  // text below it. Tying isLive purely to isStreaming caused the header to
+  // keep shimmering with "Conversation context summarized." while the LLM
+  // continued, creating a false "in-progress" signal.
+  const hasActiveStep = useMemo(() => isAnyStepActive(normalizedSteps), [normalizedSteps]);
+  const isLive = isStreaming && hasActiveStep;
+
   const isSingleWorkflowStep =
     normalizedSteps.length === 1 &&
     normalizedSteps[0].id?.startsWith("workflow-");
-  const isExpandable = !isSingleWorkflowStep;
+  const isExpandable = normalizedSteps.length > 0 && !isSingleWorkflowStep;
 
   const handleToggle = useCallback(() => {
     if (isExpandable) {
@@ -265,6 +275,16 @@ export const StepsAccordion = memo(function StepsAccordion({
                     isRunning={step.isRunning}
                     isCurrent={idx === currentStepIndex}
                     isCompactMobile={isCompactMobile}
+                    animDelay={animDelay}
+                  />
+                );
+              }
+              if (step.type === "skill") {
+                return (
+                  <SkillStep
+                    key={step.id}
+                    skills={step.skills}
+                    isStreaming={isStreaming}
                     animDelay={animDelay}
                   />
                 );

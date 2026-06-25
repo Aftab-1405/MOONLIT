@@ -32,31 +32,14 @@ def _build_provider_options() -> tuple[list[dict], str]:
     return LLMOptionsService.build_provider_options()
 
 
-@router.post(
-    "/pass_user_prompt_to_llm",
-    response_class=StreamingResponse,
-    responses=STREAMING_RESPONSES,
-)
-async def chat(
+async def _handle_agent_stream(
     request: Request,
-    data: ChatRequest,
-    user: dict = Depends(get_current_user),
-    db_config: Optional[dict] = Depends(get_db_config),
+    user_id: str,
+    conversation_id: str,
+    provider: str,
+    model: Optional[str],
+    stream_generator_kwargs: dict,
 ):
-    """Handle user input and stream AI response."""
-    prompt = data.prompt
-    enable_reasoning = data.enable_reasoning
-    reasoning_effort = data.reasoning_effort
-    response_style = data.response_style
-    max_rows = data.max_rows
-    provider = data.provider or Config.LLM_PROVIDER
-    model = data.model
-
-    conversation_id = ConversationService.create_or_get_conversation_id(
-        data.conversation_id
-    )
-    user_id = user.get("uid") or user
-
     supported = LLMOptionsService.supported_providers()
     if provider not in supported:
         raise HTTPException(
@@ -67,15 +50,7 @@ async def chat(
             },
         )
 
-    logger.info(
-        "LLM selection requested: provider=%s, model=%s, conversation_id=%s",
-        provider,
-        model or "(default)",
-        conversation_id,
-    )
-
-    # Ownership check for existing conversation IDs
-    if data.conversation_id:
+    if conversation_id:
         try:
             _ = await run_in_threadpool(
                 ConversationService.get_conversation_data, conversation_id, user_id
@@ -83,12 +58,11 @@ async def chat(
         except PermissionError as e:
             raise HTTPException(status_code=403, detail=str(e))
 
-    # 1. Check user quota (fast, Redis-based)
     user_quota = request.app.state.user_quota
     quota_allowed, usage = await user_quota.check_and_increment(user_id)
 
     if not quota_allowed:
-        logger.warning(f"User {user_id} quota exceeded")
+        logger.warning("User %s quota exceeded", user_id)
         raise HTTPException(
             status_code=429,
             detail={
@@ -98,7 +72,6 @@ async def chat(
             },
         )
 
-    # 2. Acquire a provider-specific LLM rate limiter slot and API key
     llm_rate_limiter = request.app.state.llm_rate_limiter
     success, api_key = await llm_rate_limiter.acquire(provider)
 
@@ -116,41 +89,84 @@ async def chat(
             },
         )
 
+    rate_limiter_released = False
     try:
-
         async def sse_generator():
+            nonlocal rate_limiter_released
             try:
                 async for sse_line in ConversationService.create_streaming_generator(
-                    conversation_id,
-                    prompt,
-                    user_id,
-                    db_config=db_config,
-                    enable_reasoning=enable_reasoning,
-                    reasoning_effort=reasoning_effort,
-                    response_style=response_style,
-                    max_rows=max_rows,
+                    conversation_id=conversation_id,
+                    user_id=user_id,
                     api_key=api_key,
                     provider=provider,
                     model=model,
-                    task_mode=getattr(data, "task_mode", "normal") or "normal",
+                    **stream_generator_kwargs
                 ):
                     yield sse_line
             finally:
-                llm_rate_limiter.release(provider)
+                if not rate_limiter_released:
+                    llm_rate_limiter.release(provider)
+                    rate_limiter_released = True
 
         headers = ConversationService.get_streaming_headers(conversation_id)
-
         return StreamingResponse(
             sse_generator(),
             media_type="text/event-stream",
             headers=headers,
         )
     except Exception as e:
-        llm_rate_limiter.release(provider)
-        logger.error(f"Error initializing chat: {e}")
+        if not rate_limiter_released:
+            llm_rate_limiter.release(provider)
+            rate_limiter_released = True
+        logger.error("Error streaming agent: %s", e)
         if ConversationService.check_quota_error(str(e)):
             raise HTTPException(status_code=429, detail="Rate limit exceeded")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="An internal server error occurred.")
+
+
+@router.post(
+    "/pass_user_prompt_to_llm",
+    response_class=StreamingResponse,
+    responses=STREAMING_RESPONSES,
+)
+async def chat(
+    request: Request,
+    data: ChatRequest,
+    user: dict = Depends(get_current_user),
+    db_config: Optional[dict] = Depends(get_db_config),
+):
+    """Handle user input and stream AI response."""
+    provider = data.provider or Config.LLM_PROVIDER
+    conversation_id = ConversationService.create_or_get_conversation_id(
+        data.conversation_id
+    )
+    user_id = user.get("uid") if isinstance(user, dict) else user
+
+    logger.info(
+        "LLM selection requested: provider=%s, model=%s, conversation_id=%s",
+        provider,
+        data.model or "(default)",
+        conversation_id,
+    )
+
+    kwargs = {
+        "prompt": data.prompt,
+        "db_config": db_config,
+        "enable_reasoning": data.enable_reasoning,
+        "reasoning_effort": data.reasoning_effort,
+        "response_style": data.response_style,
+        "max_rows": data.max_rows,
+        "task_mode": getattr(data, "task_mode", "normal") or "normal",
+    }
+    
+    return await _handle_agent_stream(
+        request=request,
+        user_id=user_id,
+        conversation_id=conversation_id,
+        provider=provider,
+        model=data.model,
+        stream_generator_kwargs=kwargs
+    )
 
 
 @router.post(
@@ -165,87 +181,28 @@ async def resume_agent(
     db_config: Optional[dict] = Depends(get_db_config),
 ):
     """Resume a LangGraph conversation paused by a human-in-the-loop interrupt."""
-    conversation_id = data.conversation_id
-    user_id = user.get("uid") or user
+    user_id = user.get("uid") if isinstance(user, dict) else user
     provider = data.provider or Config.LLM_PROVIDER
-    model = data.model
-
-    supported = LLMOptionsService.supported_providers()
-    if provider not in supported:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "error": "invalid_provider",
-                "message": f"Unsupported provider '{provider}'. Supported values: {sorted(supported)}",
-            },
-        )
-
-    try:
-        _ = await run_in_threadpool(
-            ConversationService.get_conversation_data, conversation_id, user_id
-        )
-    except PermissionError as e:
-        raise HTTPException(status_code=403, detail=str(e))
-
-    user_quota = request.app.state.user_quota
-    quota_allowed, usage = await user_quota.check_and_increment(user_id)
-    if not quota_allowed:
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "quota_exceeded",
-                "message": "You have exceeded your rate limit. Please wait.",
-                "usage": usage.to_dict(),
-            },
-        )
-
-    llm_rate_limiter = request.app.state.llm_rate_limiter
-    success, api_key = await llm_rate_limiter.acquire(provider)
-    if not success:
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "error": "server_busy",
-                "message": "Server is busy. Please try again in a moment.",
-            },
-        )
-
-    try:
-
-        async def sse_generator():
-            try:
-                async for sse_line in ConversationService.create_streaming_generator(
-                    conversation_id,
-                    None,
-                    user_id,
-                    db_config=db_config,
-                    enable_reasoning=data.enable_reasoning,
-                    reasoning_effort=data.reasoning_effort,
-                    response_style=data.response_style,
-                    max_rows=data.max_rows,
-                    api_key=api_key,
-                    provider=provider,
-                    model=model,
-                    resume=data.resume,
-                    task_mode=getattr(data, "task_mode", "normal") or "normal",
-                ):
-                    yield sse_line
-            finally:
-                llm_rate_limiter.release(provider)
-
-        headers = ConversationService.get_streaming_headers(conversation_id)
-
-        return StreamingResponse(
-            sse_generator(),
-            media_type="text/event-stream",
-            headers=headers,
-        )
-    except Exception as e:
-        llm_rate_limiter.release(provider)
-        logger.error(f"Error resuming agent: {e}")
-        if ConversationService.check_quota_error(str(e)):
-            raise HTTPException(status_code=429, detail="Rate limit exceeded")
-        raise HTTPException(status_code=500, detail=str(e))
+    
+    kwargs = {
+        "prompt": None,
+        "db_config": db_config,
+        "enable_reasoning": data.enable_reasoning,
+        "reasoning_effort": data.reasoning_effort,
+        "response_style": data.response_style,
+        "max_rows": data.max_rows,
+        "resume": data.resume,
+        "task_mode": getattr(data, "task_mode", "normal") or "normal",
+    }
+    
+    return await _handle_agent_stream(
+        request=request,
+        user_id=user_id,
+        conversation_id=data.conversation_id,
+        provider=provider,
+        model=data.model,
+        stream_generator_kwargs=kwargs
+    )
 
 
 @router.get("/llm/options")
@@ -278,7 +235,7 @@ async def get_conversation(
 ):
     """Get messages for a conversation (user must own it)."""
     try:
-        user_id = user.get("uid") or user
+        user_id = user.get("uid") if isinstance(user, dict) else user
         conv_data = await run_in_threadpool(
             ConversationService.get_conversation_data, conversation_id, user_id
         )
@@ -292,13 +249,13 @@ async def get_conversation(
         raise
     except Exception as e:
         logger.exception("Error fetching conversation")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="An internal error occurred while fetching conversation.")
 
 
 @router.get("/get_conversations")
 async def get_conversations(user: dict = Depends(get_current_user)):
     """Get all conversations for logged-in user."""
-    user_id = user.get("uid") or user
+    user_id = user.get("uid") if isinstance(user, dict) else user
     conversations = await run_in_threadpool(
         ConversationService.get_user_conversations, user_id
     )
@@ -312,7 +269,7 @@ async def delete_conversation(
 ):
     """Delete a conversation."""
     try:
-        user_id = user.get("uid") or user
+        user_id = user.get("uid") if isinstance(user, dict) else user
         await run_in_threadpool(
             ConversationService.delete_user_conversation, conversation_id, user_id
         )
@@ -322,8 +279,8 @@ async def delete_conversation(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Error deleting conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error deleting conversation: %s", e)
+        raise HTTPException(status_code=500, detail="An internal error occurred while deleting conversation.")
 
 
 @router.patch("/rename_conversation/{conversation_id}")
@@ -334,7 +291,7 @@ async def rename_conversation(
 ):
     """Rename a conversation."""
     try:
-        user_id = user.get("uid") or user
+        user_id = user.get("uid") if isinstance(user, dict) else user
         title = await run_in_threadpool(
             ConversationService.rename_user_conversation,
             conversation_id,
@@ -347,5 +304,5 @@ async def rename_conversation(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
-        logger.error(f"Error renaming conversation: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error("Error renaming conversation: %s", e)
+        raise HTTPException(status_code=500, detail="An internal error occurred while renaming conversation.")

@@ -147,7 +147,11 @@ class ConversationService:
         #   { "type": "tool",     "name": str, "status": str, "args": str, "result": str }
         ordered_timeline: list[dict] = []
         was_aborted = False
-        has_error = False
+        # has_fatal_error: True only when an unrecoverable error occurred BEFORE
+        # any content was produced (e.g. PermissionError, startup failure).
+        # A mid-stream error event from the agent does NOT set this — we still
+        # want to persist whatever content was already accumulated.
+        has_fatal_error = False
         last_usage_metrics = None
 
         try:
@@ -261,6 +265,7 @@ class ConversationService:
                         "thinking_token",
                         "agent_interrupt",
                         "workflow_status",
+                        "skills_activated",
                     )
                 ):
                     await store_prompt_once()
@@ -351,8 +356,26 @@ class ConversationService:
                             }
                         )
 
+                elif event_type == "skills_activated":
+                    await store_prompt_once()
+                    skills = event.get("skills", [])
+                    if skills:
+                        ordered_timeline.append(
+                            {
+                                "type": "skill",
+                                "skills": skills,
+                                "id": f"skill-{len(ordered_timeline)}",
+                            }
+                        )
+
                 elif event_type == "error":
-                    has_error = True
+                    # Agent-emitted error events are informational — do NOT block
+                    # Firestore persistence. The agent may have already produced
+                    # useful content before the error occurred.
+                    logger.warning(
+                        "Agent emitted error event for conversation %s",
+                        conversation_id,
+                    )
 
                 elif event_type == "usage_metrics":
                     last_usage_metrics = {
@@ -361,6 +384,10 @@ class ConversationService:
                         "totalTokens": event.get("totalTokens"),
                         "activeContextBudget": event.get("activeContextBudget"),
                         "totalContextWindow": event.get("totalContextWindow"),
+                        "inputPayloadTokens": event.get("inputPayloadTokens"),
+                        "availableInputPayloadTokens": event.get("availableInputPayloadTokens"),
+                        "reservedOutputTokens": event.get("reservedOutputTokens"),
+                        "safetyMarginTokens": event.get("safetyMarginTokens"),
                     }
 
                 elif event_type == "agent_interrupt" and prompt and not prompt_stored:
@@ -375,21 +402,31 @@ class ConversationService:
             logger.info(f"Stream aborted for conversation {conversation_id}")
 
         except PermissionError:
-            has_error = True
+            # Permission errors before content: do not save anything
+            has_fatal_error = True
             yield _make_sse_error(
                 "You don't have permission to access this conversation."
             )
 
         except Exception as err:
-            has_error = True
+            # Unexpected errors: if content was already produced, still try to
+            # save it. Only block if nothing was accumulated at all.
+            if not ordered_timeline and not prompt_stored:
+                has_fatal_error = True
             logger.error(f"Streaming error: {err}", exc_info=True)
             yield _make_sse_error(_classify_error(str(err)))
 
         finally:
+            # Store AI response when:
+            # - The user prompt was stored (or this is a resume)
+            # - No fatal error occurred before content was produced
+            # - Not already stored
+            # Note: we store even if ordered_timeline is empty — a text-only
+            # response may have been emitted without timeline entries in edge cases.
             should_store_response = (
                 (prompt_stored or resume is not None)
                 and not response_stored
-                and not has_error
+                and not has_fatal_error
             )
             if should_store_response:
                 # Mark all open thinking blocks complete before persisting
@@ -404,7 +441,7 @@ class ConversationService:
                         {"type": "text", "content": "\n\n_(Response stopped by user)_"}
                     )
 
-                # Derive flat fields for backward compat and Firestore storage
+                # Derive flat content for Firestore storage
                 response_text = "".join(
                     item["content"]
                     for item in ordered_timeline
@@ -414,35 +451,20 @@ class ConversationService:
                     item for item in ordered_timeline if item["type"] == "tool"
                 ]
 
-                if ordered_timeline:
-                    if not response_text and tools_used:
-                        response_text = "(Used tools to gather information)"
+                # Ensure response_text is not empty
+                if not response_text and tools_used:
+                    response_text = "(Used tools to gather information)"
 
-                    # Generate turn info if not already generated
-                    if current_turn_id is None:
-                        import uuid
+                # Generate turn metadata if not already set
+                ensure_turn_metadata()
 
-                        current_turn_id = str(uuid.uuid4())
-                    if current_turn_index is None:
-                        existing_messages = (
-                            conv_data.get("messages", []) if conv_data else []
-                        )
-                        max_turn_index = -1
-                        for msg in existing_messages:
-                            ti = msg.get("turn_index")
-                            if ti is not None:
-                                try:
-                                    max_turn_index = max(max_turn_index, int(ti))
-                                except (ValueError, TypeError):
-                                    pass
-                        current_turn_index = max_turn_index + 1
+                tool_trace_summary = _build_tool_trace_summary(ordered_timeline)
 
-                    tool_trace_summary = _build_tool_trace_summary(ordered_timeline)
-
-                    # `content` is always stored — the summarisation loop reads it.
-                    # `thinking` and `tools` are intentionally omitted when a timeline
-                    # is present: all that data is already embedded in the timeline
-                    # nodes, so storing it again would double the Firestore payload.
+                # Store AI response in Firestore.
+                # `content` (response_text) is always stored.
+                # `timeline` embeds tool activity so `tools` and `thinking`
+                # are omitted to avoid duplication.
+                try:
                     await run_in_threadpool(
                         ConversationRepository.store_message,
                         conversation_id,
@@ -451,7 +473,7 @@ class ConversationService:
                         user_id,
                         tools=None,
                         thinking=None,
-                        timeline=ordered_timeline,
+                        timeline=ordered_timeline if ordered_timeline else None,
                         append=(resume is not None),
                         usage=last_usage_metrics,
                         turn_id=current_turn_id,
@@ -463,16 +485,23 @@ class ConversationService:
                     response_stored = True
                     status = "partial (aborted)" if was_aborted else "complete"
                     logger.info(
-                        f"Stored AI response ({status}): {len(response_text)} chars, "
-                        f"{len(ordered_timeline)} timeline items"
+                        "Stored AI response (%s): %d chars, %d timeline items for conversation %s",
+                        status,
+                        len(response_text),
+                        len(ordered_timeline),
+                        conversation_id,
                     )
-
-                    # Pre-call summarization is handled inline at the start of the next turn
-                    # to show status in the UI, so background summarization is skipped here.
-                    pass
-            elif has_error:
+                except Exception as store_err:
+                    logger.error(
+                        "Failed to store AI response for conversation %s: %s",
+                        conversation_id,
+                        store_err,
+                        exc_info=True,
+                    )
+            elif has_fatal_error:
                 logger.info(
-                    f"Skipped storing error response for conversation {conversation_id}"
+                    "Skipped storing response due to fatal error for conversation %s",
+                    conversation_id,
                 )
 
     # ── Response headers ─────────────────────────────────────────────
@@ -592,8 +621,9 @@ class ConversationService:
                     return
 
                 # Calculate measured pressure in the unsummarized tail.
+                from llm_provider.token_budget import get_message_tokens
                 tail_tokens = sum(
-                    _get_message_tokens(msg, model_id=selected_model)
+                    get_message_tokens(msg, model_id=selected_model)
                     for msg in unsummarized_tail
                 )
 
@@ -603,7 +633,8 @@ class ConversationService:
                     return
 
                 # Group messages into turns
-                turns = _group_messages_into_turns(messages)
+                from langgraph_orchestration.conversation_access import group_messages_into_turns
+                turns = group_messages_into_turns(messages)
 
                 # Map messages to turn index
                 turn_idx_by_msg_idx = {}
@@ -632,8 +663,9 @@ class ConversationService:
                 max_chunk_tokens = active_context_budget // 2
 
                 for turn in complete_unsummarized_turns:
+                    from llm_provider.token_budget import get_message_tokens
                     turn_tokens = sum(
-                        _get_message_tokens(messages[idx], model_id=selected_model)
+                        get_message_tokens(messages[idx], model_id=selected_model)
                         for idx in turn
                     )
                     if chunk_turns and chunk_tokens + turn_tokens > max_chunk_tokens:
@@ -668,28 +700,53 @@ class ConversationService:
                     prompt = [
                         SystemMessage(
                             content=(
-                                "You are Moonlit's long-term memory archivist for an agentic database assistant. "
-                                "The summary you write will be injected into future agent context and its memory bullets "
-                                "will be embedded in Qdrant for retrieval. Preserve enough detail that the future agent can "
-                                "continue the user's work without rereading the original turns.\n\n"
-                                "QUALITY RULES:\n"
-                                "- Preserve user goals, constraints, preferences, assumptions, dates, thresholds, table names, column names, formulas, filters, file paths, model names, errors, and decisions.\n"
-                                "- Preserve tool activity with concrete inputs and outcomes when they affect future reasoning. Include failed attempts and unresolved blockers.\n"
-                                "- Do not over-compress. Prefer a rich, structured summary over a tiny summary when details are relevant.\n"
-                                "- Remove filler, greetings, repeated phrasing, and low-value narration.\n"
-                                "- Do not invent facts. If a fact is uncertain, mark it as uncertain.\n\n"
-                                "OUTPUT FORMAT — produce a strict JSON object containing two fields:\n"
-                                "1. `summary_text`: A detailed markdown string with these sections: User Goal, Current State, Key Facts & Values, Decisions & Assumptions, Tool Activity, Open Items / Next Steps.\n"
-                                "   - Use concise bullets, but include exact values and relationships needed for future work.\n"
-                                "   - Tool Activity should include `tool_name -> input/result` when relevant.\n"
-                                "2. `memory_bullets`: A list of retrieval-focused bullet objects.\n"
+                                "Your task is to create a detailed summary of the RECENT portion of the conversation — the messages that follow earlier retained context. "
+                                "The earlier messages are being kept intact and do NOT need to be summarized. Focus your summary on what was discussed, learned, and accomplished in the recent messages only.\n\n"
+                                "Before providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\n\n"
+                                "1. Analyze the recent messages chronologically. For each section thoroughly identify:\n"
+                                "   - The user's explicit requests and intents\n"
+                                "   - Your approach to addressing the user's requests\n"
+                                "   - Key decisions, technical concepts and code patterns\n"
+                                "   - Specific details like:\n"
+                                "     - file names and table names\n"
+                                "     - full code or SQL snippets\n"
+                                "     - function signatures\n"
+                                "     - file edits\n"
+                                "   - Errors that you ran into and how you fixed them\n"
+                                "   - Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\n"
+                                "   - Note any security-relevant instructions or constraints the user stated. These MUST be preserved verbatim in the summary so they continue to apply after compaction.\n"
+                                "2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\n\n"
+                                "After your <analysis> block, you must output a STRICT JSON OBJECT containing two fields: `summary_text` and `memory_bullets`. Do not include the JSON inside a <summary> block, output the raw JSON object.\n\n"
+                                "Field 1: `summary_text`\n"
+                                "This must be a detailed markdown string that includes the following sections:\n"
+                                "1. Primary Request and Intent: Capture the user's explicit requests and intents from the recent messages\n"
+                                "2. Key Technical Concepts: List important technical concepts, technologies, and frameworks discussed recently.\n"
+                                "3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Include full code snippets where applicable and include a summary of why this file read or edit is important.\n"
+                                "4. Errors and fixes: List errors encountered and how they were fixed.\n"
+                                "5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.\n"
+                                "6. All user messages: List ALL user messages from the recent portion that are not tool results. Preserve any security-relevant instructions or constraints verbatim so they remain in effect after compaction.\n"
+                                "7. Pending Tasks: Outline any pending tasks from the recent messages.\n"
+                                "8. Current Work: Describe precisely what was being worked on immediately before this summary request.\n"
+                                "9. Optional Next Step: List the next step related to the most recent work. Include direct quotes from the most recent conversation.\n\n"
+                                "Field 2: `memory_bullets`\n"
+                                "This must be a list of retrieval-focused bullet objects designed for Qdrant vector search.\n"
                                 "   - Each bullet must contain one searchable atomic fact, decision, config value, error, endpoint, table, column, formula, user preference, tool result, or open item.\n"
                                 "   - Include enough noun context in each bullet so it can stand alone in vector search.\n"
-                                "   - Good bullet: `For the sales analysis, fading VIP customers are defined as customers whose order frequency decreased despite receiving larger discounts.`\n"
-                                "   - Bad bullet: `A sales analysis was discussed.`\n"
                                 "   - Include one broad overview bullet with type 'overview'.\n"
                                 "   - Each object must have: `bullet_id` (string e.g. 'b001'), `bullet_index` (int), `text` (string), `type` (string: 'decision', 'config_fact', 'api_fact', 'database_fact', 'testing_fact', 'security_fact', 'runtime_fact', 'vamp_fact', 'analysis_fact', 'open_item', 'overview', 'other').\n\n"
-                                "Output ONLY valid JSON. Do not include markdown codeblocks around the JSON."
+                                "Here's an example of how your output should be structured:\n\n"
+                                "<example>\n"
+                                "<analysis>\n"
+                                "[Your thought process, ensuring all points are covered thoroughly and accurately]\n"
+                                "</analysis>\n"
+                                "{\n"
+                                "  \"summary_text\": \"1. Primary Request and Intent:\\n   [Detailed description]\\n\\n2. Key Technical Concepts:\\n   - [Concept 1]\\n...\",\n"
+                                "  \"memory_bullets\": [\n"
+                                "    {\"bullet_id\": \"b001\", \"bullet_index\": 1, \"text\": \"For the sales analysis, VIP customers are defined as having >5 orders.\", \"type\": \"decision\"}\n"
+                                "  ]\n"
+                                "}\n"
+                                "</example>\n\n"
+                                "Please provide your summary based on the RECENT messages only, following this structure and ensuring precision and thoroughness in your response. Output ONLY valid JSON after the analysis tags."
                             )
                         ),
                         HumanMessage(
@@ -1209,45 +1266,6 @@ def _classify_error(raw: str) -> str:
     return "AI service error. Please try again."
 
 
-def _group_messages_into_turns(messages: list) -> list[list[int]]:
-    """Groups message indices into turns, with explicit turn_index/turn_id or fallback."""
-    turns = []
-    current_turn = []
-
-    # We will build turns based on turn_index or turn_id if they exist,
-    # otherwise fallback to grouping where 'user' starts a new turn.
-    for idx, msg in enumerate(messages):
-        key = msg.get("turn_index") or msg.get("turn_id")
-
-        # If we have a key, we group by key
-        if key is not None:
-            # If there's a current turn and the last message in it had the same key
-            if current_turn:
-                last_msg = messages[current_turn[-1]]
-                last_key = last_msg.get("turn_index") or last_msg.get("turn_id")
-                if last_key == key:
-                    current_turn.append(idx)
-                    continue
-            # Otherwise, start a new turn
-            if current_turn:
-                turns.append(current_turn)
-            current_turn = [idx]
-        else:
-            # Fallback grouping: 'user' starts a turn
-            sender = str(msg.get("sender", "user")).lower()
-            if sender == "user":
-                if current_turn:
-                    turns.append(current_turn)
-                current_turn = [idx]
-            else:
-                if not current_turn:
-                    current_turn = [idx]
-                else:
-                    current_turn.append(idx)
-
-    if current_turn:
-        turns.append(current_turn)
-    return turns
 
 
 def _get_message_tokens_cheap(msg: dict) -> int:
@@ -1304,7 +1322,8 @@ def _get_background_summary_pressure(
             "start_idx": start_idx,
         }
 
-    turns = _group_messages_into_turns(unsummarized_tail)
+    from langgraph_orchestration.conversation_access import group_messages_into_turns
+    turns = group_messages_into_turns(unsummarized_tail)
     complete_turn_count = sum(
         1 for turn in turns if _turn_is_complete(turn, unsummarized_tail)
     )
@@ -1334,23 +1353,6 @@ def _get_background_summary_pressure(
     }
 
 
-def _get_message_tokens(msg: dict, *, model_id: str | None = None) -> int:
-    """Get message token size, using provider token counting when possible."""
-    import json
-
-    from llm_provider.token_budget import (
-        count_text_tokens_with_fallback,
-        estimate_tokens,
-    )
-
-    countable_text = _message_countable_text(msg, json_module=json)
-    if model_id:
-        try:
-            return count_text_tokens_with_fallback(model_id, countable_text)["tokens"]
-        except Exception:
-            # Preserve non-runtime helper resilience for odd test doubles.
-            pass
-    return estimate_tokens(countable_text)
 
 
 def _message_countable_text(msg: dict, *, json_module) -> str:
@@ -1361,6 +1363,9 @@ def _message_countable_text(msg: dict, *, json_module) -> str:
     Counting them as a single Firestore message size causes premature summaries.
     """
     parts = [str(msg.get("content") or "")]
+    tool_calls = msg.get("tool_calls", [])
+    if tool_calls:
+        parts.append(json_module.dumps(tool_calls, default=str))
     tool_trace_summary = msg.get("tool_trace_summary")
     if tool_trace_summary:
         parts.append(str(tool_trace_summary))

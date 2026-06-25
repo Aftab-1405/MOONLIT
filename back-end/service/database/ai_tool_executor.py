@@ -586,6 +586,8 @@ class AIToolExecutor:
         try:
             start_time = time.time()
 
+            actual_max_rows = max_rows if max_rows else Config.MAX_QUERY_RESULTS
+
             with get_tool_connection(db_config) as conn:
                 cursor = conn.cursor()
 
@@ -599,7 +601,7 @@ class AIToolExecutor:
 
                 # Execute the query
                 cursor.execute(query)
-                rows = cursor.fetchall()
+                rows = cursor.fetchmany(actual_max_rows + 1)
 
                 end_time = time.time()
                 execution_time = round((end_time - start_time) * 1000, 2)
@@ -613,17 +615,17 @@ class AIToolExecutor:
                 cursor.close()
 
             # Process results outside connection context
-            actual_max_rows = max_rows if max_rows else Config.MAX_QUERY_RESULTS
-            row_count = len(rows)
-            truncated = row_count > actual_max_rows
+            fetched_count = len(rows)
+            truncated = fetched_count > actual_max_rows
             if truncated:
                 rows = rows[:actual_max_rows]
 
             # Convert rows to list of dicts
             result_data = AIToolExecutor._serialize_rows(rows, column_names)
+            row_count = len(result_data)
 
             logger.debug(
-                f"AI tool executed query: {row_count} rows in {execution_time}ms"
+                "AI tool executed query: %d rows in %.2fms", row_count, execution_time
             )
 
             return {

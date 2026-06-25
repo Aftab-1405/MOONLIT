@@ -14,10 +14,6 @@ from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
-from langgraph_orchestration.memory_config import (
-    ACTIVE_MESSAGE_WINDOW,
-)
-
 
 def build_react_agent(
     chat_model: BaseChatModel,
@@ -44,52 +40,21 @@ def build_react_agent(
         if not configurable:
             configurable = state.get("configurable", {})
 
-        model_id = configurable.get("model", "")
-        if not model_id:
-            try:
-                model_id = chat_model.model_id
-            except AttributeError:
-                model_id = getattr(chat_model, "model", "")
+        active_context_budget = configurable.get("active_context_budget")
+        if active_context_budget is None:
+            model_id = configurable.get("model", "")
+            if not model_id:
+                try:
+                    model_id = chat_model.model_id
+                except AttributeError:
+                    model_id = getattr(chat_model, "model", "")
 
-        budget_info = calculate_token_budget(model_id)
-        active_context_budget = budget_info["active_context_budget"]
+            from llm_provider.token_budget import calculate_token_budget
+            budget_info = calculate_token_budget(model_id)
+            active_context_budget = budget_info["active_context_budget"]
 
-        total_tokens = 0
-        start_idx = len(messages)
-
-        for i in range(len(messages) - 1, -1, -1):
-            msg = messages[i]
-            content = msg.content if hasattr(msg, "content") else str(msg)
-            tokens = estimate_tokens(content)
-
-            tool_calls = getattr(msg, "tool_calls", [])
-            if tool_calls:
-                tokens += estimate_tokens(str(tool_calls))
-
-            if total_tokens + tokens > active_context_budget:
-                break
-
-            total_tokens += tokens
-            start_idx = i
-
-        original_start_idx = start_idx
-        while start_idx > 0:
-            if messages[start_idx].type == "human":
-                break
-            start_idx -= 1
-
-        if start_idx == 0 and len(messages) > 0 and messages[0].type != "human":
-            start_idx = original_start_idx
-            while start_idx < len(messages):
-                msg = messages[start_idx]
-                if msg.type == "human":
-                    break
-                if msg.type == "ai" and not getattr(msg, "tool_calls", None):
-                    break
-                start_idx += 1
-
-        dropped_messages = messages[:start_idx]
-        messages = messages[start_idx:]
+        from llm_provider.token_budget import truncate_messages_to_budget
+        _, messages = truncate_messages_to_budget(messages, active_context_budget)
 
         # Get existing task checkpoint summary
         task_checkpoint_summary = configurable.get("task_checkpoint_summary", "")
@@ -129,38 +94,7 @@ def build_react_agent(
                 )
             )
 
-        # Clean up orphan tool calls (from interrupted runs or crashes)
-        # to prevent LangGraph INVALID_CHAT_HISTORY errors.
-        valid_tool_call_ids = {
-            msg.tool_call_id
-            for msg in messages
-            if getattr(msg, "type", "") == "tool" and getattr(msg, "tool_call_id", None)
-        }
-
-        cleaned_messages = []
-        for msg in messages:
-            if getattr(msg, "type", "") == "ai" and getattr(msg, "tool_calls", None):
-                filtered_tool_calls = [
-                    tc for tc in msg.tool_calls if tc.get("id") in valid_tool_call_ids
-                ]
-                if len(filtered_tool_calls) != len(msg.tool_calls):
-                    from langchain_core.messages import AIMessage
-
-                    cleaned_messages.append(
-                        AIMessage(
-                            content=msg.content,
-                            tool_calls=filtered_tool_calls,
-                            response_metadata=getattr(msg, "response_metadata", {}),
-                            id=getattr(msg, "id", None),
-                            name=getattr(msg, "name", None),
-                        )
-                    )
-                else:
-                    cleaned_messages.append(msg)
-            else:
-                cleaned_messages.append(msg)
-
-        return prefix + cleaned_messages
+        return prefix + messages
 
     return create_react_agent(
         chat_model,

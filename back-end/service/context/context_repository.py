@@ -6,7 +6,7 @@ Collection: user_context/{user_id}
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ class ContextRepository:
             True if successful, False otherwise
         """
         try:
-            data["updated_at"] = datetime.now()
+            data["updated_at"] = datetime.now(timezone.utc)
             ContextRepository.get_ref(user_id).set(data, merge=True)
             return True
         except Exception as e:
@@ -120,7 +120,7 @@ class ContextRepository:
         try:
             ref = ContextRepository.get_ref(user_id)
             ref.update(
-                {field_path: firestore.DELETE_FIELD, "updated_at": datetime.now()}
+                {field_path: firestore.DELETE_FIELD, "updated_at": datetime.now(timezone.utc)}
             )
             return True
         except Exception as e:
