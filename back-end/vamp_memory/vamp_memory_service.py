@@ -153,12 +153,32 @@ class VampMemoryService:
     async def index_summary_block(self, block: dict) -> None:
         if not (block.get("schema_version", 1) >= 2 and block.get("memory_bullets")):
             logger.warning("Summary block has no memory_bullets; skipped VAMP v2 vector indexing.")
+            mark_indexed = getattr(self.summary_repo, "mark_vector_indexed", None)
+            if callable(mark_indexed):
+                try:
+                    await asyncio.to_thread(
+                        mark_indexed,
+                        block["conversation_id"],
+                        block["summary_id"],
+                        status="no_bullets",
+                    )
+                except Exception:
+                    pass
+            return
         else:
+            indexed_bullets = 0
             for bullet in block["memory_bullets"]:
                 b_text = bullet.get("text", "")
                 if not b_text:
                     continue
                 b_vector = await self._embed(b_text)
+                if len(b_vector) != get_config().VAMP_EMBEDDING_DIMENSIONS:
+                    raise ValueError(
+                        "Embedding dimension mismatch for "
+                        f"{block.get('conversation_id')}/{block.get('summary_id')} "
+                        f"{bullet.get('bullet_id')}: got {len(b_vector)}, "
+                        f"expected {get_config().VAMP_EMBEDDING_DIMENSIONS}"
+                    )
                 b_payload = {
                     "pointer_type": "memory_bullet",
                     "user_id": block.get("user_id"),
@@ -178,6 +198,22 @@ class VampMemoryService:
                     payload=b_payload,
                     point_seed=f"{block['conversation_id']}:{block['summary_id']}:{bullet.get('bullet_id')}",
                 )
+                indexed_bullets += 1
+
+            if indexed_bullets == 0:
+                logger.warning("Summary block has no indexable memory_bullets; skipped VAMP v2 vector indexing.")
+                mark_indexed = getattr(self.summary_repo, "mark_vector_indexed", None)
+                if callable(mark_indexed):
+                    try:
+                        await asyncio.to_thread(
+                            mark_indexed,
+                            block["conversation_id"],
+                            block["summary_id"],
+                            status="no_bullets",
+                        )
+                    except Exception:
+                        pass
+                return
 
         mark_indexed = getattr(self.summary_repo, "mark_vector_indexed", None)
         if callable(mark_indexed):

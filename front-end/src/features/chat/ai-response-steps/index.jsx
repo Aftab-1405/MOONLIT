@@ -125,10 +125,10 @@ export const StepsAccordion = memo(function StepsAccordion({
           transition: TRANSITIONS.default,
           ...(isExpandable && {
             "&:hover .summary-text": {
-              color: alpha(theme.palette.text.primary, isDark ? 0.88 : 0.78),
+              color: theme.palette.text.primary,
             },
             "&:hover .summary-arrow": {
-              color: alpha(theme.palette.text.secondary, 0.65),
+              color: theme.palette.text.primary,
             },
           }),
           "&:focus-visible": {
@@ -240,12 +240,13 @@ export const StepsAccordion = memo(function StepsAccordion({
                 content: '""',
                 position: "absolute",
                 left: TIMELINE_LINE_X,
-                top: 8,
-                bottom: 8,
-                width: "1px",
+                transform: "translateX(-50%)",
+                top: 16,
+                bottom: 16,
+                width: "1.5px",
                 backgroundColor: alpha(
                   theme.palette.text.primary,
-                  isDark ? 0.14 : 0.1,
+                  isDark ? 0.08 : 0.05,
                 ),
               },
             }}

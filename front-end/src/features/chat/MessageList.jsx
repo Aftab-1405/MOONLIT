@@ -18,14 +18,9 @@ import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import { useState, useMemo, useRef, useEffect, useCallback, memo } from "react";
 import { copyToClipboard } from "@/utils/clipboard";
 import {
-  shimmer,
   slideIn,
 } from "@/features/chat/ai-response-steps/timelineShared";
 import { StepsAccordion } from "@/features/chat/ai-response-steps";
-import {
-  ThinkingStep,
-  ToolStep,
-} from "@/features/chat/ai-response-steps/StepTimelineItems";
 import MarkdownRenderer from "@/features/chat/MarkdownRenderer";
 import { MESSAGE_STATUS } from "@/utils/chatMessages";
 import {
@@ -146,8 +141,16 @@ const CopyButton = memo(function CopyButton({
         data-testid={dataTestId}
         size="small"
         onClick={onClick}
-        color={copied ? "success" : "primary"}
-        sx={sx}
+        color="inherit"
+        sx={{
+          color: copied ? "success.main" : "text.secondary",
+          transition: "color 140ms ease, background-color 140ms ease",
+          "&:hover": {
+            color: "text.primary",
+            bgcolor: (th) => alpha(th.palette.text.primary, 0.04),
+          },
+          ...sx,
+        }}
       >
         {copied ? (
           <CheckRoundedIcon sx={{ fontSize: 18 }} />
@@ -190,15 +193,10 @@ const UserMessage = memo(function UserMessage({ message }) {
               display: "inline-flex",
               flexDirection: "column",
               maxWidth: { xs: "min(90%, 72ch)", sm: "min(78%, 75ch)" },
-              borderRadius: "12px",
+              borderRadius: "16px 16px 4px 16px",
               px: { xs: 1.5, sm: 1.75 },
               py: { xs: 1, sm: 1.1 },
               bgcolor: bubbleBg,
-              border: "1px solid",
-              borderColor: alpha(
-                theme.palette.text.primary,
-                theme.palette.mode === "dark" ? 0.1 : 0.08,
-              ),
               color: "text.primary",
             }}
           >
@@ -311,22 +309,13 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
         gap: { xs: 1.5, sm: 2 },
         px: { xs: 1.25, sm: 1.5 },
         py: { xs: 1.1, sm: 1.25 },
-        borderRadius: "10px",
-        border: "1px solid",
-        borderColor: isGenerating
-          ? alpha(theme.palette.primary.main, isDark ? 0.14 : 0.1)
-          : alpha(theme.palette.primary.main, isDark ? 0.26 : 0.18),
-        bgcolor: alpha(theme.palette.primary.main, isDark ? 0.038 : 0.022),
+        borderRadius: "8px",
+        bgcolor: alpha(theme.palette.primary.main, isDark ? 0.05 : 0.03),
         transition:
-          "border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease",
+          "background-color 160ms ease, box-shadow 160ms ease",
         ...(!isGenerating && {
           "&:hover": {
-            borderColor: alpha(
-              theme.palette.primary.main,
-              isDark ? 0.42 : 0.32,
-            ),
-            bgcolor: alpha(theme.palette.primary.main, isDark ? 0.068 : 0.04),
-            boxShadow: `0 6px 18px ${alpha(theme.palette.common.black, isDark ? 0.18 : 0.07)}`,
+            bgcolor: alpha(theme.palette.primary.main, isDark ? 0.08 : 0.05),
           },
         }),
       }}
@@ -408,9 +397,8 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
             flexShrink: 0,
             px: { xs: 1.75, sm: 2.25 },
             py: 0.625,
-            borderRadius: "8px",
-            border: "1px solid",
-            borderColor: alpha(theme.palette.primary.main, isDark ? 0.1 : 0.08),
+            borderRadius: "6px",
+            bgcolor: alpha(theme.palette.primary.main, isDark ? 0.08 : 0.05),
           }}
         >
           <Typography
@@ -506,6 +494,31 @@ const AIMessage = memo(function AIMessage({
     [timeline],
   );
   const hasTimeline = displayTimeline.length > 0;
+  const showThinkingSpinner = useMemo(
+    () =>
+      (isWaiting || isStreaming) &&
+      displaySteps.length === 0 &&
+      !displayText.trim() &&
+      !hasTimeline,
+    [isWaiting, isStreaming, displaySteps, displayText, hasTimeline]
+  );
+
+  const effectiveTimeline = useMemo(() => {
+    if (hasTimeline) return displayTimeline;
+    if (showThinkingSpinner) {
+      return [
+        {
+          id: "thinking-dummy",
+          type: "thinking",
+          content: "",
+          isComplete: false,
+        },
+      ];
+    }
+    return [];
+  }, [hasTimeline, displayTimeline, showThinkingSpinner]);
+
+  const hasEffectiveTimeline = effectiveTimeline.length > 0;
   // Complete canvas code artifacts (both fences present)
   const artifacts = useMemo(
     () => extractCanvasCodeArtifacts(displayText),
@@ -616,11 +629,7 @@ const AIMessage = memo(function AIMessage({
     copyRich(htmlContent, plainTextContent);
   }, [copyRich, displayText]);
 
-  const showThinkingSpinner =
-    isWaiting &&
-    displaySteps.length === 0 &&
-    !displayText.trim() &&
-    !hasTimeline;
+
 
   const renderTextBlock = useCallback(
     (content, key) => {
@@ -676,45 +685,8 @@ const AIMessage = memo(function AIMessage({
         >
           {/* Fade in+out so it cross-fades with the first arriving step
                rather than instantly popping out when the accordion mounts. */}
-          <Fade in={showThinkingSpinner} timeout={220} unmountOnExit>
-            <Box sx={{ pl: { xs: 0, sm: 0.5 }, py: 0.5, minWidth: 0 }}>
-              <Typography
-                component="span"
-                aria-label="Thinking"
-                sx={{
-                  ...theme.typography.uiBodySm,
-                  fontFamily: theme.typography.fontFamily,
-                  fontWeight: 500,
-                  // Shimmer sweep — consistent with ThinkingStep and StepsAccordion.
-                  backgroundImage: `linear-gradient(90deg,
-                    ${alpha(theme.palette.text.secondary, isDark ? 0.55 : 0.48)} 0%,
-                    ${alpha(theme.palette.text.secondary, isDark ? 0.55 : 0.48)} 36%,
-                    ${alpha(theme.palette.text.primary, isDark ? 0.9 : 0.75)} 50%,
-                    ${alpha(theme.palette.text.secondary, isDark ? 0.55 : 0.48)} 64%,
-                    ${alpha(theme.palette.text.secondary, isDark ? 0.55 : 0.48)} 100%)`,
-                  backgroundSize: "220% 100%",
-                  backgroundClip: "text",
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  animation: `${shimmer} 2.4s linear infinite`,
-                  "@media (prefers-reduced-motion: reduce)": {
-                    backgroundImage: "none",
-                    WebkitTextFillColor: "currentColor",
-                    color: alpha(
-                      theme.palette.text.secondary,
-                      isDark ? 0.58 : 0.5,
-                    ),
-                    animation: "none",
-                  },
-                }}
-              >
-                Thinking…
-              </Typography>
-            </Box>
-          </Fade>
-
-          {hasTimeline ? (
-            displayTimeline.map((item, index) => {
+          {hasEffectiveTimeline ? (
+            effectiveTimeline.map((item, index) => {
               if (item.type === "text") {
                 return renderTextBlock(
                   item.content || "",
@@ -1038,19 +1010,12 @@ const MessageList = memo(function MessageList({
             maxWidth: 380,
             px: { xs: 2, sm: 2.5 },
             py: { xs: 2, sm: 2.5 },
-            borderRadius: "12px",
-            border: "1px solid",
-            borderColor: (th) => th.palette.border.subtle,
-            bgcolor: (th) =>
-              alpha(
-                th.palette.background.paper,
-                th.palette.mode === "dark" ? 0.55 : 0.8,
-              ),
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             gap: 0.75,
             textAlign: "center",
+            bgcolor: "transparent",
           }}
         >
           <ErrorOutlineRoundedIcon
@@ -1108,34 +1073,28 @@ const MessageList = memo(function MessageList({
               onClick={() => setVisibleCount((c) => c + 50)}
               sx={(th) => ({
                 minHeight: 28,
-                borderRadius: "8px",
-                border: "1px solid",
-                borderColor: alpha(
-                  th.palette.text.primary,
-                  th.palette.mode === "dark" ? 0.1 : 0.08,
-                ),
+                borderRadius: "6px",
                 color: "text.secondary",
-                backgroundColor: "transparent",
+                backgroundColor: alpha(
+                  th.palette.text.primary,
+                  th.palette.mode === "dark" ? 0.05 : 0.03,
+                ),
                 ...th.typography.uiCaptionSm,
                 px: 1.5,
                 textTransform: "none",
                 fontWeight: 500,
                 letterSpacing: 0,
                 transition: th.transitions.create(
-                  ["background-color", "border-color", "color"],
+                  ["background-color", "color"],
                   {
                     duration: th.transitions.duration.shorter,
                   },
                 ),
                 [HOVER_CAPABLE_QUERY]: {
                   "&:hover": {
-                    borderColor: alpha(
-                      th.palette.text.primary,
-                      th.palette.mode === "dark" ? 0.16 : 0.14,
-                    ),
                     backgroundColor: alpha(
                       th.palette.text.primary,
-                      th.palette.mode === "dark" ? 0.04 : 0.03,
+                      th.palette.mode === "dark" ? 0.08 : 0.05,
                     ),
                     color: "text.primary",
                   },

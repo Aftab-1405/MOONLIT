@@ -14,6 +14,7 @@ import AccessTimeRoundedIcon from "@mui/icons-material/AccessTimeRounded";
 import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded";
 import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
 import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
+import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 import { TRANSITIONS } from "@/theme/index";
 import SqlCodeViewer from "@/components/SqlCodeViewer";
 import {
@@ -46,18 +47,20 @@ const getTimelineNodeSx = ({
   isCurrent = false,
   shadowColor,
   animation,
+  theme,
+  top = { xs: 20, sm: 22 },
 }) => ({
   position: "absolute",
   left: TIMELINE_LINE_X,
-  top: "50%",
+  top,
   transform: "translate(-50%, -50%)",
-  fontSize: { xs: 13, sm: 14 },
+  fontSize: { xs: 16, sm: 18 },
   zIndex: 1,
-  // Transparent bg — node sits directly on the page surface
-  backgroundColor: "transparent",
+  // Mask the timeline line behind the icon
+  backgroundColor: theme.palette.background.default,
   borderRadius: "50%",
   color,
-  padding: "1px",
+  padding: "2px",
   boxShadow:
     isCurrent && shadowColor
       ? `0 0 0 3px ${alpha(shadowColor, isDark ? 0.15 : 0.12)}`
@@ -99,8 +102,9 @@ export const ThinkingStep = memo(function ThinkingStep({
         isCurrent,
         shadowColor: theme.palette.text.secondary,
         animation: isActive ? `${pulse} 2s ease-in-out infinite` : undefined,
+        theme,
       }),
-    [isActive, isCurrent, isDark, nodeColor, theme.palette.text.secondary],
+    [isActive, isCurrent, isDark, nodeColor, theme],
   );
 
   return (
@@ -119,32 +123,15 @@ export const ThinkingStep = memo(function ThinkingStep({
           <>
             <Box
               sx={{
-                color: alpha(theme.palette.text.primary, isDark ? 0.72 : 0.65),
+                color: alpha(theme.palette.text.primary, isDark ? 0.76 : 0.68),
                 ...theme.typography.uiBodySm,
                 fontFamily: theme.typography.fontFamily,
                 lineHeight: { xs: 1.55, sm: 1.62 },
                 letterSpacing: 0,
-                px: { xs: 1.1, sm: 1.25 },
-                py: { xs: 0.65, sm: 0.75 },
-                borderRadius: "8px",
-                borderLeft: "2px solid",
-                borderColor: alpha(
-                  theme.palette.text.secondary,
-                  isDark ? 0.18 : 0.14,
-                ),
-                bgcolor: alpha(
-                  theme.palette.background.paper,
-                  isDark ? 0.4 : 0.6,
-                ),
-                boxShadow: `0 3px 10px ${alpha(theme.palette.common.black, isDark ? 0.16 : 0.04)}`,
-                transition: "border-color 140ms ease, box-shadow 140ms ease",
-                "&:hover": {
-                  borderColor: alpha(
-                    theme.palette.text.secondary,
-                    isDark ? 0.3 : 0.24,
-                  ),
-                  boxShadow: `0 5px 14px ${alpha(theme.palette.common.black, isDark ? 0.2 : 0.06)}`,
-                },
+                pl: { xs: 0.5, sm: 1 },
+                pr: 0,
+                py: { xs: 0.4, sm: 0.5 },
+                transition: "color 140ms ease",
               }}
             >
               <MarkdownRenderer
@@ -225,17 +212,13 @@ function humanizeSkillName(name) {
 }
 
 /**
- * Renders activated skills as plain shimmer text.
- * Format: "Skills → Database, Web Research"
- * Intentionally matches the accordion summary text style (uiBodySm + shimmer)
- * — no pills, icons, or borders.
- *
- * ``isStreaming`` drives the shimmer: active while the turn is live, static
- * once the turn is complete.
+ * Renders activated skills in the timeline.
+ * Consistent with thinking and tool steps.
  */
 export const SkillStep = memo(function SkillStep({
   skills = [],
   isStreaming = false,
+  animDelay = 0,
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
@@ -253,31 +236,41 @@ export const SkillStep = memo(function SkillStep({
     .map((s) => SKILL_LABELS[s] || humanizeSkillName(s))
     .join(', ');
 
-  const textColor = alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.55);
-  const highlightColor = alpha(theme.palette.text.primary, isDark ? 0.92 : 0.82);
+  const nodeColor = alpha(theme.palette.text.secondary, isDark ? 0.45 : 0.38);
+
+  const skillNodeSx = useMemo(
+    () =>
+      getTimelineNodeSx({
+        isDark,
+        color: nodeColor,
+        isCurrent: isStreaming,
+        shadowColor: theme.palette.text.secondary,
+        animation: isStreaming ? `${pulse} 2s ease-in-out infinite` : undefined,
+        theme,
+      }),
+    [isStreaming, isDark, nodeColor, theme],
+  );
 
   return (
     <Box
       sx={{
-        width: '100%',
-        textAlign: 'left',
-        mb: 1.5,
-        animation: `${slideIn} 0.22s ease-out both`,
+        animation: `${slideIn} 0.22s ease-out ${animDelay}ms both`,
         '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+        position: 'relative',
+        pl: TIMELINE_CONTENT_PL,
+        py: { xs: 0.6, sm: 0.75 },
       }}
     >
-      {/* Mimic the accordion ButtonBase row geometry so SkillStep sits flush
-          at the same height and weight as Thinking… / tool action lines. */}
+      <MenuBookRoundedIcon sx={skillNodeSx} />
       <Box
         sx={{
           width: '100%',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
+          justifyContent: 'flex-start',
           gap: { xs: 0.75, sm: 1 },
-          px: 0,
-          py: { xs: 0.3, sm: 0.4 },
-          minHeight: 32,
+          py: { xs: 0.3, sm: 0.35 },
+          minHeight: 34,
           minWidth: 0,
         }}
       >
@@ -294,7 +287,12 @@ export const SkillStep = memo(function SkillStep({
             lineHeight: 1.4,
             ...(isStreaming
               ? {
-                  backgroundImage: `linear-gradient(90deg, ${textColor} 0%, ${textColor} 36%, ${highlightColor} 50%, ${textColor} 64%, ${textColor} 100%)`,
+                  backgroundImage: `linear-gradient(90deg,
+                    ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 0%,
+                    ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 36%,
+                    ${alpha(theme.palette.text.primary, isDark ? 0.88 : 0.72)} 50%,
+                    ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 64%,
+                    ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 100%)`,
                   backgroundSize: '220% 100%',
                   backgroundClip: 'text',
                   WebkitBackgroundClip: 'text',
@@ -304,14 +302,14 @@ export const SkillStep = memo(function SkillStep({
                   '@media (prefers-reduced-motion: reduce)': {
                     backgroundImage: 'none',
                     WebkitTextFillColor: 'currentColor',
-                    color: textColor,
+                    color: alpha(theme.palette.text.secondary, 0.5),
                     animation: 'none',
                   },
                 }
-              : { color: textColor }),
+              : { color: alpha(theme.palette.text.primary, isDark ? 0.72 : 0.65) }),
           }}
         >
-          {`Picked ${label} skill${skills.length > 1 ? 's' : ''}`}
+          {`Loaded ${label} skill${skills.length > 1 ? 's' : ''}`}
         </Typography>
       </Box>
     </Box>
@@ -368,6 +366,7 @@ export const ToolStep = memo(function ToolStep({
             ? theme.palette.error.main
             : theme.palette.success.main,
         animation: isRunning ? `${spin} 1s linear infinite` : undefined,
+        theme,
       }),
     [
       isCurrent,
@@ -375,9 +374,7 @@ export const ToolStep = memo(function ToolStep({
       isError,
       isRunning,
       nodeColor,
-      theme.palette.primary.main,
-      theme.palette.error.main,
-      theme.palette.success.main,
+      theme,
     ],
   );
 
@@ -449,16 +446,10 @@ export const ToolStep = memo(function ToolStep({
         <Collapse in={expanded} timeout={200} unmountOnExit>
           <Box
             sx={{
-              mt: 0.75,
-              p: { xs: 1, sm: 1.25 },
-              borderRadius: "8px",
-              border: "1px solid",
-              // Neutral border — no color tint
-              borderColor: alpha(
-                theme.palette.text.secondary,
-                isDark ? 0.1 : 0.08,
-              ),
-              // Transparent — sits on whatever the page surface is
+              mt: 0.5,
+              pl: { xs: 1, sm: 1.5 },
+              pr: 0,
+              pb: 0.5,
               bgcolor: "transparent",
             }}
           >
@@ -467,16 +458,10 @@ export const ToolStep = memo(function ToolStep({
                 <DetailLabel>Query</DetailLabel>
                 <Box
                   sx={{
-                    borderRadius: "7px",
                     overflow: "hidden",
                     height: isCompactMobile
                       ? Math.min(queryHeight, 220)
                       : queryHeight,
-                    border: "1px solid",
-                    borderColor: alpha(
-                      theme.palette.text.secondary,
-                      isDark ? 0.1 : 0.08,
-                    ),
                   }}
                 >
                   <SqlCodeViewer
@@ -516,8 +501,10 @@ export const DoneIndicator = memo(function DoneIndicator() {
       getTimelineNodeSx({
         isDark,
         color: alpha(theme.palette.success.main, isDark ? 0.55 : 0.48),
+        theme,
+        top: "50%",
       }),
-    [isDark, theme.palette.success.main],
+    [isDark, theme],
   );
 
   return (

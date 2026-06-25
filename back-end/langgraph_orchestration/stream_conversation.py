@@ -603,15 +603,17 @@ async def stream_conversation(
             output_reserve_tokens=output_reserve_for_task_mode(task_mode),
             token_counting_mode=token_counting_mode,
         )
-        active_context_budget = budget_info["pressure_trigger_tokens"]
         hot_history_budget = max(
             0,
             budget_info["hot_history_budget"]
             - vamp_memory_tokens
             - task_checkpoint_tokens,
         )
+        active_context_budget = hot_history_budget
         budget_info.update(
             {
+                "active_context_budget": active_context_budget,
+                "pressure_trigger_tokens": active_context_budget,
                 "system_prompt_tokens": system_prompt_tokens,
                 "tool_schema_tokens": tool_schema_tokens,
                 "vamp_memory_tokens": vamp_memory_tokens,
@@ -694,72 +696,92 @@ async def stream_conversation(
                             summaryCompleteTurns=summary_pressure["complete_turn_count"],
                         )
                     )
-                    yield sse_encode(
-                        {
-                            "type": "workflow_status",
-                            "stage": "summarizing_context",
-                            "status": "running",
-                            "content": "Summarizing conversation context before continuing.",
-                        }
-                    )
-                    await summarizer.check_and_summarize(
+                    summary_result = await summarizer.check_and_summarize(
                         conversation_id,
                         user_id,
                         selected_model,
                         thread_id=namespaced_thread_id,
+                        pressure_budget_tokens=budget_info["hot_history_budget"],
                     )
+                    if summary_result and summary_result.get("tail_tokens") is not None:
+                        budget_info["tail_tokens"] = summary_result["tail_tokens"]
                     
-                    try:
-                        from langgraph_orchestration.conversation_access import get_default_conversation_state_reader
-                        conversation_reader = get_default_conversation_state_reader()
-                        conv_data_post = await asyncio.wait_for(
-                            run_in_threadpool(conversation_reader.get_conversation, conversation_id),
-                            timeout=5.0,
-                        )
-                        summary_pressure_post = summarizer.get_background_summary_pressure(
-                            conv_data_post,
-                            pressure_budget_tokens=budget_info["hot_history_budget"],
-                        )
-                        budget_info["tail_tokens"] = summary_pressure_post["tail_tokens"]
-                        logger.info("Recalculated tail_tokens post-summarization: %s", budget_info["tail_tokens"])
-                    except Exception as e:
-                        logger.warning("Failed to recalculate tail_tokens post-summarization: %s", e)
-
-                    yield sse_encode(
-                        {
-                            "type": "workflow_status",
-                            "stage": "summarizing_context",
-                            "status": "done",
-                            "content": "Conversation context summarized.",
+                    if summary_result and summary_result.get("created"):
+                        summary_pressure_post = {
+                            "tail_tokens": budget_info.get("tail_tokens", 0),
+                            "threshold_tokens": None,
+                            "complete_turn_count": None,
                         }
-                    )
+                        try:
+                            from langgraph_orchestration.conversation_access import get_default_conversation_state_reader
+                            conversation_reader = get_default_conversation_state_reader()
+                            conv_data_post = await asyncio.wait_for(
+                                run_in_threadpool(conversation_reader.get_conversation, conversation_id),
+                                timeout=5.0,
+                            )
+                            summary_pressure_post = summarizer.get_background_summary_pressure(
+                                conv_data_post,
+                                pressure_budget_tokens=budget_info["hot_history_budget"],
+                            )
+                            budget_info["tail_tokens"] = summary_pressure_post["tail_tokens"]
+                            logger.info("Recalculated tail_tokens post-summarization: %s", budget_info["tail_tokens"])
+                        except Exception as e:
+                            logger.warning("Failed to recalculate tail_tokens post-summarization: %s", e)
 
-                    # Reload VAMP historical context to include the newly generated summary block
-                    try:
-                        from langgraph_orchestration.historical_context import (
-                            get_default_historical_context_provider,
+                        yield sse_encode(
+                            {
+                                "type": "workflow_status",
+                                "stage": "summarizing_context",
+                                "status": "done",
+                                "content": "Conversation context summarized.",
+                            }
+                        )
+                        yield sse_encode(
+                            _build_usage_metrics(
+                                budget_info,
+                                inputPayloadTokens=budget_info.get("tail_tokens", 0),
+                                activeContextBudget=budget_info["hot_history_budget"],
+                                pressureTriggerTokens=budget_info["hot_history_budget"],
+                                contextPhase="post_summary",
+                                summaryThresholdTokens=summary_pressure_post.get("threshold_tokens"),
+                                summaryCompleteTurns=summary_pressure_post.get("complete_turn_count"),
+                            )
                         )
 
-                        Config = get_config()
-                        if Config.VAMP_MEMORY_ENABLED:
-                            historical_context = await asyncio.wait_for(
-                                get_default_historical_context_provider().retrieve_context(
-                                    conversation_id,
-                                    user_id,
-                                    message,
-                                ),
-                                timeout=3.0,
+                        # Reload VAMP historical context to include the newly generated summary block.
+                        try:
+                            from langgraph_orchestration.historical_context import (
+                                get_default_historical_context_provider,
                             )
-                            config["configurable"]["historical_context"] = (
-                                historical_context
+
+                            Config = get_config()
+                            if Config.VAMP_MEMORY_ENABLED:
+                                historical_context = await asyncio.wait_for(
+                                    get_default_historical_context_provider().retrieve_context(
+                                        conversation_id,
+                                        user_id,
+                                        message,
+                                    ),
+                                    timeout=3.0,
+                                )
+                                config["configurable"]["historical_context"] = (
+                                    historical_context
+                                )
+                                logger.info(
+                                    "Reloaded historical_context in config after summarization."
+                                )
+                        except Exception as hc_err:
+                            logger.warning(
+                                "Failed to reload historical context after summarization: %s",
+                                hc_err,
                             )
-                            logger.info(
-                                "Reloaded historical_context in config after summarization."
-                            )
-                    except Exception as hc_err:
-                        logger.warning(
-                            "Failed to reload historical context after summarization: %s",
-                            hc_err,
+                    elif summary_result:
+                        logger.info(
+                            "Conversation summary check skipped for %s: reason=%s tail=%s threshold=%s",
+                            conversation_id,
+                            summary_result.get("reason"),
+                            summary_result.get("tail_tokens"),
+                            summary_result.get("threshold_tokens"),
                         )
             except Exception as sum_err:
                 logger.warning("Pre-call summarization failed: %s", sum_err)
@@ -788,22 +810,7 @@ async def stream_conversation(
             initial_messages = [HumanMessage(content=message or "")]
             graph_input = {"messages": initial_messages}
 
-        from service.conversations.conversation_service import _get_message_tokens_cheap
-        try:
-            # We map LangChain messages back to dict shapes expected by the cheap estimator
-            msg_dicts = []
-            messages_to_count = []
-            if isinstance(graph_input, dict) and "messages" in graph_input:
-                messages_to_count = graph_input["messages"]
-            elif "initial_messages" in locals():
-                messages_to_count = initial_messages
-                
-            for m in messages_to_count:
-                msg_dicts.append({"role": getattr(m, "type", "user"), "content": str(getattr(m, "content", m))})
-            budget_info["_tail_estimate"] = sum(_get_message_tokens_cheap(m) for m in msg_dicts)
-        except Exception as e:
-            logger.warning("Failed to calculate _tail_estimate: %s", e)
-            budget_info["_tail_estimate"] = 0
+        budget_info["_baseline_tail"] = max(0, int(budget_info.get("tail_tokens") or 0))
 
         # Emit activated skills event before the LLM loop so the frontend
         # can display which domain skill modules were loaded for this turn.
@@ -856,11 +863,6 @@ async def stream_conversation(
                     latency_ms = metrics.get("latencyMs")
 
                     if input_tokens is not None:
-                        # The baseline tail is strictly the history size pre-computed using _get_message_tokens_cheap
-                        # This mathematically perfectly aligns the UI with the summarization trigger condition!
-                        if budget_info.get("_baseline_tail") is None:
-                            budget_info["_baseline_tail"] = budget_info.get("_tail_estimate", 0)
-                            
                         # Track cumulative output tokens across multi-turn tool loops.
                         # Since output_tokens resets to 0 (or a tiny number) when a new Bedrock call starts,
                         # we detect drops to accumulate the finished loop's tokens.
@@ -1112,7 +1114,11 @@ async def _load_firestore_history(
             return []
 
         messages = conv_data.get("messages", [])
-        last_summarized_idx = conv_data.get("last_summarized_idx", 0)
+        try:
+            last_summarized_idx = int(conv_data.get("last_summarized_idx", 0) or 0)
+        except (TypeError, ValueError):
+            last_summarized_idx = 0
+        last_summarized_idx = max(0, min(last_summarized_idx, len(messages)))
 
         # Select raw active tail from unsummarized turns only
         recent_messages = messages[last_summarized_idx:]

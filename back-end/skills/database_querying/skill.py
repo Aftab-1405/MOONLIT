@@ -78,6 +78,15 @@ SKILL_TRIGGERS: list = [
     r"\bexplore\s+(the\s+)?(data|table|schema|database)\b",
     r"\binspect\s+(the\s+)?(table|schema|data|database)\b",
     r"\blist\s+(tables?|columns?|schemas?|databases?)\b",
+
+    # ── Business analytics phrasing over connected databases ────────────────
+    r"\btop\s+\d+\b.*\b(customers?|products?|employees?|orders?|regions?|categories?|sales|revenue)\b",
+    r"\b(customers?|products?|employees?|orders?|regions?|categories?)\b.*\b(top|best|worst|highest|lowest|most|least|performing)\b",
+    r"\b(top|best|worst|highest|lowest|most|least)\b.*\b(customers?|products?|employees?|orders?|regions?|categories?)\b",
+    r"\b(sales|revenue|profit|growth|performance|contribution)\b",
+    r"\bunits?\s+sold\b",
+    r"\bperforming\s+(employees?|products?|regions?|categories?)\b",
+
     r"\bnew\s+chat\b",
     r"\bstart.*(fresh|over|new)\b",
 ]
@@ -124,6 +133,13 @@ CRITICAL: This tool directly executes read-only DQL only (SELECT/WITH). Do not a
 max_rows: Default to 100. Drop to 10–25 for broad exploratory queries. Only omit the limit if the user explicitly asks for the full result set.
 AFTER: Interpret the results in context. "Your top 5 customers by revenue are all in the US — looks like the EU segment is basically untouched." Not just "here are the rows."
 
+LIVE DATA RULE:
+- If the user asks for real rows, top/bottom lists, rankings, totals, counts, revenue, sales, performance, growth, or comparisons, you MUST either:
+  1. use an exact relevant execute_query result already visible in the active context, or
+  2. run execute_query.
+- Do not answer those requests from intuition, schema names, examples, or historical summaries.
+- If you need a business definition, choose a defensible default and say it briefly before querying. Example: "I'll treat contribution as total revenue."
+
 open_sql_editor(query?)
 WHEN: The query is complex enough that the user may want to modify it before running, or they asked you to "write a query" without asking you to execute it.
 HOW: Always pre-populate with the query when you have one — never open an empty editor if you've already drafted something.
@@ -160,6 +176,7 @@ Step A — Classify:
 Step B — Plan the minimal tool path:
 - Is the answer already in the current context? Don't call a tool to re-fetch it.
 - Schema unknown? get_schema_overview before writing queries.
+- User asks for rankings, counts, top performers, sales, revenue, growth, or data records? Plan an execute_query path. Do not answer from examples.
 - User referencing something outside your active window? First use any injected <historical_context>. For prior SQL, call get_query_history before guessing or asking them to repeat.
 - What's the cheapest tool that reduces uncertainty here?
 
@@ -182,6 +199,7 @@ execute_query may return a preview subset in chat even when full results exist i
 - For full results, direct the user to the result canvas.
 - Don't claim "top N rows" unless exactly N rows are present in the tool output.
 - If full precision is needed in chat, run a narrower follow-up query or explain the preview limit.
+- If the user corrects you for fake or wrong data, immediately query the database and keep the apology to one short clause.
 </data_preview_policy>
 
 <error_handling>

@@ -16,6 +16,20 @@ from fastapi.concurrency import run_in_threadpool
 
 logger = logging.getLogger(__name__)
 
+_SUMMARY_BULLET_TYPES = {
+    "decision",
+    "config_fact",
+    "api_fact",
+    "database_fact",
+    "testing_fact",
+    "security_fact",
+    "runtime_fact",
+    "vamp_fact",
+    "analysis_fact",
+    "open_item",
+    "overview",
+    "other",
+}
 
 def _build_tool_trace_summary(timeline: list[dict]) -> str | None:
     tools = [item for item in timeline if item.get("type") == "tool"]
@@ -386,8 +400,20 @@ class ConversationService:
                         "totalContextWindow": event.get("totalContextWindow"),
                         "inputPayloadTokens": event.get("inputPayloadTokens"),
                         "availableInputPayloadTokens": event.get("availableInputPayloadTokens"),
+                        "pressureTriggerTokens": event.get("pressureTriggerTokens"),
+                        "modelContextWindow": event.get("modelContextWindow"),
                         "reservedOutputTokens": event.get("reservedOutputTokens"),
                         "safetyMarginTokens": event.get("safetyMarginTokens"),
+                        "systemPromptTokens": event.get("systemPromptTokens"),
+                        "toolSchemaTokens": event.get("toolSchemaTokens"),
+                        "vampMemoryTokens": event.get("vampMemoryTokens"),
+                        "taskCheckpointTokens": event.get("taskCheckpointTokens"),
+                        "hotHistoryBudget": event.get("hotHistoryBudget"),
+                        "tokenCountingMode": event.get("tokenCountingMode"),
+                        "tokenCountingReason": event.get("tokenCountingReason"),
+                        "contextPhase": event.get("contextPhase"),
+                        "summaryThresholdTokens": event.get("summaryThresholdTokens"),
+                        "summaryCompleteTurns": event.get("summaryCompleteTurns"),
                     }
 
                 elif event_type == "agent_interrupt" and prompt and not prompt_stored:
@@ -540,7 +566,16 @@ class ConversationService:
         model: str = None,
         *,
         thread_id: str | None = None,
-    ):
+        pressure_budget_tokens: int | None = None,
+    ) -> dict:
+        result = {
+            "created": False,
+            "reason": "not_started",
+            "start_idx": None,
+            "end_idx": None,
+            "tail_tokens": 0,
+            "threshold_tokens": None,
+        }
         try:
             import json
 
@@ -597,8 +632,11 @@ class ConversationService:
                     else "exact"
                 ),
             )
-            active_context_budget = budget_info["active_context_budget"]
+            active_context_budget = int(
+                pressure_budget_tokens or budget_info["active_context_budget"]
+            )
             summary_trigger_tokens = int(float(active_context_budget) * 0.90)
+            result["threshold_tokens"] = summary_trigger_tokens
 
             db = FirestoreService.get_db()
             doc_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(
@@ -608,29 +646,40 @@ class ConversationService:
             while True:
                 doc = doc_ref.get()
                 if not doc.exists:
-                    return
+                    result["reason"] = "conversation_missing"
+                    return result
 
                 data = doc.to_dict()
                 if data.get("user_id") != user_id:
-                    return
+                    result["reason"] = "user_mismatch"
+                    return result
 
                 messages = data.get("messages", [])
-                start_idx = data.get("last_summarized_idx", 0)
+                start_idx = _coerce_message_cursor(
+                    data.get("last_summarized_idx", 0),
+                    message_count=len(messages),
+                )
+                result["start_idx"] = start_idx
                 unsummarized_tail = messages[start_idx:]
                 if not unsummarized_tail:
-                    return
+                    result["reason"] = "empty_tail"
+                    return result
 
-                # Calculate measured pressure in the unsummarized tail.
-                from llm_provider.token_budget import get_message_tokens
+                # Calculate persisted-message pressure in the unsummarized tail.
+                # This intentionally matches the UI pressure gate: provider usage
+                # tokens are per-call billing metadata and can be much smaller
+                # than the stored content/timeline that will be reloaded later.
                 tail_tokens = sum(
-                    get_message_tokens(msg, model_id=selected_model)
+                    _get_message_tokens_cheap(msg)
                     for msg in unsummarized_tail
                 )
+                result["tail_tokens"] = tail_tokens
 
                 # Summarize when measured pressure reaches the same 90% trigger
                 # surfaced to the frontend.
                 if tail_tokens < summary_trigger_tokens:
-                    return
+                    result["reason"] = "below_threshold"
+                    return result
 
                 # Group messages into turns
                 from langgraph_orchestration.conversation_access import group_messages_into_turns
@@ -655,7 +704,8 @@ class ConversationService:
                         break
 
                 if not complete_unsummarized_turns:
-                    return
+                    result["reason"] = "no_complete_turns"
+                    return result
 
                 # Chunk complete unsummarized turns by budget (limit chunk size to active_context_budget // 2)
                 chunk_turns = []
@@ -663,9 +713,8 @@ class ConversationService:
                 max_chunk_tokens = active_context_budget // 2
 
                 for turn in complete_unsummarized_turns:
-                    from llm_provider.token_budget import get_message_tokens
                     turn_tokens = sum(
-                        get_message_tokens(messages[idx], model_id=selected_model)
+                        _get_message_tokens_cheap(messages[idx])
                         for idx in turn
                     )
                     if chunk_turns and chunk_tokens + turn_tokens > max_chunk_tokens:
@@ -688,7 +737,8 @@ class ConversationService:
                     end_idx=end_idx,
                 )
                 if not claim_id:
-                    return
+                    result["reason"] = "claim_conflict"
+                    return result
 
                 block_to_summarize = messages[start_idx:end_idx]
                 text_block = _build_summary_input(block_to_summarize)
@@ -700,10 +750,11 @@ class ConversationService:
                     prompt = [
                         SystemMessage(
                             content=(
-                                "Your task is to create a detailed summary of the RECENT portion of the conversation — the messages that follow earlier retained context. "
-                                "The earlier messages are being kept intact and do NOT need to be summarized. Focus your summary on what was discussed, learned, and accomplished in the recent messages only.\n\n"
-                                "Before providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:\n\n"
-                                "1. Analyze the recent messages chronologically. For each section thoroughly identify:\n"
+                                "Your task is to create a detailed summary of the ENTIRE conversation block provided by the user message. "
+                                "The block may be the full unsummarized tail from the beginning of the chat or a later chunk after earlier retained context. "
+                                "Summarize every user/assistant exchange inside the provided <conversation_history> block, and do not summarize anything outside it.\n\n"
+                                "Think through the provided messages privately, but do not output analysis text or analysis tags. Your response must be a single strict JSON object and nothing else.\n\n"
+                                "1. Analyze the provided messages chronologically. For each section thoroughly identify:\n"
                                 "   - The user's explicit requests and intents\n"
                                 "   - Your approach to addressing the user's requests\n"
                                 "   - Key decisions, technical concepts and code patterns\n"
@@ -715,30 +766,36 @@ class ConversationService:
                                 "   - Errors that you ran into and how you fixed them\n"
                                 "   - Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\n"
                                 "   - Note any security-relevant instructions or constraints the user stated. These MUST be preserved verbatim in the summary so they continue to apply after compaction.\n"
-                                "2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\n\n"
-                                "After your <analysis> block, you must output a STRICT JSON OBJECT containing two fields: `summary_text` and `memory_bullets`. Do not include the JSON inside a <summary> block, output the raw JSON object.\n\n"
+                                "2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\n"
+                                "3. Do not introduce names, facts, table counts, query results, colors, row counts, or personal details unless they are explicitly present in the provided conversation block.\n\n"
+                                "COMPACTION STYLE:\n"
+                                "- Compact like a long-horizon coding/database agent: preserve task state, durable facts, verified tool results, decisions, user corrections, safety constraints, and the next action.\n"
+                                "- Do not preserve filler, greetings, casual acknowledgements, or decorative details unless they directly affect future work.\n"
+                                "- Treat summaries as lossy memory with pointers back to original messages. Make the summary useful for resuming work, not for replaying the chat.\n"
+                                "- Pin governance/safety/user constraints explicitly. Do not let constraints disappear during compaction.\n\n"
+                                "Output a STRICT JSON OBJECT containing two fields: `summary_text` and `memory_bullets`. Do not wrap it in markdown/code fences. Do not include <analysis> tags. Escape all newlines inside JSON strings as \\n.\n\n"
                                 "Field 1: `summary_text`\n"
-                                "This must be a detailed markdown string that includes the following sections:\n"
-                                "1. Primary Request and Intent: Capture the user's explicit requests and intents from the recent messages\n"
-                                "2. Key Technical Concepts: List important technical concepts, technologies, and frameworks discussed recently.\n"
-                                "3. Files and Code Sections: Enumerate specific files and code sections examined, modified, or created. Include full code snippets where applicable and include a summary of why this file read or edit is important.\n"
-                                "4. Errors and fixes: List errors encountered and how they were fixed.\n"
-                                "5. Problem Solving: Document problems solved and any ongoing troubleshooting efforts.\n"
-                                "6. All user messages: List ALL user messages from the recent portion that are not tool results. Preserve any security-relevant instructions or constraints verbatim so they remain in effect after compaction.\n"
-                                "7. Pending Tasks: Outline any pending tasks from the recent messages.\n"
-                                "8. Current Work: Describe precisely what was being worked on immediately before this summary request.\n"
-                                "9. Optional Next Step: List the next step related to the most recent work. Include direct quotes from the most recent conversation.\n\n"
+                                "This must be a detailed markdown string with these exact sections:\n"
+                                "1. Task State: What the user was trying to accomplish, current status, and whether work is complete, blocked, or continuing.\n"
+                                "2. Durable Context: Stable database/project facts, schema facts, configuration, relevant IDs, model/context settings, and environment facts.\n"
+                                "3. Evidence and Tool Results: Exact verified query/tool results, SQL definitions, table/column names, counts, errors, and outputs needed to avoid redoing work. Mark preview results as previews.\n"
+                                "4. Decisions, Assumptions, and Corrections: Business definitions chosen, user corrections, false starts, and what was changed because of feedback.\n"
+                                "5. Pinned Constraints: Security, privacy, read-only, user-stated constraints, and any instruction that must survive compaction. If none, write \"None stated in this block.\"\n"
+                                "6. User Message Coverage: List ALL user messages from the provided block that are not tool results. This section must not omit earlier user messages in the covered message range.\n"
+                                "7. Open Items and Next Action: Pending tasks, active work, and the next useful action.\n\n"
                                 "Field 2: `memory_bullets`\n"
                                 "This must be a list of retrieval-focused bullet objects designed for Qdrant vector search.\n"
+                                "   - Produce 4 to 12 bullets unless the block truly has less durable information.\n"
                                 "   - Each bullet must contain one searchable atomic fact, decision, config value, error, endpoint, table, column, formula, user preference, tool result, or open item.\n"
                                 "   - Include enough noun context in each bullet so it can stand alone in vector search.\n"
                                 "   - Include one broad overview bullet with type 'overview'.\n"
+                                "   - Prioritize durable facts that help future turns answer correctly: database identity, schema facts, query definitions, real query results, user corrections, explicit preferences, errors, fixes, and open tasks.\n"
+                                "   - Do NOT create many bullets for decorative UI styling details. If styling is the actual task, compress it into one concise overview/config bullet instead of one bullet per color.\n"
+                                "   - If the user corrected a false answer, include a bullet preserving the correction and the verified replacement result.\n"
+                                "   - If a governance/security/user constraint appears, create a `security_fact` bullet for it.\n"
                                 "   - Each object must have: `bullet_id` (string e.g. 'b001'), `bullet_index` (int), `text` (string), `type` (string: 'decision', 'config_fact', 'api_fact', 'database_fact', 'testing_fact', 'security_fact', 'runtime_fact', 'vamp_fact', 'analysis_fact', 'open_item', 'overview', 'other').\n\n"
                                 "Here's an example of how your output should be structured:\n\n"
                                 "<example>\n"
-                                "<analysis>\n"
-                                "[Your thought process, ensuring all points are covered thoroughly and accurately]\n"
-                                "</analysis>\n"
                                 "{\n"
                                 "  \"summary_text\": \"1. Primary Request and Intent:\\n   [Detailed description]\\n\\n2. Key Technical Concepts:\\n   - [Concept 1]\\n...\",\n"
                                 "  \"memory_bullets\": [\n"
@@ -746,7 +803,7 @@ class ConversationService:
                                 "  ]\n"
                                 "}\n"
                                 "</example>\n\n"
-                                "Please provide your summary based on the RECENT messages only, following this structure and ensuring precision and thoroughness in your response. Output ONLY valid JSON after the analysis tags."
+                                "Please provide your summary based on the provided conversation block only, following this structure and ensuring precision and thoroughness in your response. Output ONLY valid JSON."
                             )
                         ),
                         HumanMessage(
@@ -760,25 +817,15 @@ class ConversationService:
                     summary_body = ""
                     memory_bullets = []
                     try:
-                        import json
-
-                        if "```json" in raw_content:
-                            json_str = (
-                                raw_content.split("```json")[1].split("```")[0].strip()
-                            )
-                        elif "```" in raw_content:
-                            json_str = (
-                                raw_content.split("```")[1].split("```")[0].strip()
-                            )
-                        else:
-                            json_str = raw_content
-                        parsed = json.loads(json_str)
+                        parsed = _parse_summary_json_response(raw_content)
                         summary_body = parsed.get("summary_text", "").strip()
                         memory_bullets = parsed.get("memory_bullets", [])
                     except Exception as e:
                         logger.warning("Failed to parse JSON from summarizer: %s", e)
-                        summary_body = raw_content
-                        memory_bullets = []
+                        _clear_summary_claim(doc_ref, claim_id)
+                        result["reason"] = "invalid_summary_json"
+                        result["error"] = str(e)
+                        return result
 
                     if not summary_body:
                         logger.warning(
@@ -786,7 +833,8 @@ class ConversationService:
                             conversation_id,
                         )
                         _clear_summary_claim(doc_ref, claim_id)
-                        return
+                        result["reason"] = "empty_summary"
+                        return result
 
                     new_summary = (
                         f"[Messages {start_idx + 1}-{end_idx}]\n{summary_body}"
@@ -798,7 +846,8 @@ class ConversationService:
                             conversation_id,
                         )
                         _clear_summary_claim(doc_ref, claim_id)
-                        return
+                        result["reason"] = "vamp_disabled"
+                        return result
 
                     from service.conversations.summary_memory import (
                         get_default_summary_memory_writer,
@@ -849,10 +898,20 @@ class ConversationService:
                             "Summary claim commit skipped for %s: claim no longer active",
                             conversation_id,
                         )
-                        return
+                        result["reason"] = "claim_commit_skipped"
+                        return result
                 except Exception:
                     _clear_summary_claim(doc_ref, claim_id)
                     raise
+                result.update(
+                    {
+                        "created": True,
+                        "reason": "created",
+                        "end_idx": end_idx,
+                        "covers_from_turn": covers_from_turn,
+                        "covers_to_turn": covers_to_turn,
+                    }
+                )
                 logger.info(
                     "Generated summary for conversation %s (messages %s to %s, turns %s to %s)",
                     conversation_id,
@@ -867,6 +926,9 @@ class ConversationService:
                 pass
         except Exception as e:
             logger.error(f"Error in background summarization: {e}", exc_info=True)
+            result["reason"] = "error"
+            result["error"] = str(e)
+        return result
 
 
 # ── module-level helpers ─────────────────────────────────────────────
@@ -1236,6 +1298,121 @@ def _ai_message_content_to_str(content) -> str:
                 parts.append(str(block))
         return "".join(parts)
     return str(content) if content else ""
+
+
+def _coerce_message_cursor(value, *, message_count: int) -> int:
+    """Return a safe message cursor for slicing conversation history."""
+    try:
+        cursor = int(value or 0)
+    except (TypeError, ValueError):
+        cursor = 0
+    return max(0, min(cursor, max(0, int(message_count or 0))))
+
+
+def _extract_balanced_json_object(text: str) -> str:
+    """Extract the first balanced JSON object from model output."""
+    start = text.find("{")
+    if start < 0:
+        raise ValueError("No JSON object found in summarizer output")
+
+    depth = 0
+    in_string = False
+    escaped = False
+    for idx in range(start, len(text)):
+        char = text[idx]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == '"':
+                in_string = False
+            continue
+
+        if char == '"':
+            in_string = True
+        elif char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth == 0:
+                return text[start : idx + 1]
+
+    raise ValueError("Unbalanced JSON object in summarizer output")
+
+
+def _normalize_summary_memory_bullets(bullets: list[dict]) -> list[dict]:
+    """Apply deterministic quality gates to VAMP retrieval bullets."""
+    normalized: list[dict] = []
+    seen_texts: set[str] = set()
+
+    for raw_idx, bullet in enumerate(bullets, start=1):
+        if not isinstance(bullet, dict):
+            raise ValueError(f"memory_bullets[{raw_idx}] must be an object")
+
+        text = " ".join(str(bullet.get("text") or "").split())
+        if not text:
+            raise ValueError(f"memory_bullets[{raw_idx}] missing text")
+
+        bullet_type = str(bullet.get("type") or "other").strip()
+        if bullet_type not in _SUMMARY_BULLET_TYPES:
+            bullet_type = "other"
+
+        dedupe_key = text.lower()
+        if dedupe_key in seen_texts:
+            continue
+        seen_texts.add(dedupe_key)
+
+        if len(text) > 260:
+            text = text[:257].rstrip() + "..."
+
+        normalized.append(
+            {
+                **bullet,
+                "bullet_id": str(bullet.get("bullet_id") or f"b{len(normalized) + 1:03d}"),
+                "bullet_index": len(normalized) + 1,
+                "text": text,
+                "type": bullet_type,
+            }
+        )
+
+        if len(normalized) >= 12:
+            break
+
+    if not normalized:
+        raise ValueError("Summarizer JSON missing durable memory_bullets")
+
+    if not any(b.get("type") == "overview" for b in normalized):
+        normalized[0]["type"] = "overview"
+
+    for idx, bullet in enumerate(normalized, start=1):
+        bullet["bullet_index"] = idx
+        if not str(bullet.get("bullet_id") or "").strip():
+            bullet["bullet_id"] = f"b{idx:03d}"
+
+    return normalized
+
+
+def _parse_summary_json_response(raw_content: str) -> dict:
+    """Parse strict summarizer JSON and validate required fields."""
+    cleaned = raw_content.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned.removeprefix("```json").strip()
+    elif cleaned.startswith("```"):
+        cleaned = cleaned.removeprefix("```").strip()
+    if cleaned.endswith("```"):
+        cleaned = cleaned[: -3].strip()
+
+    parsed = json.loads(_extract_balanced_json_object(cleaned))
+    if not isinstance(parsed, dict):
+        raise ValueError("Summarizer JSON root must be an object")
+    if not isinstance(parsed.get("summary_text"), str):
+        raise ValueError("Summarizer JSON missing string summary_text")
+    bullets = parsed.get("memory_bullets")
+    if not isinstance(bullets, list) or not bullets:
+        raise ValueError("Summarizer JSON missing non-empty memory_bullets")
+    parsed["memory_bullets"] = _normalize_summary_memory_bullets(bullets)
+    return parsed
 
 
 def _parse_sse_event(sse_line: str) -> Optional[dict]:

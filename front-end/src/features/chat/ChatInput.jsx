@@ -101,6 +101,20 @@ const ContextProgressRing = ({ total, budget, theme }) => {
   );
 };
 
+const toFiniteNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const percentOf = (used, budget) => {
+  const numericUsed = toFiniteNumber(used);
+  const numericBudget = toFiniteNumber(budget);
+  if (numericUsed == null || numericBudget == null || numericBudget <= 0) {
+    return null;
+  }
+  return Math.min(100, Math.max(0, (numericUsed / numericBudget) * 100));
+};
+
 function ChatInput({
   onSend,
   onStop,
@@ -289,8 +303,12 @@ function ChatInput({
     if (!usageMetrics) return null;
     const activeUsed =
       usageMetrics.inputPayloadTokens ?? usageMetrics.totalTokens;
-    const activeBudget =
-      usageMetrics.pressureTriggerTokens ?? usageMetrics.activeContextBudget;
+    const rawActiveBudget =
+      usageMetrics.contextPhase === "pre_summary"
+        ? (usageMetrics.summaryThresholdTokens ??
+          usageMetrics.pressureTriggerTokens ??
+          usageMetrics.activeContextBudget)
+        : (usageMetrics.pressureTriggerTokens ?? usageMetrics.activeContextBudget);
     const modelWindow =
       usageMetrics.modelContextWindow ?? usageMetrics.totalContextWindow;
     const totalUsed = activeUsed 
@@ -299,12 +317,18 @@ function ChatInput({
       + (usageMetrics.vampMemoryTokens || 0)
       + (usageMetrics.taskCheckpointTokens || 0);
 
-    if (activeUsed == null || activeBudget == null) return null;
+    const activePercent = percentOf(activeUsed, rawActiveBudget);
+    const modelPercent = percentOf(totalUsed, modelWindow);
+    if (activePercent == null) return null;
     return {
       activeUsed,
       totalUsed,
-      activeBudget,
+      activeBudget: rawActiveBudget,
       modelWindow,
+      activePercent,
+      modelPercent,
+      indicatorUsed: activeUsed,
+      indicatorBudget: rawActiveBudget,
       tokenCountingMode: usageMetrics.tokenCountingMode,
       contextPhase: usageMetrics.contextPhase,
       summaryThresholdTokens: usageMetrics.summaryThresholdTokens,
@@ -910,33 +934,33 @@ function ChatInput({
                       <Box sx={{ mt: 1.5, mb: 1 }}>
                         <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5, alignItems: "center" }}>
                           <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                            {contextUsage.contextPhase === "pre_summary" ? "Summary Progress" : "Active Context"}
+                            {contextUsage.contextPhase === "pre_summary" ? "Summary Trigger" : "Active Context"}
                           </Typography>
                           <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                            {Math.round((contextUsage.activeUsed / contextUsage.activeBudget) * 100)}%
+                            {Math.round(contextUsage.activePercent)}%
                           </Typography>
                         </Box>
                         <LinearProgress 
                           variant="determinate" 
-                          value={Math.min(100, (contextUsage.activeUsed / contextUsage.activeBudget) * 100)} 
-                          color={(contextUsage.activeUsed / contextUsage.activeBudget) > 0.9 ? "error" : (contextUsage.activeUsed / contextUsage.activeBudget) > 0.75 ? "warning" : "primary"}
+                          value={contextUsage.activePercent} 
+                          color={contextUsage.activePercent > 90 ? "error" : contextUsage.activePercent > 75 ? "warning" : "primary"}
                           sx={{ height: 6, borderRadius: 3, mb: 1.5, bgcolor: "background.default" }}
                         />
 
-                        {contextUsage.modelWindow != null && (
+                        {contextUsage.modelPercent != null && (
                           <>
                             <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5, alignItems: "center" }}>
                               <Typography variant="caption" sx={{ fontWeight: 500 }}>
                                 Model Capacity
                               </Typography>
                               <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                                {Math.round((contextUsage.totalUsed / contextUsage.modelWindow) * 100)}%
+                                {Math.round(contextUsage.modelPercent)}%
                               </Typography>
                             </Box>
                             <LinearProgress 
                               variant="determinate" 
-                              value={Math.min(100, (contextUsage.totalUsed / contextUsage.modelWindow) * 100)} 
-                              color={(contextUsage.totalUsed / contextUsage.modelWindow) > 0.9 ? "error" : (contextUsage.totalUsed / contextUsage.modelWindow) > 0.75 ? "warning" : "primary"}
+                              value={contextUsage.modelPercent} 
+                              color={contextUsage.modelPercent > 90 ? "error" : contextUsage.modelPercent > 75 ? "warning" : "primary"}
                               sx={{ height: 6, borderRadius: 3, bgcolor: "background.default" }}
                             />
                           </>
@@ -968,8 +992,8 @@ function ChatInput({
                     startIcon={
                       contextUsage ? (
                         <ContextProgressRing
-                          total={contextUsage.activeUsed}
-                          budget={contextUsage.activeBudget}
+                          total={contextUsage.indicatorUsed}
+                          budget={contextUsage.indicatorBudget}
                           theme={theme}
                         />
                       ) : undefined

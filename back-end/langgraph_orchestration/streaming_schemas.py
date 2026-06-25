@@ -68,6 +68,9 @@ class UsageMetricsEvent(BaseModel):
     tokenCountingMode: str | None = None
     tokenCountingReason: str | None = None
     inputPayloadTokens: int | None = None
+    contextPhase: str | None = None
+    summaryThresholdTokens: int | None = None
+    summaryCompleteTurns: int | None = None
     model_extra: dict[str, Any] | None = None
 
     class Config:

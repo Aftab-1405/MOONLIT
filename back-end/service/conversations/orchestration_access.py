@@ -41,12 +41,14 @@ class ConversationOrchestrationAccess:
         user_id: str,
         model: str | None = None,
         thread_id: str | None = None,
-    ) -> None:
-        await ConversationService.check_and_summarize(
+        pressure_budget_tokens: int | None = None,
+    ) -> dict:
+        return await ConversationService.check_and_summarize(
             conversation_id,
             user_id,
             model,
             thread_id=thread_id,
+            pressure_budget_tokens=pressure_budget_tokens,
         )
 
 

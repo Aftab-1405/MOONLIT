@@ -41,8 +41,9 @@ class ConversationSummarizer(Protocol):
         user_id: str,
         model: str | None = None,
         thread_id: str | None = None,
-    ) -> None:
-        """Summarize conversation history when needed."""
+        pressure_budget_tokens: int | None = None,
+    ) -> dict:
+        """Summarize conversation history when needed and return write status."""
 
 
 @runtime_checkable

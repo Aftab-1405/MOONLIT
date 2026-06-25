@@ -82,7 +82,8 @@ class SummaryBlockRepository:
         def update_in_transaction(transaction):
             conv_snapshot = conv_ref.get(transaction=transaction)
             if conv_snapshot.exists:
-                idx = int(conv_snapshot.get("summary_count") or 0)
+                conv_data = conv_snapshot.to_dict() or {}
+                idx = int(conv_data.get("summary_count") or 0)
             else:
                 idx = 0
 
