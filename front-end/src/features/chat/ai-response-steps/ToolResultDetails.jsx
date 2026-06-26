@@ -182,6 +182,7 @@ const ColumnChip = ({ column }) => {
         px: 0.8,
         py: 0.35,
         borderRadius: '4px',
+        border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.075 : 0.055)}`,
         bgcolor: alpha(theme.palette.text.primary, isDark ? 0.05 : 0.03),
         transition: TRANSITIONS.default,
         '&:hover': {
@@ -305,7 +306,7 @@ const SchemaResultDetails = ({ result }) => {
                     '&:hover': columns?.length
                       ? {
                           bgcolor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.025),
-                          borderRadius: '4px',
+                          borderRadius: '8px',
                         }
                       : {},
                   }}
@@ -336,8 +337,8 @@ const SchemaResultDetails = ({ result }) => {
                       {columns?.length > 0 && (
                         <KeyboardArrowDownIcon
                           sx={{
-                            fontSize: 14,
-                            color: alpha(theme.palette.text.secondary, 0.35),
+                            fontSize: 15,
+                            color: alpha(theme.palette.text.secondary, isDark ? 0.68 : 0.58),
                             transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                             transition: TRANSITIONS.default,
                           }}
@@ -488,7 +489,7 @@ const WebSearchResultDetails = ({ result, args }) => {
                     overflowWrap: 'anywhere',
                     transition: TRANSITIONS.default,
                     '&:hover': {
-                      color: theme.palette.primary.main,
+                      color: theme.palette.text.primary,
                       textDecoration: 'none',
                     },
                   }}

@@ -10,13 +10,14 @@ import {
   FormControl,
   Fade,
   useMediaQuery,
+  Typography,
 } from '@mui/material';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
 import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
-import PsychologyRoundedIcon from '@mui/icons-material/PsychologyRounded';
+import MemoryIcon from '@mui/icons-material/Memory';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import UserDBContextManagerForAI from '@/features/overlays/settings/UserDBContextManagerForAI';
@@ -43,7 +44,7 @@ const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: PaletteRoundedIcon },
   { id: 'ai', label: 'Moonlit', icon: AutoAwesomeRoundedIcon },
   { id: 'database', label: 'Database', icon: DatabaseIcon },
-  { id: 'context', label: 'AI Context', icon: PsychologyRoundedIcon },
+  { id: 'context', label: 'AI Context', icon: MemoryIcon },
 ];
 
 function SettingsModal({
@@ -291,9 +292,23 @@ function SettingsModal({
         return (
           <Fade in key="context">
             <Box>
-              <PreferenceSection title="AI Context">
-                <UserDBContextManagerForAI />
-              </PreferenceSection>
+              <Box sx={{ mb: { xs: 5, md: 6.5 } }}>
+                <Typography
+                  component="h2"
+                  sx={(theme) => ({
+                    ...theme.typography.uiCardTitle,
+                    color: "text.primary",
+                    fontWeight: 650,
+                    pb: { xs: 1.5, md: 2 },
+                    letterSpacing: 0,
+                  })}
+                >
+                  AI Context
+                </Typography>
+                <Box sx={{ mt: 0.5 }}>
+                  <UserDBContextManagerForAI />
+                </Box>
+              </Box>
             </Box>
           </Fade>
         );

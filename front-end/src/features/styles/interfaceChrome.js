@@ -20,18 +20,44 @@ function getHairlineBorder(theme, opacity = null) {
   return `0.5px solid ${alpha(theme.palette.text.primary, o)}`;
 }
 
-export function getShellWorkspaceSx(theme) {
+export function getAppDividerColor(theme) {
+  return alpha(
+    theme.palette.text.primary,
+    theme.palette.mode === 'dark' ? 0.09 : 0.07,
+  );
+}
+
+export function getAppPanelSurfaceSx(theme) {
   const isDark = theme.palette.mode === 'dark';
   return {
+    backgroundColor: isDark
+      ? theme.palette.background.paper
+      : alpha(theme.palette.background.paper, 0.98),
+    backgroundImage: 'none',
+  };
+}
+
+export function getAppBarSurfaceSx(theme) {
+  const isDark = theme.palette.mode === 'dark';
+  return {
+    backgroundColor: isDark
+      ? theme.palette.background.paper
+      : alpha(theme.palette.background.paper, 0.98),
+    backgroundImage: 'none',
+  };
+}
+
+export function getAppSunkenSurfaceSx(theme) {
+  return {
     backgroundColor: theme.palette.background.default,
-    backgroundImage: [
-      isDark
-        ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.018)} 0%, transparent 32%)`
-        : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.012)} 0%, transparent 34%)`,
-      isDark
-        ? `radial-gradient(ellipse 90% 56% at 50% 0%, ${alpha(theme.palette.common.white, 0.025)} 0%, transparent 62%)`
-        : `radial-gradient(ellipse 90% 56% at 50% 0%, ${alpha(theme.palette.common.black, 0.018)} 0%, transparent 64%)`,
-    ].join(', '),
+    backgroundImage: 'none',
+  };
+}
+
+export function getShellWorkspaceSx(theme) {
+  return {
+    backgroundColor: theme.palette.background.default,
+    backgroundImage: 'none',
   };
 }
 
@@ -39,56 +65,38 @@ export function getSidebarChromeSx(theme) {
   const isDark = theme.palette.mode === 'dark';
   return {
     borderRight: getHairlineBorder(theme, isDark ? 0.09 : 0.07),
-    boxShadow: isDark
-      ? `inset -1px 0 0 ${alpha(theme.palette.common.white, 0.04)}`
-      : `1px 0 0 ${alpha(theme.palette.common.black, 0.04)}`,
+    boxShadow: 'none',
   };
 }
 
-export function getComposerSurfaceSx(theme, { isFocused = false } = {}) {
+export function getComposerSurfaceSx(theme) {
   const isDark = theme.palette.mode === 'dark';
   const ring = alpha(theme.palette.text.primary, isDark ? 0.18 : 0.14);
-  const ringFocus = alpha(theme.palette.text.primary, isDark ? 0.36 : 0.28);
-  const shadowBase = isDark ? 0.18 : 0.055;
-  const shadowFocus = isDark ? 0.3 : 0.095;
 
   return {
     borderRadius: INTERFACE_RADIUS.composer,
     border: '1px solid transparent',
+    overflow: 'hidden',
     backgroundColor: isDark
       ? alpha(theme.palette.background.paper, 0.94)
       : alpha(theme.palette.background.paper, 1),
-    backgroundImage: isDark
-      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.035)} 0%, transparent 48%)`
-      : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.88)} 0%, ${alpha(theme.palette.background.paper, 0.98)} 100%)`,
-    boxShadow: isFocused
-      ? `0 8px 22px ${alpha(theme.palette.common.black, shadowFocus)}, 0 0 0 1px ${ringFocus}`
-      : `0 4px 14px ${alpha(theme.palette.common.black, shadowBase)}, 0 0 0 1px ${ring}`,
+    backgroundImage: 'none',
+    boxShadow: `0 0 0 1px ${ring}`,
     transition: 'box-shadow 160ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 140ms ease, transform 140ms ease',
   };
 }
 
-export function getComposerHoverShadow(theme, { isFocused = false } = {}) {
+export function getComposerHoverShadow(theme) {
   const isDark = theme.palette.mode === 'dark';
-  const ring = alpha(theme.palette.text.primary, isDark ? 0.24 : 0.2);
-  const ringFocus = alpha(theme.palette.text.primary, isDark ? 0.42 : 0.32);
-  const shadowBase = isDark ? 0.22 : 0.07;
-  const shadowFocus = isDark ? 0.34 : 0.11;
-  return isFocused
-    ? `0 9px 24px ${alpha(theme.palette.common.black, shadowFocus)}, 0 0 0 1px ${ringFocus}`
-    : `0 5px 16px ${alpha(theme.palette.common.black, shadowBase)}, 0 0 0 1px ${ring}`;
+  const ring = alpha(theme.palette.text.primary, isDark ? 0.18 : 0.14);
+  return `0 0 0 1px ${ring}`;
 }
 
 export function getArtifactPanelChromeSx(theme) {
   const isDark = theme.palette.mode === 'dark';
   return {
     borderLeft: getHairlineBorder(theme, isDark ? 0.09 : 0.07),
-    backgroundColor: isDark
-      ? alpha(theme.palette.background.default, 0.72)
-      : alpha(theme.palette.background.paper, 0.94),
-    backgroundImage: isDark
-      ? `linear-gradient(90deg, ${alpha(theme.palette.common.white, 0.02)} 0%, transparent 24%)`
-      : `linear-gradient(90deg, ${alpha(theme.palette.common.black, 0.015)} 0%, transparent 20%)`,
+    ...getAppPanelSurfaceSx(theme),
   };
 }
 
@@ -108,12 +116,10 @@ export function getPreferencePanelPaperSx(theme, left, width) {
     borderRadius: 0,
     borderLeft: getHairlineBorder(theme, isDark ? 0.1 : 0.08),
     backgroundColor: theme.palette.background.default,
-    backgroundImage: isDark
-      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.03)} 0%, transparent 22%)`
-      : `linear-gradient(180deg, ${alpha(theme.palette.common.black, 0.02)} 0%, transparent 24%)`,
-    boxShadow: isDark
-      ? `-12px 0 40px ${alpha('#000', 0.35)}`
-      : `-8px 0 32px ${alpha('#000', 0.06)}`,
+    backgroundImage: 'none',
+    backdropFilter: 'none',
+    WebkitBackdropFilter: 'none',
+    boxShadow: 'none',
   };
 }
 
@@ -122,10 +128,8 @@ export function getPreferenceSectionSurfaceSx(theme) {
   return {
     borderRadius: INTERFACE_RADIUS.panel,
     border: getHairlineBorder(theme, isDark ? 0.08 : 0.06),
-    backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.4 : 0.65),
-    backgroundImage: isDark
-      ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.03)} 0%, transparent 100%)`
-      : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.55)} 0%, transparent 100%)`,
+    backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.72 : 0.86),
+    backgroundImage: 'none',
     overflow: 'hidden',
     boxSizing: 'border-box',
     px: { xs: 2, sm: 2.5 },

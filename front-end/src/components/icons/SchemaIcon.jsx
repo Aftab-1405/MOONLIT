@@ -1,7 +1,7 @@
-import TableChartOutlinedIcon from '@mui/icons-material/TableChartOutlined';
+import AccountTreeRoundedIcon from '@mui/icons-material/AccountTreeRounded';
 
 function SchemaIcon(props) {
-  return <TableChartOutlinedIcon fontSize="inherit" {...props} />;
+  return <AccountTreeRoundedIcon fontSize="inherit" {...props} />;
 }
 
 export default SchemaIcon;

@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import { alpha, keyframes } from "@mui/material/styles";
 import Fade from "@mui/material/Fade";
+import InlineExecutionTable from "./InlineExecutionTable";
 import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
@@ -35,7 +36,7 @@ const FENCED_CODE_BLOCK_PATTERN = /```([A-Za-z0-9_-]+)[^\n]*\n([\s\S]*?)```/g;
 
 const softPulse = keyframes`
   0%, 100% { opacity: 1; }
-  50% { opacity: 0.58; }
+  50% { opacity: 0.76; }
 `;
 
 const messageActionsRowSx = {
@@ -62,6 +63,26 @@ const turnGroupHoverSx = {
     "& .msg-actions-row": { opacity: 1, transform: "translateY(0)" },
   },
 };
+
+const getMessageActionButtonSx = (theme, copied = false) => ({
+  width: 30,
+  height: 30,
+  borderRadius: "8px",
+  color: copied ? "success.main" : "text.secondary",
+  transition: theme.transitions.create(["background-color", "color"], {
+    duration: theme.transitions.duration.shorter,
+  }),
+  [HOVER_CAPABLE_QUERY]: {
+    "&:hover": {
+      color: "text.primary",
+      bgcolor: alpha(theme.palette.text.primary, 0.045),
+    },
+  },
+  "&:focus-visible": {
+    outline: `2px solid ${alpha(theme.palette.text.primary, theme.palette.mode === "dark" ? 0.18 : 0.12)}`,
+    outlineOffset: 2,
+  },
+});
 
 function useCopyToClipboard() {
   const [copied, setCopied] = useState(false);
@@ -133,6 +154,8 @@ const CopyButton = memo(function CopyButton({
   sx = {},
   "data-testid": dataTestId,
 }) {
+  const theme = useTheme();
+
   return (
     <Tooltip title={copied ? "Copied!" : "Copy"}>
       <IconButton
@@ -142,15 +165,7 @@ const CopyButton = memo(function CopyButton({
         size="small"
         onClick={onClick}
         color="inherit"
-        sx={{
-          color: copied ? "success.main" : "text.secondary",
-          transition: "color 140ms ease, background-color 140ms ease",
-          "&:hover": {
-            color: "text.primary",
-            bgcolor: (th) => alpha(th.palette.text.primary, 0.04),
-          },
-          ...sx,
-        }}
+        sx={{ ...getMessageActionButtonSx(theme, copied), ...sx }}
       >
         {copied ? (
           <CheckRoundedIcon sx={{ fontSize: 18 }} />
@@ -168,7 +183,11 @@ const UserMessage = memo(function UserMessage({ message }) {
   const handleCopy = useCallback(() => copyText(message), [copyText, message]);
   const bubbleBg = alpha(
     theme.palette.text.primary,
-    theme.palette.mode === "dark" ? 0.08 : 0.06,
+    theme.palette.mode === "dark" ? 0.055 : 0.035,
+  );
+  const bubbleBorder = alpha(
+    theme.palette.text.primary,
+    theme.palette.mode === "dark" ? 0.1 : 0.075,
   );
 
   return (
@@ -193,10 +212,12 @@ const UserMessage = memo(function UserMessage({ message }) {
               display: "inline-flex",
               flexDirection: "column",
               maxWidth: { xs: "min(90%, 72ch)", sm: "min(78%, 75ch)" },
-              borderRadius: "16px 16px 4px 16px",
+              borderRadius: "14px 14px 6px 14px",
               px: { xs: 1.5, sm: 1.75 },
               py: { xs: 1, sm: 1.1 },
               bgcolor: bubbleBg,
+              border: "1px solid",
+              borderColor: bubbleBorder,
               color: "text.primary",
             }}
           >
@@ -238,6 +259,41 @@ function parseJSON(value) {
   } catch {
     return null;
   }
+}
+
+function getQueryExecutionMeta(step, fallbackConversationId = null) {
+  if (
+    step?.name !== "execute_query" ||
+    step?.status !== "done" ||
+    !step?.result
+  ) {
+    return null;
+  }
+
+  const parsedResult = parseJSON(step.result);
+  const result =
+    parsedResult && typeof parsedResult === "object" ? parsedResult : {};
+  const nestedResult =
+    result.data && typeof result.data === "object" && !Array.isArray(result.data)
+      ? result.data
+      : {};
+  const executionId =
+    result.execution_id ||
+    result.executionId ||
+    nestedResult.execution_id ||
+    nestedResult.executionId;
+
+  if (!executionId) return null;
+
+  return {
+    executionId,
+    conversationId:
+      result.conversation_id ||
+      result.conversationId ||
+      nestedResult.conversation_id ||
+      nestedResult.conversationId ||
+      fallbackConversationId,
+  };
 }
 
 /**
@@ -300,6 +356,12 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
 }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
+  const panelBorder = alpha(theme.palette.text.primary, isDark ? 0.1 : 0.075);
+  const panelBg = alpha(theme.palette.text.primary, isDark ? 0.028 : 0.018);
+  const panelHoverBg = alpha(
+    theme.palette.text.primary,
+    isDark ? 0.045 : 0.03,
+  );
 
   return (
     <Box
@@ -310,17 +372,22 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
         px: { xs: 1.25, sm: 1.5 },
         py: { xs: 1.1, sm: 1.25 },
         borderRadius: "8px",
-        bgcolor: alpha(theme.palette.primary.main, isDark ? 0.05 : 0.03),
-        transition:
-          "background-color 160ms ease, box-shadow 160ms ease",
+        border: "1px solid",
+        borderColor: panelBorder,
+        bgcolor: panelBg,
+        transition: theme.transitions.create(["background-color", "border-color"], {
+          duration: theme.transitions.duration.shorter,
+        }),
         ...(!isGenerating && {
-          "&:hover": {
-            bgcolor: alpha(theme.palette.primary.main, isDark ? 0.08 : 0.05),
+          [HOVER_CAPABLE_QUERY]: {
+            "&:hover": {
+              bgcolor: panelHoverBg,
+              borderColor: alpha(theme.palette.text.primary, isDark ? 0.14 : 0.1),
+            },
           },
         }),
       }}
     >
-      {/* ── Icon container ─────────────────────────────────── */}
       <Box
         sx={{
           width: { xs: 36, sm: 40 },
@@ -330,7 +397,7 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
           alignItems: "center",
           justifyContent: "center",
           flexShrink: 0,
-          bgcolor: alpha(theme.palette.primary.main, isDark ? 0.15 : 0.09),
+          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.075 : 0.045),
           transition: "background-color 140ms ease",
           ...(isGenerating && {
             animation: `${softPulse} 2.2s ease-in-out infinite`,
@@ -344,14 +411,13 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
           sx={{
             fontSize: { xs: 18, sm: 20 },
             color: isGenerating
-              ? alpha(theme.palette.primary.main, isDark ? 0.5 : 0.55)
-              : theme.palette.primary.main,
+              ? alpha(theme.palette.text.primary, isDark ? 0.38 : 0.34)
+              : alpha(theme.palette.text.primary, isDark ? 0.74 : 0.68),
             transition: "color 140ms ease",
           }}
         />
       </Box>
 
-      {/* ── Text ───────────────────────────────────────────── */}
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography
           sx={{
@@ -381,7 +447,7 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",
             color: isGenerating
-              ? alpha(theme.palette.primary.main, 0.45)
+              ? alpha(theme.palette.text.primary, isDark ? 0.34 : 0.3)
               : alpha(theme.palette.text.secondary, isDark ? 0.55 : 0.65),
           }}
         >
@@ -389,7 +455,6 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
         </Typography>
       </Box>
 
-      {/* ── Action ─────────────────────────────────────────── */}
       {isGenerating ? (
         <Box
           aria-hidden
@@ -398,7 +463,7 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
             px: { xs: 1.75, sm: 2.25 },
             py: 0.625,
             borderRadius: "6px",
-            bgcolor: alpha(theme.palette.primary.main, isDark ? 0.08 : 0.05),
+            bgcolor: alpha(theme.palette.text.primary, isDark ? 0.055 : 0.035),
           }}
         >
           <Typography
@@ -408,7 +473,7 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
               fontSize: { xs: "0.75rem", sm: "0.8125rem" },
               fontWeight: 600,
               userSelect: "none",
-              color: alpha(theme.palette.primary.main, 0.45),
+              color: alpha(theme.palette.text.primary, isDark ? 0.42 : 0.38),
             }}
           >
             Building\u2026
@@ -431,13 +496,16 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
             fontWeight: 650,
             px: { xs: 1.75, sm: 2.25 },
             py: 0.625,
-            borderColor: alpha(theme.palette.primary.main, 0.28),
+            color: "text.primary",
+            borderColor: alpha(theme.palette.text.primary, isDark ? 0.18 : 0.14),
             transition:
               "background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease",
-            "&:hover": {
-              borderColor: theme.palette.primary.main,
-              bgcolor: alpha(theme.palette.primary.main, 0.05),
-              boxShadow: "none",
+            [HOVER_CAPABLE_QUERY]: {
+              "&:hover": {
+                borderColor: alpha(theme.palette.text.primary, isDark ? 0.24 : 0.18),
+                bgcolor: alpha(theme.palette.text.primary, isDark ? 0.065 : 0.045),
+                boxShadow: "none",
+              },
             },
             "&:active": {
               transform: "translateY(1px)",
@@ -459,13 +527,10 @@ const AIMessage = memo(function AIMessage({
   status,
   onRunQuery,
   onOpenCanvasArtifact,
+  conversationId,
 }) {
   const { copied, copyRich } = useCopyToClipboard();
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
   const contentRef = useRef(null);
-  const sqlEditorTimeoutRef = useRef(null);
-  const openedToolsRef = useRef(new Set());
   const openedArtifactsRef = useRef(new Set());
 
   const isStreaming = status === MESSAGE_STATUS.STREAMING;
@@ -547,65 +612,7 @@ const AIMessage = memo(function AIMessage({
     [generatingArtifacts, artifacts],
   );
 
-  useEffect(() => {
-    return () => {
-      if (sqlEditorTimeoutRef.current)
-        clearTimeout(sqlEditorTimeoutRef.current);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!onOpenCanvasArtifact || isWaiting || isStreaming) return;
-
-    // Only auto-trigger the results loader if the message was actively streamed/generated in this session
-    if (!wasStreamingOrWaitingRef.current) return;
-
-    displaySteps.forEach((step, idx) => {
-      if (
-        step.type !== "tool" ||
-        step.name !== "execute_query" ||
-        step.status !== "done"
-      )
-        return;
-      const stepKey = `${id}-${step.id || idx}`;
-      if (openedToolsRef.current.has(stepKey)) return;
-
-      const parsedArgs = parseJSON(step.args);
-      const parsedResult = parseJSON(step.result);
-      if (!parsedResult || parsedResult.success === false || parsedResult.error)
-        return;
-
-      openedToolsRef.current.add(stepKey);
-
-      const query = parsedArgs?.query || "";
-      const resultRows = Array.isArray(parsedResult?.data)
-        ? parsedResult.data
-        : Array.isArray(parsedResult?.preview)
-          ? parsedResult.preview
-          : [];
-      const normalizedResults = {
-        columns: parsedResult?.columns || [],
-        result: resultRows,
-        row_count: parsedResult?.row_count || 0,
-        total_rows: parsedResult?.total_rows || parsedResult?.row_count || 0,
-        truncated: parsedResult?.truncated || false,
-      };
-
-      if (sqlEditorTimeoutRef.current)
-        clearTimeout(sqlEditorTimeoutRef.current);
-      sqlEditorTimeoutRef.current = setTimeout(() => {
-        onOpenCanvasArtifact({
-          type: "results",
-          title: "Query results",
-          props: {
-            data: normalizedResults,
-            sourceQuery: query,
-            sourceType: "sql-editor",
-          },
-        });
-      }, 100);
-    });
-  }, [displaySteps, id, isStreaming, isWaiting, onOpenCanvasArtifact]);
+  // The execute_query trigger has been removed since results are now displayed inline.
 
   useEffect(() => {
     if (!onOpenCanvasArtifact || isWaiting || isStreaming) return;
@@ -658,16 +665,26 @@ const AIMessage = memo(function AIMessage({
   );
 
   const renderStepBlock = useCallback(
-    (step, key) => (
-      <Box
-        key={key}
-        data-testid={`assistant-${step.type}-step`}
-        sx={{ pl: { xs: 0, sm: 0.5 }, py: 0.5, minWidth: 0 }}
-      >
-        <StepsAccordion steps={[step]} isStreaming={isWaiting || isStreaming} />
-      </Box>
-    ),
-    [isStreaming, isWaiting],
+    (step, key) => {
+      const executionMeta = getQueryExecutionMeta(step, conversationId);
+
+      return (
+        <Box
+          key={key}
+          data-testid={`assistant-${step.type}-step`}
+          sx={{ pl: { xs: 0, sm: 0.5 }, py: 0.5, minWidth: 0 }}
+        >
+          <StepsAccordion steps={[step]} isStreaming={isWaiting || isStreaming} />
+          {executionMeta?.executionId && (
+            <InlineExecutionTable
+              conversationId={executionMeta.conversationId}
+              executionId={executionMeta.executionId}
+            />
+          )}
+        </Box>
+      );
+    },
+    [isStreaming, isWaiting, conversationId],
   );
 
   return (
@@ -707,27 +724,12 @@ const AIMessage = memo(function AIMessage({
             })
           ) : (
             <>
-              {displaySteps.length > 0 && (
-                <Box
-                  sx={{
-                    pl: { xs: 0, sm: 0.5 },
-                    py: 0.5,
-                    minWidth: 0,
-                    animation: `${slideIn} 0.22s ease-out both`,
-                    "@media (prefers-reduced-motion: reduce)": {
-                      animation: "none",
-                    },
-                  }}
-                >
-                  <StepsAccordion
-                    steps={displaySteps}
-                    isStreaming={isWaiting || isStreaming}
-                  />
-                </Box>
+              {displaySteps.map((step, index) =>
+                renderStepBlock(step, step.id || `${step.type}-${index}`),
               )}
 
               {displayText.trim() &&
-                renderTextBlock(displayText, "legacy-text")}
+                renderTextBlock(displayText, "fallback-text")}
             </>
           )}
 
@@ -855,7 +857,7 @@ const ConversationLoadingSkeleton = memo(
               sx={{
                 width: { xs: 148, sm: 210 },
                 height: { xs: 30, sm: 38 },
-                borderRadius: "12px",
+                borderRadius: "10px",
                 bgcolor: skBg,
               }}
             />
@@ -917,7 +919,7 @@ const ConversationLoadingSkeleton = memo(
               sx={{
                 width: { xs: 100, sm: 148 },
                 height: { xs: 30, sm: 38 },
-                borderRadius: "12px",
+                borderRadius: "10px",
                 bgcolor: skBg,
               }}
             />
@@ -960,6 +962,7 @@ const MessageList = memo(function MessageList({
   messages = [],
   isLoadingConversation = false,
   loadError = false,
+  conversationId = null,
   onRunQuery,
   onOpenCanvasArtifact,
 }) {
@@ -1019,7 +1022,7 @@ const MessageList = memo(function MessageList({
           }}
         >
           <ErrorOutlineRoundedIcon
-            sx={{ fontSize: 20, color: "text.disabled", mb: 0.25 }}
+            sx={{ fontSize: 20, color: "text.secondary", mb: 0.25 }}
           />
           <Typography
             sx={(th) => ({
@@ -1118,6 +1121,7 @@ const MessageList = memo(function MessageList({
               status={message.status}
               onRunQuery={onRunQuery}
               onOpenCanvasArtifact={onOpenCanvasArtifact}
+              conversationId={conversationId}
             />
           ),
         )}

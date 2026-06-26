@@ -407,22 +407,22 @@ export const getDialogPaperSx = (
     desktopMinHeight = 400,
   } = {},
 ) => ({
-  borderRadius: isMobile ? 0 : 3,
-  backgroundImage: 'none',
-  backgroundColor: theme.palette.background.paper,
-  height: isMobile
-    ? '100vh'
-    : `calc(100vh - ${UI_LAYOUT.dialogDesktopOffset}px)`,
-  maxHeight: isMobile ? '100vh' : desktopMaxHeight,
-  minHeight: isMobile ? '100vh' : desktopMinHeight,
-  [DIALOG_VIEWPORT_SUPPORT_QUERY]: isMobile
-    ? {
-        height: '100dvh',
-        maxHeight: '100dvh',
-        minHeight: '100dvh',
-      }
-    : {},
-  overflow: 'hidden',
+  ...getPopoverPaperSx(theme, theme.palette.mode === 'dark', {
+    borderRadius: isMobile ? 0 : '16px',
+    height: isMobile
+      ? '100vh'
+      : `calc(100vh - ${UI_LAYOUT.dialogDesktopOffset}px)`,
+    maxHeight: isMobile ? '100vh' : desktopMaxHeight,
+    minHeight: isMobile ? '100vh' : desktopMinHeight,
+    [DIALOG_VIEWPORT_SUPPORT_QUERY]: isMobile
+      ? {
+          height: '100dvh',
+          maxHeight: '100dvh',
+          minHeight: '100dvh',
+        }
+      : {},
+    overflow: 'hidden',
+  })
 });
 
 export const getDialogHeaderSx = () => ({

@@ -1,7 +1,6 @@
 import { memo } from 'react';
 import {
   Box,
-  Card,
   Fade,
   IconButton,
   Stack,
@@ -9,19 +8,28 @@ import {
   Typography,
   useMediaQuery,
 } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded';
 import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { getScrollbarStyles, UI_Z_INDEX } from '@/styles/shared';
 import {
+  getAppBarSurfaceSx,
+  getAppDividerColor,
+  getAppPanelSurfaceSx,
+} from '@/features/styles/interfaceChrome';
+import {
   ARTIFACT_ROOT_SX,
-  ARTIFACT_STANDALONE_INSET,
   getArtifactActionButtonSx,
   useArtifactActions,
 } from '@/features/sidebar-right/artifact-loader/artifactLayoutUtils';
 
-
+function getArtifactBarSx(theme) {
+  return {
+    borderColor: getAppDividerColor(theme),
+    ...getAppBarSurfaceSx(theme),
+  };
+}
 
 function ArtifactActionButton({
   label,
@@ -62,8 +70,7 @@ function ArtifactToolbar({ children, sx = {} }) {
         flexShrink: 0,
         p: isMobile ? 1.5 : 2,
         borderBottom: '1px solid',
-        borderColor: theme.palette.border.subtle,
-        bgcolor: theme.palette.background.paper,
+        ...getArtifactBarSx(theme),
         ...sx,
       }}
     >
@@ -93,23 +100,34 @@ function ArtifactHeader({
         flexShrink: 0,
         p: isMobile ? 1.5 : 2,
         borderBottom: '1px solid',
-        borderColor: theme.palette.border.subtle,
-        bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.55 : 0.98),
-        backgroundImage: theme.palette.mode === 'dark'
-          ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.03)} 0%, transparent 100%)`
-          : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.55)} 0%, transparent 100%)`,
+        ...getArtifactBarSx(theme),
         ...sx,
       }}
     >
-      <Stack direction="row" alignItems="center" gap={1} minWidth={0}>
-        {icon ? <Box sx={{ display: 'flex', color: 'text.secondary', flexShrink: 0 }}>{icon}</Box> : null}
+      <Stack direction="row" alignItems="center" gap={1} minWidth={0} flex={1}>
+        {icon ? (
+          <Box
+            sx={{
+              width: 30,
+              height: 30,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'text.secondary',
+              flexShrink: 0,
+            }}
+          >
+            {icon}
+          </Box>
+        ) : null}
         <Box sx={{ minWidth: 0 }}>
           <Typography
             noWrap
             sx={{
               ...theme.typography.uiBodyMd,
-              fontWeight: 650,
+              fontWeight: 600,
               color: 'text.primary',
+              lineHeight: 1.35,
             }}
           >
             {title}
@@ -174,8 +192,7 @@ function ArtifactFooter({ children, sx = {} }) {
         px: isMobile ? 1.5 : 2,
         py: 1.5,
         borderTop: '1px solid',
-        borderColor: theme.palette.border.subtle,
-        bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.5 : 1),
+        ...getArtifactBarSx(theme),
         ...sx,
       }}
     >
@@ -205,12 +222,21 @@ export function ArtifactEmptyState({
         ...sx,
       }}
     >
-      {icon ? <Box sx={{ display: 'flex', color: 'text.disabled', opacity: 0.58 }}>{icon}</Box> : null}
+      {icon ? (
+        <Box
+          sx={{
+            display: 'flex',
+            color: 'text.secondary',
+          }}
+        >
+          {icon}
+        </Box>
+      ) : null}
       <Typography sx={{ ...theme.typography.uiBodyMd, color: 'text.secondary', fontWeight: 600 }}>
         {title}
       </Typography>
       {message ? (
-        <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.disabled', maxWidth: 360 }}>
+        <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary', maxWidth: 360 }}>
           {message}
         </Typography>
       ) : null}
@@ -241,7 +267,6 @@ function ArtifactShell({
   bodySx = {},
 }) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isStandalone = chrome === 'standalone';
   const requestClose = onRequestClose || onClose;
   const handleFullscreenClick = isFullscreen
@@ -271,18 +296,15 @@ function ArtifactShell({
       : null,
   ]);
 
-  const card = (
-    <Card
-      elevation={0}
+  const panel = (
+    <Box
       sx={{
         ...ARTIFACT_ROOT_SX,
-        borderRadius: isStandalone ? (isMobile ? '10px' : '14px') : 0,
-        border: isStandalone ? '1px solid' : 0,
-        borderColor: theme.palette.border.subtle,
-        bgcolor: 'background.paper',
-        boxShadow: isStandalone
-          ? `0 8px 24px ${alpha(theme.palette.common.black, theme.palette.mode === 'dark' ? 0.22 : 0.07)}`
-          : 'none',
+        borderRadius: 0,
+        border: 0,
+        borderColor: 'transparent',
+        ...getAppPanelSurfaceSx(theme),
+        boxShadow: 'none',
       }}
     >
       {isStandalone ? (
@@ -293,20 +315,20 @@ function ArtifactShell({
         {children}
       </ArtifactBody>
       {footer ? <ArtifactFooter>{footer}</ArtifactFooter> : null}
-    </Card>
+    </Box>
   );
 
   const shell = isStandalone ? (
     <Box
       sx={{
         ...ARTIFACT_ROOT_SX,
-        p: ARTIFACT_STANDALONE_INSET,
         boxSizing: 'border-box',
+        ...getAppPanelSurfaceSx(theme),
       }}
     >
-      {card}
+      {panel}
     </Box>
-  ) : card;
+  ) : panel;
 
   return shell;
 }

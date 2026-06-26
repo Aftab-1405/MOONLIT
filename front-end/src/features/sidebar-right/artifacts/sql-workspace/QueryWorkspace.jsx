@@ -6,7 +6,9 @@
 
 import { lazy, memo, Suspense } from "react";
 import { Box, Skeleton } from "@mui/material";
+import { alpha, useTheme } from "@mui/material/styles";
 import QueryTabs from "@/features/sidebar-right/artifacts/sql-workspace/QueryTabs";
+import { getAppSunkenSurfaceSx } from "@/features/styles/interfaceChrome";
 
 const SqlEditorSurface = lazy(
   () =>
@@ -14,19 +16,50 @@ const SqlEditorSurface = lazy(
 );
 
 function EditorFallback() {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
+  const skeletonColor = alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06);
+
   return (
     <Box
       sx={{
         flex: 1,
         minHeight: 0,
-        p: 2,
-        display: "flex",
-        flexDirection: "column",
-        gap: 1,
+        display: "grid",
+        gridTemplateColumns: "52px minmax(0, 1fr)",
+        overflow: "hidden",
+        ...getAppSunkenSurfaceSx(theme),
       }}
     >
-      <Skeleton variant="rounded" width="34%" height={28} />
-      <Skeleton variant="rounded" sx={{ flex: 1, minHeight: 160 }} />
+      <Box
+        sx={{
+          borderRight: "1px solid",
+          borderColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.07),
+          py: 1.75,
+          px: 1,
+        }}
+      >
+        {[0, 1, 2, 3, 4, 5].map((line) => (
+          <Skeleton
+            key={line}
+            variant="text"
+            width={line < 3 ? 18 : 24}
+            height={18}
+            sx={{ mx: "auto", bgcolor: skeletonColor }}
+          />
+        ))}
+      </Box>
+      <Box sx={{ py: 1.75, px: 1.75 }}>
+        {[0, 1, 2, 3, 4, 5].map((line) => (
+          <Skeleton
+            key={line}
+            variant="text"
+            width={`${74 - (line % 3) * 14}%`}
+            height={18}
+            sx={{ bgcolor: skeletonColor }}
+          />
+        ))}
+      </Box>
     </Box>
   );
 }
@@ -48,15 +81,16 @@ function QueryWorkspace({
 }) {
   return (
     <Box
-      sx={{
+      sx={(theme) => ({
         flex: "1 1 0",
         display: "flex",
         flexDirection: "column",
         minWidth: 0,
         minHeight: 0,
         overflow: "hidden",
-        bgcolor: "background.default",
-      }}
+        ...getAppSunkenSurfaceSx(theme),
+        isolation: "isolate",
+      })}
     >
       {/* Query Tabs */}
       <QueryTabs

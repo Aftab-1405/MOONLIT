@@ -14,7 +14,7 @@ import { alpha, keyframes, useTheme } from "@mui/material/styles";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import StopRoundedIcon from "@mui/icons-material/StopRounded";
 
-import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
+import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded";
 import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
 import { AppPopover } from "@/components";
 import CodeEditorIcon from "@/components/icons/CodeEditorIcon";
@@ -115,6 +115,94 @@ const percentOf = (used, budget) => {
   return Math.min(100, Math.max(0, (numericUsed / numericBudget) * 100));
 };
 
+const TruncatedLabel = ({ children, sx = {} }) => (
+  <Box
+    component="span"
+    sx={{
+      minWidth: 0,
+      overflow: "hidden",
+      textOverflow: "ellipsis",
+      whiteSpace: "nowrap",
+      ...sx,
+    }}
+  >
+    {children}
+  </Box>
+);
+
+const ContextUsageBar = ({ label, value, color }) => (
+  <Box>
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "space-between",
+        mb: 0.5,
+        alignItems: "center",
+        gap: 2,
+      }}
+    >
+      <Typography variant="caption" sx={{ fontWeight: 550 }}>
+        {label}
+      </Typography>
+      <Typography variant="caption" sx={{ opacity: 0.78 }}>
+        {Math.round(value)}%
+      </Typography>
+    </Box>
+    <LinearProgress
+      variant="determinate"
+      value={value}
+      color={color}
+      sx={{
+        height: 6,
+        borderRadius: 3,
+        bgcolor: "background.default",
+      }}
+    />
+  </Box>
+);
+
+const getUsageColor = (value) => {
+  if (value > 90) return "error";
+  if (value > 75) return "warning";
+  return "primary";
+};
+
+const ContextUsageTooltip = ({ contextUsage, selectedModel }) => (
+  <Box sx={{ width: 252, p: 0.5 }}>
+    <Typography
+      variant="body2"
+      sx={{ fontWeight: 650, color: "inherit", mb: 0.5 }}
+    >
+      {selectedModel || "Select model"}
+    </Typography>
+    <Box sx={{ display: "grid", gap: 1.25, mt: 1.5, mb: 1 }}>
+      <ContextUsageBar
+        label={
+          contextUsage.contextPhase === "pre_summary"
+            ? "Summary Trigger"
+            : "Active Context"
+        }
+        value={contextUsage.activePercent}
+        color={getUsageColor(contextUsage.activePercent)}
+      />
+      {contextUsage.modelPercent != null && (
+        <ContextUsageBar
+          label="Model Capacity"
+          value={contextUsage.modelPercent}
+          color={getUsageColor(contextUsage.modelPercent)}
+        />
+      )}
+    </Box>
+    <Typography
+      variant="caption"
+      display="block"
+      sx={{ color: "text.secondary", mt: 1, fontSize: "10px", lineHeight: 1.25 }}
+    >
+      Background context manages these budgets to prevent memory crashes.
+    </Typography>
+  </Box>
+);
+
 function ChatInput({
   onSend,
   onStop,
@@ -135,7 +223,6 @@ function ChatInput({
   children,
 }) {
   const [message, setMessage] = useState("");
-  const [isFocused, setIsFocused] = useState(false);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [schemaAnchor, setSchemaAnchor] = useState(null);
@@ -243,7 +330,7 @@ function ChatInput({
         color: "text.primary",
       },
       "&.Mui-disabled": {
-        opacity: 0.42,
+        opacity: 0.68,
         borderColor: "transparent",
         color: "text.secondary",
         backgroundColor: "transparent",
@@ -255,6 +342,82 @@ function ChatInput({
   const errorInteraction = useMemo(
     () => getInteractionColors(theme, { tone: "error" }),
     [theme],
+  );
+  const inputSx = useMemo(
+    () => ({
+      "& .MuiInputBase-root": { p: 0 },
+      "& .MuiInputBase-input": {
+        py: 0.1,
+        ...theme.typography.uiInput,
+        lineHeight: 1.55,
+        "&::placeholder": {
+          color: "text.secondary",
+          opacity: 0.72,
+        },
+      },
+    }),
+    [theme],
+  );
+  const toolbarScrollSx = useMemo(
+    () => ({
+      display: "flex",
+      alignItems: "center",
+      gap: 0.5,
+      minWidth: 0,
+      flex: 1,
+      overflowX: "auto",
+      overflowY: "hidden",
+      scrollbarWidth: "none",
+      "&::-webkit-scrollbar": { display: "none" },
+    }),
+    [],
+  );
+  const sendActionSx = useMemo(
+    () => ({
+      width: 36,
+      height: 36,
+      flexShrink: 0,
+      borderRadius: "9px",
+      color: isStreaming
+        ? theme.palette.error.main
+        : hasText
+          ? theme.palette.primary.contrastText
+          : alpha(theme.palette.text.primary, 0.28),
+      backgroundColor: isStreaming
+        ? errorInteraction.activeBackground
+        : hasText
+          ? theme.palette.primary.main
+          : alpha(theme.palette.text.primary, 0.05),
+      border: "1px solid",
+      borderColor: isStreaming
+        ? alpha(theme.palette.error.main, 0.2)
+        : hasText
+          ? "transparent"
+          : alpha(theme.palette.text.primary, 0.07),
+      boxShadow: "none",
+      transition: theme.transitions.create(
+        ["transform", "background-color", "color", "box-shadow", "border-color"],
+        { duration: theme.transitions.duration.shorter },
+      ),
+      [HOVER_CAPABLE_QUERY]: {
+        "&:hover": {
+          transform: "none",
+          backgroundColor: isStreaming
+            ? errorInteraction.activeHoverBackground
+            : hasText
+              ? theme.palette.primary.dark
+              : alpha(theme.palette.text.primary, 0.08),
+          boxShadow: "none",
+        },
+      },
+      "&:active": { transform: "translateY(0) scale(0.97)" },
+      "&.Mui-disabled": {
+        backgroundColor: alpha(theme.palette.text.primary, 0.04),
+        borderColor: alpha(theme.palette.text.primary, 0.06),
+        color: alpha(theme.palette.text.primary, 0.2),
+      },
+    }),
+    [errorInteraction, hasText, isStreaming, theme],
   );
   const connectedControlSx = useMemo(
     () => ({
@@ -269,8 +432,8 @@ function ChatInput({
     [neutralInteraction],
   );
   const composerSurfaceSx = useMemo(
-    () => getComposerSurfaceSx(theme, { isFocused }),
-    [theme, isFocused],
+    () => getComposerSurfaceSx(theme),
+    [theme],
   );
   const inputPlaceholder = isStreaming
     ? "Please wait for response to finish..."
@@ -386,14 +549,6 @@ function ChatInput({
     setMessage(e.target.value);
   }, []);
 
-  const handleFocus = useCallback(() => {
-    setIsFocused(true);
-  }, []);
-
-  const handleBlur = useCallback(() => {
-    setIsFocused(false);
-  }, []);
-
   const handleOpenDbMenu = useCallback((e) => setDbAnchor(e.currentTarget), []);
   const handleOpenSchemaMenu = useCallback(
     (e) => setSchemaAnchor(e.currentTarget),
@@ -503,8 +658,19 @@ function ChatInput({
                 onKeyDown={(event) =>
                   handleMenuItemKeyDown(event, () => handleDatabaseChange(db))
                 }
-                sx={getSelectableMenuItemSx(theme, { isActive })}
+                sx={getSelectableMenuItemSx(theme, { isActive, columns: '16px minmax(0, 1fr)' })}
               >
+                {isActive ? (
+                  <CheckCircleOutlineRoundedIcon
+                    sx={{
+                      fontSize: 16,
+                      color: "success.main",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <Box sx={{ width: 16, height: 16 }} />
+                )}
                 <Typography
                   sx={{
                     ...theme.typography.uiNavItem,
@@ -514,15 +680,6 @@ function ChatInput({
                 >
                   {db}
                 </Typography>
-                {isActive && (
-                  <CheckRoundedIcon
-                    sx={{
-                      fontSize: 14,
-                      color: "text.secondary",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
               </Box>
             );
           })}
@@ -558,8 +715,19 @@ function ChatInput({
                 onKeyDown={(event) =>
                   handleMenuItemKeyDown(event, () => handleSchemaChange(schema))
                 }
-                sx={getSelectableMenuItemSx(theme, { isActive })}
+                sx={getSelectableMenuItemSx(theme, { isActive, columns: '16px minmax(0, 1fr)' })}
               >
+                {isActive ? (
+                  <CheckCircleOutlineRoundedIcon
+                    sx={{
+                      fontSize: 16,
+                      color: "success.main",
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <Box sx={{ width: 16, height: 16 }} />
+                )}
                 <Typography
                   sx={{
                     ...theme.typography.uiNavItem,
@@ -569,15 +737,6 @@ function ChatInput({
                 >
                   {schema}
                 </Typography>
-                {isActive && (
-                  <CheckRoundedIcon
-                    sx={{
-                      fontSize: 14,
-                      color: "text.secondary",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
               </Box>
             );
           })}
@@ -642,9 +801,20 @@ function ChatInput({
                           handleLlmSelection(section.name, model),
                         )
                       }
-                      sx={getSelectableMenuItemSx(theme, { isActive })}
+                      sx={getSelectableMenuItemSx(theme, { isActive, columns: '16px minmax(0, 1fr)' })}
                     >
-                      <Box>
+                      {isActive ? (
+                        <CheckCircleOutlineRoundedIcon
+                          sx={{
+                            fontSize: 16,
+                            color: "success.main",
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : (
+                        <Box sx={{ width: 16, height: 16 }} />
+                      )}
+                      <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                         <Typography
                           sx={{
                             ...theme.typography.uiNavItem,
@@ -655,15 +825,6 @@ function ChatInput({
                           {model}
                         </Typography>
                       </Box>
-                      {isActive && (
-                        <CheckRoundedIcon
-                          sx={{
-                            fontSize: 14,
-                            color: "text.secondary",
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
                     </Box>
                   );
                 })}
@@ -701,20 +862,17 @@ function ChatInput({
           ...composerSurfaceSx,
           opacity: isStreaming ? 0.72 : 1,
           transition: theme.transitions.create(
-            ["opacity", "box-shadow", "border-color", "transform"],
+            ["opacity", "box-shadow", "border-color"],
             {
               duration: theme.transitions.duration.shorter,
             },
           ),
           [HOVER_CAPABLE_QUERY]: {
             "&:hover": {
-              boxShadow: getComposerHoverShadow(theme, { isFocused }),
+              boxShadow: getComposerHoverShadow(theme),
             },
           },
           cursor: isStreaming ? "wait" : "text",
-          "@media (prefers-reduced-motion: no-preference)": {
-            transform: isFocused ? "translateY(-1px)" : "translateY(0)",
-          },
         }}
       >
         <Box
@@ -734,8 +892,6 @@ function ChatInput({
             value={message}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
             disabled={disabled || isStreaming}
             variant="standard"
             InputProps={{
@@ -749,18 +905,7 @@ function ChatInput({
               },
             }}
             inputProps={{ "data-ui-target": "chat_input" }}
-            sx={{
-              "& .MuiInputBase-root": { p: 0 },
-              "& .MuiInputBase-input": {
-                py: 0.1,
-                ...theme.typography.uiInput,
-                lineHeight: 1.55,
-                "&::placeholder": {
-                  color: "text.secondary",
-                  opacity: 0.62,
-                },
-              },
-            }}
+            sx={inputSx}
           />
 
           <Box
@@ -772,17 +917,7 @@ function ChatInput({
             }}
           >
             <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0.5,
-                minWidth: 0,
-                flex: 1,
-                overflowX: "auto",
-                overflowY: "hidden",
-                scrollbarWidth: "none",
-                "&::-webkit-scrollbar": { display: "none" },
-              }}
+              sx={toolbarScrollSx}
             >
               {showDatabaseSelector && (
                 <Box
@@ -823,17 +958,7 @@ function ChatInput({
                           },
                         }}
                       >
-                        <Box
-                          component="span"
-                          sx={{
-                            minWidth: 0,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {currentDatabase}
-                        </Box>
+                        <TruncatedLabel>{currentDatabase}</TruncatedLabel>
                       </Button>
                     </span>
                   </Tooltip>
@@ -863,17 +988,7 @@ function ChatInput({
                         ...connectedControlSx,
                       }}
                     >
-                      <Box
-                        component="span"
-                        sx={{
-                          minWidth: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {currentSchema}
-                      </Box>
+                      <TruncatedLabel>{currentSchema}</TruncatedLabel>
                     </Button>
                   </Tooltip>
                 </Box>
@@ -896,18 +1011,13 @@ function ChatInput({
                       },
                     }}
                   >
-                    <Box
-                      component="span"
+                    <TruncatedLabel
                       sx={{
                         display: { xs: "none", sm: "inline" },
-                        minWidth: 0,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
                       }}
                     >
                       SQL Editor
-                    </Box>
+                    </TruncatedLabel>
                   </Button>
                 </Tooltip>
               )}
@@ -924,56 +1034,10 @@ function ChatInput({
               <Tooltip
                 title={
                   contextUsage ? (
-                    <Box sx={{ p: 0.5 }}>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: "inherit", mb: 0.5 }}
-                      >
-                        {selectedModel || "Select model"}
-                      </Typography>
-                      <Box sx={{ mt: 1.5, mb: 1 }}>
-                        <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5, alignItems: "center" }}>
-                          <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                            {contextUsage.contextPhase === "pre_summary" ? "Summary Trigger" : "Active Context"}
-                          </Typography>
-                          <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                            {Math.round(contextUsage.activePercent)}%
-                          </Typography>
-                        </Box>
-                        <LinearProgress 
-                          variant="determinate" 
-                          value={contextUsage.activePercent} 
-                          color={contextUsage.activePercent > 90 ? "error" : contextUsage.activePercent > 75 ? "warning" : "primary"}
-                          sx={{ height: 6, borderRadius: 3, mb: 1.5, bgcolor: "background.default" }}
-                        />
-
-                        {contextUsage.modelPercent != null && (
-                          <>
-                            <Box sx={{ display: "flex", justifyContent: "space-between", mb: 0.5, alignItems: "center" }}>
-                              <Typography variant="caption" sx={{ fontWeight: 500 }}>
-                                Model Capacity
-                              </Typography>
-                              <Typography variant="caption" sx={{ opacity: 0.8 }}>
-                                {Math.round(contextUsage.modelPercent)}%
-                              </Typography>
-                            </Box>
-                            <LinearProgress 
-                              variant="determinate" 
-                              value={contextUsage.modelPercent} 
-                              color={contextUsage.modelPercent > 90 ? "error" : contextUsage.modelPercent > 75 ? "warning" : "primary"}
-                              sx={{ height: 6, borderRadius: 3, bgcolor: "background.default" }}
-                            />
-                          </>
-                        )}
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.5, mt: 1, fontSize: "10px", lineHeight: 1.2 }}
-                        >
-                          Background context dynamically manages these budgets to prevent memory crashes.
-                        </Typography>
-                      </Box>
-                    </Box>
+                    <ContextUsageTooltip
+                      contextUsage={contextUsage}
+                      selectedModel={selectedModel}
+                    />
                   ) : activeProviderLabel ? (
                     `${selectedModel || "Select model"} - ${activeProviderLabel}`
                   ) : (
@@ -1016,19 +1080,15 @@ function ChatInput({
                       flexShrink: 0,
                     }}
                   >
-                    <Box
-                      component="span"
+                    <TruncatedLabel
                       sx={{
-                        overflow: "hidden",
-                        whiteSpace: "nowrap",
-                        textOverflow: "ellipsis",
                         flex: 1,
                         textAlign: "left",
                       }}
                     >
                       {selectedModel ||
                         (llmOptionsLoading ? "Loading..." : "Choose model")}
-                    </Box>
+                    </TruncatedLabel>
                   </Button>
                 </span>
               </Tooltip>
@@ -1050,57 +1110,7 @@ function ChatInput({
                     aria-label={
                       isStreaming ? "Stop generating response" : "Send message"
                     }
-                    sx={{
-                      width: 36,
-                      height: 36,
-                      flexShrink: 0,
-                      borderRadius: "9px",
-                      color: isStreaming
-                        ? theme.palette.error.main
-                        : hasText
-                          ? theme.palette.primary.contrastText
-                          : alpha(theme.palette.text.primary, 0.28),
-                      backgroundColor: isStreaming
-                        ? errorInteraction.activeBackground
-                        : hasText
-                          ? theme.palette.primary.main
-                          : alpha(theme.palette.text.primary, 0.05),
-                      backgroundImage: "none",
-                      border: "1px solid",
-                      borderColor: isStreaming
-                        ? alpha(theme.palette.error.main, 0.2)
-                        : hasText
-                          ? "transparent"
-                          : alpha(theme.palette.text.primary, 0.07),
-                      boxShadow:
-                        !isStreaming && hasText
-                          ? `0 5px 14px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.28 : 0.16)}`
-                          : "none",
-                      transition:
-                        "transform 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, border-color 120ms ease",
-                      "&:hover": {
-                        transform:
-                          !isStreaming && hasText ? "translateY(-1px)" : "none",
-                        backgroundColor: isStreaming
-                          ? errorInteraction.activeHoverBackground
-                          : hasText
-                            ? theme.palette.primary.dark
-                            : alpha(theme.palette.text.primary, 0.08),
-                        boxShadow:
-                          !isStreaming && hasText
-                            ? `0 7px 18px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.32 : 0.2)}`
-                            : "none",
-                      },
-                      "&:active": { transform: "translateY(0) scale(0.97)" },
-                      "&.Mui-disabled": {
-                        backgroundColor: alpha(
-                          theme.palette.text.primary,
-                          0.04,
-                        ),
-                        borderColor: alpha(theme.palette.text.primary, 0.06),
-                        color: alpha(theme.palette.text.primary, 0.2),
-                      },
-                    }}
+                    sx={sendActionSx}
                   >
                     {isStreaming ? (
                       <StopRoundedIcon sx={{ fontSize: 14 }} />

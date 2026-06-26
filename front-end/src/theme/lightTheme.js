@@ -106,9 +106,9 @@ const palette = {
   mode: 'light',
 
   background: {
-    default:  H.bg000,   // Alabaster
-    paper:    H.bg100,   // barely-warm white
-    elevated: H.bg000,   // popovers sit at the same white level
+    default:  H.bg000,
+    paper:    H.bg100,
+    elevated: H.bg100,
     sunken:   H.bg200,   // soft neutral inset / input bg
   },
 
@@ -164,22 +164,22 @@ const palette = {
   // divider must be a pure hex so alpha() in cross-cutting consumers works correctly.
   // bg-400 (#e5e2d7) is the deepest cream shade — gives a warm, barely-visible
   // grid line on white when used with alpha(divider, 0.45) at the overlay's 0.35 opacity.
-  divider: H.bg400,  // #e5e2d7 — pure light hex, never pre-alpha-wrapped
+  divider: H.bg400,
 
   // Custom: border tokens (used by components via theme.palette.border.*)
   border: {
-    default: alpha(H.border200, 0.18),
-    subtle:  alpha(H.border200, 0.11),
-    hover:   alpha(H.border200, 0.3),
+    default: alpha(H.border200, 0.16),
+    subtle:  alpha(H.border200, 0.1),
+    hover:   alpha(H.border200, 0.24),
     focus:   alpha(H.text000, 0.45),
   },
 
   action: {
-    hover:              alpha(H.text000, 0.04),
-    selected:           alpha(H.text000, 0.07),
-    disabled:           alpha(H.text000, 0.24),
-    disabledBackground: alpha(H.text000, 0.08),
-    focus:              alpha(H.text000, 0.09),
+    hover:              alpha(H.text000, 0.045),
+    selected:           alpha(H.text000, 0.075),
+    disabled:           alpha(H.text000, 0.34),
+    disabledBackground: alpha(H.text000, 0.07),
+    focus:              alpha(H.text000, 0.1),
     active:             alpha(H.text000, 0.62),
   },
 
@@ -211,12 +211,6 @@ const palette = {
     H.accentLight, H.text400, H.bg400, H.border200,
   ],
 
-  // Custom: glassmorphism surface (used by getGlassmorphismStyles in shared.js)
-  glassmorphism: {
-    background:     alpha(H.bg000, 0.92),
-    backdropFilter: 'blur(16px)',
-    borderColor:    alpha(H.text000, 0.08),
-  },
 };
 
 // ─── Typography ───────────────────────────────────────────────────────────────
@@ -284,7 +278,6 @@ const typography = {
 // ─── Component overrides ──────────────────────────────────────────────────────
 
 const focusRing = `0 0 0 3px ${alpha(H.text000, 0.08)}`;
-const surfaceGradient = `linear-gradient(180deg, ${alpha('#000000', 0.012)}, transparent)`;
 const neutralInteraction = getPaletteInteractionColors(palette);
 const neutralOutlinedButtonStyles = getNeutralOutlinedButtonStyles(palette);
 const neutralTextButtonStyles = getNeutralTextButtonStyles(palette);
@@ -561,15 +554,15 @@ const components = {
         borderRadius: SHAPE.borderRadius,
         // bg-100 as background
         backgroundColor: H.bg100,
-        backgroundImage: surfaceGradient,
+        backgroundImage: 'none',
       },
       elevation1: {
-        boxShadow: `0 1px 3px 0 ${alpha('#000000', 0.06)}`,
+        boxShadow: 'none',
         // Subtle border using border-200
         border: `1px solid ${alpha(H.border200, 0.11)}`,
       },
       elevation2: {
-        boxShadow: `0 4px 6px -1px ${alpha('#000000', 0.07)}`,
+        boxShadow: 'none',
       },
     },
   },
@@ -580,11 +573,11 @@ const components = {
         backgroundColor: H.bg100,
         border: `1px solid ${alpha(H.border200, 0.11)}`,
         boxShadow: 'none',
-        backgroundImage: surfaceGradient,
+        backgroundImage: 'none',
         transition: TRANSITIONS.smooth,
         '&:hover': {
           borderColor: alpha(H.border200, 0.22),
-          boxShadow: `0 8px 20px -12px ${alpha('#000000', 0.1)}`,
+          boxShadow: 'none',
         },
       },
     },
@@ -661,7 +654,7 @@ const components = {
         padding: '6px 12px',
         borderRadius: SHAPE.radius.sm,
         border: `1px solid ${alpha(H.border200, 0.12)}`,
-        boxShadow: `0 4px 6px -2px ${alpha('#000000', 0.08)}`,
+        boxShadow: 'none',
       },
       arrow: { color: H.bg300 },
     },
@@ -689,10 +682,10 @@ const components = {
   MuiAppBar: {
     styleOverrides: {
       root: {
-        backgroundColor: alpha(H.bg000, 0.92),
-        backgroundImage: surfaceGradient,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        backgroundColor: H.bg100,
+        backgroundImage: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
         borderBottom: `1px solid ${alpha(H.border200, 0.1)}`,
         boxShadow: 'none',
         [BACKDROP_FILTER_FALLBACK_QUERY]: {
@@ -710,9 +703,7 @@ const components = {
   MuiDialog: {
     styleOverrides: {
       paper: {
-        backgroundColor: H.bg100,
-        border: `1px solid ${alpha(H.border200, 0.11)}`,
-        backgroundImage: surfaceGradient,
+        // Handled by getDialogPaperSx / DialogShell
       },
     },
   },
@@ -720,16 +711,17 @@ const components = {
   MuiMenu: {
     styleOverrides: {
       paper: {
-        backgroundColor: alpha(H.bg000, 0.97),
-        backgroundImage: surfaceGradient,
-        border: `1px solid ${alpha(H.border200, 0.12)}`,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        boxShadow: `0 8px 24px -8px ${alpha('#000000', 0.12)}`,
-        borderRadius: SHAPE.radius.md,
+        borderRadius: '14px',
+        border: `0.5px solid ${alpha(H.text000, 0.09)}`,
+        backgroundColor: H.bg100,
+        backgroundImage: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+        boxShadow: 'none',
         [BACKDROP_FILTER_FALLBACK_QUERY]: {
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
+          backgroundColor: H.bg100,
         },
       },
       list: {
@@ -1049,7 +1041,7 @@ const components = {
       root: {
         display: 'inline-flex',
         borderRadius: SHAPE.borderRadius,
-        boxShadow: `0 1px 2px ${alpha('#000000', 0.06)}`,
+        boxShadow: 'none',
       },
       grouped: {
         marginLeft: '-1px',
@@ -1123,12 +1115,12 @@ const components = {
   MuiPopover: {
     styleOverrides: {
       paper: {
-        backgroundColor: alpha(H.bg000, 0.97),
-        backgroundImage: surfaceGradient,
+        backgroundColor: H.bg100,
+        backgroundImage: 'none',
         border: `1px solid ${alpha(H.border200, 0.12)}`,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        boxShadow: `0 8px 24px -8px ${alpha('#000000', 0.12)}`,
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+        boxShadow: 'none',
         [BACKDROP_FILTER_FALLBACK_QUERY]: {
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',

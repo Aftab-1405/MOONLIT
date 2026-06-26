@@ -18,9 +18,27 @@ import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRigh
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import HighlightOffRounded from '@mui/icons-material/HighlightOffRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
+import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
+import ViewColumnRoundedIcon from '@mui/icons-material/ViewColumnRounded';
 import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 import SchemaIcon from '@/components/icons/SchemaIcon';
 import { useDatabaseConnection } from '@/contexts/DatabaseContext';
+import { getArtifactActionButtonSx } from '@/features/sidebar-right/artifact-loader';
+import {
+  getAppBarSurfaceSx,
+  getAppDividerColor,
+  getAppPanelSurfaceSx,
+} from '@/features/styles/interfaceChrome';
+
+const SCHEMA_ROW_HEIGHT = 32;
+const SCHEMA_ICON_SLOT = 24;
+
+function getSchemaBarSx(theme) {
+  return {
+    borderColor: getAppDividerColor(theme),
+    ...getAppBarSurfaceSx(theme),
+  };
+}
 
 function getColumnLabel(column) {
   if (typeof column === 'string') return column;
@@ -33,6 +51,7 @@ function getColumnLabel(column) {
 
 function getSchemaTreeRowSx(theme, interaction, { radius = '6px' } = {}) {
   return {
+    minHeight: SCHEMA_ROW_HEIGHT,
     transition: theme.transitions.create(['background-color'], {
       duration: theme.transitions.duration.shortest,
     }),
@@ -43,17 +62,31 @@ function getSchemaTreeRowSx(theme, interaction, { radius = '6px' } = {}) {
   };
 }
 
-function SchemaStatusText({ children, color = 'text.disabled' }) {
+function SchemaStatusText({ children, color = 'text.secondary' }) {
   const theme = useTheme();
 
   return (
     <Fade in timeout={160}>
-      <Box sx={{ px: 1, py: 0.5 }}>
+      <Box
+        sx={{
+          minHeight: 28,
+          display: 'flex',
+          alignItems: 'center',
+          px: 0.75,
+          py: 0,
+        }}
+      >
         <Typography
           sx={{
             ...theme.typography.uiCaptionXs,
             color,
             fontFamily: theme.typography.fontFamilyMono,
+            minWidth: 0,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'clip',
+            maskImage: 'linear-gradient(to right, black 84%, transparent 98%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 84%, transparent 98%)',
           }}
         >
           {children}
@@ -75,32 +108,42 @@ function SchemaItem({ schema, currentDatabase, fetchTableSchema }) {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 0.5,
-          px: 1,
-          py: 0.75,
+          gap: 0,
+          px: 0.75,
+          py: 0,
           cursor: 'pointer',
           userSelect: 'none',
           ...getSchemaTreeRowSx(theme, interaction),
         }}
       >
-        {expanded ? (
-          <KeyboardArrowDownRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-        ) : (
-          <KeyboardArrowRightRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-        )}
-        <SchemaIcon sx={{ width: 14, height: 14, opacity: 0.78 }} />
+        <Box sx={{ width: SCHEMA_ICON_SLOT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {expanded ? (
+            <KeyboardArrowDownRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+          ) : (
+            <KeyboardArrowRightRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+          )}
+        </Box>
+        <Box sx={{ width: SCHEMA_ICON_SLOT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'text.secondary' }}>
+          <SchemaIcon sx={{ width: 16, height: 16 }} />
+        </Box>
         <Typography
           sx={{
             ...theme.typography.uiCaptionMd,
             fontWeight: 600,
             color: 'text.primary',
+            minWidth: 0,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'clip',
+            maskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
           }}
         >
           {schema.name}
         </Typography>
       </Box>
       <Collapse in={expanded}>
-        <Box sx={{ pl: 1.5 }}>
+        <Box sx={{ pl: 1 }}>
           {schema.tables.map((table) => (
             <TableItem
               key={`${currentDatabase || 'db'}-${table.name}`}
@@ -155,31 +198,41 @@ function TableItem({ table, currentDatabase, fetchTableSchema }) {
         sx={{
           display: 'flex',
           alignItems: 'center',
-          gap: 0.5,
-          px: 1,
-          py: 0.625,
+          gap: 0,
+          px: 0.75,
+          py: 0,
           cursor: 'pointer',
           userSelect: 'none',
           ...getSchemaTreeRowSx(theme, interaction),
         }}
       >
-        {expanded ? (
-          <KeyboardArrowDownRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-        ) : (
-          <KeyboardArrowRightRoundedIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-        )}
-        <SchemaIcon sx={{ width: 13, height: 13, opacity: 0.78 }} />
+        <Box sx={{ width: SCHEMA_ICON_SLOT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {expanded ? (
+            <KeyboardArrowDownRoundedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
+          ) : (
+            <KeyboardArrowRightRoundedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
+          )}
+        </Box>
+        <Box sx={{ width: SCHEMA_ICON_SLOT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'text.secondary' }}>
+          <TableChartRoundedIcon sx={{ fontSize: 17 }} />
+        </Box>
         <Typography
           sx={{
             ...theme.typography.uiCaptionSm,
             color: 'text.primary',
+            minWidth: 0,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'clip',
+            maskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
           }}
         >
           {table.name}
         </Typography>
       </Box>
       <Collapse in={expanded}>
-        <Box sx={{ pl: 2.5 }}>
+        <Box sx={{ pl: 4 }}>
           {columnsLoading ? (
             <SchemaStatusText key="columns-loading">Loading columns...</SchemaStatusText>
           ) : columnsError ? (
@@ -190,16 +243,38 @@ function TableItem({ table, currentDatabase, fetchTableSchema }) {
             <Box
               key={getColumnLabel(column)}
               sx={{
-                px: 1,
-                py: 0.5,
+                minHeight: 28,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0,
+                px: 0.75,
+                py: 0,
                 ...getSchemaTreeRowSx(theme, interaction, { radius: '4px' }),
               }}
             >
+              <Box
+                sx={{
+                  width: SCHEMA_ICON_SLOT,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                  color: 'text.secondary',
+                }}
+              >
+                <ViewColumnRoundedIcon sx={{ fontSize: 15 }} />
+              </Box>
               <Typography
                 sx={{
                   ...theme.typography.uiCaptionXs,
                   color: 'text.secondary',
                   fontFamily: theme.typography.fontFamilyMono,
+                  minWidth: 0,
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'clip',
+                  maskImage: 'linear-gradient(to right, black 84%, transparent 98%)',
+                  WebkitMaskImage: 'linear-gradient(to right, black 84%, transparent 98%)',
                 }}
               >
                 {getColumnLabel(column)}
@@ -311,8 +386,8 @@ function SchemaSidebar({ width, _open = true, isConnected, currentDatabase, onCl
         flexShrink: 0,
         minHeight: 0,
         borderRight: '1px solid',
-        borderColor: theme.palette.border.subtle,
-        bgcolor: 'background.paper',
+        borderColor: getAppDividerColor(theme),
+        ...getAppPanelSurfaceSx(theme),
         position: 'relative',
         transition: 'none',
       }}
@@ -324,10 +399,11 @@ function SchemaSidebar({ width, _open = true, isConnected, currentDatabase, onCl
           alignItems: 'center',
           justifyContent: 'space-between',
           px: 1.25,
-          py: 1,
+          py: 0.75,
           borderBottom: '1px solid',
-          borderColor: theme.palette.border.subtle,
+          ...getSchemaBarSx(theme),
           flexShrink: 0,
+          minHeight: 46,
         }}
       >
         <Typography
@@ -347,14 +423,19 @@ function SchemaSidebar({ width, _open = true, isConnected, currentDatabase, onCl
                 onClick={handleRefreshSchema}
                 disabled={!isConnected || schemaLoading}
                 aria-label="Refresh schema"
-                sx={{ border: 'none' }}
+                sx={getArtifactActionButtonSx(theme, { size: 30 })}
               >
                 <RefreshRoundedIcon sx={{ fontSize: 16 }} />
               </IconButton>
             </span>
           </Tooltip>
           <Tooltip title="Close sidebar">
-            <IconButton size="small" onClick={onClose} sx={{ border: 'none' }}>
+            <IconButton
+              size="small"
+              onClick={onClose}
+              aria-label="Close schema sidebar"
+              sx={getArtifactActionButtonSx(theme, { size: 30 })}
+            >
               <HighlightOffRounded sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
@@ -386,7 +467,7 @@ function SchemaSidebar({ width, _open = true, isConnected, currentDatabase, onCl
               <Typography
                 sx={{
                   ...theme.typography.uiCaptionSm,
-                  color: schemaContent.tone === 'error' ? 'error.main' : 'text.disabled',
+                  color: schemaContent.tone === 'error' ? 'error.main' : 'text.secondary',
                   textAlign: 'center',
                 }}
               >

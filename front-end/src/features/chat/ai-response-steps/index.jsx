@@ -21,6 +21,7 @@ import {
   slideIn,
   shimmer,
 } from "@/features/chat/ai-response-steps/timelineShared";
+import { HOVER_CAPABLE_QUERY } from "@/styles/mediaQueries";
 import {
   normalizeSteps,
   buildStepsSummary,
@@ -60,7 +61,10 @@ export const StepsAccordion = memo(function StepsAccordion({
   // text below it. Tying isLive purely to isStreaming caused the header to
   // keep shimmering with "Conversation context summarized." while the LLM
   // continued, creating a false "in-progress" signal.
-  const hasActiveStep = useMemo(() => isAnyStepActive(normalizedSteps), [normalizedSteps]);
+  const hasActiveStep = useMemo(
+    () => isAnyStepActive(normalizedSteps),
+    [normalizedSteps],
+  );
   const isLive = isStreaming && hasActiveStep;
 
   const isSingleWorkflowStep =
@@ -96,7 +100,6 @@ export const StepsAccordion = memo(function StepsAccordion({
         "@media (prefers-reduced-motion: reduce)": { animation: "none" },
       }}
     >
-      {/* Toggle row */}
       <ButtonBase
         onClick={isExpandable ? handleToggle : undefined}
         disabled={!isExpandable}
@@ -115,27 +118,31 @@ export const StepsAccordion = memo(function StepsAccordion({
           justifyContent: "space-between",
           gap: { xs: 0.75, sm: 1 },
           px: 0,
-          py: { xs: 0.3, sm: 0.4 },
+          py: { xs: 0.35, sm: 0.45 },
           minHeight: 32,
           minWidth: 0,
-          borderRadius: 0,
+          borderRadius: isExpandable ? "6px" : 0,
           bgcolor: "transparent",
           textAlign: "left",
           cursor: isExpandable ? "pointer" : "default",
           transition: TRANSITIONS.default,
           ...(isExpandable && {
-            "&:hover .summary-text": {
-              color: theme.palette.text.primary,
+            [HOVER_CAPABLE_QUERY]: {
+              "&:hover .summary-text": {
+                color: theme.palette.text.primary,
+              },
+              "&:hover .summary-arrow": {
+                color: theme.palette.text.primary,
+              },
             },
-            "&:hover .summary-arrow": {
-              color: theme.palette.text.primary,
+            "&:focus-visible": {
+              outline: `2px solid ${alpha(
+                theme.palette.text.primary,
+                isDark ? 0.16 : 0.11,
+              )}`,
+              outlineOffset: "2px",
             },
           }),
-          "&:focus-visible": {
-            outline: `1.5px solid ${alpha(theme.palette.primary.main, 0.45)}`,
-            outlineOffset: "2px",
-            borderRadius: "4px",
-          },
         }}
         disableRipple
       >
@@ -143,7 +150,7 @@ export const StepsAccordion = memo(function StepsAccordion({
           sx={{
             display: "flex",
             alignItems: "center",
-            gap: 0.875,
+            gap: 0.5,
             flex: 1,
             minWidth: 0,
           }}
@@ -193,18 +200,28 @@ export const StepsAccordion = memo(function StepsAccordion({
         >
           {isExpandable && (
             <>
-              {/* Step count */}
               <Typography
                 sx={{
                   color: alpha(
                     theme.palette.text.secondary,
-                    isDark ? 0.45 : 0.38,
+                    isDark ? 0.62 : 0.54,
                   ),
                   fontSize: "11px",
                   fontWeight: 500,
                   lineHeight: 1,
                   fontFamily: theme.typography.fontFamilyMono,
                   fontVariantNumeric: "tabular-nums",
+                  minWidth: 18,
+                  height: 18,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "6px",
+                  border: "1px solid",
+                  borderColor: alpha(
+                    theme.palette.text.primary,
+                    isDark ? 0.08 : 0.06,
+                  ),
                 }}
               >
                 {normalizedSteps.length}
@@ -217,7 +234,7 @@ export const StepsAccordion = memo(function StepsAccordion({
                   flexShrink: 0,
                   color: alpha(
                     theme.palette.text.secondary,
-                    isDark ? 0.38 : 0.32,
+                    isDark ? 0.68 : 0.58,
                   ),
                   transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
                   transition:

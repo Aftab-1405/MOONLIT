@@ -1,11 +1,13 @@
 import { Component, memo, useCallback, useMemo, useState } from 'react';
 import { Box } from '@mui/material';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
-import { getArtifactPanelChromeSx } from '@/features/styles/interfaceChrome';
+import {
+  getAppSunkenSurfaceSx,
+  getArtifactPanelChromeSx,
+} from '@/features/styles/interfaceChrome';
 import { ArtifactEmptyState } from '@/features/sidebar-right/artifact-loader/ArtifactLayout';
 import { UI_Z_INDEX } from '@/styles/shared';
 import SqlWorkspace from '@/features/sidebar-right/artifacts/sql-workspace';
-import ExecutionResultPanel from '@/features/sidebar-right/artifacts/execution-result';
 import DataVisualizationPanel from '@/features/sidebar-right/artifacts/data-visualization';
 import DiagramFlowRenderer from '@/features/sidebar-right/artifacts/diagram-flow';
 
@@ -18,16 +20,6 @@ const artifactRegistry = {
       title: artifact.title,
       isConnected: common.isDbConnected,
       currentDatabase: common.currentDatabase,
-    }),
-  },
-  results: {
-    loader: ExecutionResultPanel,
-    getProps: ({ artifact, common }) => ({
-      data: artifact.props?.data,
-      title: artifact.title,
-      sourceQuery: artifact.props?.sourceQuery,
-      sourceType: artifact.props?.sourceType,
-      ...common,
     }),
   },
   visualization: {
@@ -78,11 +70,10 @@ function CanvasHost({ open, panelWidth, fullscreen = false, isResizing = false, 
         transition: isResizing || fullscreen
           ? 'none'
           : theme.transitions.create('width', {
-              easing: theme.transitions.easing.sharp,
-              duration: open
-                ? theme.transitions.duration.enteringScreen
-                : theme.transitions.duration.leavingScreen,
+              easing: theme.transitions.easing.easeInOut,
+              duration: 240,
             }),
+        willChange: fullscreen ? 'auto' : 'width',
         ...(open && !fullscreen ? getArtifactPanelChromeSx(theme) : {}),
         ...(fullscreen ? {
           position: 'absolute',
@@ -93,7 +84,7 @@ function CanvasHost({ open, panelWidth, fullscreen = false, isResizing = false, 
           width: 'auto !important',
           height: 'auto !important',
           zIndex: UI_Z_INDEX.artifactFullscreen,
-          bgcolor: 'background.default',
+          ...getAppSunkenSurfaceSx(theme),
           borderLeft: 'none',
           boxShadow: 'none',
         } : {}),

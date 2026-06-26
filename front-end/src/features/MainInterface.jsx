@@ -1,6 +1,6 @@
 // Main Interface - Logged-in application shell
 
-import { lazy, memo, Suspense, useRef, useState } from "react";
+import { lazy, memo, Suspense, useMemo, useRef, useState } from "react";
 import {
   Box,
   Typography,
@@ -29,6 +29,7 @@ import ArtifactLoader from "@/features/sidebar-right/index";
 import { ConfirmDialog, ResizeHandle } from "@/components";
 import {
   getInteractionColors,
+  getInteractiveControlSx,
   getInteractiveIconButtonSx,
   getPopoverMenuItemSx,
   getPopoverMenuListSx,
@@ -38,7 +39,11 @@ import {
   UI_Z_INDEX,
 } from "@/styles/shared";
 import { useChatPageController } from "@/hooks/chat-page/useChatPageController";
-import { getShellWorkspaceSx } from "@/features/styles/interfaceChrome";
+import {
+  getAppPanelSurfaceSx,
+  getAppSunkenSurfaceSx,
+  getShellWorkspaceSx,
+} from "@/features/styles/interfaceChrome";
 
 const DatabaseModal = lazy(
   () => import("@/features/overlays/database/DatabaseModal"),
@@ -93,13 +98,10 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                 isDark ? 0.12 : 0.08,
               ),
               borderBottom: 0,
-              bgcolor: theme.palette.background.paper,
+              ...getAppPanelSurfaceSx(theme),
               px: { xs: 2.25, sm: 3 },
               pb: { xs: 5.5, sm: 5 }, // padding overlap
               pt: 1.5,
-              backgroundImage: isDark
-                ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.02)} 0%, transparent 100%)`
-                : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.5)} 0%, transparent 100%)`,
             }}
           >
             <Box sx={{ minWidth: 0 }}>
@@ -212,8 +214,8 @@ const MobileSidebarOpenButton = memo(function MobileSidebarOpenButton({
           ...getInteractiveIconButtonSx(theme, { size: 44, radius: "8px" }),
           width: 44,
           height: 44,
-          backgroundColor: alpha(theme.palette.background.paper, 0.96),
-          boxShadow: `0 6px 18px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.18 : 0.08)}`,
+          ...getAppPanelSurfaceSx(theme),
+          boxShadow: "none",
           opacity: 0.82,
           transition: "opacity 0.15s ease",
           "&:hover": {
@@ -242,6 +244,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
   guidedConfirmDialog,
   handleGuidedCancel,
   handleGuidedConfirm,
+  currentConversationId,
   theme,
 }) {
   return (
@@ -289,6 +292,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
               messages={messages}
               isLoadingConversation={isConversationLoading}
               loadError={conversationLoadState === "error"}
+              conversationId={currentConversationId}
               onRunQuery={handleRunQuery}
               onOpenCanvasArtifact={handleOpenCanvasArtifact}
             />
@@ -365,7 +369,9 @@ const WorkspaceOverlayLayer = memo(
     prev.settingsOpen === next.settingsOpen &&
     prev.isDbConnected === next.isDbConnected &&
     prev.currentDatabase === next.currentDatabase &&
-    prev.availableDatabases === next.availableDatabases,
+    prev.availableDatabases === next.availableDatabases &&
+    prev.dbModalInitialType === next.dbModalInitialType &&
+    prev.settingsInitialSection === next.settingsInitialSection,
 );
 
 function MainInterface() {
@@ -394,6 +400,7 @@ function MainInterface() {
     messages,
     isConversationLoading,
     conversationLoadState,
+    currentConversationId,
     handleRunQuery,
     handleOpenCanvasArtifact,
     chatInputSharedProps,
@@ -430,20 +437,131 @@ function MainInterface() {
   } = useChatPageController();
 
   const [isResizingCanvas, setIsResizingCanvas] = useState(false);
+  const isDark = theme.palette.mode === "dark";
+  const appShellSx = useMemo(
+    () => ({
+      display: "flex",
+      flexDirection: "row",
+      width: "100%",
+      minWidth: 0,
+      minHeight: 0,
+      overflow: "hidden",
+      bgcolor: "background.default",
+    }),
+    [],
+  );
+  const workspaceContainerSx = useMemo(
+    () => ({
+      flex: 1,
+      minWidth: 0,
+      minHeight: 0,
+      display: "flex",
+      flexDirection: "row",
+      alignItems: "stretch",
+      overflow: "hidden",
+      position: "relative",
+    }),
+    [],
+  );
+  const mainContentSx = useMemo(
+    () => ({
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      mt: 0,
+      minWidth: 0,
+      minHeight: 0,
+      overflow: "hidden",
+      position: "relative",
+      zIndex: UI_Z_INDEX.mainContentBase,
+      ...getShellWorkspaceSx(theme),
+    }),
+    [theme],
+  );
+  const desktopCanvasShellSx = useMemo(
+    () => ({
+      display: "flex",
+      flexShrink: 0,
+      minHeight: 0,
+      alignSelf: "stretch",
+      height: "100%",
+    }),
+    [],
+  );
+  const mobileCanvasShellSx = useMemo(
+    () => (theme) => ({
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: UI_Z_INDEX.artifactFullscreen,
+      display: "flex",
+      flexDirection: "column",
+      ...getAppSunkenSurfaceSx(theme),
+    }),
+    [],
+  );
+  const snackbarSx = useMemo(
+    () => ({
+      maxWidth: "min(420px, calc(100vw - 32px))",
+      "& .MuiSnackbarContent-root": {
+        width: "100%",
+        borderRadius: "8px",
+        boxShadow: "none",
+      },
+      "@media (max-width: 599.95px)": {
+        "&.MuiSnackbar-anchorOriginTopCenter": {
+          top: "max(8px, env(safe-area-inset-top)) !important",
+        },
+      },
+    }),
+    [],
+  );
+  const renameDialogPaperSx = useMemo(
+    () => ({
+      borderRadius: "14px",
+      border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08)}`,
+      ...getAppPanelSurfaceSx(theme),
+      boxShadow: "none",
+    }),
+    [isDark, theme],
+  );
+  const renameFieldSx = useMemo(
+    () => ({
+      "& .MuiOutlinedInput-root": {
+        borderRadius: "8px",
+        ...theme.typography.uiInput,
+      },
+      "& .MuiInputLabel-root": {
+        ...theme.typography.uiCaptionMd,
+      },
+    }),
+    [theme],
+  );
+  const renameActionsSx = useMemo(
+    () => ({
+      px: 3,
+      pb: 2.5,
+      pt: 1,
+      gap: 1,
+      "& .MuiButton-root": {
+        minHeight: 34,
+        borderRadius: "8px",
+        px: 1.5,
+        textTransform: "none",
+        ...theme.typography.uiNavItem,
+      },
+    }),
+    [theme],
+  );
+  const renameCancelButtonSx = useMemo(
+    () => getInteractiveControlSx(theme, { size: 34, radius: "8px" }),
+    [theme],
+  );
 
   return (
-    <Box
-      id="app-shell"
-      sx={{
-        display: "flex",
-        flexDirection: "row",
-        width: "100%",
-        minWidth: 0,
-        minHeight: 0,
-        overflow: "hidden",
-        bgcolor: "background.default",
-      }}
-    >
+    <Box id="app-shell" sx={appShellSx}>
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
@@ -527,35 +645,12 @@ function MainInterface() {
         mobileOpen={mobileOpen}
         onMobileClose={handleMobileDrawerClose}
       />
-      <Box
-        ref={workspaceContainerRef}
-        sx={{
-          flex: 1,
-          minWidth: 0,
-          minHeight: 0,
-          display: "flex",
-          flexDirection: "row",
-          alignItems: "stretch",
-          overflow: "hidden",
-          position: "relative",
-        }}
-      >
+      <Box ref={workspaceContainerRef} sx={workspaceContainerSx}>
         <Box
           component="main"
           id="main-content"
           aria-label="Chat workspace"
-          sx={{
-            flex: 1,
-            display: "flex",
-            flexDirection: "column",
-            mt: 0,
-            minWidth: 0,
-            minHeight: 0,
-            overflow: "hidden",
-            position: "relative",
-            zIndex: UI_Z_INDEX.mainContentBase,
-            ...getShellWorkspaceSx(theme),
-          }}
+          sx={mainContentSx}
         >
           <MobileSidebarOpenButton
             visible={isNarrowLayout}
@@ -577,6 +672,7 @@ function MainInterface() {
             guidedConfirmDialog={guidedConfirmDialog}
             handleGuidedCancel={handleGuidedCancel}
             handleGuidedConfirm={handleGuidedConfirm}
+            currentConversationId={currentConversationId}
             theme={theme}
           />
         </Box>
@@ -584,13 +680,7 @@ function MainInterface() {
           <Box
             component="section"
             data-ui-target="workspace_canvas"
-            sx={{
-              display: "flex",
-              flexShrink: 0,
-              minHeight: 0,
-              alignSelf: "stretch",
-              height: "100%",
-            }}
+            sx={desktopCanvasShellSx}
             aria-label="Workspace canvas"
           >
             <ResizeHandle
@@ -620,19 +710,7 @@ function MainInterface() {
           mountOnEnter
           unmountOnExit
         >
-          <Box
-            sx={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: UI_Z_INDEX.artifactFullscreen,
-              display: "flex",
-              flexDirection: "column",
-              bgcolor: "background.default",
-            }}
-          >
+          <Box sx={mobileCanvasShellSx}>
             <ArtifactLoader
               artifact={workspaceCanvasArtifact}
               onOpenArtifact={handleOpenCanvasArtifact}
@@ -665,17 +743,7 @@ function MainInterface() {
         anchorOrigin={snackbarAnchorOrigin}
         message={snackbar.message}
         ContentProps={snackbarContentProps}
-        sx={{
-          maxWidth: "min(420px, calc(100vw - 32px))",
-          "& .MuiSnackbarContent-root": { width: "100%" },
-          // Respect the iOS notch safe area when the snackbar is anchored to the top.
-          // env() falls back to 8px on platforms that don't support it.
-          "@media (max-width: 599.95px)": {
-            "&.MuiSnackbar-anchorOriginTopCenter": {
-              top: "max(8px, env(safe-area-inset-top)) !important",
-            },
-          },
-        }}
+        sx={snackbarSx}
       />
       <ConfirmDialog
         open={confirmDialog.open}
@@ -701,16 +769,22 @@ function MainInterface() {
             handleRenameConversationConfirm();
           },
           sx: {
-            borderRadius: "12px",
+            ...renameDialogPaperSx,
           },
         }}
       >
         <DialogTitle
-          sx={{ ...theme.typography.uiCardTitle, fontWeight: 700, pb: 1 }}
+          sx={{
+            ...theme.typography.uiCardTitle,
+            fontWeight: 700,
+            px: 3,
+            pt: 2.5,
+            pb: 1,
+          }}
         >
           Rename conversation
         </DialogTitle>
-        <DialogContent sx={{ pt: 1 }}>
+        <DialogContent sx={{ px: 3, pt: 1 }}>
           <TextField
             autoFocus
             fullWidth
@@ -719,15 +793,26 @@ function MainInterface() {
             value={renameConversationDialog.title}
             onChange={handleRenameConversationTitleChange}
             inputProps={{ maxLength: 80 }}
+            sx={renameFieldSx}
           />
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2 }}>
-          <Button onClick={handleRenameConversationDialogClose}>Cancel</Button>
+        <DialogActions sx={renameActionsSx}>
+          <Button
+            onClick={handleRenameConversationDialogClose}
+            color="inherit"
+            sx={renameCancelButtonSx}
+          >
+            Cancel
+          </Button>
           <Button
             type="submit"
             variant="contained"
             disableElevation
             disabled={!renameConversationDialog.title.trim()}
+            sx={{
+              boxShadow: "none",
+              "&:hover": { boxShadow: "none" },
+            }}
           >
             Rename
           </Button>

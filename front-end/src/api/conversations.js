@@ -36,6 +36,18 @@ export async function getConversation(id, signal) {
 }
 
 /**
+ * Get a specific execution result.
+ *
+ * @param {string} conversationId - Conversation ID
+ * @param {string} executionId - Execution ID
+ * @param {AbortSignal} [signal] - Optional abort signal
+ * @returns {Promise<{status: string, data: Object}>}
+ */
+export async function getExecutionResult(conversationId, executionId, signal) {
+  return get(CONVERSATIONS.GET_EXECUTION_RESULT(conversationId, executionId), { signal });
+}
+
+/**
  * Delete a conversation by ID.
  *
  * @param {string} id - Conversation ID

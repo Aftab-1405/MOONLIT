@@ -42,11 +42,14 @@ function useAutoScroll({ messageCount, isStreaming, isConversationLoading = fals
   }, []);
 
   useEffect(() => {
+    const wasStreaming = streamingRef.current;
     streamingRef.current = isStreaming;
     if (isStreaming) {
       settleUntilRef.current = 0;
-    } else {
+    } else if (wasStreaming) {
       settleUntilRef.current = Date.now() + POST_STREAM_SETTLE_MS;
+    } else {
+      settleUntilRef.current = 0;
     }
   }, [isStreaming]);
 

@@ -22,7 +22,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
 import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
 import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import {
   getDatabases,
@@ -182,6 +182,7 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
       sx={{
         display: 'flex',
         flexDirection: 'column',
+        gap: 0.75,
       }}
     >
       {databases.map((db) => {
@@ -210,9 +211,9 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
               display: 'flex',
               alignItems: 'center',
               gap: 1.5,
-              borderBottom: '1px solid',
-              borderColor: 'divider',
-              '&:last-of-type': { borderBottom: 'none' },
+              minWidth: 0,
+              border: '1px solid',
+              borderColor: isSelected ? alpha(theme.palette.success.main, 0.3) : 'divider',
               backgroundColor: isSelected
                 ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07)
                 : 'transparent',
@@ -228,7 +229,7 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
             }}
           >
             {isSelected ? (
-              <CheckRoundedIcon sx={{ fontSize: 16, color: 'text.primary', flexShrink: 0 }} />
+              <CheckCircleOutlineRoundedIcon sx={{ fontSize: 18, color: 'success.main', flexShrink: 0 }} />
             ) : (
               <DatabaseIcon sx={{ width: 16, height: 16, opacity: 0.78 }} />
             )}
@@ -237,6 +238,10 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
                 ...theme.typography.uiBodySm,
                 fontWeight: isSelected ? 600 : 400,
                 color: isSelected ? 'text.primary' : 'text.secondary',
+                minWidth: 0,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
               }}
             >
               {db}

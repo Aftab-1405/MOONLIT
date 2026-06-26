@@ -50,25 +50,18 @@ const formatTimeAgo = (isoString) => {
 
 function ContextCard({ children, sx = {} }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
   return (
     <Box
       sx={{
-        borderRadius: "10px",
+        borderRadius: "12px",
         border: "1px solid",
-        borderColor: alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
-        backgroundColor: alpha(
-          theme.palette.text.primary,
-          isDark ? 0.03 : 0.02,
-        ),
+        borderColor: "divider",
+        backgroundColor: "transparent",
         overflow: "hidden",
-        transition: "border-color 150ms ease",
+        transition: theme.transitions.create(["border-color", "background-color"]),
         [HOVER_CAPABLE_QUERY]: {
           "&:hover": {
-            borderColor: alpha(
-              theme.palette.text.primary,
-              isDark ? 0.16 : 0.13,
-            ),
+            backgroundColor: alpha(theme.palette.text.primary, 0.02),
           },
         },
         ...sx,
@@ -161,10 +154,26 @@ function ContextLoadingSkeleton({ isCompactMobile }) {
 }
 
 function EmptyState({ icon: _Icon, title, subtitle }) {
+  const theme = useTheme();
   const Icon = _Icon;
   return (
-    <ContextCard sx={{ textAlign: "center", py: 4 }}>
-      <Icon sx={{ fontSize: 44, color: "text.disabled", mb: 1.5 }} />
+    <Box
+      sx={{
+        textAlign: "center",
+        py: 8,
+        px: 2,
+        borderRadius: "12px",
+        border: "1px dashed",
+        borderColor: "divider",
+      }}
+    >
+      <Icon
+        sx={{
+          fontSize: 32,
+          color: alpha(theme.palette.text.primary, 0.2),
+          mb: 1.5,
+        }}
+      />
       <Typography variant="body2" color="text.secondary" fontWeight={500}>
         {title}
       </Typography>
@@ -177,7 +186,7 @@ function EmptyState({ icon: _Icon, title, subtitle }) {
           {subtitle}
         </Typography>
       )}
-    </ContextCard>
+    </Box>
   );
 }
 function UserDBContextManagerForAI() {
@@ -270,17 +279,17 @@ function UserDBContextManagerForAI() {
     const { type } = deleteDialog;
     if (type === "schema") {
       return {
-        title: "Delete schema context?",
+        title: "Delete database context?",
         description:
-          "Are you sure you want to delete this schema context? This action cannot be undone.",
+          "Are you sure you want to delete this database context? This action cannot be undone.",
         confirmText: "Delete",
       };
     }
     if (type === "all-schemas") {
       return {
-        title: "Delete all schema context?",
+        title: "Delete all database context?",
         description:
-          "Are you sure you want to delete all saved schema context? This action cannot be undone.",
+          "Are you sure you want to delete all saved database context? This action cannot be undone.",
         confirmText: "Delete all",
       };
     }
@@ -300,18 +309,22 @@ function UserDBContextManagerForAI() {
 
   return (
     <Box>
-      {/* Info banner — subdued, inline style */}
+      {/* Info banner — subtle highlighted surface */}
       <Box
         sx={{
           display: "flex",
-          gap: 1.25,
+          gap: 1.5,
           mb: 3,
-          p: 0,
-          color: "text.secondary",
+          p: 1.5,
+          borderRadius: "10px",
+          border: "1px solid",
+          borderColor: "divider",
+          backgroundColor: alpha(theme.palette.primary.main, 0.04),
+          alignItems: "center",
         }}
       >
         <InfoOutlinedIcon
-          sx={{ fontSize: 16, mt: "2px", flexShrink: 0, opacity: 0.7 }}
+          sx={{ fontSize: 18, color: "primary.main", flexShrink: 0 }}
         />
         <Typography
           sx={{
@@ -321,7 +334,7 @@ function UserDBContextManagerForAI() {
           }}
         >
           This is the AI's memory of your database structure. Delete only if
-          your schema has changed.
+          your database structure has changed.
         </Typography>
       </Box>
 
@@ -350,15 +363,39 @@ function UserDBContextManagerForAI() {
           exclusive
           onChange={(_e, v) => v && setActiveView(v)}
           size="small"
+          sx={{
+            gap: 0.5,
+            p: 0.5,
+            border: "1px solid",
+            borderColor: "divider",
+            borderRadius: "10px",
+            "& .MuiToggleButton-root": {
+              border: "none",
+              borderRadius: "6px !important",
+              px: 1.5,
+              py: 0.5,
+              textTransform: "none",
+              ...theme.typography.uiNavItem,
+              color: "text.secondary",
+              "&.Mui-selected": {
+                backgroundColor: alpha(theme.palette.text.primary, 0.08),
+                color: "text.primary",
+                fontWeight: 600,
+              },
+              "&:hover:not(.Mui-selected)": {
+                backgroundColor: alpha(theme.palette.text.primary, 0.04),
+              },
+            },
+          }}
         >
           <ToggleButton value="schemas">
-            <SchemaIcon sx={{ width: 15, height: 15 }} />
-            Schemas
+            <DatabaseIcon sx={{ width: 15, height: 15, mr: 1 }} />
+            Databases
             {schemas.length > 0 && (
               <Box
                 component="span"
                 sx={{
-                  ml: 0.5,
+                  ml: 1,
                   px: 0.75,
                   height: 18,
                   minWidth: 18,
@@ -366,7 +403,7 @@ function UserDBContextManagerForAI() {
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundColor: neutralInteraction.activeBackground,
+                  backgroundColor: alpha(theme.palette.text.primary, 0.1),
                   ...theme.typography.uiCaptionMd,
                   fontWeight: 600,
                   lineHeight: 1,
@@ -377,13 +414,13 @@ function UserDBContextManagerForAI() {
             )}
           </ToggleButton>
           <ToggleButton value="queries">
-            <RecentChatIcon sx={{ width: 15, height: 15 }} />
+            <RecentChatIcon sx={{ width: 15, height: 15, mr: 1 }} />
             Queries
             {queries.length > 0 && (
               <Box
                 component="span"
                 sx={{
-                  ml: 0.5,
+                  ml: 1,
                   px: 0.75,
                   height: 18,
                   minWidth: 18,
@@ -391,7 +428,7 @@ function UserDBContextManagerForAI() {
                   display: "inline-flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  backgroundColor: neutralInteraction.activeBackground,
+                  backgroundColor: alpha(theme.palette.text.primary, 0.1),
                   ...theme.typography.uiCaptionMd,
                   fontWeight: 600,
                   lineHeight: 1,
@@ -408,8 +445,6 @@ function UserDBContextManagerForAI() {
           (activeView === "queries" && queries.length > 0)) && (
           <Button
             size="small"
-            variant="outlined"
-            color="error"
             onClick={() =>
               openDeleteDialog(
                 activeView === "schemas" ? "all-schemas" : "queries",
@@ -423,6 +458,12 @@ function UserDBContextManagerForAI() {
               height: 32,
               borderRadius: "8px",
               minWidth: 0,
+              color: "text.secondary",
+              transition: theme.transitions.create(["color", "background-color"]),
+              "&:hover": {
+                color: "error.main",
+                backgroundColor: alpha(theme.palette.error.main, 0.1),
+              },
             }}
           >
             Clear all
@@ -433,12 +474,12 @@ function UserDBContextManagerForAI() {
         <>
           {schemas.length === 0 ? (
             <EmptyState
-              icon={SchemaIcon}
-              title="No cached schemas"
-              subtitle="Connect to a database to cache its schema"
+              icon={DatabaseIcon}
+              title="No cached databases"
+              subtitle="Connect to a database to cache its structure"
             />
           ) : (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
               {schemas.map((schema) => {
                 const tableList = Array.isArray(schema.tables)
                   ? schema.tables
@@ -458,8 +499,8 @@ function UserDBContextManagerForAI() {
                       sx={{ py: { xs: 1.25, sm: 1.5 }, px: 2, minHeight: 52 }}
                     >
                       <ListItemIcon sx={{ minWidth: 36 }}>
-                        <SchemaIcon
-                          sx={{ width: 20, height: 20, opacity: 0.78 }}
+                        <DatabaseIcon
+                          sx={{ width: 18, height: 18, opacity: 0.78 }}
                         />
                       </ListItemIcon>
                       <ListItemText
@@ -526,102 +567,63 @@ function UserDBContextManagerForAI() {
                       <Divider />
                       <Box
                         sx={{
-                          p: 2,
-                          backgroundColor: alpha(
-                            theme.palette.background.default,
-                            0.5,
-                          ),
+                          p: 1.5,
+                          pt: 1,
                         }}
                       >
-                        <Typography
-                          variant="caption"
-                          sx={{
-                            color: "text.secondary",
-                            ...theme.typography.uiCaptionMd,
-                            textTransform: "none",
-                            letterSpacing: 0,
-                            fontWeight: 600,
-                            mb: 1,
-                            display: "block",
-                          }}
-                        >
-                          Tables
-                        </Typography>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            flexWrap: "wrap",
-                            gap: 0.75,
-                            mb: 2,
-                          }}
-                        >
-                          {tableList.slice(0, 15).map((table) => (
-                            <Chip
-                              key={table}
-                              size="small"
-                              icon={
-                                <SchemaIcon sx={{ width: 12, height: 12 }} />
-                              }
-                              label={table}
+                        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
+                          {Object.entries(columnsByTable).map(([tableName, columns]) => (
+                            <Box
+                              key={tableName}
                               sx={{
-                                height: 24,
+                                display: "flex",
+                                flexDirection: { xs: "column", sm: "row" },
+                                gap: { xs: 0.5, sm: 2 },
+                                p: 1.5,
+                                backgroundColor: alpha(theme.palette.text.primary, 0.02),
                                 border: "1px solid",
-                                borderColor: "divider",
+                                borderColor: alpha(theme.palette.text.primary, 0.05),
+                                borderRadius: "8px",
+                                alignItems: "flex-start",
                               }}
-                            />
-                          ))}
-                          {tableList.length > 15 && (
-                            <Chip
-                              size="small"
-                              label={`+${tableList.length - 15} more`}
-                              sx={{ height: 24 }}
-                            />
-                          )}
-                        </Box>
-                        {Object.entries(columnsByTable)
-                          .slice(0, 2)
-                          .map(([tableName, columns]) => (
-                            <Box key={tableName} sx={{ mb: 1 }}>
+                            >
                               <Typography
-                                variant="caption"
                                 sx={{
-                                  color: "text.secondary",
-                                  fontWeight: 500,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  gap: 0.5,
+                                  width: { xs: "100%", sm: 160 },
+                                  flexShrink: 0,
+                                  fontFamily:
+                                    'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+                                  fontSize: "12.5px",
+                                  fontWeight: 650,
+                                  color: "text.primary",
+                                  mt: { xs: 0, sm: 0.25 },
                                 }}
                               >
-                                <ViewColumnRoundedIcon sx={{ fontSize: 12 }} />
-                                {tableName} (
-                                {Array.isArray(columns) ? columns.length : 0}{" "}
-                                columns)
+                                {tableName}
                               </Typography>
                               <Typography
-                                variant="caption"
-                                color="text.disabled"
-                                sx={{ display: "block", pl: 2 }}
+                                sx={{
+                                  color: "text.secondary",
+                                  fontFamily:
+                                    'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
+                                  fontSize: "11.5px",
+                                  lineHeight: 1.6,
+                                }}
                               >
                                 {Array.isArray(columns)
                                   ? columns
-                                      .slice(0, 6)
-                                      .map((c) =>
-                                        typeof c === "object" ? c.name : c,
-                                      )
+                                      .map((c) => (typeof c === "object" ? c.name : c))
                                       .join(", ")
                                   : "No columns"}
-                                {Array.isArray(columns) &&
-                                  columns.length > 6 &&
-                                  ` +${columns.length - 6} more`}
                               </Typography>
                             </Box>
                           ))}
-                        {Object.keys(columnsByTable).length > 2 && (
-                          <Typography variant="caption" color="text.disabled">
-                            ...and {Object.keys(columnsByTable).length - 2} more
-                            tables
-                          </Typography>
-                        )}
+                          {Object.keys(columnsByTable).length === 0 && tableList.length > 0 && (
+                            <Typography variant="body2" color="text.secondary" sx={{ p: 1 }}>
+                              Tables: {tableList.join(", ")}
+                            </Typography>
+                          )}
+                        </Box>
                       </Box>
                     </Collapse>
                   </ContextCard>
@@ -640,7 +642,7 @@ function UserDBContextManagerForAI() {
               subtitle="Run SQL queries to build history"
             />
           ) : (
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
               {queries.map((query, index) => (
                 <ContextCard
                   key={`${query.executed_at || index}-${query.database || "db"}`}
@@ -727,10 +729,7 @@ function UserDBContextManagerForAI() {
                     <Box
                       sx={{
                         p: 2,
-                        backgroundColor: alpha(
-                          theme.palette.background.default,
-                          0.5,
-                        ),
+                        pt: 1.5,
                       }}
                     >
                       <Box

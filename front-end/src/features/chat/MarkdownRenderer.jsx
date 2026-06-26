@@ -7,12 +7,14 @@ import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
 import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
 import PlayArrowRoundedIcon from "@mui/icons-material/PlayArrowRounded";
 import WrapTextRoundedIcon from "@mui/icons-material/WrapTextRounded";
+import CodeRoundedIcon from "@mui/icons-material/CodeRounded";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import {
   vscDarkPlus,
   vs,
 } from "react-syntax-highlighter/dist/esm/styles/prism";
 import { ButtonLoadingSpinner } from "@/components";
+import { HOVER_CAPABLE_QUERY } from "@/styles/mediaQueries";
 import { copyToClipboard } from "@/utils/clipboard";
 
 const SQL_LANGUAGES = new Set([
@@ -30,6 +32,41 @@ const SQL_LANGUAGES = new Set([
 const CANVAS_LANGUAGES = new Set(["diagram-flow"]);
 
 const REMARK_PLUGINS = [remarkGfm];
+const CODE_ACTION_SIZE = 30;
+
+const getCodeActionButtonSx = (
+  theme,
+  { active = false, tone = "neutral" } = {},
+) => {
+  const toneColor =
+    tone === "success" ? theme.palette.success.main : theme.palette.text.primary;
+
+  return {
+    width: CODE_ACTION_SIZE,
+    height: CODE_ACTION_SIZE,
+    borderRadius: "8px",
+    color: active ? toneColor : "text.secondary",
+    transition: theme.transitions.create(["background-color", "color"], {
+      duration: theme.transitions.duration.shorter,
+    }),
+    [HOVER_CAPABLE_QUERY]: {
+      "&:hover": {
+        color: active ? toneColor : "text.primary",
+        backgroundColor: alpha(theme.palette.text.primary, 0.045),
+      },
+    },
+    "&.Mui-disabled": {
+      color: alpha(theme.palette.text.primary, 0.34),
+    },
+    "&:focus-visible": {
+      outline: `2px solid ${alpha(
+        theme.palette.text.primary,
+        theme.palette.mode === "dark" ? 0.18 : 0.12,
+      )}`,
+      outlineOffset: 2,
+    },
+  };
+};
 
 const CodeBlock = memo(function CodeBlock({
   children,
@@ -56,7 +93,6 @@ const CodeBlock = memo(function CodeBlock({
       : String(children || "").replace(/\n$/, "");
   }, [children]);
 
-  // Check if the code block content is a JSON containing 'query'
   const { code, detectedLanguage, rationale } = useMemo(() => {
     const trimmed = rawCode.trim();
     if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
@@ -83,17 +119,20 @@ const CodeBlock = memo(function CodeBlock({
   const isSQL = SQL_LANGUAGES.has(detectedLanguage.toLowerCase());
   const lineCount = code.split("\n").length;
   const showLineNumbers = lineCount >= 4;
-  // Only show the wrap toggle when there are actually long lines worth wrapping.
   const hasLongLines = useMemo(
     () => code.split("\n").some((line) => line.length > 80),
     [code],
   );
 
-  // Use the same surface level as the page — no dark pit, consistent with tables
-  const codeBg = theme.palette.background.elevated;
-  const headerBg = isDarkMode
-    ? alpha(theme.palette.background.elevated, 0.9)
-    : alpha(theme.palette.background.paper, 0.95);
+  const codeBg = alpha(theme.palette.text.primary, isDarkMode ? 0.028 : 0.018);
+  const codeBorder = alpha(
+    theme.palette.text.primary,
+    isDarkMode ? 0.1 : 0.075,
+  );
+  const dividerColor = alpha(
+    theme.palette.text.primary,
+    isDarkMode ? 0.08 : 0.06,
+  );
 
   const handleCopy = useCallback(async () => {
     const ok = await copyToClipboard(code);
@@ -117,65 +156,62 @@ const CodeBlock = memo(function CodeBlock({
 
   const containerStyles = useMemo(
     () => ({
-      my: { xs: 1.25, sm: 1.5 },
-      borderRadius: "10px",
+      my: { xs: 1.5, sm: 2 },
+      borderRadius: "8px",
+      border: "1px solid",
+      borderColor: codeBorder,
       overflow: "hidden",
       backgroundColor: codeBg,
-      border: "1px solid",
-      borderColor: theme.palette.border.subtle,
-      minWidth: 0, // CRITICAL: Prevents flexbox overflow issues during streaming
+      minWidth: 0,
       width: "100%",
-      transition: "border-color 140ms ease, box-shadow 140ms ease",
-      "&:hover": {
-        borderColor: alpha(
-          theme.palette.text.secondary,
-          isDarkMode ? 0.18 : 0.14,
-        ),
-        boxShadow: `0 8px 22px ${alpha(theme.palette.common.black, isDarkMode ? 0.18 : 0.06)}`,
-      },
     }),
-    [theme, codeBg, isDarkMode],
+    [codeBg, codeBorder],
   );
 
   return (
     <Box sx={containerStyles}>
-      {/* Header */}
       <Box
         sx={{
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          px: { xs: 1.1, sm: 1.35 },
-          minHeight: { xs: 34, sm: 36 },
-          borderBottom: "1px solid",
-          borderColor: theme.palette.border.subtle,
-          backgroundColor: headerBg,
-          gap: 0.75,
+          py: 0.75,
+          pl: { xs: 2, md: 2.5 },
+          pr: 0.75,
+          backgroundColor: "transparent",
+          gap: 1,
         }}
       >
-        {/* Language label */}
         <Box
-          sx={{ display: "flex", alignItems: "center", minWidth: 0, flex: 1 }}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            minWidth: 0,
+            flex: 1,
+            gap: 1,
+          }}
         >
+          <CodeRoundedIcon
+            sx={{ fontSize: 17, color: theme.palette.text.secondary }}
+          />
           <Typography
             sx={{
               color: theme.palette.text.secondary,
-              fontWeight: 500,
-              fontFamily: theme.typography.fontFamilyMono,
-              ...theme.typography.uiCaption2xs,
-              textTransform: "lowercase",
+              fontWeight: 600,
+              fontFamily: theme.typography.fontFamily,
+              fontSize: "0.8125rem",
+              textTransform: "capitalize",
               letterSpacing: 0,
               textOverflow: "ellipsis",
               overflow: "hidden",
               whiteSpace: "nowrap",
             }}
           >
-            {detectedLanguage || "code"}
+            {detectedLanguage || "Code"}
             {rationale ? ` - ${rationale}` : ""}
           </Typography>
         </Box>
 
-        {/* Action buttons */}
         <Box
           sx={{
             display: "flex",
@@ -192,12 +228,15 @@ const CodeBlock = memo(function CodeBlock({
               <IconButton
                 size="small"
                 onClick={() => setWrapLongLines((v) => !v)}
-                color={wrapLongLines ? "success" : "primary"}
                 aria-label={
                   wrapLongLines ? "Unwrap long lines" : "Wrap long lines"
                 }
+                sx={getCodeActionButtonSx(theme, {
+                  active: wrapLongLines,
+                  tone: "success",
+                })}
               >
-                <WrapTextRoundedIcon sx={{ fontSize: 14 }} />
+                <WrapTextRoundedIcon sx={{ fontSize: 18 }} />
               </IconButton>
             </Tooltip>
           )}
@@ -208,13 +247,16 @@ const CodeBlock = memo(function CodeBlock({
                   size="small"
                   onClick={handleRun}
                   disabled={isRunning}
-                  color="success"
                   aria-label={isRunning ? "Running query" : "Run query"}
+                  sx={getCodeActionButtonSx(theme, {
+                    active: true,
+                    tone: "success",
+                  })}
                 >
                   {isRunning ? (
-                    <ButtonLoadingSpinner size={13} />
+                    <ButtonLoadingSpinner size={15} />
                   ) : (
-                    <PlayArrowRoundedIcon sx={{ fontSize: 16 }} />
+                    <PlayArrowRoundedIcon sx={{ fontSize: 18 }} />
                   )}
                 </IconButton>
               </span>
@@ -224,25 +266,28 @@ const CodeBlock = memo(function CodeBlock({
             <IconButton
               size="small"
               onClick={handleCopy}
-              color={copied ? "success" : "primary"}
               aria-label={copied ? "Copied" : "Copy code"}
-              sx={{ transition: "color 120ms ease" }}
+              sx={getCodeActionButtonSx(theme, {
+                active: copied,
+                tone: "success",
+              })}
             >
               {copied ? (
-                <CheckRoundedIcon sx={{ fontSize: 14 }} />
+                <CheckRoundedIcon sx={{ fontSize: 18 }} />
               ) : (
-                <ContentCopyRoundedIcon sx={{ fontSize: 14 }} />
+                <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />
               )}
             </IconButton>
           </Tooltip>
         </Box>
       </Box>
 
-      {/* Code body */}
       <Box
         sx={{
           overflowX: "auto",
           minHeight: 56,
+          px: { xs: 0.5, md: 1 },
+          pb: { xs: 0.5, md: 1 },
         }}
       >
         <SyntaxHighlighter
@@ -252,7 +297,7 @@ const CodeBlock = memo(function CodeBlock({
           lineNumberStyle={{
             minWidth: "2.5em",
             paddingRight: "1em",
-            color: isDarkMode ? alpha("#ffffff", 0.18) : alpha("#000000", 0.22),
+            color: alpha(theme.palette.text.primary, isDarkMode ? 0.18 : 0.22),
             fontSize: "0.78em",
             userSelect: "none",
           }}
@@ -262,6 +307,7 @@ const CodeBlock = memo(function CodeBlock({
             fontSize: theme.typography.uiCodeBlock.fontSize,
             lineHeight: theme.typography.uiCodeBlock.lineHeight,
             background: "transparent",
+            border: "none",
           }}
           wrapLines={wrapLongLines}
           wrapLongLines={wrapLongLines}
@@ -279,19 +325,20 @@ const InlineCode = memo(function InlineCode({ children, theme }) {
       component="code"
       sx={{
         fontFamily: theme.typography.fontFamilyMono,
-        fontSize: theme.typography.uiCodeBlock.fontSize,
-        backgroundColor: theme.palette.code.background,
-        px: 0.6,
-        py: 0.15,
+        fontSize: "0.85em",
+        backgroundColor:
+          theme.palette.mode === "dark"
+            ? alpha(theme.palette.text.primary, 0.12)
+            : alpha(theme.palette.text.primary, 0.08),
+        px: 0.75,
+        py: 0.25,
         borderRadius: "6px",
-        border: "1px solid",
-        borderColor: theme.palette.code.border,
         fontWeight: 500,
-        wordBreak: "break-word", // CRITICAL: Prevents inline code from causing horizontal overflow
+        wordBreak: "break-word",
         color:
           theme.palette.mode === "dark"
-            ? alpha(theme.palette.text.primary, 0.88)
-            : alpha(theme.palette.text.primary, 0.82),
+            ? alpha(theme.palette.text.primary, 0.9)
+            : alpha(theme.palette.text.primary, 0.85),
       }}
     >
       {children}
@@ -351,7 +398,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
   const components = useMemo(
     () => ({
       code({ className, children, ...props }) {
-        const match = /language-(\w+)/.exec(className || "");
+        const match = /language-([A-Za-z0-9_-]+)/.exec(className || "");
         const language = match ? match[1].toLowerCase() : "";
 
         // Canvas languages (e.g. diagram-flow) are rendered as artifact cards
@@ -384,17 +431,13 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
           sx={{
             overflowX: "auto",
             my: 2,
-            borderRadius: "12px",
+            borderRadius: "8px",
             border: "1px solid",
-            borderColor: theme.palette.border.subtle,
-            minHeight: 96,
-            transition: "border-color 0.18s ease",
-            "&:hover": {
-              borderColor: alpha(
-                theme.palette.text.secondary,
-                isDarkMode ? 0.18 : 0.14,
-              ),
-            },
+            borderColor: alpha(theme.palette.text.primary, 0.075),
+            backgroundColor: alpha(
+              theme.palette.text.primary,
+              theme.palette.mode === "dark" ? 0.022 : 0.014,
+            ),
           }}
         >
           <Box
@@ -414,68 +457,80 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
   );
   const containerSx = useMemo(
     () => ({
-      overflowWrap: "anywhere", // CRITICAL: Breaks long strings (URLs/tokens) to prevent layout shifting
+      overflowWrap: "anywhere",
       wordBreak: "break-word",
 
-      "& p": { my: 1.15, lineHeight: 1.68 },
+      "& p": { my: 1.2, lineHeight: 1.72 },
       "& p:first-of-type": { mt: 0 },
       "& p:last-child": { mb: 0 },
       "& ul, & ol": {
         pl: 2.5,
-        my: 1.15,
+        my: 1.25,
       },
-      "& li": { mb: 0.35, minHeight: "1.45em" },
+      "& li": { mb: 0.5, minHeight: "1.5em", lineHeight: 1.7 },
       "& a": {
-        color: "primary.main",
+        color: "text.primary",
         textDecoration: "none",
-        "&:hover": { textDecoration: "underline" },
+        borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.22)}`,
+        transition: theme.transitions.create(["border-color", "color"], {
+          duration: theme.transitions.duration.shorter,
+        }),
+        [HOVER_CAPABLE_QUERY]: {
+          "&:hover": {
+            color: "text.primary",
+            borderBottomColor: theme.palette.text.primary,
+          },
+        },
       },
       "& img": {
         maxWidth: "100%",
         height: "auto",
         display: "block",
-        borderRadius: 1,
+        borderRadius: "8px",
       },
       "& blockquote": {
-        borderLeft: `3px solid ${theme.palette.border.default}`,
+        borderLeft: `2px solid ${alpha(theme.palette.text.primary, 0.16)}`,
         margin: 0,
         my: 1.5,
         pl: 1.5,
-        pr: 1.5,
-        py: 0.85,
+        py: 0.5,
         color: theme.palette.text.secondary,
-        backgroundColor: theme.palette.action.hover,
-        borderRadius: "8px",
       },
       "& hr": {
         border: "none",
-        borderTop: `1px solid ${theme.palette.border.subtle}`,
+        borderTop: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
         my: 1.5,
       },
       "& table": {
-        overflowWrap: "normal", // Override global setting for tables
+        overflowWrap: "normal",
         wordBreak: "normal",
         ...theme.typography.uiBodyTable,
       },
       "& th": {
-        bgcolor: theme.palette.action.hover,
+        bgcolor: alpha(
+          theme.palette.text.primary,
+          theme.palette.mode === "dark" ? 0.045 : 0.028,
+        ),
         fontWeight: 600,
         textAlign: "left",
         px: { xs: 1.25, sm: 2 },
         py: { xs: 0.85, sm: 1 },
-        borderBottom: `1px solid ${theme.palette.divider}`,
+        borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
         whiteSpace: "nowrap",
         ...theme.typography.uiCaptionMd,
       },
       "& td": {
         px: { xs: 1.25, sm: 2 },
         py: { xs: 0.85, sm: 1 },
-        borderBottom: `1px solid ${theme.palette.border.subtle}`,
+        borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.06)}`,
         whiteSpace: "nowrap",
       },
       "& tr:last-child td": { borderBottom: "none" },
       "& tr:hover td": {
-        bgcolor: theme.palette.action.hover,
+        bgcolor: alpha(
+          theme.palette.text.primary,
+          theme.palette.mode === "dark" ? 0.04 : 0.024,
+        ),
       },
     }),
     [theme],

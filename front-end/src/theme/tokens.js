@@ -28,16 +28,16 @@ const hslToHex = (h, s, l) => {
 /** Pre-computed hex values — light theme */
 export const LIGHT = {
   // Backgrounds (lighter → darker)
-  bg000:      '#f8f8f8',                    // Alabaster — default canvas
-  bg100:      '#ffffff',                    // elevated paper
-  bg200:      '#f0f0f0',                    // sunken / input
-  bg300:      '#e4e4e4',                    // hover bg
-  bg400:      '#d8d8d8',                    // strongest neutral surface
+  bg000:      '#faf9f7',                    // app canvas
+  bg100:      '#faf9f7',                    // panel plane
+  bg200:      '#f1f0ed',                    // sunken / input
+  bg300:      '#e9e7e2',                    // hover bg
+  bg400:      '#dbd8d1',                    // strongest neutral surface
 
   // Text (prominent → muted)
   text000:    '#0f0f0f',                    // Cod Gray — primary
   text200:    '#2f2f2f',                    // secondary
-  text400:    '#6f6f6f',                    // muted / hint
+  text400:    '#626262',                    // muted / hint
 
   // Brand — monochrome, no decorative hue
   brand000:   '#0f0f0f',
@@ -66,16 +66,16 @@ export const LIGHT = {
 /** Pre-computed hex values — dark theme */
 export const DARK = {
   // Backgrounds (lighter → darker)
-  bg000:      '#0f0f0f',                    // Cod Gray — default canvas
-  bg100:      '#161616',                    // paper
-  bg200:      '#0a0a0a',                    // sunken / input
-  bg300:      '#000000',                    // near black
-  bg400:      hslToHex(0,   0,    0),       // #000000
+  bg000:      '#101010',                    // app canvas
+  bg100:      '#121212',                    // panel plane
+  bg200:      '#0d0d0d',                    // sunken / input
+  bg300:      '#181818',                    // hover bg
+  bg400:      '#222222',                    // strongest neutral surface
 
   // Text (prominent → muted)
   text000:    '#f8f8f8',                    // Alabaster — primary
-  text200:    '#d4d4d4',                    // secondary
-  text400:    '#8a8a8a',                    // muted / hint
+  text200:    '#d8d8d8',                    // secondary
+  text400:    '#9a9a9a',                    // muted / hint
 
   // Brand — monochrome, inverted against dark canvas
   brand000:   '#f8f8f8',

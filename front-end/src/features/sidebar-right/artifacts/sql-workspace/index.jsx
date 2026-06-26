@@ -16,6 +16,7 @@ import { ArtifactShell } from '@/features/sidebar-right/artifact-loader';
 import SchemaSidebar from '@/features/sidebar-right/artifacts/sql-workspace/SchemaSidebar';
 import QueryWorkspace from '@/features/sidebar-right/artifacts/sql-workspace/QueryWorkspace';
 import StatusBar from '@/features/sidebar-right/artifacts/sql-workspace/StatusBar';
+import { getAppSunkenSurfaceSx } from '@/features/styles/interfaceChrome';
 
 const SCHEMA_PANEL_MOTION = {
   duration: 220,
@@ -235,7 +236,6 @@ function SqlWorkspace({
       height: '100%',
       minHeight: 0,
       overflow: 'hidden',
-      bgcolor: 'background.default',
       contain: 'layout paint style',
     }),
     []
@@ -244,16 +244,16 @@ function SqlWorkspace({
   const workspaceContent = (
     <Box
       data-workspace-container
-      sx={{
+      sx={(theme) => ({
         display: 'flex',
         flexDirection: 'column',
         height: '100%',
         minHeight: 0,
         overflow: 'hidden',
-        bgcolor: 'background.default',
+        ...getAppSunkenSurfaceSx(theme),
         cursor: resizingSidebar ? 'col-resize' : 'default',
         userSelect: resizingSidebar ? 'none' : 'auto',
-      }}
+      })}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}

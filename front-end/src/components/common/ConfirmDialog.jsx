@@ -184,11 +184,6 @@ function ConfirmDialog({
         height: 'auto',
         minHeight: 0,
         maxHeight: 'calc(100vh - 32px)',
-        borderRadius: '16px',
-        border: `1px solid ${alpha(theme.palette.text.primary, isDarkMode ? 0.12 : 0.08)}`,
-        boxShadow: isDarkMode
-          ? `0 18px 48px ${alpha(theme.palette.common.black, 0.42)}`
-          : `0 18px 48px ${alpha(theme.palette.common.black, 0.14)}`,
         m: 2,
         ...paperSx,
       }}

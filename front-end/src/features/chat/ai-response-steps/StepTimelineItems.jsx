@@ -17,6 +17,7 @@ import AutorenewRoundedIcon from "@mui/icons-material/AutorenewRounded";
 import MenuBookRoundedIcon from "@mui/icons-material/MenuBookRounded";
 import { TRANSITIONS } from "@/theme/index";
 import SqlCodeViewer from "@/components/SqlCodeViewer";
+import { HOVER_CAPABLE_QUERY } from "@/styles/mediaQueries";
 import {
   DetailLabel,
   ToolResultDetails,
@@ -36,10 +37,10 @@ const spin = keyframes`
 // during long thinking sequences.
 const pulse = keyframes`
   0%, 100% { opacity: 1; }
-  50%       { opacity: 0.62; }
+  50%       { opacity: 0.82; }
 `;
 
-const TIMELINE_CONTENT_PL = { xs: 3.5, sm: 4 };
+const TIMELINE_CONTENT_PL = { xs: 3, sm: 3.25 };
 
 const getTimelineNodeSx = ({
   isDark,
@@ -54,18 +55,19 @@ const getTimelineNodeSx = ({
   left: TIMELINE_LINE_X,
   top,
   transform: "translate(-50%, -50%)",
-  fontSize: { xs: 16, sm: 18 },
+  fontSize: { xs: 18, sm: 20 },
   zIndex: 1,
-  // Mask the timeline line behind the icon
   backgroundColor: theme.palette.background.default,
   borderRadius: "50%",
   color,
-  padding: "2px",
+  padding: 0,
+  border: 0,
   boxShadow:
     isCurrent && shadowColor
-      ? `0 0 0 3px ${alpha(shadowColor, isDark ? 0.15 : 0.12)}`
+      ? `0 0 0 3px ${alpha(shadowColor, isDark ? 0.14 : 0.1)}`
       : "none",
-  transition: "box-shadow 140ms cubic-bezier(0.4, 0, 0.2, 1)",
+  opacity: 1,
+  transition: "border-color 140ms ease, box-shadow 140ms ease, color 140ms ease",
   ...(animation
     ? {
         animation,
@@ -75,7 +77,43 @@ const getTimelineNodeSx = ({
     : {}),
 });
 
-// ─── ThinkingStep ─────────────────────────────────────────────────────────────
+const getStepButtonSx = (theme, { interactive = false } = {}) => {
+  const isDark = theme.palette.mode === "dark";
+
+  return {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: { xs: 0.75, sm: 1 },
+    py: { xs: 0.3, sm: 0.35 },
+    px: 0,
+    minHeight: 34,
+    cursor: interactive ? "pointer" : "default",
+    borderRadius: "8px",
+    bgcolor: "transparent",
+    transition: TRANSITIONS.default,
+    ...(interactive
+      ? {
+          [HOVER_CAPABLE_QUERY]: {
+            "&:hover .step-text": {
+              color: alpha(theme.palette.text.primary, isDark ? 0.9 : 0.8),
+            },
+            "&:hover .step-arrow": {
+              color: alpha(theme.palette.text.secondary, isDark ? 0.82 : 0.72),
+            },
+          },
+          "&:focus-visible": {
+            outline: `2px solid ${alpha(
+              theme.palette.text.primary,
+              isDark ? 0.16 : 0.11,
+            )}`,
+            outlineOffset: 2,
+          },
+        }
+      : {}),
+  };
+};
 
 export const ThinkingStep = memo(function ThinkingStep({
   content = "",
@@ -92,7 +130,7 @@ export const ThinkingStep = memo(function ThinkingStep({
   const isLong = lines.length > 6 || content.length > 400;
   const displayContent = showMore ? content : lines.slice(0, 6).join("\n");
 
-  const nodeColor = alpha(theme.palette.text.secondary, isDark ? 0.45 : 0.38);
+  const nodeColor = theme.palette.text.secondary;
 
   const thinkingNodeSx = useMemo(
     () =>
@@ -128,7 +166,7 @@ export const ThinkingStep = memo(function ThinkingStep({
                 fontFamily: theme.typography.fontFamily,
                 lineHeight: { xs: 1.55, sm: 1.62 },
                 letterSpacing: 0,
-                pl: { xs: 0.5, sm: 1 },
+                pl: 0,
                 pr: 0,
                 py: { xs: 0.4, sm: 0.5 },
                 transition: "color 140ms ease",
@@ -151,7 +189,7 @@ export const ThinkingStep = memo(function ThinkingStep({
                   ...theme.typography.uiCaptionSm,
                   fontFamily: theme.typography.fontFamily,
                   fontWeight: 500,
-                  color: alpha(theme.palette.text.secondary, 0.5),
+                  color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
                   textDecoration: "none",
                   cursor: "pointer",
                   transition: TRANSITIONS.default,
@@ -188,11 +226,11 @@ export const ThinkingStep = memo(function ThinkingStep({
                     "@media (prefers-reduced-motion: reduce)": {
                       backgroundImage: "none",
                       WebkitTextFillColor: "currentColor",
-                      color: alpha(theme.palette.text.secondary, 0.5),
+                      color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
                       animation: "none",
                     },
                   }
-                : { color: alpha(theme.palette.text.secondary, 0.5) }),
+                : { color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62) }),
             }}
           >
             {isActive ? "Thinking\u2026" : "Thought process"}
@@ -207,7 +245,7 @@ export const ThinkingStep = memo(function ThinkingStep({
 
 function humanizeSkillName(name) {
   return name
-    .replace(/_/g, ' ')
+    .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -221,22 +259,20 @@ export const SkillStep = memo(function SkillStep({
   animDelay = 0,
 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-
-  if (!skills.length) return null;
+  const isDark = theme.palette.mode === "dark";
 
   const SKILL_LABELS = {
-    database_querying: 'Database',
-    react_flow_diagram: 'Diagram',
-    web_research: 'Web Research',
-    query_history: 'Query History',
+    database_querying: "Database",
+    react_flow_diagram: "Diagram",
+    web_research: "Web Research",
+    query_history: "Query History",
   };
 
   const label = skills
     .map((s) => SKILL_LABELS[s] || humanizeSkillName(s))
-    .join(', ');
+    .join(", ");
 
-  const nodeColor = alpha(theme.palette.text.secondary, isDark ? 0.45 : 0.38);
+  const nodeColor = theme.palette.text.secondary;
 
   const skillNodeSx = useMemo(
     () =>
@@ -251,12 +287,14 @@ export const SkillStep = memo(function SkillStep({
     [isStreaming, isDark, nodeColor, theme],
   );
 
+  if (!skills.length) return null;
+
   return (
     <Box
       sx={{
         animation: `${slideIn} 0.22s ease-out ${animDelay}ms both`,
-        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
-        position: 'relative',
+        "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+        position: "relative",
         pl: TIMELINE_CONTENT_PL,
         py: { xs: 0.6, sm: 0.75 },
       }}
@@ -264,12 +302,13 @@ export const SkillStep = memo(function SkillStep({
       <MenuBookRoundedIcon sx={skillNodeSx} />
       <Box
         sx={{
-          width: '100%',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-start',
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-start",
           gap: { xs: 0.75, sm: 1 },
           py: { xs: 0.3, sm: 0.35 },
+          px: 0,
           minHeight: 34,
           minWidth: 0,
         }}
@@ -281,9 +320,9 @@ export const SkillStep = memo(function SkillStep({
             fontWeight: 500,
             flex: 1,
             minWidth: 0,
-            textAlign: 'left',
-            whiteSpace: 'normal',
-            overflowWrap: 'anywhere',
+            textAlign: "left",
+            whiteSpace: "normal",
+            overflowWrap: "anywhere",
             lineHeight: 1.4,
             ...(isStreaming
               ? {
@@ -293,17 +332,17 @@ export const SkillStep = memo(function SkillStep({
                     ${alpha(theme.palette.text.primary, isDark ? 0.88 : 0.72)} 50%,
                     ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 64%,
                     ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 100%)`,
-                  backgroundSize: '220% 100%',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  color: 'transparent',
+                  backgroundSize: "220% 100%",
+                  backgroundClip: "text",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  color: "transparent",
                   animation: `${shimmer} 2.8s linear infinite`,
-                  '@media (prefers-reduced-motion: reduce)': {
-                    backgroundImage: 'none',
-                    WebkitTextFillColor: 'currentColor',
-                    color: alpha(theme.palette.text.secondary, 0.5),
-                    animation: 'none',
+                  "@media (prefers-reduced-motion: reduce)": {
+                    backgroundImage: "none",
+                    WebkitTextFillColor: "currentColor",
+                    color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
+                    animation: "none",
                   },
                 }
               : { color: alpha(theme.palette.text.primary, isDark ? 0.72 : 0.65) }),
@@ -349,10 +388,10 @@ export const ToolStep = memo(function ToolStep({
       : CheckCircleOutlineRoundedIcon;
 
   const nodeColor = isRunning
-    ? theme.palette.primary.main
+    ? theme.palette.text.primary
     : isError
-      ? alpha(theme.palette.error.main, isDark ? 0.65 : 0.55)
-      : alpha(theme.palette.success.main, isDark ? 0.55 : 0.48);
+      ? theme.palette.error.main
+      : theme.palette.success.main;
 
   const statusNodeSx = useMemo(
     () =>
@@ -361,7 +400,7 @@ export const ToolStep = memo(function ToolStep({
         color: nodeColor,
         isCurrent,
         shadowColor: isRunning
-          ? theme.palette.primary.main
+          ? theme.palette.text.primary
           : isError
             ? theme.palette.error.main
             : theme.palette.success.main,
@@ -394,24 +433,7 @@ export const ToolStep = memo(function ToolStep({
         onClick={() => hasDetails && setExpanded(!expanded)}
         disabled={!hasDetails}
         sx={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "flex-start",
-          gap: { xs: 0.75, sm: 1 },
-          py: { xs: 0.3, sm: 0.35 },
-          minHeight: 34,
-          px: 0,
-          cursor: hasDetails ? "pointer" : "default",
-          borderRadius: 0,
-          bgcolor: "transparent",
-          transition: TRANSITIONS.default,
-          "&:hover .step-text": hasDetails
-            ? { color: alpha(theme.palette.text.primary, isDark ? 0.9 : 0.8) }
-            : {},
-          "&:hover .step-arrow": hasDetails
-            ? { color: alpha(theme.palette.text.secondary, 0.6) }
-            : {},
+          ...getStepButtonSx(theme, { interactive: hasDetails }),
         }}
         disableRipple
       >
@@ -422,6 +444,9 @@ export const ToolStep = memo(function ToolStep({
             ...theme.typography.uiBodySm,
             fontFamily: theme.typography.fontFamily,
             fontWeight: 500,
+            lineHeight: 1.4,
+            minWidth: 0,
+            overflowWrap: "anywhere",
             transition: TRANSITIONS.default,
           }}
         >
@@ -432,7 +457,7 @@ export const ToolStep = memo(function ToolStep({
             className="step-arrow"
             sx={{
               fontSize: { xs: 13, sm: 15 },
-              color: alpha(theme.palette.text.secondary, isDark ? 0.32 : 0.28),
+              color: alpha(theme.palette.text.secondary, isDark ? 0.68 : 0.58),
               transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
               transition:
                 "transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s",
@@ -500,7 +525,7 @@ export const DoneIndicator = memo(function DoneIndicator() {
     () =>
       getTimelineNodeSx({
         isDark,
-        color: alpha(theme.palette.success.main, isDark ? 0.55 : 0.48),
+        color: theme.palette.success.main,
         theme,
         top: "50%",
       }),
@@ -522,7 +547,7 @@ export const DoneIndicator = memo(function DoneIndicator() {
       <CheckCircleOutlineRoundedIcon sx={doneNodeSx} />
       <Typography
         sx={{
-          color: alpha(theme.palette.text.secondary, isDark ? 0.45 : 0.38),
+          color: alpha(theme.palette.text.secondary, isDark ? 0.74 : 0.64),
           ...theme.typography.uiCaptionSm,
           fontFamily: theme.typography.fontFamily,
           fontWeight: 500,

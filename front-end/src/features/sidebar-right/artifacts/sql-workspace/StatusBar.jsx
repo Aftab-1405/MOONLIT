@@ -8,17 +8,35 @@ import { useTheme, alpha } from '@mui/material/styles';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import FiberManualRecordRoundedIcon from '@mui/icons-material/FiberManualRecordRounded';
 import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
-import AutoFixHighRounded from '@mui/icons-material/AutoFixHighRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
 import { ButtonLoadingSpinner } from '@/components';
 import { runQuery } from '@/api';
 import { copyToClipboard } from '@/utils/clipboard';
+import { getArtifactActionButtonSx } from '@/features/sidebar-right/artifact-loader';
+import {
+  getAppBarSurfaceSx,
+  getAppDividerColor,
+} from '@/features/styles/interfaceChrome';
+
+const STATUS_ACTION_SIZE = 30;
+
+function getStatusTextSx(theme, color = 'text.secondary') {
+  return {
+    ...theme.typography.uiCaptionXs,
+    color,
+    minWidth: 0,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'clip',
+    maskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
+    WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
+  };
+}
 
 function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, onRegisterRunQuery }) {
   const theme = useTheme();
   const { settings } = useAppTheme();
-  const isDark = theme.palette.mode === 'dark';
   const [isRunning, setIsRunning] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -84,10 +102,6 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, on
     onRegisterRunQuery?.(handleRunQuery);
   }, [handleRunQuery, onRegisterRunQuery]);
 
-  const handleFormatQuery = useCallback(() => {
-    // TODO: Implement SQL formatting
-  }, []);
-
   const handleCopyQuery = useCallback(async () => {
     if (!activeTab?.query) return;
     const ok = await copyToClipboard(activeTab.query);
@@ -97,36 +111,34 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, on
     }
   }, [activeTab]);
 
+  const hasRunnableQuery = Boolean(activeTab?.query?.trim());
   return (
     <Box
       sx={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: 1.5,
-        px: 1.5,
-        py: 0.5,
+        gap: 1,
+        px: 1,
+        py: 0.75,
         borderTop: '1px solid',
-        borderColor: theme.palette.border.subtle,
-        bgcolor: alpha(theme.palette.background.paper, isDark ? 0.8 : 0.9),
+        borderColor: getAppDividerColor(theme),
+        ...getAppBarSurfaceSx(theme),
         flexShrink: 0,
-        minHeight: 32,
+        minHeight: 46,
       }}
     >
       {/* Left: Connection status */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
           <FiberManualRecordRoundedIcon
             sx={{
               fontSize: 8,
-              color: isConnected ? 'success.main' : 'text.disabled',
+              color: isConnected ? 'success.main' : 'text.secondary',
             }}
           />
           <Typography
-            sx={{
-              ...theme.typography.uiCaptionXs,
-              color: 'text.secondary',
-            }}
+            sx={getStatusTextSx(theme)}
           >
             {currentDatabase || (isConnected ? 'Connected' : 'Not connected')}
           </Typography>
@@ -136,7 +148,8 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, on
           <Typography
             sx={{
               ...theme.typography.uiCaptionXs,
-              color: 'text.disabled',
+              color: 'text.secondary',
+              flexShrink: 0,
             }}
           >
             {activeTab.results.row_count} rows
@@ -159,13 +172,9 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, on
             <IconButton
               size="small"
               onClick={handleRunQuery}
-              disabled={isRunning || !activeTab?.query?.trim() || !isConnected}
+              disabled={isRunning || !hasRunnableQuery || !isConnected}
               aria-label="Run query"
-              sx={{
-                width: 28,
-                height: 28,
-                border: 'none',
-              }}
+              sx={getArtifactActionButtonSx(theme, { size: STATUS_ACTION_SIZE })}
             >
               {isRunning ? (
                 <ButtonLoadingSpinner />
@@ -176,28 +185,14 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, on
           </span>
         </Tooltip>
 
-        <Tooltip title="Format SQL">
-          <IconButton
-            size="small"
-            onClick={handleFormatQuery}
-            disabled={!activeTab?.query?.trim()}
-            aria-label="Format SQL"
-            sx={{ width: 28, height: 28, border: 'none' }}
-          >
-            <AutoFixHighRounded sx={{ fontSize: 16 }} />
-          </IconButton>
-        </Tooltip>
-
         <Tooltip title={copied ? "Copied!" : "Copy query"}>
           <IconButton
             size="small"
             onClick={handleCopyQuery}
-            disabled={!activeTab?.query?.trim()}
+            disabled={!hasRunnableQuery}
             aria-label={copied ? 'Copied' : 'Copy query'}
             sx={{
-              width: 28, 
-              height: 28, 
-              border: 'none',
+              ...getArtifactActionButtonSx(theme, { size: STATUS_ACTION_SIZE }),
               color: copied ? 'success.main' : 'inherit',
               '&:hover': copied ? {
                 color: 'success.main',
@@ -215,11 +210,12 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, on
       </Box>
 
       {/* Right: Editor info */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, flex: 1, justifyContent: 'flex-end' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
         <Typography
           sx={{
             ...theme.typography.uiCaptionXs,
-            color: 'text.disabled',
+            color: 'text.secondary',
+            flexShrink: 0,
           }}
         >
           SQL

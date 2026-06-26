@@ -11,9 +11,11 @@ import {
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRounded';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import { AppPopover } from '@/components';
+import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import { HistoryPopoverItem } from '@/features/sidebar-left/components/SidebarPrimitives';
+import { ICON_COL } from '@/features/sidebar-left/styles/sidebarStyles';
 import {
   getDialogPaperSx,
   getDialogHeaderSx,
@@ -25,6 +27,24 @@ import {
 } from '@/styles/shared';
 
 const SchemaFlowDiagram = lazy(() => import('@/features/overlays/database/SchemaFlowDiagram'));
+
+const getPopoverScrollSx = (theme, maxHeight = 360) => ({
+  maxHeight,
+  overflowY: 'auto',
+  mt: 0.5,
+  pr: 0.25,
+  ...getScrollbarStyles(theme),
+});
+
+const getPopoverEmptyStateSx = (theme) => ({
+  mx: 0.5,
+  px: 1.25,
+  py: 1.25,
+  borderRadius: '8px',
+  border: '1px solid',
+  borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
+  bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.35 : 0.65),
+});
 
 const schemaDialogRootSx = {
   pointerEvents: 'none',
@@ -218,6 +238,7 @@ function SidebarOverlays({
   currentConversationId,
   onSelectConversation,
   onDeleteConversation,
+  onRenameConversation,
   mindmapOpen,
   handleCloseMindmap,
   schemaLoading,
@@ -244,7 +265,7 @@ function SidebarOverlays({
         <Typography sx={getPopoverSectionLabelSx(theme)}>
           Switch Database
         </Typography>
-        <Box sx={{ maxHeight: 280, overflowY: 'auto', mt: 0.5 }}>
+        <Box sx={getPopoverScrollSx(theme, 280)}>
           {availableDatabases.map((db) => {
             const isActive = db === currentDatabase;
             return (
@@ -254,12 +275,56 @@ function SidebarOverlays({
                 aria-checked={isActive}
                 key={db}
                 onClick={() => handleDatabaseSelect(db)}
-                sx={getSelectableMenuItemSx(theme, { isActive })}
+                sx={{
+                  ...getSelectableMenuItemSx(theme, {
+                    isActive,
+                    minHeight: 36,
+                    columns: `${ICON_COL}px minmax(0, 1fr)`,
+                    gap: 0,
+                  }),
+                  height: 36,
+                  py: 0,
+                  pl: 0,
+                  pr: 1,
+                  boxShadow: 'none',
+                  '&:hover': {
+                    boxShadow: 'none',
+                  },
+                }}
               >
-                <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary', fontWeight: isActive ? 500 : 400 }}>
+                <Box
+                  component="span"
+                  aria-hidden
+                  sx={{
+                    width: ICON_COL,
+                    minWidth: ICON_COL,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: isActive ? 'success.main' : 'text.secondary',
+                  }}
+                >
+                  {isActive ? (
+                    <CheckCircleOutlineRoundedIcon sx={{ fontSize: 18 }} />
+                  ) : (
+                    <DatabaseIcon sx={{ fontSize: 16 }} />
+                  )}
+                </Box>
+                <Typography
+                  sx={{
+                    ...theme.typography.uiNavItem,
+                    minWidth: 0,
+                    color: 'text.primary',
+                    fontWeight: isActive ? 500 : 400,
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'clip',
+                    maskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
+                    WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
+                  }}
+                >
                   {db}
                 </Typography>
-                {isActive && <CheckRoundedIcon sx={{ fontSize: 14, color: 'text.secondary', flexShrink: 0 }} />}
               </Box>
             );
           })}
@@ -269,9 +334,32 @@ function SidebarOverlays({
           component="div"
           role="menuitem"
           onClick={handleOpenNewConnection}
-          sx={getSelectableMenuItemSx(theme, { columns: 'auto minmax(0, 1fr)' })}
+          sx={{
+            ...getSelectableMenuItemSx(theme, {
+              minHeight: 36,
+              columns: `${ICON_COL}px minmax(0, 1fr)`,
+              gap: 0,
+            }),
+            height: 36,
+            py: 0,
+            pl: 0,
+            pr: 1,
+          }}
         >
-          <AddCircleOutlineRoundedIcon sx={{ fontSize: 16, color: 'text.secondary', flexShrink: 0 }} />
+          <Box
+            component="span"
+            aria-hidden
+            sx={{
+              width: ICON_COL,
+              minWidth: ICON_COL,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'text.secondary',
+            }}
+          >
+            <AddCircleOutlineRoundedIcon sx={{ fontSize: 16 }} />
+          </Box>
           <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary' }}>
             New Connection
           </Typography>
@@ -300,9 +388,19 @@ function SidebarOverlays({
             px: 1,
             py: 0.75,
             mb: 0.5,
-            borderRadius: '10px',
+            borderRadius: '8px',
+            border: '1px solid',
+            borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
             backgroundColor: neutralInteraction.hoverBackground,
+            transition: theme.transitions.create(['background-color', 'border-color'], {
+              duration: theme.transitions.duration.shorter,
+            }),
+            '&:focus-within': {
+              borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.18 : 0.14),
+              backgroundColor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.48 : 0.8),
+            },
             '& .MuiInputBase-input': {
+              ...theme.typography.uiNavItem,
               fontSize: '0.88rem',
               lineHeight: 1.4,
               color: 'text.primary',
@@ -313,20 +411,12 @@ function SidebarOverlays({
             },
           }}
         />
-        <Box sx={{ maxHeight: 360, overflowY: 'auto', mt: 0.25 }}>
+        <Box sx={getPopoverScrollSx(theme)}>
           {searchedConversations.length === 0 ? (
             <Box
               role="status"
               aria-live="polite"
-              sx={{
-                mx: 0.5,
-                px: 1,
-                py: 1.25,
-                borderRadius: '10px',
-                border: '1px solid',
-                borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
-                bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.35 : 0.65),
-              }}
+              sx={getPopoverEmptyStateSx(theme)}
             >
               <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary', lineHeight: 1.35 }}>
                 {conversations.length === 0 ? 'No conversations yet' : 'No matching chats'}
@@ -341,6 +431,7 @@ function SidebarOverlays({
                   isActive={conv.id === currentConversationId}
                   onSelect={onSelectConversation}
                   onDelete={onDeleteConversation}
+                  onRename={onRenameConversation}
                   onClosePopover={handleCloseSearchPopover}
                   theme={theme}
                 />
@@ -362,20 +453,12 @@ function SidebarOverlays({
         <Typography sx={getPopoverSectionLabelSx(theme)}>
           Conversation History
         </Typography>
-        <Box sx={{ maxHeight: 360, overflowY: 'auto', mt: 0.5 }}>
+        <Box sx={getPopoverScrollSx(theme)}>
           {conversations.length === 0 ? (
             <Box
               role="status"
               aria-live="polite"
-              sx={{
-                mx: 0.5,
-                px: 1,
-                py: 1.25,
-                borderRadius: '10px',
-                border: '1px solid',
-                borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
-                bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.35 : 0.65),
-              }}
+              sx={getPopoverEmptyStateSx(theme)}
             >
               <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.secondary', lineHeight: 1.35 }}>
                 No conversations yet
@@ -390,6 +473,7 @@ function SidebarOverlays({
                   isActive={conv.id === currentConversationId}
                   onSelect={onSelectConversation}
                   onDelete={onDeleteConversation}
+                  onRename={onRenameConversation}
                   onClosePopover={handleCloseHistoryPopover}
                   theme={theme}
                 />
