@@ -134,11 +134,11 @@ export function useChatPageController() {
     }
     openSqlEditorCanvas(query, results);
   }, [isDbConnected, openSqlEditorCanvas, showSnackbar]);
-  const handleQueryResults = useCallback((data) => {
+  const handleQueryResults = useCallback((data, sourceQuery) => {
     handleOpenCanvasArtifact({
-      type: 'results',
+      type: 'visualization',
       title: 'Query results',
-      props: { data },
+      props: { data, sourceQuery, sourceType: 'sql-editor' },
     });
   }, [handleOpenCanvasArtifact]);
   const {

@@ -113,10 +113,6 @@ class Config:
     # Providers: bedrock (via langchain-aws)
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "bedrock").strip().lower()
 
-    # Models supporting native Bedrock thinking API
-    _native_thinking_models_raw = os.getenv("BEDROCK_NATIVE_THINKING_MODELS", "")
-    BEDROCK_NATIVE_THINKING_MODELS = [m.strip().lower() for m in _native_thinking_models_raw.split(",") if m.strip()]
-
     # Provider API keys are resolved per selected provider in llm_provider.model_factory.
 
     # AWS Bedrock
@@ -292,17 +288,51 @@ class Config:
         "VAMP_EMBEDDING_MODEL", "amazon.titan-embed-text-v2:0"
     )
     VAMP_EMBEDDING_DIMENSIONS = int(os.getenv("VAMP_EMBEDDING_DIMENSIONS", 1024))
-    VAMP_CONTEXT_BUDGET_CHARS = int(os.getenv("VAMP_CONTEXT_BUDGET_CHARS", 12000))
+    VAMP_SIMILARITY_THRESHOLD = float(os.getenv("VAMP_SIMILARITY_THRESHOLD", 0.35))
+    VAMP_INDEX_CONCURRENCY = int(os.getenv("VAMP_INDEX_CONCURRENCY", 4))
+    VAMP_MAINTENANCE_INTERVAL_SECONDS = int(
+        os.getenv("VAMP_MAINTENANCE_INTERVAL_SECONDS", 30)
+    )
+    VAMP_MAINTENANCE_INITIAL_DELAY_SECONDS = int(
+        os.getenv("VAMP_MAINTENANCE_INITIAL_DELAY_SECONDS", 5)
+    )
+    VAMP_MAINTENANCE_QUERY_TIMEOUT_SECONDS = float(
+        os.getenv("VAMP_MAINTENANCE_QUERY_TIMEOUT_SECONDS", 15)
+    )
+    VAMP_MAINTENANCE_MAX_BACKOFF_SECONDS = int(
+        os.getenv("VAMP_MAINTENANCE_MAX_BACKOFF_SECONDS", 300)
+    )
+    VAMP_CONTEXT_MIN_TOKENS = int(os.getenv("VAMP_CONTEXT_MIN_TOKENS", 2048))
+    VAMP_CONTEXT_MAX_TOKENS = int(os.getenv("VAMP_CONTEXT_MAX_TOKENS", 12000))
+    VAMP_CONTEXT_WINDOW_RATIO = float(os.getenv("VAMP_CONTEXT_WINDOW_RATIO", 0.05))
     VAMP_SUMMARY_CLAIM_TTL_SECONDS = int(
         os.getenv("VAMP_SUMMARY_CLAIM_TTL_SECONDS", 900)
+    )
+    VAMP_SUMMARY_INLINE_MAX_BYTES = int(
+        os.getenv("VAMP_SUMMARY_INLINE_MAX_BYTES", 700_000)
+    )
+    VAMP_SUMMARY_CHUNK_BYTES = int(
+        os.getenv("VAMP_SUMMARY_CHUNK_BYTES", 450_000)
+    )
+
+    # Interactive Firestore reads need enough time for a cold gRPC channel to
+    # reconnect, while remaining bounded for HTTP request latency.
+    FIRESTORE_INTERACTIVE_READ_TIMEOUT_SECONDS = float(
+        os.getenv("FIRESTORE_INTERACTIVE_READ_TIMEOUT_SECONDS", 8)
+    )
+    FIRESTORE_REST_READ_FALLBACK_ENABLED = (
+        os.getenv("FIRESTORE_REST_READ_FALLBACK_ENABLED", "True").lower()
+        == "true"
     )
 
     # Adaptive step budgets
     AGENT_DEFAULT_STEPS = int(os.getenv("AGENT_DEFAULT_STEPS", 50))
     AGENT_TOOL_TASK_STEPS = int(os.getenv("AGENT_TOOL_TASK_STEPS", 100))
     AGENT_LONG_TASK_STEPS = int(os.getenv("AGENT_LONG_TASK_STEPS", 200))
-    AGENT_APPROVED_AUTONOMOUS_STEPS = int(os.getenv("AGENT_APPROVED_AUTONOMOUS_STEPS", 500))
     AGENT_TOTAL_STEP_BUDGET = int(os.getenv("AGENT_TOTAL_STEP_BUDGET", 500))
+    # Persist and compact long workflows in bounded graph segments. Reaching a
+    # segment boundary is an internal checkpoint, not a user-visible failure.
+    AGENT_STEP_SEGMENT_STEPS = int(os.getenv("AGENT_STEP_SEGMENT_STEPS", 50))
 
     # Session/Cookie Configuration (base defaults)
     DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS", "False").lower() == "true"
@@ -363,9 +393,6 @@ class Config:
     USER_QUOTA_DAY_TTL_SECONDS = int(os.getenv("USER_QUOTA_DAY_TTL_SECONDS", 86400))
 
     # Agent memory windows
-    ACTIVE_MESSAGE_WINDOW = int(os.getenv("ACTIVE_MESSAGE_WINDOW", 20))
-    SUMMARY_BLOCK_SIZE = int(os.getenv("SUMMARY_BLOCK_SIZE", 20))
-    HOT_FIRESTORE_MESSAGES = int(os.getenv("HOT_FIRESTORE_MESSAGES", 10))
 
     # Database connection defaults
     DEFAULT_MYSQL_PORT = int(os.getenv("DEFAULT_MYSQL_PORT", 3306))

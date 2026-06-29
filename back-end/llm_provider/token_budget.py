@@ -1,11 +1,10 @@
 import json
-import fnmatch
-from pathlib import Path
-from typing import Callable, Sequence, TypedDict
-
-import tiktoken
+import math
+import re
+from typing import Sequence, TypedDict
 
 from config import get_config
+from llm_provider.model_capabilities import get_model_capabilities
 
 Config = get_config()
 
@@ -28,23 +27,6 @@ def _is_mock_model(model_id: str | None) -> bool:
     return bool(model_id and str(model_id).startswith("mock"))
 
 
-def _load_model_context_config() -> dict:
-    config_path = Path(Config.MODEL_CONTEXT_WINDOWS_PATH)
-    if not config_path.is_absolute():
-        config_path = Path(__file__).parent.parent / config_path
-
-    if config_path.exists():
-        try:
-            with open(config_path, "r") as f:
-                loaded = json.load(f)
-        except json.JSONDecodeError:
-            return {}
-        if isinstance(loaded, dict) and "models" in loaded:
-            loaded = loaded["models"]
-        return loaded if isinstance(loaded, dict) else {}
-    return {}
-
-
 def _context_window_from_entry(entry) -> int | None:
     if isinstance(entry, dict):
         entry = entry.get("context_window") or entry.get("contextWindow")
@@ -65,26 +47,9 @@ def _supports_count_tokens_from_entry(entry) -> bool | None:
     return bool(value)
 
 
-def _resolve_model_config_entry(model_id: str) -> tuple[object | None, str]:
-    config_windows = _load_model_context_config()
-
-    if model_id in config_windows:
-        return config_windows[model_id], "config_file"
-
-    for pattern, v in config_windows.items():
-        if fnmatch.fnmatch(model_id, pattern):
-            return v, "wildcard"
-
-    for k, v in config_windows.items():
-        if k in model_id or model_id in k:
-            return v, "wildcard"
-
-    return None, "fallback"
-
-
 def get_model_context_window_with_source(model_id: str) -> tuple[int, str]:
     """Resolve context window and its resolution source."""
-    entry, source = _resolve_model_config_entry(model_id)
+    entry, source = get_model_capabilities(model_id)
     resolved = _context_window_from_entry(entry)
     if resolved is not None:
         return resolved, source
@@ -98,7 +63,7 @@ def model_supports_count_tokens(model_id: str) -> bool:
         return True
     if model_id in _RUNTIME_COUNT_TOKENS_UNSUPPORTED:
         return False
-    entry, _source = _resolve_model_config_entry(model_id)
+    entry, _source = get_model_capabilities(model_id)
     configured = _supports_count_tokens_from_entry(entry)
     return True if configured is None else configured
 
@@ -159,7 +124,7 @@ def calculate_dynamic_token_budget(
         if safety_margin_tokens is not None
         else calculate_safety_margin(model_context_window)
     )
-    if token_counting_mode == "estimated" and safety_margin_tokens is None:
+    if token_counting_mode != "exact" and safety_margin_tokens is None:
         estimated_margin = min(max(4096, int(model_context_window * 0.05)), 16384)
         reserved_safety_margin_tokens = max(
             reserved_safety_margin_tokens,
@@ -176,10 +141,6 @@ def calculate_dynamic_token_budget(
     )
     pressure_trigger_tokens = int(usable_input_budget * pressure_ratio)
     vamp_memory_budget = int(usable_input_budget * 0.30)
-    hot_history_budget = max(
-        0,
-        pressure_trigger_tokens - vamp_memory_budget,
-    )
 
     return {
         "model_context_window": model_context_window,
@@ -191,43 +152,48 @@ def calculate_dynamic_token_budget(
         "reserved_safety_margin_tokens": reserved_safety_margin_tokens,
         "usable_input_budget": usable_input_budget,
         "available_input_payload_tokens": usable_input_budget,
-        "pressure_trigger_tokens": hot_history_budget,
-        "active_context_budget": hot_history_budget,
-        "hot_history_budget": hot_history_budget,
+        "pressure_trigger_tokens": pressure_trigger_tokens,
+        "active_context_budget": pressure_trigger_tokens,
+        "hot_history_budget": pressure_trigger_tokens,
         "pressure_ratio": pressure_ratio,
         "token_counting_mode": token_counting_mode,
     }
-_TIKTOKEN_ENCODER = None
-
-def _get_encoder():
-    global _TIKTOKEN_ENCODER
-    if _TIKTOKEN_ENCODER is None:
-        _TIKTOKEN_ENCODER = tiktoken.get_encoding("cl100k_base")
-    return _TIKTOKEN_ENCODER
-
 def estimate_tokens(text: str) -> int:
-    """Accurate local estimation of tokens using tiktoken (cl100k_base)."""
+    """Return a deterministic conservative estimate without network assets."""
     if not text:
         return 0
-    return len(_get_encoder().encode(str(text), disallowed_special=()))
+    value = str(text)
+    byte_estimate = math.ceil(len(value.encode("utf-8")) / 3)
+    lexical_estimate = len(re.findall(r"\w+|[^\w\s]", value, flags=re.UNICODE))
+    return max(1, byte_estimate, lexical_estimate)
+
+
+def estimate_model_tokens(text: str, model_id: str | None = None) -> int:
+    """Conservatively adapt the local tokenizer estimate to a target model."""
+    estimated = estimate_tokens(text)
+    if not model_id or _is_mock_model(model_id):
+        return estimated
+    capabilities, _source = get_model_capabilities(model_id)
+    multiplier = float(capabilities.get("local_estimate_multiplier", 1.2))
+    return int(math.ceil(estimated * max(1.0, multiplier)))
 
 
 def estimate_converse_tokens_conservative(
     *,
+    model_id: str | None = None,
     system: str | Sequence[dict] | None = None,
     messages: Sequence[dict] | None = None,
     tools: Sequence | None = None,
 ) -> int:
-    """Estimate a Converse request using the tiktoken fallback."""
+    """Estimate a Converse request using the deterministic local fallback."""
     payload = _build_bedrock_converse_payload(
         system=system,
         messages=messages,
         tools=tools,
     )
     serialized = json.dumps(payload, default=str, separators=(",", ":"))
-    # Serializing to JSON natively captures the structural overhead 
-    # (brackets, keys) so we can just run the string through tiktoken.
-    return estimate_tokens(serialized)
+    # JSON serialization captures structural keys, punctuation, and schemas.
+    return estimate_model_tokens(serialized, model_id)
 
 
 def _tool_to_bedrock_spec(tool_obj) -> dict:
@@ -349,6 +315,7 @@ def count_converse_tokens_with_fallback(
     if not model_supports_count_tokens(model_id):
         return {
             "tokens": estimate_converse_tokens_conservative(
+                model_id=model_id,
                 system=system,
                 messages=messages,
                 tools=tools,
@@ -382,6 +349,7 @@ def count_converse_tokens_with_fallback(
 
         return {
             "tokens": estimate_converse_tokens_conservative(
+                model_id=model_id,
                 system=system,
                 messages=messages,
                 tools=tools,
@@ -416,31 +384,12 @@ def count_converse_tokens_cached(
     return result
 
 
-def count_text_tokens_exact(model_id: str, text: str) -> int:
-    """Count a single text block exactly with the active provider."""
-    return count_bedrock_converse_tokens(
-        model_id,
-        messages=[{"role": "user", "content": [{"text": text or ""}]}],
-    )
-
-
-def count_text_tokens_with_fallback(model_id: str, text: str) -> TokenCountResult:
-    """Count a single text block, falling back for unsupported provider counters."""
-    return count_converse_tokens_with_fallback(
-        model_id,
-        messages=[{"role": "user", "content": [{"text": text or ""}]}],
-    )
-
-
-def get_default_token_counter() -> Callable[[str], int]:
-    """Return text token counter used by summarization and history budgeting."""
-    from llm_provider.model_factory import get_default_model
-
-    model_id = get_default_model(Config.LLM_PROVIDER)
-    return lambda text: count_text_tokens_with_fallback(model_id, text)["tokens"]
-
-
-def truncate_messages_to_budget(messages: list, active_context_budget: int) -> tuple[list, list]:
+def truncate_messages_to_budget(
+    messages: list,
+    active_context_budget: int,
+    *,
+    model_id: str | None = None,
+) -> tuple[list, list]:
     """Truncates messages to fit the budget, preserving turn boundaries.
     Returns (dropped_messages, kept_messages).
     """
@@ -450,11 +399,11 @@ def truncate_messages_to_budget(messages: list, active_context_budget: int) -> t
     for i in range(len(messages) - 1, -1, -1):
         msg = messages[i]
         content = msg.content if hasattr(msg, "content") else str(msg)
-        tokens = estimate_tokens(content)
+        tokens = estimate_model_tokens(content, model_id)
 
         tool_calls = getattr(msg, "tool_calls", [])
         if tool_calls:
-            tokens += estimate_tokens(str(tool_calls))
+            tokens += estimate_model_tokens(str(tool_calls), model_id)
 
         if total_tokens + tokens > active_context_budget:
             break
@@ -463,7 +412,7 @@ def truncate_messages_to_budget(messages: list, active_context_budget: int) -> t
         start_idx = i
 
     original_start_idx = start_idx
-    while start_idx > 0:
+    while 0 < start_idx < len(messages):
         if getattr(messages[start_idx], "type", "") == "human":
             break
         start_idx -= 1
@@ -491,19 +440,20 @@ def get_message_tokens(msg: dict, *, model_id: str | None = None) -> int:
         if out > 0:
             return out
     content = msg.get("content", "")
-    tokens = estimate_tokens(content)
+    tokens = estimate_model_tokens(content, model_id)
     timeline = msg.get("timeline", [])
     if timeline:
-        tokens += estimate_tokens(json.dumps(timeline))
+        tokens += estimate_model_tokens(json.dumps(timeline), model_id)
     return tokens
 
 # Static Pre-computation
 STATIC_SYSTEM_TOKENS = 0
 STATIC_TOOL_TOKENS = 0
+STATIC_BUDGETS: dict[str, dict[str, int]] = {}
 
 def eagerly_initialize_static_budgets():
     """
-    Pre-computes and caches the Bedrock tool specs and exact token counts 
+    Pre-computes and caches Bedrock tool specs and token-count results
     for the static system prompt and ALL_TOOLS to prevent runtime latency.
     """
     global STATIC_SYSTEM_TOKENS, STATIC_TOOL_TOKENS
@@ -517,35 +467,36 @@ def eagerly_initialize_static_budgets():
         
         provider = get_config().LLM_PROVIDER
         from llm_provider.model_factory import get_default_model
-        model_id = get_default_model(provider)
+        from llm_provider.model_factory import get_provider_models
+        model_ids = get_provider_models(provider)
+        default_model_id = get_default_model(provider)
 
         # 1. Pre-compute and cache Bedrock tool specs
         for tool in ALL_TOOLS:
             _tool_to_bedrock_spec(tool)
 
-        # 2. Pre-compute system prompt tokens
-        system_prompt = PromptBuilder.build_system_prompt("balanced")
-        sys_res = count_converse_tokens_cached(
-            model_id,
-            cache_key=("system", "balanced", system_prompt),
-            system=system_prompt,
-            messages=[{"role": "user", "content": [{"text": ""}]}],
-        )
-        STATIC_SYSTEM_TOKENS = int(sys_res.get("tokens", 0))
-
-        # 3. Pre-compute tool schema tokens
-        tool_res = count_converse_tokens_cached(
-            model_id,
-            cache_key=(
-                "tools",
-                tuple(getattr(tool, "name", str(tool)) for tool in ALL_TOOLS),
-            ),
-            messages=[{"role": "user", "content": [{"text": ""}]}],
-            tools=ALL_TOOLS,
-        )
-        STATIC_TOOL_TOKENS = int(tool_res.get("tokens", 0))
-        
-        logger.info(f"Pre-computed static budgets: system={STATIC_SYSTEM_TOKENS}, tools={STATIC_TOOL_TOKENS}")
+        tool_key = tuple(getattr(tool, "name", str(tool)) for tool in ALL_TOOLS)
+        for model_id in model_ids:
+            system_prompt = PromptBuilder.build_system_prompt("balanced")
+            sys_res = count_converse_tokens_cached(
+                model_id,
+                cache_key=("system", "balanced", system_prompt),
+                system=system_prompt,
+                messages=[{"role": "user", "content": [{"text": ""}]}],
+            )
+            tool_res = count_converse_tokens_cached(
+                model_id,
+                cache_key=("tools", tool_key),
+                messages=[{"role": "user", "content": [{"text": ""}]}],
+                tools=ALL_TOOLS,
+            )
+            STATIC_BUDGETS[model_id] = {
+                "system": int(sys_res.get("tokens", 0)),
+                "tools": int(tool_res.get("tokens", 0)),
+            }
+        default_budget = STATIC_BUDGETS.get(default_model_id, {})
+        STATIC_SYSTEM_TOKENS = default_budget.get("system", 0)
+        STATIC_TOOL_TOKENS = default_budget.get("tools", 0)
+        logger.info("Pre-computed static budgets for %d models", len(STATIC_BUDGETS))
     except Exception as e:
         logger.warning(f"Failed to eagerly initialize static token budgets: {e}")
-

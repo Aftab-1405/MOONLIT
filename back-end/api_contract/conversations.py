@@ -22,7 +22,7 @@ class BaseConversationRequest(BaseModel):
     )
     provider: Optional[str] = Field(default=None, max_length=Config.LLM_PROVIDER_MAX_LENGTH)
     model: Optional[str] = Field(default=None, max_length=Config.LLM_MODEL_MAX_LENGTH)
-    task_mode: Optional[str] = Field(default="normal", max_length=Config.TASK_MODE_MAX_LENGTH)
+    task_mode: Literal["normal", "tool_task", "long_task"] = Field(default="normal")
 
     @field_validator("provider")
     @classmethod

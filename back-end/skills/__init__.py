@@ -1,11 +1,12 @@
 """
-skills — Runtime-injected domain expertise for the Moonlit agent.
+skills — Agent-loadable domain instructions for Moonlit.
 
-Each sub-package is a self-contained skill:
-  - skill.py      : exports SKILL_NAME, SKILL_TRIGGERS, SKILL_PROMPT
-  - __init__.py   : optional re-exports
+Each skill lives in a kebab-case directory with a ``SKILL.md`` file:
 
-The SkillRegistry (skill_registry.py) discovers all registered skills,
-matches them against the user's message at runtime, and returns the
-concatenated prompt fragments to append to the lean base system prompt.
+    database-querying/SKILL.md
+
+``SKILL.md`` starts with YAML frontmatter containing ``name`` and
+``description``. The SkillRegistry discovers these assets, injects only compact
+metadata into the system prompt, and the agent loads full instructions through
+the ``read_skill`` tool when needed.
 """

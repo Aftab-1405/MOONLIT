@@ -10,7 +10,11 @@ function parseJSON(value) {
 }
 
 function formatToolName(name = '') {
-  return name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+  return name.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function humanizeSkillName(name = '') {
+  return name.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function getStepId(step, idx) {
@@ -47,6 +51,12 @@ export function getDetailedResult(name, result) {
   }
 
   const details = {
+    read_skill: () => {
+      const skillName = result.skill_name || result.skillName;
+      return skillName
+        ? `Loaded ${humanizeSkillName(skillName)} instructions`
+        : 'Loaded skill instructions';
+    },
     get_connection_status: () => {
       if (!result.connected) return 'Not connected to any database';
       let msg = `Connected to ${result.database || 'database'}`;
@@ -202,4 +212,3 @@ export function areAllStepsComplete(normalizedSteps, isStreaming) {
     || (step.type === 'skill')
   );
 }
-

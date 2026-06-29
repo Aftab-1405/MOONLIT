@@ -170,10 +170,10 @@ function SqlWorkspace({
       
       if (results) {
         if (onOpenArtifact) {
-          // Open results as artifact in canvas (consistent with message list behavior)
-          // Include source query so user can navigate back to editor
+          // Open results in the Perspective workspace. It defaults to Datagrid and
+          // lets the user switch to visual analysis without another artifact hop.
           onOpenArtifact({
-            type: 'results',
+            type: 'visualization',
             title: 'Query Results',
             props: { 
               data: results,

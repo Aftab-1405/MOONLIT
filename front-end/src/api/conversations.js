@@ -14,6 +14,36 @@
 import { get, del, patch, postRaw } from "@/api/client";
 import { CONVERSATIONS } from "@/api/endpoints";
 
+const MAX_CONCURRENT_EXECUTION_READS = 4;
+const MAX_CACHED_EXECUTION_READS = 200;
+const executionResultRequests = new Map();
+const executionResultQueue = [];
+let activeExecutionReads = 0;
+
+function drainExecutionResultQueue() {
+  while (
+    activeExecutionReads < MAX_CONCURRENT_EXECUTION_READS &&
+    executionResultQueue.length > 0
+  ) {
+    const { task, resolve, reject } = executionResultQueue.shift();
+    activeExecutionReads += 1;
+    Promise.resolve()
+      .then(task)
+      .then(resolve, reject)
+      .finally(() => {
+        activeExecutionReads -= 1;
+        drainExecutionResultQueue();
+      });
+  }
+}
+
+function scheduleExecutionResultRead(task) {
+  return new Promise((resolve, reject) => {
+    executionResultQueue.push({ task, resolve, reject });
+    drainExecutionResultQueue();
+  });
+}
+
 /**
  * Get all conversations for current user.
  *
@@ -40,11 +70,25 @@ export async function getConversation(id, signal) {
  *
  * @param {string} conversationId - Conversation ID
  * @param {string} executionId - Execution ID
- * @param {AbortSignal} [signal] - Optional abort signal
  * @returns {Promise<{status: string, data: Object}>}
  */
-export async function getExecutionResult(conversationId, executionId, signal) {
-  return get(CONVERSATIONS.GET_EXECUTION_RESULT(conversationId, executionId), { signal });
+export function getExecutionResult(conversationId, executionId) {
+  const cacheKey = `${conversationId}:${executionId}`;
+  const cached = executionResultRequests.get(cacheKey);
+  if (cached) return cached;
+
+  if (executionResultRequests.size >= MAX_CACHED_EXECUTION_READS) {
+    executionResultRequests.delete(executionResultRequests.keys().next().value);
+  }
+
+  const request = scheduleExecutionResultRead(() =>
+    get(CONVERSATIONS.GET_EXECUTION_RESULT(conversationId, executionId)),
+  ).catch((error) => {
+    executionResultRequests.delete(cacheKey);
+    throw error;
+  });
+  executionResultRequests.set(cacheKey, request);
+  return request;
 }
 
 /**

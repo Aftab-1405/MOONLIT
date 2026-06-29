@@ -657,11 +657,15 @@ const AIMessage = memo(function AIMessage({
             "@media (prefers-reduced-motion: reduce)": { animation: "none" },
           }}
         >
-          <MarkdownRenderer content={content} onRunQuery={onRunQuery} />
+          <MarkdownRenderer
+            content={content}
+            onRunQuery={onRunQuery}
+            isStreaming={isWaiting || isStreaming}
+          />
         </Box>
       );
     },
-    [onRunQuery],
+    [isStreaming, isWaiting, onRunQuery],
   );
 
   const renderStepBlock = useCallback(

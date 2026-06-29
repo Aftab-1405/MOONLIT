@@ -147,6 +147,7 @@ export function useMessageStreaming({
     let lastUpdateTime = 0;
     let pendingStatus = null;
     let streamFlushRafId = 0;
+    let streamFlushTimerId = 0;
     // True when the stream ended because the agent needs user input.
     let hasAgentInterrupt = false;
     // True when an interrupt arrived but no assistant content was produced at
@@ -180,6 +181,7 @@ export function useMessageStreaming({
 
     const flushStreamUpdate = () => {
       streamFlushRafId = 0;
+      streamFlushTimerId = 0;
       if (pendingStatus === null) return;
 
       const status = pendingStatus;
@@ -192,14 +194,17 @@ export function useMessageStreaming({
 
     const scheduleStreamUpdate = (status) => {
       pendingStatus = status;
-      const now = performance.now();
-      if (now - lastUpdateTime >= STREAM_RENDER_BATCH_MS) {
-        flushStreamUpdate();
-        return;
-      }
-      if (!streamFlushRafId) {
+      if (streamFlushRafId || streamFlushTimerId) return;
+
+      const elapsed = performance.now() - lastUpdateTime;
+      const delay = Math.max(0, STREAM_RENDER_BATCH_MS - elapsed);
+      const requestFlushFrame = () => {
+        streamFlushTimerId = 0;
         streamFlushRafId = requestAnimationFrame(flushStreamUpdate);
-      }
+      };
+
+      if (delay === 0) requestFlushFrame();
+      else streamFlushTimerId = window.setTimeout(requestFlushFrame, delay);
     };
 
     await parseSSEStream(reader, decoder, (event) => {
@@ -265,14 +270,17 @@ export function useMessageStreaming({
           break;
 
         case 'skills_activated': {
-          // Insert a single skills step at position 0 (or update it if already present).
-          // The skills_activated event fires once per turn before any tokens/tools.
+          const incomingSkills = Array.isArray(event.skills) ? event.skills : [];
           const existingSkillStep = eventTimeline.find((item) => item.type === 'skill');
-          if (!existingSkillStep) {
-            eventTimeline.unshift({
+          if (existingSkillStep) {
+            existingSkillStep.skills = Array.from(
+              new Set([...(existingSkillStep.skills || []), ...incomingSkills])
+            );
+          } else if (incomingSkills.length) {
+            eventTimeline.push({
               type: 'skill',
               id: 'skills-activated',
-              skills: Array.isArray(event.skills) ? event.skills : [],
+              skills: incomingSkills,
             });
           }
           scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
@@ -354,6 +362,10 @@ export function useMessageStreaming({
       }
     });
 
+    if (streamFlushTimerId) {
+      clearTimeout(streamFlushTimerId);
+      streamFlushTimerId = 0;
+    }
     if (streamFlushRafId) {
       cancelAnimationFrame(streamFlushRafId);
       streamFlushRafId = 0;

@@ -5,6 +5,7 @@ import boto3
 from langchain_aws import ChatBedrockConverse
 
 from config import get_config
+from llm_provider.model_capabilities import model_capability
 
 logger = logging.getLogger(__name__)
 Config = get_config()
@@ -113,6 +114,9 @@ def _resolve_model_id(model: str) -> str:
     if not model or model.startswith("arn:"):
         return model
 
+    if model_capability(model, "discover_inference_profile", True) is False:
+        return model
+
     resolved = _find_inference_profile_id(model)
     if resolved:
         if resolved != model:
@@ -151,6 +155,16 @@ def init_chat_bedrock(model: str, temperature: float, **kwargs) -> ChatBedrockCo
     resolved_model = _resolve_model_id(model)
     creds = get_aws_credentials()
     region = creds["region_name"]
+    supports_streaming = bool(model_capability(model, "supports_streaming", False))
+    supports_tool_streaming = bool(
+        model_capability(model, "supports_tool_streaming", False)
+    )
+    if supports_tool_streaming:
+        disable_streaming: bool | str = False
+    elif supports_streaming:
+        disable_streaming = "tool_calling"
+    else:
+        disable_streaming = True
 
     return ChatBedrockConverse(
         model=resolved_model,
@@ -162,6 +176,8 @@ def init_chat_bedrock(model: str, temperature: float, **kwargs) -> ChatBedrockCo
         aws_session_token=creds["aws_session_token"],
         config=_retry_config(),
         max_retries=10,
-        disable_streaming="tool_calling",
+        client=get_bedrock_client(),
+        bedrock_client=get_bedrock_control_client(region),
+        disable_streaming=disable_streaming,
         **kwargs
     )

@@ -60,17 +60,9 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, on
         const columns = queryData.result?.columns || [];
         const rows = queryData.result?.rows || [];
 
-        const transformedResult = rows.map((row) => {
-          const obj = {};
-          columns.forEach((col, idx) => {
-            obj[col] = row[idx];
-          });
-          return obj;
-        });
-
         const results = {
           columns,
-          result: transformedResult,
+          rows,
           row_count: queryData.row_count,
           total_rows: queryData.total_rows,
           truncated: queryData.truncated,

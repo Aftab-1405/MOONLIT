@@ -808,6 +808,7 @@ const components = {
         borderRadius: SHAPE.radius.md,
         border: `1px solid ${alpha(H.border200, 0.08)}`,
         backgroundColor: H.bg100,
+        color: H.text000,
       },
     },
   },

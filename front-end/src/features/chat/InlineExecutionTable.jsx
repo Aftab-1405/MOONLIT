@@ -14,7 +14,6 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
 
   useEffect(() => {
     let mounted = true;
-    const controller = new AbortController();
 
     async function fetchResult() {
       if (!conversationId || !executionId) {
@@ -24,7 +23,7 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
       
       try {
         setLoading(true);
-        const res = await getExecutionResult(conversationId, executionId, controller.signal);
+        const res = await getExecutionResult(conversationId, executionId);
         
         if (mounted && res.status === 'success' && res.data) {
           const rawData = Array.isArray(res.data.data)
@@ -52,7 +51,6 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
           }
         }
       } catch (err) {
-        if (err.name === 'AbortError') return;
         if (mounted) {
             setError(err.message || 'Failed to load execution result');
         }
@@ -64,7 +62,6 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
     
     return () => {
         mounted = false;
-        controller.abort();
     };
   }, [conversationId, executionId]);
 

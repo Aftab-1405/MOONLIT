@@ -1,5 +1,6 @@
 """FastAPI application entry point"""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -124,12 +125,42 @@ async def lifespan(app: FastAPI):
     from llm_provider.token_budget import eagerly_initialize_static_budgets
     logger.info("Initializing static token budgets...")
     eagerly_initialize_static_budgets()
+    from llm_provider.model_factory import prewarm_chat_models
+    logger.info("Prewarming Bedrock model clients...")
+    await asyncio.to_thread(prewarm_chat_models)
+
+    vamp_stop = asyncio.Event()
+    vamp_task = None
+    if AppConfig.VAMP_MEMORY_ENABLED:
+        from vamp_memory.maintenance import run_vamp_maintenance
+        from vamp_memory.vamp_memory_service import get_vamp_memory_service
+
+        try:
+            # Warm and validate Qdrant before traffic arrives. Network work is
+            # still asynchronous and a temporary outage remains recoverable.
+            await get_vamp_memory_service().vector_store.ensure_ready()
+        except Exception as exc:
+            logger.warning("VAMP vector store was not ready at startup: %s", exc)
+
+        vamp_task = asyncio.create_task(
+            run_vamp_maintenance(
+                vamp_stop, AppConfig.VAMP_MAINTENANCE_INTERVAL_SECONDS
+            ),
+            name="vamp-maintenance",
+        )
 
     logger.info("✅ Application initialized successfully")
 
     yield
 
     # Shutdown
+    if vamp_task is not None:
+        vamp_stop.set()
+        vamp_task.cancel()
+        try:
+            await vamp_task
+        except asyncio.CancelledError:
+            pass
     await shutdown_checkpointer()
     client = get_redis_client()
     if client:

@@ -20,11 +20,6 @@ def get_default_conversation_summarizer() -> ConversationSummarizer:
     return _get_conversation_summarizer()
 
 
-def get_default_conversation_access() -> ConversationStateReader:
-    """Return the configured conversation access adapter."""
-    return _get_conversation_state_reader()
-
-
 def group_messages_into_turns(messages: list) -> list[list[int]]:
     """Groups message indices into turns, with explicit turn_index/turn_id or fallback."""
     turns = []

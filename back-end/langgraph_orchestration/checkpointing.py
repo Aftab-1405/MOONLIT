@@ -33,7 +33,11 @@ async def init_checkpointer(*, app_env: str, redis_url: str | None) -> None:
 
     env = (app_env or "development").lower()
 
-    if env in ("production", "staging") and redis_url:
+    if env in ("production", "staging"):
+        if not redis_url:
+            raise RuntimeError(
+                "Redis-backed LangGraph checkpointing is required in production/staging"
+            )
         try:
             saver = AsyncRedisSaver.from_conn_info(redis_url=redis_url)
             await saver.__aenter__()
@@ -42,9 +46,11 @@ async def init_checkpointer(*, app_env: str, redis_url: str | None) -> None:
             logger.info("LangGraph checkpointer: AsyncRedisSaver (Redis-backed)")
             return
         except Exception as e:
-            logger.exception(
-                "Redis checkpointer failed; falling back to InMemorySaver: %s", e
-            )
+            # A process-local fallback loses resumability on restart and splits
+            # state across workers. Fail startup instead of silently weakening
+            # production durability.
+            logger.exception("Redis checkpointer initialization failed: %s", e)
+            raise RuntimeError("Redis checkpointer initialization failed") from e
 
     _checkpointer = InMemorySaver()
     logger.info("LangGraph checkpointer: InMemorySaver")

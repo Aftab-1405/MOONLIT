@@ -245,7 +245,7 @@ export const ThinkingStep = memo(function ThinkingStep({
 
 function humanizeSkillName(name) {
   return name
-    .replace(/_/g, " ")
+    .replace(/[_-]/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
@@ -263,9 +263,13 @@ export const SkillStep = memo(function SkillStep({
 
   const SKILL_LABELS = {
     database_querying: "Database",
+    "database-querying": "Database",
     react_flow_diagram: "Diagram",
+    "react-flow-diagram": "Diagram",
     web_research: "Web Research",
+    "web-research": "Web Research",
     query_history: "Query History",
+    "query-history": "Query History",
   };
 
   const label = skills
@@ -348,7 +352,7 @@ export const SkillStep = memo(function SkillStep({
               : { color: alpha(theme.palette.text.primary, isDark ? 0.72 : 0.65) }),
           }}
         >
-          {`Loaded ${label} skill${skills.length > 1 ? 's' : ''}`}
+          {`Using ${label} skill${skills.length > 1 ? 's' : ''}`}
         </Typography>
       </Box>
     </Box>

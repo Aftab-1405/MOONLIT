@@ -1,11 +1,20 @@
-import { memo, useCallback, useMemo } from 'react';
-import { Box } from '@mui/material';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
+import { Box, Button, Snackbar, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import AnalyticsOutlinedIcon from '@mui/icons-material/AnalyticsOutlined';
-import DatasetOutlinedIcon from '@mui/icons-material/DatasetOutlined';
+import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
+import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
+import FilterAltRoundedIcon from '@mui/icons-material/FilterAltRounded';
+import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
+import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
+import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
+import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
 import { ArtifactEmptyState, ArtifactShell } from '@/features/sidebar-right/artifact-loader';
 import PerspectiveDashboard from '@/features/sidebar-right/artifacts/data-visualization/PerspectiveDashboard';
+import { createAnalysisStorageKey } from '@/features/sidebar-right/artifacts/data-visualization/perspectiveAnalysis';
+import { copyToClipboard } from '@/utils/clipboard';
 
 function DataVisualizationPanel({
   data,
@@ -21,61 +30,25 @@ function DataVisualizationPanel({
   onToggleFullscreen,
   sourceQuery,
   sourceType,
+  currentDatabase,
   workspaceContainerRef,
 }) {
-  const rows = useMemo(() => {
-    if (!data) return [];
+  const theme = useTheme();
+  const dashboardRef = useRef(null);
+  const [viewerReady, setViewerReady] = useState(false);
+  const [selection, setSelection] = useState(null);
+  const [notice, setNotice] = useState('');
+  const columns = useMemo(() => data?.columns || [], [data?.columns]);
+  const rows = useMemo(() => data?.rows || [], [data?.rows]);
+  const memoizedData = useMemo(() => ({ columns, rows }), [columns, rows]);
 
-    // Case 1: data itself is already an array (of objects or arrays)
-    if (Array.isArray(data)) {
-      return data;
-    }
-
-    // Case 2: data has a "result" field (could be array of objects, or QueryResultData object)
-    if (data?.result) {
-      if (Array.isArray(data.result)) {
-        return data.result;
-      }
-      if (Array.isArray(data.result.rows)) {
-        const columns = data.result.columns || data.result.fields || data.columns || [];
-        const rows = data.result.rows;
-        // Zip array of arrays with column names to create object representations
-        if (columns.length && rows.length && Array.isArray(rows[0])) {
-          return rows.map((row) => {
-            const obj = {};
-            columns.forEach((col, idx) => {
-              obj[col] = row[idx];
-            });
-            return obj;
-          });
-        }
-        return rows;
-      }
-    }
-
-    // Case 3: data has a "rows" field directly (e.g. { columns: [], rows: [[]] })
-    if (Array.isArray(data?.rows)) {
-      const columns = data.columns || data.fields || [];
-      const rows = data.rows;
-      if (columns.length && rows.length && Array.isArray(rows[0])) {
-        return rows.map((row) => {
-          const obj = {};
-          columns.forEach((col, idx) => {
-            obj[col] = row[idx];
-          });
-          return obj;
-        });
-      }
-      return rows;
-    }
-
-    // Case 4: data has "data" field
-    if (Array.isArray(data?.data)) {
-      return data.data;
-    }
-
-    return [];
-  }, [data]);
+  const storageKey = useMemo(() => createAnalysisStorageKey({
+    sourceQuery,
+    columns,
+    database: currentDatabase,
+  }), [columns, currentDatabase, sourceQuery]);
+  const isTruncated = Boolean(data?.truncated);
+  const displayedRowCount = data?.row_count ?? rows.length;
 
   const requestOpenArtifact = onRequestOpenArtifact || onOpenArtifact;
 
@@ -87,13 +60,24 @@ function DataVisualizationPanel({
     }, { preserveFullscreen: isFullscreen });
   }, [data, isFullscreen, requestOpenArtifact, sourceQuery]);
 
-  const openTable = useCallback(() => {
-    requestOpenArtifact?.({
-      type: 'results',
-      title: 'Query Results',
-      props: { data, sourceQuery, sourceType },
-    }, { preserveFullscreen: isFullscreen });
-  }, [data, isFullscreen, requestOpenArtifact, sourceQuery, sourceType]);
+  const runDashboardAction = useCallback(async (action, successMessage, ...args) => {
+    try {
+      await dashboardRef.current?.[action]?.(...args);
+      setNotice(successMessage);
+    } catch (actionError) {
+      setNotice(actionError?.message || 'The analysis action could not be completed.');
+    }
+  }, []);
+
+  const applySelectionFilter = useCallback(async () => {
+    if (!selection?.config) return;
+    await runDashboardAction('applyConfig', 'Selection filter applied.', selection.config);
+  }, [runDashboardAction, selection]);
+
+  const copySelection = useCallback(async () => {
+    const copied = await copyToClipboard(JSON.stringify(selection?.row || {}, null, 2));
+    setNotice(copied ? 'Selected row copied.' : 'Selected row could not be copied.');
+  }, [selection]);
 
   if (!rows.length) {
     return (
@@ -117,6 +101,7 @@ function DataVisualizationPanel({
     >
       <ArtifactShell
         title={title}
+        subtitle={`${displayedRowCount.toLocaleString()} rows${isTruncated ? ' · partial result' : ' · saved automatically'}`}
         icon={<AnalyticsOutlinedIcon sx={{ fontSize: 20 }} />}
         chrome={chrome}
         onClose={onClose}
@@ -136,18 +121,107 @@ function DataVisualizationPanel({
                 onClick: openEditor,
               }
             : null,
-          requestOpenArtifact
-            ? {
-                key: 'table',
-                label: 'Open as table',
-                icon: <DatasetOutlinedIcon sx={{ fontSize: 18 }} />,
-                onClick: openTable,
-              }
-            : null,
+          {
+            key: 'save-analysis',
+            label: 'Save analysis',
+            icon: <SaveRoundedIcon sx={{ fontSize: 18 }} />,
+            onClick: () => runDashboardAction('save', 'Analysis saved.'),
+            disabled: !viewerReady,
+          },
+          {
+            key: 'copy-view',
+            label: 'Copy current view as CSV',
+            icon: <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />,
+            onClick: () => runDashboardAction('copy', 'Current view copied.'),
+            disabled: !viewerReady,
+          },
+          {
+            key: 'download-csv',
+            label: 'Download current view as CSV',
+            icon: <DownloadRoundedIcon sx={{ fontSize: 18 }} />,
+            onClick: () => runDashboardAction('download', 'CSV download started.'),
+            disabled: !viewerReady,
+          },
+          {
+            key: 'export-visualization',
+            label: 'Export visualization',
+            icon: <ImageOutlinedIcon sx={{ fontSize: 18 }} />,
+            onClick: () => runDashboardAction('exportVisualization', 'Visualization export started.'),
+            disabled: !viewerReady,
+          },
+          {
+            key: 'reset-analysis',
+            label: 'Reset analysis',
+            icon: <RestartAltRoundedIcon sx={{ fontSize: 18 }} />,
+            onClick: () => runDashboardAction('reset', 'Analysis reset.'),
+            disabled: !viewerReady,
+          },
         ]}
+        footer={selection?.row ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, minWidth: 0 }}>
+            <Typography
+              noWrap
+              sx={{ ...theme.typography.uiCaptionSm, color: 'text.secondary', flex: 1, minWidth: 0 }}
+            >
+              Selected: {Object.entries(selection.row).slice(0, 3).map(([key, value]) => `${key}: ${value ?? 'NULL'}`).join(' · ')}
+            </Typography>
+            {selection.config ? (
+              <Button
+                size="small"
+                startIcon={<FilterAltRoundedIcon />}
+                onClick={applySelectionFilter}
+              >
+                Filter to selection
+              </Button>
+            ) : null}
+            <Button
+              size="small"
+              startIcon={<ContentCopyRoundedIcon />}
+              onClick={copySelection}
+            >
+              Copy row
+            </Button>
+          </Box>
+        ) : null}
       >
-        <PerspectiveDashboard data={rows} />
+        {isTruncated ? (
+          <Box
+            role="alert"
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              mb: 1.5,
+              px: 1.5,
+              py: 1,
+              borderRadius: 1.5,
+              color: 'warning.main',
+              bgcolor: alpha(theme.palette.warning.main, theme.palette.mode === 'dark' ? 0.12 : 0.08),
+              border: `1px solid ${alpha(theme.palette.warning.main, 0.24)}`,
+            }}
+          >
+            <WarningAmberRoundedIcon sx={{ fontSize: 18, flexShrink: 0 }} />
+            <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary' }}>
+              Analysis only includes the first {displayedRowCount.toLocaleString()} rows. Increase the query row limit or aggregate in SQL before drawing conclusions.
+            </Typography>
+          </Box>
+        ) : null}
+        <Box sx={{ flex: 1, minHeight: 0 }}>
+          <PerspectiveDashboard
+            ref={dashboardRef}
+            data={memoizedData}
+            storageKey={storageKey}
+            onReadyChange={setViewerReady}
+            onSelectionChange={setSelection}
+          />
+        </Box>
       </ArtifactShell>
+      <Snackbar
+        open={Boolean(notice)}
+        autoHideDuration={2600}
+        onClose={() => setNotice('')}
+        message={notice}
+      />
     </Box>
   );
 }

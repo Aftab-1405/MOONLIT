@@ -11,6 +11,17 @@ import SqlWorkspace from '@/features/sidebar-right/artifacts/sql-workspace';
 import DataVisualizationPanel from '@/features/sidebar-right/artifacts/data-visualization';
 import DiagramFlowRenderer from '@/features/sidebar-right/artifacts/diagram-flow';
 
+const dataVisualizationRenderer = {
+  loader: DataVisualizationPanel,
+  getProps: ({ artifact, common }) => ({
+    data: artifact.props?.data,
+    title: artifact.title,
+    sourceQuery: artifact.props?.sourceQuery,
+    sourceType: artifact.props?.sourceType,
+    ...common,
+  }),
+};
+
 const artifactRegistry = {
   'sql-editor': {
     loader: SqlWorkspace,
@@ -22,16 +33,9 @@ const artifactRegistry = {
       currentDatabase: common.currentDatabase,
     }),
   },
-  visualization: {
-    loader: DataVisualizationPanel,
-    getProps: ({ artifact, common }) => ({
-      data: artifact.props?.data,
-      title: artifact.title,
-      sourceQuery: artifact.props?.sourceQuery,
-      sourceType: artifact.props?.sourceType,
-      ...common,
-    }),
-  },
+  visualization: dataVisualizationRenderer,
+  // Compatibility for persisted artifacts and older callers that still emit "results".
+  results: dataVisualizationRenderer,
   'react-flow': {
     loader: DiagramFlowRenderer,
     getProps: ({ artifact, common }) => ({

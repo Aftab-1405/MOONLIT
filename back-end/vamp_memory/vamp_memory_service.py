@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import inspect
 import logging
 from typing import Callable
@@ -12,7 +13,7 @@ from config import get_config
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONTEXT_TOKEN_BUDGET_CHARS = get_config().VAMP_CONTEXT_BUDGET_CHARS
+DEFAULT_CONTEXT_TOKEN_BUDGET = get_config().VAMP_CONTEXT_MAX_TOKENS
 _VECTOR_STORE_SINGLETON = None
 _VAMP_MEMORY_SERVICE_SINGLETON = None
 
@@ -59,7 +60,7 @@ class VampMemoryService:
         vector_store: VectorMemoryStore | None = None,
         embedding_provider: Callable[[str], list[float]] | None = None,
         embedding_model: str = DEFAULT_EMBEDDING_MODEL,
-        context_budget_chars: int = DEFAULT_CONTEXT_TOKEN_BUDGET_CHARS,
+        context_budget_tokens: int = DEFAULT_CONTEXT_TOKEN_BUDGET,
     ):
         if summary_repo is None:
             from vamp_memory.summary_block_repository import SummaryBlockRepository
@@ -70,13 +71,17 @@ class VampMemoryService:
                 config = get_config()
 
                 embedding_model = config.VAMP_EMBEDDING_MODEL
-                context_budget_chars = config.VAMP_CONTEXT_BUDGET_CHARS
+                context_budget_tokens = config.VAMP_CONTEXT_MAX_TOKENS
             except Exception:
                 pass
         self._vector_store = vector_store
         self.embedding_provider = embedding_provider or default_embedding_provider
         self.embedding_model = embedding_model
-        self.context_budget_chars = context_budget_chars
+        self.context_budget_tokens = max(1, int(context_budget_tokens))
+        config = get_config()
+        self.similarity_threshold = config.VAMP_SIMILARITY_THRESHOLD
+        self.index_concurrency = max(1, config.VAMP_INDEX_CONCURRENCY)
+        self._background_tasks: set[asyncio.Task] = set()
 
     @property
     def vector_store(self) -> VectorMemoryStore:
@@ -95,6 +100,37 @@ class VampMemoryService:
             result = await result
         return result
 
+    def _schedule_index(self, block: dict) -> None:
+        task = asyncio.create_task(self._index_with_failure_record(block))
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+
+    async def _index_with_failure_record(self, block: dict) -> bool:
+        try:
+            await self.index_summary_block(block)
+            return True
+        except Exception as exc:
+            logger.warning(
+                "VAMP vector indexing failed for %s/%s: %s",
+                block.get("conversation_id"),
+                block.get("summary_id"),
+                exc,
+            )
+            attempts = int(block.get("vector_attempts", 0) or 0) + 1
+            mark_failed = getattr(self.summary_repo, "mark_vector_failed", None)
+            if callable(mark_failed):
+                try:
+                    await self._call_maybe_async(
+                        mark_failed,
+                        block["conversation_id"],
+                        block["summary_id"],
+                        error=str(exc),
+                        attempts=attempts,
+                    )
+                except Exception as record_exc:
+                    logger.error("Could not persist vector retry state: %s", record_exc)
+            return False
+
     async def store_summary_block(
         self,
         conversation_id: str,
@@ -109,12 +145,13 @@ class VampMemoryService:
         covers_message_ids: list | None = None,
         created_from_unsummarized_tail: bool = True,
     ) -> dict:
+        memory_bullets = copy.deepcopy(memory_bullets) if memory_bullets else None
         if memory_bullets:
             for bullet in memory_bullets:
                 if "text" in bullet and "char_length" not in bullet:
                     bullet["char_length"] = len(str(bullet["text"]))
 
-        block = await asyncio.to_thread(
+        block = await self._call_maybe_async(
             self.summary_repo.create_block,
             conversation_id,
             user_id,
@@ -128,26 +165,7 @@ class VampMemoryService:
             covers_message_ids=covers_message_ids,
             created_from_unsummarized_tail=created_from_unsummarized_tail,
         )
-        try:
-            await self.index_summary_block(block)
-        except Exception as exc:
-            logger.warning(
-                "VAMP vector indexing failed for %s/%s: %s",
-                conversation_id,
-                block.get("summary_id"),
-                exc,
-            )
-            mark_indexed = getattr(self.summary_repo, "mark_vector_indexed", None)
-            if callable(mark_indexed):
-                try:
-                    await asyncio.to_thread(
-                        mark_indexed,
-                        conversation_id,
-                        block["summary_id"],
-                        status="failed",
-                    )
-                except Exception:
-                    pass
+        self._schedule_index(block)
         return block
 
     async def index_summary_block(self, block: dict) -> None:
@@ -156,7 +174,7 @@ class VampMemoryService:
             mark_indexed = getattr(self.summary_repo, "mark_vector_indexed", None)
             if callable(mark_indexed):
                 try:
-                    await asyncio.to_thread(
+                    await self._call_maybe_async(
                         mark_indexed,
                         block["conversation_id"],
                         block["summary_id"],
@@ -166,46 +184,52 @@ class VampMemoryService:
                     pass
             return
         else:
-            indexed_bullets = 0
-            for bullet in block["memory_bullets"]:
+            semaphore = asyncio.Semaphore(self.index_concurrency)
+
+            async def index_bullet(bullet: dict) -> bool:
                 b_text = bullet.get("text", "")
                 if not b_text:
-                    continue
-                b_vector = await self._embed(b_text)
-                if len(b_vector) != get_config().VAMP_EMBEDDING_DIMENSIONS:
-                    raise ValueError(
-                        "Embedding dimension mismatch for "
-                        f"{block.get('conversation_id')}/{block.get('summary_id')} "
-                        f"{bullet.get('bullet_id')}: got {len(b_vector)}, "
-                        f"expected {get_config().VAMP_EMBEDDING_DIMENSIONS}"
+                    return False
+                async with semaphore:
+                    b_vector = await self._embed(b_text)
+                    expected = get_config().VAMP_EMBEDDING_DIMENSIONS
+                    if len(b_vector) != expected:
+                        raise ValueError(
+                            "Embedding dimension mismatch for "
+                            f"{block.get('conversation_id')}/{block.get('summary_id')} "
+                            f"{bullet.get('bullet_id')}: got {len(b_vector)}, expected {expected}"
+                        )
+                    b_payload = {
+                        "pointer_type": "memory_bullet",
+                        "user_id": block.get("user_id"),
+                        "conversation_id": block.get("conversation_id"),
+                        "summary_id": block.get("summary_id"),
+                        "idx": block.get("idx"),
+                        "bullet_id": bullet.get("bullet_id"),
+                        "bullet_index": bullet.get("bullet_index"),
+                        "schema_version": block.get("schema_version"),
+                        "content_hash": block.get("content_hash"),
+                        "embedding_model": self.embedding_model,
+                    }
+                    await self.vector_store.upsert(
+                        conversation_id=block["conversation_id"],
+                        summary_id=block["summary_id"],
+                        vector=b_vector,
+                        payload=b_payload,
+                        point_seed=f"{block['conversation_id']}:{block['summary_id']}:{bullet.get('bullet_id')}",
                     )
-                b_payload = {
-                    "pointer_type": "memory_bullet",
-                    "user_id": block.get("user_id"),
-                    "conversation_id": block.get("conversation_id"),
-                    "summary_id": block.get("summary_id"),
-                    "idx": block.get("idx"),
-                    "bullet_id": bullet.get("bullet_id"),
-                    "bullet_index": bullet.get("bullet_index"),
-                    "schema_version": block.get("schema_version"),
-                    "content_hash": block.get("content_hash"),
-                    "embedding_model": self.embedding_model,
-                }
-                await self.vector_store.upsert(
-                    conversation_id=block["conversation_id"],
-                    summary_id=block["summary_id"],
-                    vector=b_vector,
-                    payload=b_payload,
-                    point_seed=f"{block['conversation_id']}:{block['summary_id']}:{bullet.get('bullet_id')}",
-                )
-                indexed_bullets += 1
+                    return True
+
+            indexed_bullets = sum(
+                await asyncio.gather(*(index_bullet(b) for b in block["memory_bullets"]))
+            )
 
             if indexed_bullets == 0:
                 logger.warning("Summary block has no indexable memory_bullets; skipped VAMP v2 vector indexing.")
                 mark_indexed = getattr(self.summary_repo, "mark_vector_indexed", None)
                 if callable(mark_indexed):
                     try:
-                        await asyncio.to_thread(
+                        await self._call_maybe_async(
                             mark_indexed,
                             block["conversation_id"],
                             block["summary_id"],
@@ -218,7 +242,7 @@ class VampMemoryService:
         mark_indexed = getattr(self.summary_repo, "mark_vector_indexed", None)
         if callable(mark_indexed):
             try:
-                await asyncio.to_thread(
+                await self._call_maybe_async(
                     mark_indexed,
                     block["conversation_id"],
                     block["summary_id"],
@@ -233,8 +257,10 @@ class VampMemoryService:
         user_prompt: str,
         *,
         k: int | None = None,
+        model_id: str | None = None,
+        token_budget: int | None = None,
     ) -> list[dict]:
-        conv = await asyncio.to_thread(
+        conv = await self._call_maybe_async(
             self.summary_repo.get_conversation,
             conversation_id,
         )
@@ -247,24 +273,46 @@ class VampMemoryService:
             return []
 
         effective_k = k or adaptive_k(total)
-        query_vector = await self._embed(user_prompt)
-        vector_hits = await self._call_maybe_async(
-            self.vector_store.search,
-            conversation_id=conversation_id,
-            query_vector=query_vector,
-            k=effective_k,
-            user_id=user_id,
-            pointer_type="memory_bullet",
-        )
-        if asyncio.iscoroutine(vector_hits):
-            vector_hits = await vector_hits
+        try:
+            query_vector = await self._embed(user_prompt)
+            vector_hits = await self._call_maybe_async(
+                self.vector_store.search,
+                conversation_id=conversation_id,
+                query_vector=query_vector,
+                k=effective_k,
+                user_id=user_id,
+                pointer_type="memory_bullet",
+                score_threshold=self.similarity_threshold,
+            )
+            if asyncio.iscoroutine(vector_hits):
+                vector_hits = await vector_hits
+        except Exception as exc:
+            logger.warning(
+                "Vector retrieval unavailable for %s; using recent memory blocks: %s",
+                conversation_id,
+                exc,
+            )
+            return await self._recent_block_fallback(
+                conversation_id, effective_k, model_id=model_id, token_budget=token_budget
+            )
+
+        if not vector_hits:
+            return await self._recent_block_fallback(
+                conversation_id, effective_k, model_id=model_id, token_budget=token_budget
+            )
 
         summary_ids = list({
             hit["summary_id"]
             for hit in vector_hits
             if hit.get("summary_id") is not None
         })
-        blocks = await asyncio.to_thread(
+        latest_summary_id = conv.get("latest_summary_id")
+        if latest_summary_id and latest_summary_id not in summary_ids:
+            # The immutable block is authoritative immediately; its async
+            # vectors may still be pending. Pinning the newest block prevents
+            # compaction from creating a temporary memory gap.
+            summary_ids.append(str(latest_summary_id))
+        blocks = await self._call_maybe_async(
             self.summary_repo.get_blocks_by_ids,
             conversation_id,
             summary_ids,
@@ -287,10 +335,31 @@ class VampMemoryService:
                 logger.warning("Summary block %s has no memory_bullets; skipped VAMP v2 retrieval.", sid)
                 continue
             s_hits = hits_by_summary.get(sid, [])
-            if not s_hits:
+            is_latest = bool(latest_summary_id and sid == str(latest_summary_id))
+            if not s_hits and not is_latest:
                 continue
 
             b_dict = {b.get("bullet_id"): b for b in block.get("memory_bullets", [])}
+
+            if is_latest:
+                for b_obj in block.get("memory_bullets", []):
+                    bid = b_obj.get("bullet_id")
+                    text = str(b_obj.get("text") or "").strip()
+                    if not bid or not text:
+                        continue
+                    units.append({
+                        "unit_id": bid,
+                        "summary_id": sid,
+                        "idx": block.get("idx"),
+                        "start_message_idx": block.get("start_message_idx"),
+                        "end_message_idx": block.get("end_message_idx"),
+                        "bullet_id": bid,
+                        "bullet_index": b_obj.get("bullet_index"),
+                        "text": text,
+                        "is_parent": False,
+                        "_retrieval_score": 1.01,
+                        "_retrieval_rank": -1,
+                    })
             
             for h in s_hits:
                 if h.get("pointer_type") == "memory_bullet":
@@ -311,7 +380,70 @@ class VampMemoryService:
                             "_retrieval_rank": h.get("rank", 999999),
                         })
 
-        return dedupe_select_budget_then_sort(units, budget_chars=self.context_budget_chars)
+        # All hits may reference deleted/stale Firestore documents. Treat that
+        # exactly like no semantic hits so recent memory remains available.
+        if not units:
+            return await self._recent_block_fallback(
+                conversation_id, effective_k, model_id=model_id, token_budget=token_budget
+            )
+        return dedupe_select_budget_then_sort(
+            units,
+            budget_tokens=token_budget or self.context_budget_tokens,
+            model_id=model_id,
+        )
+
+    async def retry_pending_indexes(self, limit: int = 25) -> int:
+        get_retry = getattr(self.summary_repo, "get_vector_retry_blocks", None)
+        if not callable(get_retry):
+            return 0
+        blocks = await self._call_maybe_async(get_retry, limit)
+        semaphore = asyncio.Semaphore(self.index_concurrency)
+
+        async def retry(block: dict) -> bool:
+            async with semaphore:
+                return await self._index_with_failure_record(block)
+
+        results = await asyncio.gather(*(retry(block) for block in blocks))
+        return sum(bool(result) for result in results)
+
+    async def _recent_block_fallback(
+        self,
+        conversation_id: str,
+        limit: int,
+        *,
+        model_id: str | None = None,
+        token_budget: int | None = None,
+    ) -> list[dict]:
+        get_recent = getattr(self.summary_repo, "get_recent_blocks", None)
+        if not callable(get_recent):
+            return []
+        blocks = await self._call_maybe_async(
+            get_recent, conversation_id, limit
+        )
+        units = []
+        for block in blocks:
+            for bullet in block.get("memory_bullets") or []:
+                text = str(bullet.get("text") or "").strip()
+                if not text:
+                    continue
+                units.append(
+                    {
+                        "unit_id": bullet.get("bullet_id"),
+                        "summary_id": block.get("summary_id"),
+                        "idx": block.get("idx"),
+                        "bullet_index": bullet.get("bullet_index"),
+                        "text": text,
+                        "is_parent": False,
+                        # Prefer the newest blocks, then preserve chronological
+                        # output order after budget selection.
+                        "_retrieval_score": float(block.get("idx", 0) or 0),
+                    }
+                )
+        return dedupe_select_budget_then_sort(
+            units,
+            budget_tokens=token_budget or self.context_budget_tokens,
+            model_id=model_id,
+        )
 
     async def retrieve_context(
         self,
@@ -320,25 +452,23 @@ class VampMemoryService:
         user_prompt: str,
         *,
         k: int | None = None,
+        model_id: str | None = None,
+        token_budget: int | None = None,
     ) -> str | None:
         try:
             blocks = await self.retrieve_blocks(
-                conversation_id, user_id, user_prompt, k=k
+                conversation_id,
+                user_id,
+                user_prompt,
+                k=k,
+                model_id=model_id,
+                token_budget=token_budget,
             )
         except Exception as exc:
             logger.warning("VAMP retrieval failed for %s: %s", conversation_id, exc)
             return None
         context = format_historical_context(blocks)
         return context or None
-
-    def _dedupe_select_budget_then_sort(
-        self,
-        blocks: list[dict],
-        *,
-        budget_chars: int | None = None,
-    ) -> list[dict]:
-        """Shim for tests accessing private method directly."""
-        return dedupe_select_budget_then_sort(blocks, budget_chars=budget_chars or self.context_budget_chars)
 
     async def delete_conversation_pointers(
         self,
@@ -351,3 +481,7 @@ class VampMemoryService:
             logger.info("Deleted Qdrant pointers for conversation %s and user %s", conversation_id, user_id)
         except Exception as exc:
             logger.warning("Failed to delete Qdrant pointers for conversation %s: %s", conversation_id, exc)
+            # The conversation service records a durable cleanup retry only
+            # when this port reports failure. Swallowing it leaves orphaned
+            # vectors indefinitely after the Firestore conversation is gone.
+            raise

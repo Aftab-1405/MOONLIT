@@ -1,6 +1,14 @@
 """Agent orchestration protocols."""
 
+from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
+
+
+@dataclass(frozen=True)
+class TaskRunAcquisition:
+    acquired: bool
+    previous_status: str = ""
+    previous_task_mode: str = "normal"
 
 
 @runtime_checkable
@@ -8,7 +16,13 @@ class HistoricalContextProvider(Protocol):
     """Port for retrieving historical context for an agent turn."""
 
     async def retrieve_context(
-        self, conversation_id: str, user_id: str, user_prompt: str
+        self,
+        conversation_id: str,
+        user_id: str,
+        user_prompt: str,
+        *,
+        model_id: str | None = None,
+        token_budget: int | None = None,
     ) -> str:
         """Return formatted historical context relevant to the prompt."""
 
@@ -40,7 +54,6 @@ class ConversationSummarizer(Protocol):
         conversation_id: str,
         user_id: str,
         model: str | None = None,
-        thread_id: str | None = None,
         pressure_budget_tokens: int | None = None,
     ) -> dict:
         """Summarize conversation history when needed and return write status."""
@@ -54,15 +67,45 @@ class ConversationTaskStateStore(Protocol):
         """Return the current task status for a conversation."""
 
     def update_task_checkpoint_summary(
-        self, conversation_id: str, summary: str
-    ) -> None:
-        """Persist the task checkpoint summary."""
+        self, conversation_id: str, summary: str, run_id: str
+    ) -> bool:
+        """Persist a checkpoint summary only for the active run owner."""
 
-    def reset_task_checkpoint(self, conversation_id: str, task_mode: str) -> None:
-        """Clear task checkpoint state for a new turn."""
+    def try_acquire_task_run(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        run_id: str,
+        lease_seconds: int,
+    ) -> TaskRunAcquisition:
+        """Atomically acquire an expiring execution lease."""
 
-    def save_paused_task(self, conversation_id: str, task_mode: str) -> None:
-        """Persist paused task state after an orchestration step limit."""
+    def renew_task_run(
+        self, conversation_id: str, run_id: str, lease_seconds: int
+    ) -> bool:
+        """Extend a lease only when ``run_id`` still owns it."""
 
-    def clear_task_status(self, conversation_id: str, task_mode: str) -> None:
-        """Clear task status after successful completion."""
+    def reset_task_checkpoint(
+        self, conversation_id: str, task_mode: str, run_id: str
+    ) -> bool:
+        """Clear checkpoint state when ``run_id`` owns the active lease."""
+
+    def update_task_mode(
+        self, conversation_id: str, task_mode: str, run_id: str
+    ) -> bool:
+        """Update the mode when a resumed run restores persisted settings."""
+
+    def save_paused_task(
+        self, conversation_id: str, task_mode: str, run_id: str
+    ) -> bool:
+        """Persist paused state and release the owned execution lease."""
+
+    def save_interrupted_task(
+        self, conversation_id: str, task_mode: str, reason: str, run_id: str
+    ) -> bool:
+        """Persist resumable interruption and release the owned lease."""
+
+    def clear_task_status(
+        self, conversation_id: str, task_mode: str, run_id: str
+    ) -> bool:
+        """Clear task status only when ``run_id`` owns the lease."""

@@ -30,7 +30,7 @@ import { del, getUserContext } from "@/api";
 import { USER } from "@/api/endpoints";
 import { queryClient, queryKeys } from "@/api/queryClient";
 import { HOVER_CAPABLE_QUERY } from "@/styles/mediaQueries";
-import { getInteractionColors, getUtilityIconButtonSx } from "@/styles/shared";
+import { getUtilityIconButtonSx } from "@/styles/shared";
 import { ConfirmDialog } from "@/components";
 import DatabaseIcon from "@/components/icons/DatabaseIcon";
 import RecentChatIcon from "@/components/icons/RecentChatIcon";
@@ -204,10 +204,6 @@ function UserDBContextManagerForAI() {
   const [error, setError] = useState(null);
 
   const theme = useTheme();
-  const neutralInteraction = useMemo(
-    () => getInteractionColors(theme),
-    [theme],
-  );
   const utilityIconButtonSx = useMemo(
     () => getUtilityIconButtonSx(theme),
     [theme],

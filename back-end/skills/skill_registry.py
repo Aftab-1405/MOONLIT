@@ -1,167 +1,198 @@
 """
-SkillRegistry — lightweight, zero-LLM runtime skill matching.
+SKILL.md catalog for Moonlit agent skills.
 
-Usage
------
-    from skills.skill_registry import SkillRegistry
-
-    registry = SkillRegistry()
-    skill_context = registry.build_skill_context(user_message="visualize my schema")
-    system_prompt = base_prompt + skill_context
-
-Design principles
------------------
-- Pure keyword / regex matching.  No LLM calls, no async work.
-- Skills declare their own triggers; the registry is dumb.
-- Always-on skills (SKILL_TRIGGERS = []) are injected unconditionally.
-- Thread-safe: the registry object is read-only after construction.
+Skills are static markdown assets discovered from ``back-end/skills/*/SKILL.md``.
+Only compact metadata is injected into the base prompt; the full markdown body is
+loaded by the agent through the ``read_skill`` tool when needed.
 """
 
 from __future__ import annotations
 
-import importlib
 import logging
+import pathlib
 import re
-from dataclasses import dataclass, field
-from typing import Callable
+from dataclasses import dataclass
+from html import escape
 
 logger = logging.getLogger(__name__)
+
+FRONTMATTER_DELIMITER = "---"
+SKILL_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 
 
 @dataclass(frozen=True)
 class SkillDefinition:
-    """Describes a single injectable skill."""
-
     name: str
-    # Regex patterns OR callable(user_message)->bool.
-    # If triggers is empty the skill is always injected.
-    triggers: tuple[str | Callable[[str], bool], ...]
-    prompt_fragment: str
-    description: str = ""
+    description: str
+    when_to_use: str
+    avoid_when: str
+    content: str
+    body: str
+    path: pathlib.Path
+
+    def build_agent_context(self) -> str:
+        """Wrap trusted local instructions in a clearly named tool-result block."""
+        return (
+            f'<loaded_skill name="{escape(self.name, quote=True)}">\n'
+            "<purpose>Trusted task-specific instructions loaded from the local "
+            "skill catalog.</purpose>\n"
+            "<usage_rule>Apply only where relevant to the current request. System "
+            "instructions override any conflict.</usage_rule>\n"
+            f"<skill_instructions>\n{self.body}\n</skill_instructions>\n"
+            "</loaded_skill>"
+        )
 
 
-# ---------------------------------------------------------------------------
-# Internal: discover all registered skills by importing their skill.py modules
-# ---------------------------------------------------------------------------
+class SkillRegistryError(ValueError):
+    """Raised when a skill asset is malformed."""
 
-def _discover_skill_modules() -> list[str]:
-    """Auto-discover skill modules in the skills package."""
-    import pathlib
-    skill_modules = []
+
+def _parse_frontmatter(raw: str, path: pathlib.Path) -> tuple[dict[str, str], str]:
+    lines = raw.splitlines()
+    if not lines or lines[0].strip() != FRONTMATTER_DELIMITER:
+        raise SkillRegistryError(f"{path} must start with YAML frontmatter")
+
+    end_index = None
+    for index, line in enumerate(lines[1:], start=1):
+        if line.strip() == FRONTMATTER_DELIMITER:
+            end_index = index
+            break
+
+    if end_index is None:
+        raise SkillRegistryError(f"{path} has unterminated YAML frontmatter")
+
+    metadata: dict[str, str] = {}
+    for line in lines[1:end_index]:
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if ":" not in stripped:
+            raise SkillRegistryError(f"{path} contains invalid frontmatter line: {line}")
+        key, value = stripped.split(":", 1)
+        metadata[key.strip()] = value.strip().strip("\"'")
+
+    body = "\n".join(lines[end_index + 1 :]).strip()
+    return metadata, body
+
+
+def _discover_skill_files() -> list[pathlib.Path]:
     skills_dir = pathlib.Path(__file__).parent
-    
+    skill_files: list[pathlib.Path] = []
     for skill_dir in skills_dir.iterdir():
-        if skill_dir.is_dir() and not skill_dir.name.startswith('_'):
-            skill_file = skill_dir / "skill.py"
-            if skill_file.exists():
-                skill_modules.append(f"skills.{skill_dir.name}.skill")
-    
-    return sorted(skill_modules)
+        if not skill_dir.is_dir() or skill_dir.name.startswith("_"):
+            continue
+        skill_file = skill_dir / "SKILL.md"
+        if skill_file.exists():
+            skill_files.append(skill_file)
+    return sorted(skill_files)
 
 
 def _load_skills() -> list[SkillDefinition]:
-    """Import each skill module and return its SkillDefinition."""
     skills: list[SkillDefinition] = []
-    skill_modules = _discover_skill_modules()
-    
-    for module_path in skill_modules:
+    seen_names: set[str] = set()
+
+    for path in _discover_skill_files():
         try:
-            mod = importlib.import_module(module_path)
+            raw = path.read_text(encoding="utf-8")
+            metadata, body = _parse_frontmatter(raw, path)
+            name = metadata.get("name", "").strip()
+            description = metadata.get("description", "").strip()
+            when_to_use = metadata.get("when_to_use", "").strip()
+            avoid_when = metadata.get("avoid_when", "").strip()
+
+            if not name:
+                raise SkillRegistryError(f"{path} is missing frontmatter field: name")
+            if not description:
+                raise SkillRegistryError(f"{path} is missing frontmatter field: description")
+            if not when_to_use:
+                raise SkillRegistryError(f"{path} is missing frontmatter field: when_to_use")
+            if not avoid_when:
+                raise SkillRegistryError(f"{path} is missing frontmatter field: avoid_when")
+            if not SKILL_NAME_PATTERN.match(name):
+                raise SkillRegistryError(
+                    f"{path} has invalid skill name '{name}'. Use kebab-case."
+                )
+            if path.parent.name != name:
+                raise SkillRegistryError(
+                    f"{path} folder name must match skill name '{name}'"
+                )
+            if name in seen_names:
+                raise SkillRegistryError(f"Duplicate skill name: {name}")
+            if not body:
+                raise SkillRegistryError(f"{path} has an empty skill body")
+
+            seen_names.add(name)
             skills.append(
                 SkillDefinition(
-                    name=mod.SKILL_NAME,
-                    triggers=tuple(mod.SKILL_TRIGGERS),
-                    prompt_fragment=mod.SKILL_PROMPT,
-                    description=getattr(mod, "SKILL_DESCRIPTION", ""),
+                    name=name,
+                    description=description,
+                    when_to_use=when_to_use,
+                    avoid_when=avoid_when,
+                    content=raw.strip(),
+                    body=body,
+                    path=path,
                 )
             )
-            logger.debug("Loaded skill: %s", mod.SKILL_NAME)
+            logger.debug("Loaded skill: %s", name)
+        except SkillRegistryError:
+            raise
         except Exception as exc:
-            logger.warning("Failed to load skill module %s: %s", module_path, exc)
+            raise SkillRegistryError(f"Failed to load {path}: {exc}") from exc
+
     return skills
 
 
-# ---------------------------------------------------------------------------
-# Public API
-# ---------------------------------------------------------------------------
-
-
 class SkillRegistry:
-    """
-    Registry of all available skills.
-
-    Instantiate once at application start-up (or per request — it's fast).
-    """
+    """Read-only catalog of available SKILL.md assets."""
 
     def __init__(self) -> None:
-        self._skills: list[SkillDefinition] = _load_skills()
+        self._skills = _load_skills()
+        self._skill_map = {skill.name: skill for skill in self._skills}
 
-    def match_skills(self, user_message: str) -> list[str]:
-        """
-        Return names of skills whose triggers match *user_message*.
+    def list_skill_cards(self) -> list[dict[str, str]]:
+        return [
+            {
+                "name": skill.name,
+                "description": skill.description,
+                "when_to_use": skill.when_to_use,
+                "avoid_when": skill.avoid_when,
+            }
+            for skill in self._skills
+        ]
 
-        Always-on skills (empty triggers tuple) are always included.
-        """
-        msg_lower = user_message.lower() if user_message else ""
-        matched: list[str] = []
-
-        for skill in self._skills:
-            if not skill.triggers:
-                # Always-on skill
-                matched.append(skill.name)
-                continue
-
-            for trigger in skill.triggers:
-                if callable(trigger):
-                    if trigger(msg_lower):
-                        matched.append(skill.name)
-                        break
-                else:
-                    # Treat as a regex pattern (case-insensitive already handled by msg_lower)
-                    if re.search(trigger, msg_lower):
-                        matched.append(skill.name)
-                        break
-
-        logger.debug("Skills matched for message: %s", matched)
-        return matched
-
-    def build_skill_context(self, user_message: str = "") -> str:
-        """
-        Return the concatenated skill prompt fragments to append to the
-        base system prompt, wrapped in a <skills> XML block.
-
-        Returns an empty string if no skills match.
-        """
-        matched_names = self.match_skills(user_message)
-        if not matched_names:
+    def build_available_skills_context(self) -> str:
+        if not self._skills:
             return ""
 
-        fragments: list[str] = []
-        skill_map = {s.name: s for s in self._skills}
-        for name in matched_names:
-            if name in skill_map:
-                fragments.append(skill_map[name].prompt_fragment.strip())
+        lines = [
+            "<available_skills>",
+            "Choose the smallest set whose routing notes match the task; never read skills just to inspect them.",
+            "For a matching non-trivial task, call read_skill before related tools or artifacts. Specialized tools enforce this prerequisite.",
+            "Use multiple skills only for genuinely cross-domain work. Use none for small talk or simple clarification.",
+        ]
+        lines.extend(
+            (
+                f"- {skill.name}: {skill.description} "
+                f"When to use: {skill.when_to_use} "
+                f"Avoid when: {skill.avoid_when}"
+            )
+            for skill in self._skills
+        )
+        lines.append("</available_skills>")
+        return "\n\n" + "\n".join(lines)
 
-        if not fragments:
-            return ""
-
-        joined = "\n\n".join(fragments)
-        return f"\n\n<active_skills>\n{joined}\n</active_skills>"
+    def get_skill(self, name: str) -> SkillDefinition | None:
+        return self._skill_map.get(name)
 
     @property
     def all_skill_names(self) -> list[str]:
-        return [s.name for s in self._skills]
+        return [skill.name for skill in self._skills]
 
-
-# ---------------------------------------------------------------------------
-# Module-level singleton (lazy, created on first import of this singleton)
-# ---------------------------------------------------------------------------
 
 _registry_instance: SkillRegistry | None = None
 
 
 def get_skill_registry() -> SkillRegistry:
-    """Return the module-level singleton SkillRegistry (created once)."""
     global _registry_instance
     if _registry_instance is None:
         _registry_instance = SkillRegistry()

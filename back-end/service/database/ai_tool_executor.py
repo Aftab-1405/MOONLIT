@@ -489,31 +489,6 @@ class AIToolExecutor:
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
 
-        # Safety check: Block write operations (database-agnostic blacklist approach)
-        import re
-
-        query_upper = query.strip().upper()
-        # Remove string literals to avoid false positives
-        cleaned = re.sub(r"'[^']*'", "", query_upper)
-        cleaned = re.sub(r'"[^"]*"', "", cleaned)
-
-        DANGEROUS_KEYWORDS = {
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-            "DROP",
-            "CREATE",
-            "ALTER",
-            "TRUNCATE",
-        }
-        words = set(re.findall(r"\b[A-Z_]+\b", cleaned))
-        dangerous_found = words & DANGEROUS_KEYWORDS
-
-        if dangerous_found:
-            return {
-                "error": f"Query contains blocked keywords: {', '.join(dangerous_found)}. Only read-only queries are allowed."
-            }
-
         try:
             # Execute query with db_config (required in FastAPI)
             if db_config:
@@ -533,7 +508,10 @@ class AIToolExecutor:
             context_sync.add_query(user_id, query, database, row_count, status)
 
             if result.get("status") == "success":
-                total_rows = result.get("row_count", 0)
+                # fetchmany(max_rows + 1) proves truncation but cannot prove an
+                # exact database-wide total. Do not label the display count as
+                # a total when additional rows may exist.
+                total_rows = None if result.get("truncated") else result.get("row_count", 0)
                 result_data = result.get("result", [])
                 return {
                     "success": True,

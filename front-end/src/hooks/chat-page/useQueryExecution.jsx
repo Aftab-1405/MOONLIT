@@ -72,7 +72,7 @@ export function useQueryExecution({
           total_rows: queryData.total_rows,
           truncated: queryData.truncated,
           execution_time: queryData.execution_time_ms ? queryData.execution_time_ms / 1000 : null,
-        });
+        }, sql);
         showSnackbar(`Query returned ${queryData.row_count} rows`, 'success');
       } else {
         // Show the backend's descriptive message when available.
@@ -132,4 +132,3 @@ export function useQueryExecution({
     handleConfirmDialogClose,
   };
 }
-

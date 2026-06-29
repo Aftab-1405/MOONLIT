@@ -138,49 +138,67 @@ class DatabaseSecurity:
 
     @staticmethod
     def analyze_sql_query(query: str) -> Dict:
-        """
-        Optimized SQL query analysis for security issues - READ-ONLY VERSION
-        """
+        """Parse and validate exactly one read-only query."""
         if not query:
             raise ValueError("Query cannot be empty")
 
-        query_stripped = query.strip()
-        query_upper = query_stripped.upper()
-
         analysis = {
-            "is_safe": True,
+            "is_safe": False,
             "warnings": [],
             "query_type": None,
             "tables_accessed": [],
         }
-        # Small helpers to keep cognitive complexity low
-        analysis["query_type"] = DatabaseSecurity._detect_query_type(query_stripped)
+        try:
+            import sqlglot
+            from sqlglot import expressions as exp
 
-        # Note: We no longer reject unknown query types
-        # Different databases have different syntax (EXPLAIN, SHOW, DESCRIBE, etc.)
-        # Instead, we rely on blacklisting dangerous keywords below
+            statements = [item for item in sqlglot.parse(query) if item is not None]
+            if len(statements) != 1:
+                analysis["warnings"].append("Exactly one SQL statement is required")
+                return analysis
 
-        # Dangerous keywords
-        dangerous_found = DatabaseSecurity._detect_dangerous_keywords(query_upper)
-        if dangerous_found:
-            analysis["is_safe"] = False
-            analysis["warnings"].extend(
-                [f"Dangerous keyword detected: {kw}" for kw in dangerous_found]
+            statement = statements[0]
+            allowed_roots = (exp.Select, exp.Union, exp.Intersect, exp.Except)
+            if not isinstance(statement, allowed_roots):
+                analysis["warnings"].append(
+                    "Only read-only SELECT/WITH queries are allowed, not "
+                    f"{type(statement).__name__}"
+                )
+                return analysis
+
+            blocked_types = tuple(
+                node_type
+                for node_type in (
+                    getattr(exp, name, None)
+                    for name in (
+                        "Insert", "Update", "Delete", "Drop", "Alter",
+                        "Create", "TruncateTable", "Command", "Copy",
+                        "Into", "Lock", "Merge", "Grant", "Revoke",
+                    )
+                )
+                if node_type is not None
             )
+            blocked_nodes = [
+                type(node).__name__
+                for node in statement.walk()
+                if isinstance(node, blocked_types)
+            ]
+            if blocked_nodes:
+                analysis["warnings"].append(
+                    "Blocked operation detected: "
+                    + ", ".join(sorted(set(blocked_nodes)))
+                )
+                return analysis
 
-        # Multiple statements
-        if DatabaseSecurity._has_multiple_statements(query):
-            analysis["is_safe"] = False
-            analysis["warnings"].append("Multiple SQL statements detected")
-
-        # Comments, file ops and load ops
-        comment_warnings, file_ops_blocked = (
-            DatabaseSecurity._detect_comments_and_file_ops(query, query_upper)
-        )
-        if comment_warnings:
-            analysis["warnings"].extend(comment_warnings)
-        if file_ops_blocked:
-            analysis["is_safe"] = False
+            analysis["query_type"] = (
+                "WITH" if statement.args.get("with_") else "SELECT"
+            )
+            analysis["tables_accessed"] = [
+                table.name for table in statement.find_all(exp.Table) if table.name
+            ]
+            analysis["is_safe"] = True
+        except Exception as exc:
+            analysis["warnings"].append(f"SQL could not be safely parsed: {exc}")
 
         return analysis
 

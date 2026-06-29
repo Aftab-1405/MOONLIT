@@ -2,6 +2,9 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class VectorMemoryStore(Protocol):
+    async def ensure_ready(self) -> None:
+        ...
+
     async def upsert(
         self,
         *,
@@ -21,6 +24,7 @@ class VectorMemoryStore(Protocol):
         k: int,
         user_id: str | None = None,
         pointer_type: str | None = None,
+        score_threshold: float | None = None,
     ) -> list[dict]:
         ...
 

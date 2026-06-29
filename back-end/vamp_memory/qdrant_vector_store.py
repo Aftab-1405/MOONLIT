@@ -23,22 +23,50 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         self.models = models
         self.collection_name = collection_name
         self.vector_size = vector_size
-        self._ensure_collection()
+        self._ready = False
+        self._ready_lock = asyncio.Lock()
 
-    def _ensure_collection(self) -> None:
-        try:
-            exists = self.client.collection_exists(self.collection_name)
-        except Exception:
-            exists = False
-        if exists:
+    async def ensure_ready(self) -> None:
+        """Initialize and validate the collection without blocking the event loop."""
+        if self._ready:
             return
-        self.client.create_collection(
-            collection_name=self.collection_name,
-            vectors_config=self.models.VectorParams(
-                size=self.vector_size,
-                distance=self.models.Distance.COSINE,
-            ),
-        )
+        async with self._ready_lock:
+            if self._ready:
+                return
+            await asyncio.to_thread(self._ensure_collection_sync)
+            self._ready = True
+
+    def _ensure_collection_sync(self) -> None:
+        exists = self.client.collection_exists(self.collection_name)
+        if not exists:
+            try:
+                self.client.create_collection(
+                    collection_name=self.collection_name,
+                    vectors_config=self.models.VectorParams(
+                        size=self.vector_size,
+                        distance=self.models.Distance.COSINE,
+                    ),
+                )
+            except Exception:
+                # Another process may have created it between the existence
+                # check and create. Re-check; otherwise preserve the real error.
+                if not self.client.collection_exists(self.collection_name):
+                    raise
+
+        info = self.client.get_collection(self.collection_name)
+        vectors = info.config.params.vectors
+        configured_size = getattr(vectors, "size", None)
+        if configured_size is None and isinstance(vectors, dict):
+            sizes = {getattr(item, "size", None) for item in vectors.values()}
+            sizes.discard(None)
+            configured_size = next(iter(sizes)) if len(sizes) == 1 else None
+        if configured_size != self.vector_size:
+            raise RuntimeError(
+                f"Qdrant collection {self.collection_name!r} uses vector size "
+                f"{configured_size!r}; configured embedding model requires "
+                f"{self.vector_size}. Use a matching collection or dimensions."
+            )
+
         for field_name in ("conversation_id", "user_id", "pointer_type", "summary_id"):
             try:
                 self.client.create_payload_index(
@@ -58,6 +86,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         payload: dict,
         point_seed: str | None = None,
     ) -> None:
+        await self.ensure_ready()
         seed = point_seed or f"{conversation_id}:{summary_id}"
         point_id = str(uuid.uuid5(uuid.NAMESPACE_URL, seed))
 
@@ -83,7 +112,9 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         k: int,
         user_id: str | None = None,
         pointer_type: str | None = None,
+        score_threshold: float | None = None,
     ) -> list[dict]:
+        await self.ensure_ready()
         must = [
             self.models.FieldCondition(
                 key="conversation_id",
@@ -114,6 +145,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
                     query_filter=query_filter,
                     limit=k,
                     with_payload=True,
+                    score_threshold=score_threshold,
                 )
                 return getattr(result, "points", result)
             return self.client.search(
@@ -122,6 +154,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
                 query_filter=query_filter,
                 limit=k,
                 with_payload=True,
+                score_threshold=score_threshold,
             )
 
         points = await asyncio.to_thread(_search)
@@ -145,6 +178,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         user_id: str,
     ) -> None:
         """Delete all points matching both conversation_id and user_id."""
+        await self.ensure_ready()
         must = [
             self.models.FieldCondition(
                 key="conversation_id",

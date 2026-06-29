@@ -73,6 +73,7 @@ const CodeBlock = memo(function CodeBlock({
   className,
   onRunQuery,
   isDarkMode,
+  isStreaming,
   theme,
 }) {
   const [copied, setCopied] = useState(false);
@@ -129,11 +130,6 @@ const CodeBlock = memo(function CodeBlock({
     theme.palette.text.primary,
     isDarkMode ? 0.1 : 0.075,
   );
-  const dividerColor = alpha(
-    theme.palette.text.primary,
-    isDarkMode ? 0.08 : 0.06,
-  );
-
   const handleCopy = useCallback(async () => {
     const ok = await copyToClipboard(code);
     if (ok) {
@@ -290,30 +286,49 @@ const CodeBlock = memo(function CodeBlock({
           pb: { xs: 0.5, md: 1 },
         }}
       >
-        <SyntaxHighlighter
-          language={detectedLanguage || "text"}
-          style={isDarkMode ? vscDarkPlus : vs}
-          showLineNumbers={showLineNumbers}
-          lineNumberStyle={{
-            minWidth: "2.5em",
-            paddingRight: "1em",
-            color: alpha(theme.palette.text.primary, isDarkMode ? 0.18 : 0.22),
-            fontSize: "0.78em",
-            userSelect: "none",
-          }}
-          customStyle={{
-            margin: 0,
-            padding: "12px 14px",
-            fontSize: theme.typography.uiCodeBlock.fontSize,
-            lineHeight: theme.typography.uiCodeBlock.lineHeight,
-            background: "transparent",
-            border: "none",
-          }}
-          wrapLines={wrapLongLines}
-          wrapLongLines={wrapLongLines}
-        >
-          {code}
-        </SyntaxHighlighter>
+        {isStreaming ? (
+          <Box
+            component="pre"
+            sx={{
+              m: 0,
+              px: "14px",
+              py: "12px",
+              overflowX: "auto",
+              fontFamily: theme.typography.fontFamilyMono,
+              fontSize: theme.typography.uiCodeBlock.fontSize,
+              lineHeight: theme.typography.uiCodeBlock.lineHeight,
+              whiteSpace: wrapLongLines ? "pre-wrap" : "pre",
+              overflowWrap: wrapLongLines ? "anywhere" : "normal",
+            }}
+          >
+            <code>{code}</code>
+          </Box>
+        ) : (
+          <SyntaxHighlighter
+            language={detectedLanguage || "text"}
+            style={isDarkMode ? vscDarkPlus : vs}
+            showLineNumbers={showLineNumbers}
+            lineNumberStyle={{
+              minWidth: "2.5em",
+              paddingRight: "1em",
+              color: alpha(theme.palette.text.primary, isDarkMode ? 0.18 : 0.22),
+              fontSize: "0.78em",
+              userSelect: "none",
+            }}
+            customStyle={{
+              margin: 0,
+              padding: "12px 14px",
+              fontSize: theme.typography.uiCodeBlock.fontSize,
+              lineHeight: theme.typography.uiCodeBlock.lineHeight,
+              background: "transparent",
+              border: "none",
+            }}
+            wrapLines={wrapLongLines}
+            wrapLongLines={wrapLongLines}
+          >
+            {code}
+          </SyntaxHighlighter>
+        )}
       </Box>
     </Box>
   );
@@ -349,6 +364,7 @@ const InlineCode = memo(function InlineCode({ children, theme }) {
 const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   onRunQuery,
+  isStreaming = false,
 }) {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
@@ -413,6 +429,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
               className={className}
               onRunQuery={onRunQuery}
               isDarkMode={isDarkMode}
+              isStreaming={isStreaming}
               theme={theme}
             >
               {children}
@@ -453,7 +470,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
         </Box>
       ),
     }),
-    [onRunQuery, isDarkMode, theme],
+    [onRunQuery, isDarkMode, isStreaming, theme],
   );
   const containerSx = useMemo(
     () => ({

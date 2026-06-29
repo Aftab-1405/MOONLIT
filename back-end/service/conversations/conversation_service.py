@@ -26,6 +26,10 @@ _SUMMARY_BULLET_TYPES = {
     "runtime_fact",
     "vamp_fact",
     "analysis_fact",
+    "user_identity",
+    "user_preference",
+    "user_relationship",
+    "personal_context",
     "open_item",
     "overview",
     "other",
@@ -61,6 +65,14 @@ class ConversationService:
         )
 
         return ConversationRepository.get_for_user(conversation_id, user_id)
+
+    @staticmethod
+    def verify_conversation_owner(conversation_id: str, user_id: str) -> bool:
+        from service.conversations.conversation_repository import (
+            ConversationRepository,
+        )
+
+        return ConversationRepository.verify_owner(conversation_id, user_id)
 
     @staticmethod
     def delete_user_conversation(conversation_id: str, user_id: str) -> None:
@@ -222,9 +234,15 @@ class ConversationService:
                 )
                 prompt_stored = True
 
+            # Establish the conversation and persist the user turn before
+            # orchestration touches task/checkpoint state. The previous lazy
+            # write caused Firestore update(404) races on brand-new chats and
+            # lost prompts when setup failed before the first model event.
+            await store_prompt_once()
+
             # Persist task_mode to Firestore conversation
-            if conv_data:
-                task_mode_stored = conv_data.get("task_mode", "normal") or "normal"
+            if prompt_stored or conv_data:
+                task_mode_stored = (conv_data.get("task_mode", "normal") if conv_data else None) or task_mode or "normal"
                 if (
                     resume is not None
                     and task_mode == "normal"
@@ -374,13 +392,24 @@ class ConversationService:
                     await store_prompt_once()
                     skills = event.get("skills", [])
                     if skills:
-                        ordered_timeline.append(
-                            {
-                                "type": "skill",
-                                "skills": skills,
-                                "id": f"skill-{len(ordered_timeline)}",
-                            }
-                        )
+                        existing_item = None
+                        for item in ordered_timeline:
+                            if item.get("type") == "skill":
+                                existing_item = item
+                                break
+                        if existing_item:
+                            existing_skills = existing_item.get("skills", [])
+                            existing_item["skills"] = list(
+                                dict.fromkeys([*existing_skills, *skills])
+                            )
+                        else:
+                            ordered_timeline.append(
+                                {
+                                    "type": "skill",
+                                    "skills": skills,
+                                    "id": f"skill-{len(ordered_timeline)}",
+                                }
+                            )
 
                 elif event_type == "error":
                     # Agent-emitted error events are informational — do NOT block
@@ -390,6 +419,14 @@ class ConversationService:
                         "Agent emitted error event for conversation %s",
                         conversation_id,
                     )
+                    error_message = event.get("message") or event.get("content")
+                    if error_message:
+                        ordered_timeline.append(
+                            {
+                                "type": "text",
+                                "content": f"Error: {error_message}",
+                            }
+                        )
 
                 elif event_type == "usage_metrics":
                     last_usage_metrics = {
@@ -422,6 +459,11 @@ class ConversationService:
                 # event_type "done" — pass-through only
 
                 yield sse_line
+
+        except asyncio.CancelledError:
+            was_aborted = True
+            logger.info("Stream cancelled for conversation %s", conversation_id)
+            raise
 
         except GeneratorExit:
             was_aborted = True
@@ -565,7 +607,6 @@ class ConversationService:
         user_id: str,
         model: str = None,
         *,
-        thread_id: str | None = None,
         pressure_budget_tokens: int | None = None,
     ) -> dict:
         result = {
@@ -585,6 +626,7 @@ class ConversationService:
                 get_chat_model,
                 get_default_model,
             )
+            from llm_provider.model_capabilities import model_capability
             from llm_provider.token_budget import (
                 calculate_dynamic_token_budget,
                 count_converse_tokens_cached,
@@ -598,45 +640,52 @@ class ConversationService:
 
             Config = get_config()
             selected_model = model or get_default_model(Config.LLM_PROVIDER)
-            from api_contract.runtime_ports import (
-                get_conversation_summarization_context_provider,
-            )
+            if pressure_budget_tokens is not None:
+                # The orchestration layer already measured system, tools,
+                # memory, checkpoint, output reserve, and safety margin. Do not
+                # repeat provider token-count calls for the summarizer.
+                active_context_budget = int(pressure_budget_tokens)
+            else:
+                from api_contract.runtime_ports import (
+                    get_conversation_summarization_context_provider,
+                )
 
-            summarization_context = get_conversation_summarization_context_provider()
-            system_prompt = summarization_context.build_system_prompt("balanced")
-            tools = summarization_context.get_tools()
-            system_prompt_count = count_converse_tokens_cached(
-                selected_model,
-                cache_key=("system", "balanced", system_prompt),
-                system=system_prompt,
-                messages=[{"role": "user", "content": [{"text": ""}]}],
-            )
-            tool_schema_count = count_converse_tokens_cached(
-                selected_model,
-                cache_key=(
-                    "tools",
-                    tuple(getattr(tool, "name", str(tool)) for tool in tools),
-                ),
-                messages=[{"role": "user", "content": [{"text": ""}]}],
-                tools=tools,
-            )
-            budget_info = calculate_dynamic_token_budget(
-                selected_model,
-                system_prompt_tokens=system_prompt_count["tokens"],
-                tool_schema_tokens=tool_schema_count["tokens"],
-                output_reserve_tokens=output_reserve_for_task_mode("normal"),
-                token_counting_mode=(
-                    "estimated"
-                    if system_prompt_count["mode"] == "estimated"
-                    or tool_schema_count["mode"] == "estimated"
-                    else "exact"
-                ),
-            )
-            active_context_budget = int(
-                pressure_budget_tokens or budget_info["active_context_budget"]
-            )
+                summarization_context = (
+                    get_conversation_summarization_context_provider()
+                )
+                system_prompt = summarization_context.build_system_prompt("balanced")
+                tools = summarization_context.get_tools()
+                system_prompt_count = count_converse_tokens_cached(
+                    selected_model,
+                    cache_key=("system", "balanced", system_prompt),
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": [{"text": ""}]}],
+                )
+                tool_schema_count = count_converse_tokens_cached(
+                    selected_model,
+                    cache_key=(
+                        "tools",
+                        tuple(getattr(tool, "name", str(tool)) for tool in tools),
+                    ),
+                    messages=[{"role": "user", "content": [{"text": ""}]}],
+                    tools=tools,
+                )
+                budget_info = calculate_dynamic_token_budget(
+                    selected_model,
+                    system_prompt_tokens=system_prompt_count["tokens"],
+                    tool_schema_tokens=tool_schema_count["tokens"],
+                    output_reserve_tokens=output_reserve_for_task_mode("normal"),
+                    token_counting_mode=(
+                        "estimated"
+                        if system_prompt_count["mode"] == "estimated"
+                        or tool_schema_count["mode"] == "estimated"
+                        else "exact"
+                    ),
+                )
+                active_context_budget = int(budget_info["active_context_budget"])
             summary_trigger_tokens = int(float(active_context_budget) * 0.90)
             result["threshold_tokens"] = summary_trigger_tokens
+            summary_chunk_token_limit = max(1, active_context_budget // 2)
 
             db = FirestoreService.get_db()
             doc_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(
@@ -710,7 +759,7 @@ class ConversationService:
                 # Chunk complete unsummarized turns by budget (limit chunk size to active_context_budget // 2)
                 chunk_turns = []
                 chunk_tokens = 0
-                max_chunk_tokens = active_context_budget // 2
+                max_chunk_tokens = summary_chunk_token_limit
 
                 for turn in complete_unsummarized_turns:
                     turn_tokens = sum(
@@ -742,10 +791,30 @@ class ConversationService:
 
                 block_to_summarize = messages[start_idx:end_idx]
                 text_block = _build_summary_input(block_to_summarize)
+                claim_heartbeat_stop = asyncio.Event()
+                claim_heartbeat = asyncio.create_task(
+                    _run_summary_claim_heartbeat(
+                        doc_ref,
+                        claim_id,
+                        claim_heartbeat_stop,
+                        Config.VAMP_SUMMARY_CLAIM_TTL_SECONDS,
+                    ),
+                    name=f"summary-claim-{claim_id}",
+                )
 
                 try:
+                    summary_output_tokens = int(
+                        model_capability(
+                            selected_model,
+                            "max_output_tokens",
+                            Config.RESERVED_OUTPUT_TOKENS,
+                        )
+                    )
                     chat = get_chat_model(
-                        Config.LLM_PROVIDER, model=model, enable_reasoning=False
+                        Config.LLM_PROVIDER,
+                        model=selected_model,
+                        enable_reasoning=False,
+                        max_tokens=summary_output_tokens,
                     )
                     prompt = [
                         SystemMessage(
@@ -756,6 +825,8 @@ class ConversationService:
                                 "Think through the provided messages privately, but do not output analysis text or analysis tags. Your response must be a single strict JSON object and nothing else.\n\n"
                                 "1. Analyze the provided messages chronologically. For each section thoroughly identify:\n"
                                 "   - The user's explicit requests and intents\n"
+                                "   - Every explicitly stated personal fact that may help future conversation continuity, including the user's name, pronouns, preferred language, role or occupation, location or time zone, accessibility needs, relationships, background, goals, interests, habits, and stable preferences\n"
+                                "   - Personal context embedded inside a technical request; do not discard it merely because it is not technical\n"
                                 "   - Your approach to addressing the user's requests\n"
                                 "   - Key decisions, technical concepts and code patterns\n"
                                 "   - Specific details like:\n"
@@ -765,11 +836,14 @@ class ConversationService:
                                 "     - file edits\n"
                                 "   - Errors that you ran into and how you fixed them\n"
                                 "   - Pay special attention to specific user feedback that you received, especially if the user told you to do something differently.\n"
-                                "   - Note any security-relevant instructions or constraints the user stated. These MUST be preserved verbatim in the summary so they continue to apply after compaction.\n"
-                                "2. Double-check for technical accuracy and completeness, addressing each required element thoroughly.\n"
-                                "3. Do not introduce names, facts, table counts, query results, colors, row counts, or personal details unless they are explicitly present in the provided conversation block.\n\n"
+                                "   - Note any security-relevant instructions or constraints the user stated. Preserve the meaning precisely so the constraint continues to apply after compaction.\n"
+                                "2. Perform a private message-by-message coverage check before answering. Every user message must be represented, and every explicit personal fact, preference, correction, constraint, decision, result, and unresolved request must appear in either the detailed summary or an appropriate memory bullet. Omission of such information is an incorrect summary.\n"
+                                "3. Preserve personal facts with clear attribution such as 'The user stated...' Do not infer identity, relationships, preferences, health details, or other personal facts that were not explicitly stated.\n"
+                                "4. Never reproduce authentication secrets in the summary or bullets, including passwords, API keys, access or refresh tokens, private keys, session cookies, one-time codes, or full payment-card data. If such a secret appeared, record only that sensitive credentials were provided and should be treated as redacted or rotated.\n"
+                                "5. Do not introduce names, facts, table counts, query results, colors, row counts, or personal details unless they are explicitly present in the provided conversation block.\n\n"
                                 "COMPACTION STYLE:\n"
                                 "- Compact like a long-horizon coding/database agent: preserve task state, durable facts, verified tool results, decisions, user corrections, safety constraints, and the next action.\n"
+                                "- Preserve conversational continuity as well as task continuity. User identity, preferences, relationships, goals, and relevant life context are durable memory, not filler.\n"
                                 "- Do not preserve filler, greetings, casual acknowledgements, or decorative details unless they directly affect future work.\n"
                                 "- Treat summaries as lossy memory with pointers back to original messages. Make the summary useful for resuming work, not for replaying the chat.\n"
                                 "- Pin governance/safety/user constraints explicitly. Do not let constraints disappear during compaction.\n\n"
@@ -778,28 +852,31 @@ class ConversationService:
                                 "This must be a detailed markdown string with these exact sections:\n"
                                 "1. Task State: What the user was trying to accomplish, current status, and whether work is complete, blocked, or continuing.\n"
                                 "2. Durable Context: Stable database/project facts, schema facts, configuration, relevant IDs, model/context settings, and environment facts.\n"
-                                "3. Evidence and Tool Results: Exact verified query/tool results, SQL definitions, table/column names, counts, errors, and outputs needed to avoid redoing work. Mark preview results as previews.\n"
-                                "4. Decisions, Assumptions, and Corrections: Business definitions chosen, user corrections, false starts, and what was changed because of feedback.\n"
-                                "5. Pinned Constraints: Security, privacy, read-only, user-stated constraints, and any instruction that must survive compaction. If none, write \"None stated in this block.\"\n"
-                                "6. User Message Coverage: List ALL user messages from the provided block that are not tool results. This section must not omit earlier user messages in the covered message range.\n"
-                                "7. Open Items and Next Action: Pending tasks, active work, and the next useful action.\n\n"
+                                "3. User Profile and Personal Context: Record every explicitly stated identity detail, preference, relationship, background fact, interest, goal, accessibility need, location/time-zone detail, communication preference, and other personal context useful for future continuity. Attribute each fact to the user, preserve exact qualifiers, and write \"None stated in this block.\" only when genuinely absent. Never include authentication or payment secrets.\n"
+                                "4. Evidence and Tool Results: Exact verified query/tool results, SQL definitions, table/column names, counts, errors, and outputs needed to avoid redoing work. Mark preview results as previews.\n"
+                                "5. Decisions, Assumptions, and Corrections: Business definitions chosen, user corrections, false starts, and what was changed because of feedback.\n"
+                                "6. Pinned Constraints: Security, privacy, read-only, user-stated constraints, and any instruction that must survive compaction. If none, write \"None stated in this block.\"\n"
+                                "7. User Message Coverage: List ALL user messages from the provided block that are not tool results. For each message, include its request and any personal facts or preferences it introduced. This section must not omit earlier user messages in the covered message range.\n"
+                                "8. Open Items and Next Action: Pending tasks, active work, and the next useful action.\n\n"
                                 "Field 2: `memory_bullets`\n"
                                 "This must be a list of retrieval-focused bullet objects designed for Qdrant vector search.\n"
-                                "   - Produce 4 to 12 bullets unless the block truly has less durable information.\n"
-                                "   - Each bullet must contain one searchable atomic fact, decision, config value, error, endpoint, table, column, formula, user preference, tool result, or open item.\n"
+                                "   - Produce as many bullets as are naturally required to cover the block's durable information. Do not add filler and do not omit, merge away, or shorten a personal fact, preference, correction, constraint, decision, result, or open item to satisfy an arbitrary count.\n"
+                                "   - Each bullet must contain one searchable atomic fact, personal detail, relationship, decision, config value, error, endpoint, table, column, formula, user preference, tool result, or open item.\n"
                                 "   - Include enough noun context in each bullet so it can stand alone in vector search.\n"
                                 "   - Include one broad overview bullet with type 'overview'.\n"
                                 "   - Prioritize durable facts that help future turns answer correctly: database identity, schema facts, query definitions, real query results, user corrections, explicit preferences, errors, fixes, and open tasks.\n"
+                                "   - Create separate retrievable bullets for explicit user identity facts, preferences, relationships, goals, or personal context. Phrase them with attribution and enough context to stand alone.\n"
                                 "   - Do NOT create many bullets for decorative UI styling details. If styling is the actual task, compress it into one concise overview/config bullet instead of one bullet per color.\n"
                                 "   - If the user corrected a false answer, include a bullet preserving the correction and the verified replacement result.\n"
                                 "   - If a governance/security/user constraint appears, create a `security_fact` bullet for it.\n"
-                                "   - Each object must have: `bullet_id` (string e.g. 'b001'), `bullet_index` (int), `text` (string), `type` (string: 'decision', 'config_fact', 'api_fact', 'database_fact', 'testing_fact', 'security_fact', 'runtime_fact', 'vamp_fact', 'analysis_fact', 'open_item', 'overview', 'other').\n\n"
+                                "   - Use `user_identity` for explicit identity/profile facts, `user_preference` for stable preferences, `user_relationship` for explicitly stated relationships, and `personal_context` for other durable personal facts or goals.\n"
+                                "   - Each object must have: `bullet_id` (string e.g. 'b001'), `bullet_index` (int), `text` (string), `type` (string: 'decision', 'config_fact', 'api_fact', 'database_fact', 'testing_fact', 'security_fact', 'runtime_fact', 'vamp_fact', 'analysis_fact', 'user_identity', 'user_preference', 'user_relationship', 'personal_context', 'open_item', 'overview', 'other').\n\n"
                                 "Here's an example of how your output should be structured:\n\n"
                                 "<example>\n"
                                 "{\n"
-                                "  \"summary_text\": \"1. Primary Request and Intent:\\n   [Detailed description]\\n\\n2. Key Technical Concepts:\\n   - [Concept 1]\\n...\",\n"
+                                "  \"summary_text\": \"1. Task State:\\n   [Current task and status]\\n\\n2. Durable Context:\\n   [Project facts]\\n\\n3. User Profile and Personal Context:\\n   - The user stated that they prefer concise explanations.\\n...\",\n"
                                 "  \"memory_bullets\": [\n"
-                                "    {\"bullet_id\": \"b001\", \"bullet_index\": 1, \"text\": \"For the sales analysis, VIP customers are defined as having >5 orders.\", \"type\": \"decision\"}\n"
+                                "    {\"bullet_id\": \"b001\", \"bullet_index\": 1, \"text\": \"The user stated that they prefer concise explanations with concrete examples.\", \"type\": \"user_preference\"}\n"
                                 "  ]\n"
                                 "}\n"
                                 "</example>\n\n"
@@ -820,10 +897,48 @@ class ConversationService:
                         parsed = _parse_summary_json_response(raw_content)
                         summary_body = parsed.get("summary_text", "").strip()
                         memory_bullets = parsed.get("memory_bullets", [])
+                        response_metadata = (
+                            getattr(response, "response_metadata", {}) or {}
+                        )
+                        logger.info(
+                            "Summarizer output conversation=%s bytes=%s bullets=%s "
+                            "stop_reason=%s",
+                            conversation_id,
+                            len(raw_content.encode("utf-8")),
+                            len(memory_bullets),
+                            response_metadata.get("stopReason")
+                            or response_metadata.get("stop_reason")
+                            or response_metadata.get("finish_reason"),
+                        )
                     except Exception as e:
+                        if (
+                            _summary_parse_failure_is_likely_truncation(
+                                response, raw_content
+                            )
+                            and len(chunk_turns) > 1
+                        ):
+                            next_limit = max(1, chunk_tokens // 2)
+                            if next_limit >= summary_chunk_token_limit:
+                                next_limit = max(1, summary_chunk_token_limit // 2)
+                            summary_chunk_token_limit = next_limit
+                            _clear_summary_claim(doc_ref, claim_id)
+                            result["reason"] = "retrying_smaller_summary_chunk"
+                            logger.warning(
+                                "Summarizer output was truncated for %s; retrying "
+                                "with complete-turn chunk budget %s",
+                                conversation_id,
+                                summary_chunk_token_limit,
+                            )
+                            continue
                         logger.warning("Failed to parse JSON from summarizer: %s", e)
                         _clear_summary_claim(doc_ref, claim_id)
-                        result["reason"] = "invalid_summary_json"
+                        result["reason"] = (
+                            "summary_output_truncated"
+                            if _summary_parse_failure_is_likely_truncation(
+                                response, raw_content
+                            )
+                            else "invalid_summary_json"
+                        )
                         result["error"] = str(e)
                         return result
 
@@ -903,6 +1018,13 @@ class ConversationService:
                 except Exception:
                     _clear_summary_claim(doc_ref, claim_id)
                     raise
+                finally:
+                    claim_heartbeat_stop.set()
+                    claim_heartbeat.cancel()
+                    try:
+                        await claim_heartbeat
+                    except asyncio.CancelledError:
+                        pass
                 result.update(
                     {
                         "created": True,
@@ -922,8 +1044,7 @@ class ConversationService:
                 )
 
                 # Catch up additional full blocks in the same pass.
-                # Re-evaluate tokens after summarizing
-                pass
+                # The loop re-evaluates persisted pressure after each commit.
         except Exception as e:
             logger.error(f"Error in background summarization: {e}", exc_info=True)
             result["reason"] = "error"
@@ -1064,6 +1185,54 @@ def _commit_summary_claim(
         return True
 
     return bool(_run_firestore_transaction(db, _work))
+
+
+def _renew_summary_claim(doc_ref, claim_id: str) -> bool:
+    """Refresh claim time only while the caller still owns the claim."""
+    from service.firestore.firestore_service import FirestoreService
+
+    db = FirestoreService.get_db()
+
+    def _work(transaction):
+        doc = _get_doc_in_transaction(doc_ref, transaction)
+        if not doc.exists:
+            return False
+        pending = (doc.to_dict() or {}).get("summary_pending") or {}
+        if pending.get("claim_id") != claim_id:
+            return False
+        refreshed = dict(pending)
+        refreshed["claimed_at"] = datetime.now(timezone.utc).isoformat()
+        _update_doc_in_transaction(
+            doc_ref, transaction, {"summary_pending": refreshed}
+        )
+        return True
+
+    return bool(_run_firestore_transaction(db, _work))
+
+
+async def _run_summary_claim_heartbeat(
+    doc_ref,
+    claim_id: str,
+    stop: asyncio.Event,
+    ttl_seconds: int,
+) -> None:
+    interval = max(5, min(60, int(ttl_seconds) // 3))
+    while not stop.is_set():
+        try:
+            await asyncio.wait_for(stop.wait(), timeout=interval)
+            return
+        except TimeoutError:
+            pass
+        try:
+            if not await asyncio.to_thread(_renew_summary_claim, doc_ref, claim_id):
+                logger.warning("Summary claim %s lost during heartbeat", claim_id)
+                return
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            # A transient heartbeat failure does not invalidate the owned
+            # claim; the next interval retries before the TTL expires.
+            logger.exception("Could not renew summary claim %s", claim_id)
 
 
 def _clear_summary_claim(doc_ref, claim_id: str) -> None:
@@ -1344,7 +1513,6 @@ def _extract_balanced_json_object(text: str) -> str:
 def _normalize_summary_memory_bullets(bullets: list[dict]) -> list[dict]:
     """Apply deterministic quality gates to VAMP retrieval bullets."""
     normalized: list[dict] = []
-    seen_texts: set[str] = set()
 
     for raw_idx, bullet in enumerate(bullets, start=1):
         if not isinstance(bullet, dict):
@@ -1358,26 +1526,17 @@ def _normalize_summary_memory_bullets(bullets: list[dict]) -> list[dict]:
         if bullet_type not in _SUMMARY_BULLET_TYPES:
             bullet_type = "other"
 
-        dedupe_key = text.lower()
-        if dedupe_key in seen_texts:
-            continue
-        seen_texts.add(dedupe_key)
-
-        if len(text) > 260:
-            text = text[:257].rstrip() + "..."
-
         normalized.append(
             {
                 **bullet,
-                "bullet_id": str(bullet.get("bullet_id") or f"b{len(normalized) + 1:03d}"),
+                # IDs are storage metadata. Assigning them server-side keeps
+                # every model-generated bullet even when the model repeats IDs.
+                "bullet_id": f"b{len(normalized) + 1:03d}",
                 "bullet_index": len(normalized) + 1,
                 "text": text,
                 "type": bullet_type,
             }
         )
-
-        if len(normalized) >= 12:
-            break
 
     if not normalized:
         raise ValueError("Summarizer JSON missing durable memory_bullets")
@@ -1387,8 +1546,6 @@ def _normalize_summary_memory_bullets(bullets: list[dict]) -> list[dict]:
 
     for idx, bullet in enumerate(normalized, start=1):
         bullet["bullet_index"] = idx
-        if not str(bullet.get("bullet_id") or "").strip():
-            bullet["bullet_id"] = f"b{idx:03d}"
 
     return normalized
 
@@ -1413,6 +1570,22 @@ def _parse_summary_json_response(raw_content: str) -> dict:
         raise ValueError("Summarizer JSON missing non-empty memory_bullets")
     parsed["memory_bullets"] = _normalize_summary_memory_bullets(bullets)
     return parsed
+
+
+def _summary_parse_failure_is_likely_truncation(response, raw_content: str) -> bool:
+    """Identify provider output-limit failures without altering model content."""
+    metadata = getattr(response, "response_metadata", {}) or {}
+    stop_reason = str(
+        metadata.get("stopReason")
+        or metadata.get("stop_reason")
+        or metadata.get("finish_reason")
+        or ""
+    ).lower()
+    if "max_token" in stop_reason or stop_reason in {"length", "max_length"}:
+        return True
+
+    stripped = str(raw_content or "").strip()
+    return bool(stripped.startswith("{") and not stripped.endswith("}"))
 
 
 def _parse_sse_event(sse_line: str) -> Optional[dict]:
@@ -1452,26 +1625,6 @@ def _get_message_tokens_cheap(msg: dict) -> int:
     from llm_provider.token_budget import estimate_tokens
 
     return estimate_tokens(_message_countable_text(msg, json_module=json))
-
-
-def _should_schedule_background_summary(
-    conv_data: dict | None,
-    *,
-    new_messages: list[dict] | None = None,
-    assistant_message: dict | None = None,
-    pressure_budget_tokens: int | None = None,
-) -> bool:
-    """Cheaply decide whether to launch exact background summarization.
-
-    The exact summarizer still owns correctness. This gate avoids scheduling it
-    after every turn when the unsummarized tail is nowhere near pressure.
-    """
-    return _get_background_summary_pressure(
-        conv_data,
-        new_messages=new_messages,
-        assistant_message=assistant_message,
-        pressure_budget_tokens=pressure_budget_tokens,
-    )["should_schedule"]
 
 
 def _get_background_summary_pressure(

@@ -1,12 +1,20 @@
 # File: api/routes/conversation.py
 """Conversation/chat related API routes."""
 
+import asyncio
+import contextlib
 import logging
 from typing import Optional
 
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.concurrency import run_in_threadpool
+from google.api_core.exceptions import (
+    DeadlineExceeded,
+    ResourceExhausted,
+    ServiceUnavailable,
+    TooManyRequests,
+)
 
 from config import get_config
 Config = get_config()
@@ -23,6 +31,25 @@ from api_contract.streaming import STREAMING_RESPONSES
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["conversation"])
 
+_TRANSIENT_FIRESTORE_ERRORS = (
+    DeadlineExceeded,
+    ResourceExhausted,
+    ServiceUnavailable,
+    TooManyRequests,
+)
+
+
+def _firestore_unavailable_response(exc: Exception) -> HTTPException:
+    logger.warning("Firestore temporarily unavailable: %s", exc)
+    return HTTPException(
+        status_code=503,
+        detail={
+            "error": "firestore_unavailable",
+            "message": "Conversation storage is temporarily unavailable. Please retry.",
+        },
+        headers={"Retry-After": "2"},
+    )
+
 # Conversation endpoints intentionally keep legacy flat response dictionaries.
 # The frontend conversation hooks consume top-level keys such as `conversation`
 # and `conversations`, unlike newer ApiSuccess(data=...) routes.
@@ -30,6 +57,49 @@ router = APIRouter(tags=["conversation"])
 
 def _build_provider_options() -> tuple[list[dict], str]:
     return LLMOptionsService.build_provider_options()
+
+
+async def _stream_with_heartbeats(source, *, interval_seconds: float = 15.0):
+    """Forward an SSE source while keeping idle proxies from closing it.
+
+    Model calls, database queries, embeddings, and checkpoint compaction can be
+    silent for longer than common proxy idle limits. A producer task allows us
+    to send SSE comments without cancelling the underlying async generator.
+    """
+    queue: asyncio.Queue = asyncio.Queue()
+    finished = object()
+
+    async def produce():
+        try:
+            async for item in source:
+                await queue.put(("item", item))
+        except BaseException as exc:
+            await queue.put(("error", exc))
+        finally:
+            await queue.put(("finished", finished))
+
+    producer = asyncio.create_task(produce())
+    try:
+        while True:
+            try:
+                kind, value = await asyncio.wait_for(
+                    queue.get(), timeout=interval_seconds
+                )
+            except asyncio.TimeoutError:
+                yield ": heartbeat\n\n"
+                continue
+
+            if kind == "item":
+                yield value
+            elif kind == "error":
+                raise value
+            else:
+                break
+    finally:
+        if not producer.done():
+            producer.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await producer
 
 
 async def _handle_agent_stream(
@@ -94,14 +164,15 @@ async def _handle_agent_stream(
         async def sse_generator():
             nonlocal rate_limiter_released
             try:
-                async for sse_line in ConversationService.create_streaming_generator(
+                source = ConversationService.create_streaming_generator(
                     conversation_id=conversation_id,
                     user_id=user_id,
                     api_key=api_key,
                     provider=provider,
                     model=model,
                     **stream_generator_kwargs
-                ):
+                )
+                async for sse_line in _stream_with_heartbeats(source):
                     yield sse_line
             finally:
                 if not rate_limiter_released:
@@ -245,11 +316,51 @@ async def get_conversation(
         raise HTTPException(status_code=404, detail="Conversation not found")
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
+    except _TRANSIENT_FIRESTORE_ERRORS as e:
+        raise _firestore_unavailable_response(e)
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("Error fetching conversation")
         raise HTTPException(status_code=500, detail="An internal error occurred while fetching conversation.")
+
+
+@router.get("/get_execution_result/{conversation_id}/{execution_id}")
+async def fetch_execution_result(
+    conversation_id: str, execution_id: str, user: dict = Depends(get_current_user)
+):
+    """Get a specific execution result from the subcollection."""
+    try:
+        user_id = user.get("uid") if isinstance(user, dict) else user
+        
+        # Verify ownership using a user_id-only projection. Downloading the
+        # full message array once per artifact causes severe N+1 amplification.
+        conversation_exists = await run_in_threadpool(
+            ConversationService.verify_conversation_owner,
+            conversation_id,
+            user_id,
+        )
+        if not conversation_exists:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+            
+        from service.firestore.firestore_service import get_execution_result
+        result_data = await run_in_threadpool(
+            get_execution_result, conversation_id, execution_id
+        )
+        
+        if not result_data:
+            raise HTTPException(status_code=404, detail="Execution result not found")
+            
+        return {"status": "success", "data": result_data}
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except _TRANSIENT_FIRESTORE_ERRORS as e:
+        raise _firestore_unavailable_response(e)
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception("Error fetching execution result")
+        raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
 @router.get("/get_conversations")
