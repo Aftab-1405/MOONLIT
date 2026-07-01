@@ -1,40 +1,24 @@
-/**
- * StatusBar - Bottom status bar with connection, actions, and editor info
- */
-
-import { useState, useCallback, memo, useEffect } from 'react';
-import { Box, Typography, IconButton, Tooltip } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
-import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
-import FiberManualRecordRoundedIcon from '@mui/icons-material/FiberManualRecordRounded';
-import PlayCircleOutlineIcon from '@mui/icons-material/PlayCircleOutline';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import CheckCircleRounded from '@mui/icons-material/CheckCircleRounded';
-import { ButtonLoadingSpinner } from '@/components';
+import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
+import { Box, Button, IconButton, Tooltip, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { memo, useCallback, useEffect, useState } from 'react';
 import { runQuery } from '@/api';
-import { copyToClipboard } from '@/utils/clipboard';
+import { ButtonLoadingSpinner } from '@/components';
+import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import { getArtifactActionButtonSx } from '@/features/sidebar-right/artifact-loader';
-import {
-  getAppBarSurfaceSx,
-  getAppDividerColor,
-} from '@/features/styles/interfaceChrome';
+import { copyToClipboard } from '@/utils/clipboard';
 
 const STATUS_ACTION_SIZE = 30;
 
-function getStatusTextSx(theme, color = 'text.secondary') {
-  return {
-    ...theme.typography.uiCaptionXs,
-    color,
-    minWidth: 0,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'clip',
-    maskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
-    WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
-  };
-}
-
-function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, onRegisterRunQuery }) {
+function StatusBar({
+  isConnected,
+  currentDatabase,
+  activeTab,
+  onQueryExecute,
+  onRegisterRunQuery,
+}) {
   const theme = useTheme();
   const { settings } = useAppTheme();
   const [isRunning, setIsRunning] = useState(false);
@@ -48,7 +32,6 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, on
     try {
       const maxRows = settings.maxRows ?? 1000;
       const queryTimeout = settings.queryTimeout ?? 30;
-
       const response = await runQuery({
         sql: activeTab.query,
         maxRows,
@@ -57,30 +40,24 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, on
 
       if (response.status === 'success') {
         const queryData = response.data;
-        const columns = queryData.result?.columns || [];
-        const rows = queryData.result?.rows || [];
-
         const results = {
-          columns,
-          rows,
+          columns: queryData.result?.columns || [],
+          column_types: queryData.result?.column_types || {},
+          rows: queryData.result?.rows || [],
           row_count: queryData.row_count,
           total_rows: queryData.total_rows,
           truncated: queryData.truncated,
-          execution_time: queryData.execution_time_ms
-            ? queryData.execution_time_ms / 1000
-            : null,
+          execution_time: queryData.execution_time_ms ? queryData.execution_time_ms / 1000 : null,
         };
-
         onQueryExecute(results, null);
       } else {
         onQueryExecute(null, response.message || 'Query execution failed');
       }
-    } catch (err) {
-      // Extract the most descriptive safe message available from the error.
+    } catch (error) {
       const message =
-        err?.data?.message ||
-        err?.response?.data?.message ||
-        err?.message ||
+        error?.data?.message ||
+        error?.response?.data?.message ||
+        error?.message ||
         'Failed to execute query';
       onQueryExecute(null, message);
     } finally {
@@ -88,130 +65,180 @@ function StatusBar({ isConnected, currentDatabase, activeTab, onQueryExecute, on
     }
   }, [activeTab, isConnected, isRunning, onQueryExecute, settings]);
 
-  // Register this run function with the parent so MonacoEditorSurface's
-  // Ctrl+Enter shortcut calls the exact same code path as clicking Run.
   useEffect(() => {
     onRegisterRunQuery?.(handleRunQuery);
   }, [handleRunQuery, onRegisterRunQuery]);
 
   const handleCopyQuery = useCallback(async () => {
     if (!activeTab?.query) return;
-    const ok = await copyToClipboard(activeTab.query);
-    if (ok) {
+    const didCopy = await copyToClipboard(activeTab.query);
+    if (didCopy) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
   }, [activeTab]);
 
   const hasRunnableQuery = Boolean(activeTab?.query?.trim());
+  const connectionColor = isConnected ? theme.palette.primary.main : theme.palette.text.disabled;
+
   return (
     <Box
       sx={{
-        display: 'flex',
+        minHeight: 42,
+        display: 'grid',
+        gridTemplateColumns: 'minmax(0, 1fr) auto minmax(0, 1fr)',
         alignItems: 'center',
-        justifyContent: 'space-between',
         gap: 1,
-        px: 1,
-        py: 0.75,
-        borderTop: '1px solid',
-        borderColor: getAppDividerColor(theme),
-        ...getAppBarSurfaceSx(theme),
+        px: 0.75,
+        py: 0.5,
         flexShrink: 0,
-        minHeight: 46,
+        bgcolor: 'transparent',
       }}
     >
-      {/* Left: Connection status */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, minWidth: 0 }}>
-          <FiberManualRecordRoundedIcon
-            sx={{
-              fontSize: 8,
-              color: isConnected ? 'success.main' : 'text.secondary',
-            }}
-          />
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, minWidth: 0 }}>
+        <Box
+          sx={{
+            minWidth: 0,
+            height: 28,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 0.625,
+            px: 1,
+            borderRadius: '8px',
+            bgcolor: alpha(connectionColor, isConnected ? 0.08 : 0.045),
+          }}
+        >
           <Typography
-            sx={getStatusTextSx(theme)}
+            sx={{
+              ...theme.typography.uiCaptionXs,
+              minWidth: 0,
+              color: connectionColor,
+              fontWeight: isConnected ? 600 : 'normal',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
           >
             {currentDatabase || (isConnected ? 'Connected' : 'Not connected')}
           </Typography>
         </Box>
 
-        {activeTab?.results && (
+        {activeTab?.results ? (
           <Typography
             sx={{
               ...theme.typography.uiCaptionXs,
-              color: 'text.secondary',
-              flexShrink: 0,
+              color: 'text.disabled',
+              fontFamily: theme.typography.fontFamilyMono,
+              whiteSpace: 'nowrap',
             }}
           >
-            {activeTab.results.row_count} rows
+            {activeTab.results.row_count ?? 0} rows
           </Typography>
-        )}
+        ) : null}
       </Box>
 
-      {/* Center: Action buttons */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
         <Tooltip
           title={
             !isConnected
-              ? 'Connect to database first'
+              ? 'Connect a database to run this query'
               : isRunning
-              ? 'Running...'
-              : 'Run query (Ctrl+Enter)'
+                ? 'Running query…'
+                : 'Run query (Ctrl+Enter)'
           }
         >
           <span>
-            <IconButton
+            <Button
               size="small"
+              variant="contained"
               onClick={handleRunQuery}
               disabled={isRunning || !hasRunnableQuery || !isConnected}
               aria-label="Run query"
-              sx={getArtifactActionButtonSx(theme, { size: STATUS_ACTION_SIZE })}
+              startIcon={
+                isRunning ? (
+                  <ButtonLoadingSpinner size={14} />
+                ) : (
+                  <PlayArrowRoundedIcon sx={{ fontSize: 17 }} />
+                )
+              }
+              sx={{
+                minWidth: 72,
+                height: 30,
+                px: 1.25,
+                borderRadius: '9px',
+                ...theme.typography.uiCaptionSm,
+                fontWeight: 650,
+                boxShadow: 'none',
+                '&:hover': { boxShadow: 'none' },
+                '& .MuiButton-startIcon': { ml: 0, mr: 0.5 },
+              }}
             >
-              {isRunning ? (
-                <ButtonLoadingSpinner />
+              {isRunning ? 'Running' : 'Run'}
+            </Button>
+          </span>
+        </Tooltip>
+
+        <Tooltip title={copied ? 'Query copied' : 'Copy query'}>
+          <span>
+            <IconButton
+              size="small"
+              onClick={handleCopyQuery}
+              disabled={!hasRunnableQuery}
+              aria-label={copied ? 'Query copied' : 'Copy query'}
+              sx={{
+                ...getArtifactActionButtonSx(theme, { size: STATUS_ACTION_SIZE }),
+                color: copied ? 'success.main' : 'text.secondary',
+                bgcolor: copied ? alpha(theme.palette.success.main, 0.08) : 'transparent',
+              }}
+            >
+              {copied ? (
+                <CheckCircleRoundedIcon sx={{ fontSize: 16 }} />
               ) : (
-                <PlayCircleOutlineIcon sx={{ fontSize: 16 }} />
+                <ContentCopyRoundedIcon sx={{ fontSize: 15 }} />
               )}
             </IconButton>
           </span>
         </Tooltip>
-
-        <Tooltip title={copied ? "Copied!" : "Copy query"}>
-          <IconButton
-            size="small"
-            onClick={handleCopyQuery}
-            disabled={!hasRunnableQuery}
-            aria-label={copied ? 'Copied' : 'Copy query'}
-            sx={{
-              ...getArtifactActionButtonSx(theme, { size: STATUS_ACTION_SIZE }),
-              color: copied ? 'success.main' : 'inherit',
-              '&:hover': copied ? {
-                color: 'success.main',
-                bgcolor: alpha(theme.palette.success.main, 0.08),
-              } : undefined,
-            }}
-          >
-            {copied ? (
-              <CheckCircleRounded sx={{ fontSize: 16 }} />
-            ) : (
-              <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />
-            )}
-          </IconButton>
-        </Tooltip>
       </Box>
 
-      {/* Right: Editor info */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flex: 1, minWidth: 0, justifyContent: 'flex-end' }}>
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          gap: 0.75,
+          minWidth: 0,
+        }}
+      >
         <Typography
           sx={{
             ...theme.typography.uiCaptionXs,
-            color: 'text.secondary',
-            flexShrink: 0,
+            color: 'text.disabled',
+            fontFamily: theme.typography.fontFamilyMono,
           }}
         >
           SQL
         </Typography>
+        <Box
+          component="kbd"
+          sx={{
+            display: { xs: 'none', sm: 'inline-flex' },
+            alignItems: 'center',
+            height: 22,
+            px: 0.75,
+            borderRadius: '6px',
+            color: 'text.disabled',
+            bgcolor: alpha(
+              theme.palette.text.primary,
+              theme.palette.mode === 'dark' ? 0.055 : 0.035,
+            ),
+            fontFamily: theme.typography.fontFamilyMono,
+            fontSize: '0.625rem',
+            lineHeight: 1,
+          }}
+        >
+          Ctrl ↵
+        </Box>
       </Box>
     </Box>
   );

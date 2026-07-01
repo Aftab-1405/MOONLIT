@@ -41,7 +41,7 @@ function hasRegisteredHandler(handlers) {
  * @param {{ current: Array }} pendingQueueRef - Ref holding the pending event queue
  * @returns {(event: object) => void} dispatch function
  */
-export function createUiActionDispatch(getHandlers, pendingQueueRef) {
+function createUiActionDispatch(getHandlers, pendingQueueRef) {
   return function dispatch(event) {
     const handlers = getHandlers();
     const hasHandlers = hasRegisteredHandler(handlers);
@@ -55,7 +55,9 @@ export function createUiActionDispatch(getHandlers, pendingQueueRef) {
     // Drain any pending queue first (before processing the current event)
     if (pendingQueueRef.current.length > 0) {
       const queue = pendingQueueRef.current.splice(0);
-      queue.forEach((queuedEvent) => dispatch(queuedEvent));
+      queue.forEach((queuedEvent) => {
+        dispatch(queuedEvent);
+      });
     }
 
     const { action } = event;
@@ -99,7 +101,12 @@ export function createUiActionDispatch(getHandlers, pendingQueueRef) {
       handlers.onActionTelemetry?.({ action, payload: effectivePayload, status: 'success' });
       report(action, 'success');
     } catch (err) {
-      handlers.onActionTelemetry?.({ action, payload: effectivePayload, status: 'error', error: err });
+      handlers.onActionTelemetry?.({
+        action,
+        payload: effectivePayload,
+        status: 'error',
+        error: err,
+      });
       report(action, 'error', err);
     }
   };
@@ -124,7 +131,9 @@ export function useUiActionDispatcher(handlers) {
 
     if (hasRegisteredHandler(handlers) && pendingQueueRef.current.length > 0) {
       const queue = pendingQueueRef.current.splice(0);
-      queue.forEach((event) => dispatch(event));
+      queue.forEach((event) => {
+        dispatch(event);
+      });
     }
   }, [dispatch, handlers]);
 

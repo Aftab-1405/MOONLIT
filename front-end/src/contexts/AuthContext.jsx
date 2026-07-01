@@ -1,22 +1,30 @@
-import { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import {
+  createUserWithEmailAndPassword,
+  getRedirectResult,
+  onAuthStateChanged,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
   signInWithPopup,
   signInWithRedirect,
-  getRedirectResult,
   signOut,
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  sendPasswordResetEmail,
-  updateProfile
+  updateProfile,
 } from 'firebase/auth';
-import { initializeFirebase, getFirebaseAuth, getGoogleProvider, getGithubProvider } from '@/config/firebase';
-import { setSession as setBackendSession, logout as logoutBackend } from '@/api';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { logout as logoutBackend, setSession as setBackendSession } from '@/api';
 import { queryClient } from '@/api/queryClient';
+import {
+  getFirebaseAuth,
+  getGithubProvider,
+  getGoogleProvider,
+  initializeFirebase,
+} from '@/config/firebase';
 import logger from '@/utils/logger';
+
 const isMobileDevice = () => {
-  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-    (window.innerWidth <= 768);
+  return (
+    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
+    window.innerWidth <= 768
+  );
 };
 const ERROR_MESSAGES = {
   'auth/email-already-in-use': 'Email already registered.',
@@ -47,9 +55,8 @@ const normalizeAuthUser = (firebaseUser, backendUser = {}) => ({
   photoURL: backendUser.photoURL || backendUser.picture || firebaseUser.photoURL,
 });
 
-const getSessionUser = (sessionResponse) => (
-  sessionResponse?.data?.user || sessionResponse?.user || {}
-);
+const getSessionUser = (sessionResponse) =>
+  sessionResponse?.data?.user || sessionResponse?.user || {};
 
 // eslint-disable-next-line react-refresh/only-export-components -- Hook export alongside Provider is valid React pattern
 export const useAuth = () => {
@@ -81,19 +88,31 @@ export const AuthProvider = ({ children }) => {
         return Promise.resolve();
       },
       signInWithGoogle: () => {
-        const u = { uid: 'mock-user-123', email: 'google-mock@example.com', displayName: 'Mock Google User' };
+        const u = {
+          uid: 'mock-user-123',
+          email: 'google-mock@example.com',
+          displayName: 'Mock Google User',
+        };
         setMockUser(u);
         return Promise.resolve(u);
       },
       signInWithEmail: (email) => {
-        const isAdmin = email && email.includes('admin');
+        const isAdmin = email?.includes('admin');
         const uid = isAdmin ? 'arLB46aCTxSU4DNHvjrdvctBUjK2' : 'mock-user-123';
-        const u = { uid, email: email || 'mock@example.com', displayName: isAdmin ? 'Admin User' : 'Mock User' };
+        const u = {
+          uid,
+          email: email || 'mock@example.com',
+          displayName: isAdmin ? 'Admin User' : 'Mock User',
+        };
         setMockUser(u);
         return Promise.resolve(u);
       },
-      signUpWithEmail: (email, password, displayName) => {
-        const u = { uid: 'mock-user-123', email: email || 'mock@example.com', displayName: displayName || 'Mock User' };
+      signUpWithEmail: (email, _password, displayName) => {
+        const u = {
+          uid: 'mock-user-123',
+          email: email || 'mock@example.com',
+          displayName: displayName || 'Mock User',
+        };
         setMockUser(u);
         return Promise.resolve(u);
       },
@@ -180,7 +199,10 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const auth = getFirebaseAuth();
-      if (!auth) throw new Error('Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.');
+      if (!auth)
+        throw new Error(
+          'Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.',
+        );
 
       const result = await createUserWithEmailAndPassword(auth, email, password);
 
@@ -199,7 +221,10 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const auth = getFirebaseAuth();
-      if (!auth) throw new Error('Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.');
+      if (!auth)
+        throw new Error(
+          'Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.',
+        );
 
       const result = await signInWithEmailAndPassword(auth, email, password);
       return result.user;
@@ -213,7 +238,10 @@ export const AuthProvider = ({ children }) => {
     setError(null);
     try {
       const auth = getFirebaseAuth();
-      if (!auth) throw new Error('Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.');
+      if (!auth)
+        throw new Error(
+          'Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.',
+        );
 
       await sendPasswordResetEmail(auth, email);
       return true;
@@ -230,7 +258,9 @@ export const AuthProvider = ({ children }) => {
       const provider = getGoogleProvider();
 
       if (!auth || !provider) {
-        throw new Error('Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.');
+        throw new Error(
+          'Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.',
+        );
       }
 
       if (isMobileDevice()) {
@@ -253,7 +283,9 @@ export const AuthProvider = ({ children }) => {
       const provider = getGithubProvider();
 
       if (!auth || !provider) {
-        throw new Error('Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.');
+        throw new Error(
+          'Firebase not initialized. Please ensure the backend server is running on port 5000 and configured correctly.',
+        );
       }
 
       if (isMobileDevice()) {
@@ -286,36 +318,39 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
   const clearError = useCallback(() => setError(null), []);
-  const value = useMemo(() => ({
-    user,
-    loading,
-    error,
-    initialized,
-    signInWithEmail,
-    signUpWithEmail,
-    signInWithGoogle,
-    signInWithGitHub,
-    resetPassword,
-    logout,
-    clearError,
-    isAuthenticated: !!user,
-  }), [
-    user, loading, error, initialized,
-    signInWithEmail, signUpWithEmail, signInWithGoogle, signInWithGitHub,
-    resetPassword, logout, clearError
-  ]);
+  const value = useMemo(
+    () => ({
+      user,
+      loading,
+      error,
+      initialized,
+      signInWithEmail,
+      signUpWithEmail,
+      signInWithGoogle,
+      signInWithGitHub,
+      resetPassword,
+      logout,
+      clearError,
+      isAuthenticated: !!user,
+    }),
+    [
+      user,
+      loading,
+      error,
+      initialized,
+      signInWithEmail,
+      signUpWithEmail,
+      signInWithGoogle,
+      signInWithGitHub,
+      resetPassword,
+      logout,
+      clearError,
+    ],
+  );
 
   if (isMock) {
-    return (
-      <AuthContext.Provider value={mockValue}>
-        {children}
-      </AuthContext.Provider>
-    );
+    return <AuthContext.Provider value={mockValue}>{children}</AuthContext.Provider>;
   }
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -3,7 +3,7 @@
 
 import re
 import logging
-from typing import List, Optional, Dict
+from typing import Dict
 from functools import lru_cache
 
 logger = logging.getLogger(__name__)
@@ -17,86 +17,6 @@ class DatabaseSecurity:
     _TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
     _DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
     _COLUMN_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]+$")
-
-    # Optimized keyword sets - READ-ONLY FOCUSED
-    ALLOWED_KEYWORDS = frozenset(
-        {
-            "SELECT",
-            "FROM",
-            "WHERE",
-            "ORDER",
-            "BY",
-            "GROUP",
-            "HAVING",
-            "LIMIT",
-            "OFFSET",
-            "JOIN",
-            "LEFT",
-            "RIGHT",
-            "INNER",
-            "OUTER",
-            "ON",
-            "AS",
-            "AND",
-            "OR",
-            "NOT",
-            "IN",
-            "LIKE",
-            "BETWEEN",
-            "IS",
-            "NULL",
-            "COUNT",
-            "SUM",
-            "AVG",
-            "MAX",
-            "MIN",
-            "DISTINCT",
-            "ASC",
-            "DESC",
-            "CASE",
-            "WHEN",
-            "THEN",
-            "ELSE",
-            "END",
-            "WITH",
-            "RECURSIVE",  # CTEs (Common Table Expressions)
-        }
-    )
-
-    # Expanded dangerous keywords to include all DML operations
-    DANGEROUS_KEYWORDS = frozenset(
-        {
-            "DROP",
-            "CREATE",
-            "ALTER",
-            "TRUNCATE",
-            "GRANT",
-            "REVOKE",
-            "EXEC",
-            "EXECUTE",
-            "UNION",
-            "SCRIPT",
-            "DECLARE",
-            "CALL",
-            "PROCEDURE",
-            "FUNCTION",
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-            "INTO",
-            "VALUES",
-            "SET",
-        }
-    )
-
-    # Query type detection patterns - Only SELECT and WITH(CTE) are allowed
-    _QUERY_TYPE_PATTERNS = {
-        "SELECT": re.compile(r"^\s*SELECT\b", re.IGNORECASE),
-        "WITH": re.compile(r"^\s*WITH\b", re.IGNORECASE),  # CTE - also a SELECT query
-        "INSERT": re.compile(r"^\s*INSERT\b", re.IGNORECASE),
-        "UPDATE": re.compile(r"^\s*UPDATE\b", re.IGNORECASE),
-        "DELETE": re.compile(r"^\s*DELETE\b", re.IGNORECASE),
-    }
 
     @staticmethod
     @lru_cache(maxsize=256)
@@ -201,50 +121,6 @@ class DatabaseSecurity:
             analysis["warnings"].append(f"SQL could not be safely parsed: {exc}")
 
         return analysis
-
-    @staticmethod
-    def _detect_query_type(query_stripped: str) -> Optional[str]:
-        """Return detected query type or None."""
-        for query_type, pattern in DatabaseSecurity._QUERY_TYPE_PATTERNS.items():
-            if pattern.match(query_stripped):
-                return query_type
-        return None
-
-    @staticmethod
-    def _is_query_type_allowed(query_type: Optional[str]) -> bool:
-        """Only SELECT and WITH (CTE) are allowed."""
-        return query_type in ("SELECT", "WITH")
-
-    @staticmethod
-    def _detect_dangerous_keywords(query_upper: str):
-        """Return set of dangerous keywords found in the query."""
-        # Use regex to extract purely alphabetical words, bypassing any
-        # punctuation or comment evasion tactics like `DELETE/**/FROM`
-        query_words = set(re.findall(r'\b[A-Z]+\b', query_upper))
-        return query_words & DatabaseSecurity.DANGEROUS_KEYWORDS
-
-    @staticmethod
-    def _has_multiple_statements(query: str) -> bool:
-        semicolon_count = query.count(";")
-        return semicolon_count > 1 or (
-            semicolon_count == 1 and not query.rstrip().endswith(";")
-        )
-
-    @staticmethod
-    def _detect_comments_and_file_ops(
-        query: str, query_upper: str
-    ) -> tuple[List[str], bool]:
-        warnings = []
-        should_block = False
-        if "--" in query or "/*" in query:
-            warnings.append("SQL comments detected")
-        if "OUTFILE" in query_upper or "DUMPFILE" in query_upper:
-            warnings.append("File operations are not allowed")
-            should_block = True
-        if "LOAD_FILE" in query_upper or "LOAD DATA" in query_upper:
-            warnings.append("File loading operations are not allowed")
-            should_block = True
-        return warnings, should_block
 
     @staticmethod
     @lru_cache(maxsize=64)

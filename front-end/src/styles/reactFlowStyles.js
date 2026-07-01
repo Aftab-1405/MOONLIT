@@ -29,21 +29,24 @@ const getCustomStyleAccent = (style) => {
   return style.borderColor || style.backgroundColor || style.color || null;
 };
 
-export const getReactFlowCanvasSx = (theme, { cardClassName = FLOW_NODE_CARD_CLASS, tone = 'diagram' } = {}) => {
+export const getReactFlowCanvasSx = (
+  theme,
+  { cardClassName = FLOW_NODE_CARD_CLASS, tone = 'diagram' } = {},
+) => {
   const isDark = theme.palette.mode === 'dark';
   const isSchema = tone === 'schema';
   const textInk = theme.palette.text.primary;
   const paper = theme.palette.background.paper;
   const base = theme.palette.background.default;
-  const glowTone = isSchema ? theme.palette.success.main : theme.palette.info.main;
-  const warmTone = isSchema ? theme.palette.warning.main : theme.palette.primary.main;
+  const glowTone = theme.palette.info.main;
+  const warmTone = theme.palette.warning.main;
 
   return {
     width: '100%',
     height: '100%',
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: alpha(base, isDark ? (isSchema ? 0.74 : 0.76) : (isSchema ? 0.65 : 0.68)),
+    backgroundColor: alpha(base, isDark ? (isSchema ? 0.74 : 0.76) : isSchema ? 0.65 : 0.68),
     backgroundImage: [
       // Top-left ambient haze
       `radial-gradient(ellipse at 10% 6%, ${alpha(textInk, isDark ? 0.09 : 0.06)}, transparent 32%)`,
@@ -52,9 +55,9 @@ export const getReactFlowCanvasSx = (theme, { cardClassName = FLOW_NODE_CARD_CLA
       // Bottom-right warm accent for depth
       `radial-gradient(ellipse at 92% 92%, ${alpha(warmTone, isDark ? 0.07 : 0.04)}, transparent 30%)`,
       // Dot grid
-      `radial-gradient(circle at 1px 1px, ${alpha(textInk, isDark ? (isSchema ? 0.14 : 0.16) : (isSchema ? 0.085 : 0.1))} 1.5px, transparent 0)`,
+      `radial-gradient(circle at 1px 1px, ${alpha(textInk, isDark ? (isSchema ? 0.14 : 0.16) : isSchema ? 0.085 : 0.1)} 1.5px, transparent 0)`,
       // Top fade-in
-      `linear-gradient(180deg, ${alpha(paper, isDark ? (isSchema ? 0.2 : 0.24) : (isSchema ? 0.82 : 0.8))}, transparent ${isSchema ? '52%' : '48%'})`,
+      `linear-gradient(180deg, ${alpha(paper, isDark ? (isSchema ? 0.2 : 0.24) : isSchema ? 0.82 : 0.8)}, transparent ${isSchema ? '52%' : '48%'})`,
     ].join(', '),
     backgroundSize: `100% 100%, 100% 100%, 100% 100%, ${FLOW_GRID_SIZE}px ${FLOW_GRID_SIZE}px, 100% 100%`,
     boxShadow: [
@@ -113,7 +116,8 @@ export const getReactFlowCanvasSx = (theme, { cardClassName = FLOW_NODE_CARD_CLA
       filter: isDark
         ? 'drop-shadow(0 6px 10px rgba(0, 0, 0, 0.26))'
         : 'drop-shadow(0 6px 10px rgba(34, 45, 58, 0.1))',
-      transition: 'stroke 160ms ease, stroke-width 160ms ease, opacity 160ms ease, filter 160ms ease',
+      transition:
+        'stroke 160ms ease, stroke-width 160ms ease, opacity 160ms ease, filter 160ms ease',
     },
     '& .react-flow__edges': {
       zIndex: 0,
@@ -169,7 +173,7 @@ export const getReactFlowNodeCardSx = (theme, { disabled = false, interactive = 
     borderRadius: FLOW_NODE_RADIUS,
     border: '1px solid',
     borderColor: alpha(theme.palette.text.primary, isDark ? 0.13 : 0.1),
-    backgroundColor: alpha(theme.palette.background.paper, disabled ? 0.6 : (isDark ? 0.97 : 0.995)),
+    backgroundColor: alpha(theme.palette.background.paper, disabled ? 0.6 : isDark ? 0.97 : 0.995),
     backdropFilter: 'blur(14px)',
     WebkitBackdropFilter: 'blur(14px)',
     backgroundImage: [
@@ -196,25 +200,32 @@ export const getReactFlowNodeCardSx = (theme, { disabled = false, interactive = 
       'background-color 160ms ease',
       'opacity 160ms ease',
     ].join(', '),
-    '&:hover': interactive ? {
-      borderColor: alpha(theme.palette.text.primary, isDark ? 0.34 : 0.24),
-      backgroundColor: alpha(theme.palette.background.paper, disabled ? 0.56 : (isDark ? 0.99 : 1)),
-      boxShadow: [
-        `0 28px 56px -36px ${alpha(theme.palette.common.black, isDark ? 0.97 : 0.36)}`,
-        `0 8px 16px -10px ${alpha(theme.palette.common.black, isDark ? 0.48 : 0.12)}`,
-        `inset 0 1.5px 0 ${alpha(theme.palette.common.white, isDark ? 0.08 : 0.9)}`,
-        `inset 0 -1px 0 ${alpha(theme.palette.common.black, isDark ? 0.08 : 0.03)}`,
-      ].join(', '),
-      transform: disabled ? 'none' : 'translateY(-2px)',
-    } : undefined,
-    '&:active': interactive ? {
-      transform: 'translateY(0)',
-      transition: [
-        'border-color 80ms ease',
-        'box-shadow 80ms ease',
-        'transform 80ms ease',
-      ].join(', '),
-    } : undefined,
+    '&:hover': interactive
+      ? {
+          borderColor: alpha(theme.palette.text.primary, isDark ? 0.34 : 0.24),
+          backgroundColor: alpha(
+            theme.palette.background.paper,
+            disabled ? 0.56 : isDark ? 0.99 : 1,
+          ),
+          boxShadow: [
+            `0 28px 56px -36px ${alpha(theme.palette.common.black, isDark ? 0.97 : 0.36)}`,
+            `0 8px 16px -10px ${alpha(theme.palette.common.black, isDark ? 0.48 : 0.12)}`,
+            `inset 0 1.5px 0 ${alpha(theme.palette.common.white, isDark ? 0.08 : 0.9)}`,
+            `inset 0 -1px 0 ${alpha(theme.palette.common.black, isDark ? 0.08 : 0.03)}`,
+          ].join(', '),
+          transform: disabled ? 'none' : 'translateY(-2px)',
+        }
+      : undefined,
+    '&:active': interactive
+      ? {
+          transform: 'translateY(0)',
+          transition: [
+            'border-color 80ms ease',
+            'box-shadow 80ms ease',
+            'transform 80ms ease',
+          ].join(', '),
+        }
+      : undefined,
   };
 };
 
@@ -262,13 +273,14 @@ export const getReactFlowNodeChromeSx = (theme, disabled = false) => {
 
 export const getReactFlowStatusSx = (theme, status) => {
   const isDark = theme.palette.mode === 'dark';
-  const tone = {
-    active: theme.palette.success.main,
-    pending: theme.palette.info.main,
-    blocked: theme.palette.error.main,
-    disabled: theme.palette.text.disabled,
-    ready: theme.palette.text.secondary,
-  }[status] || theme.palette.text.secondary;
+  const tone =
+    {
+      active: theme.palette.success.main,
+      pending: theme.palette.info.main,
+      blocked: theme.palette.error.main,
+      disabled: theme.palette.text.disabled,
+      ready: theme.palette.text.secondary,
+    }[status] || theme.palette.text.secondary;
 
   const isActive = status === 'active';
 
@@ -280,13 +292,21 @@ export const getReactFlowStatusSx = (theme, status) => {
       `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.045 : 0.5)}`,
       ...(isActive ? [`0 0 0 2px ${alpha(tone, isDark ? 0.2 : 0.12)}`] : []),
     ].join(', '),
-    ...(isActive ? {
-      '@keyframes statusActivePulse': {
-        '0%, 100%': { opacity: 1, boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.045 : 0.5)}, 0 0 0 2px ${alpha(tone, isDark ? 0.2 : 0.12)}` },
-        '50%': { opacity: 0.8, boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.045 : 0.5)}, 0 0 0 3px ${alpha(tone, isDark ? 0.12 : 0.07)}` },
-      },
-      animation: 'statusActivePulse 2.4s ease-in-out infinite',
-    } : {}),
+    ...(isActive
+      ? {
+          '@keyframes statusActivePulse': {
+            '0%, 100%': {
+              opacity: 1,
+              boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.045 : 0.5)}, 0 0 0 2px ${alpha(tone, isDark ? 0.2 : 0.12)}`,
+            },
+            '50%': {
+              opacity: 0.8,
+              boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, isDark ? 0.045 : 0.5)}, 0 0 0 3px ${alpha(tone, isDark ? 0.12 : 0.07)}`,
+            },
+          },
+          animation: 'statusActivePulse 2.4s ease-in-out infinite',
+        }
+      : {}),
   };
 };
 
@@ -296,7 +316,7 @@ export const getReactFlowCustomNodeAccentSx = (theme, customStyle, disabled = fa
   const accentBorder = getAlphaColor(accent, isDark ? 0.52 : 0.38);
   const accentSurface = getAlphaColor(accent, isDark ? 0.08 : 0.045);
   const accentGlow = getAlphaColor(accent, isDark ? 0.22 : 0.14);
-  const solidSurface = alpha(theme.palette.background.paper, disabled ? 0.62 : (isDark ? 0.98 : 1));
+  const solidSurface = alpha(theme.palette.background.paper, disabled ? 0.62 : isDark ? 0.98 : 1);
 
   if (!accentBorder || !accentSurface) return {};
 
@@ -312,12 +332,12 @@ export const getReactFlowCustomNodeAccentSx = (theme, customStyle, disabled = fa
     ].join(', '),
     boxShadow: accentGlow
       ? [
-        `0 24px 48px -32px ${alpha(theme.palette.common.black, isDark ? 0.94 : 0.32)}`,
-        `0 6px 12px -8px ${alpha(theme.palette.common.black, isDark ? 0.52 : 0.12)}`,
-        // Accent glow ring
-        `0 0 0 1px ${accentGlow}`,
-        `inset 0 1.5px 0 ${alpha(theme.palette.common.white, isDark ? 0.065 : 0.82)}`,
-      ].join(', ')
+          `0 24px 48px -32px ${alpha(theme.palette.common.black, isDark ? 0.94 : 0.32)}`,
+          `0 6px 12px -8px ${alpha(theme.palette.common.black, isDark ? 0.52 : 0.12)}`,
+          // Accent glow ring
+          `0 0 0 1px ${accentGlow}`,
+          `inset 0 1.5px 0 ${alpha(theme.palette.common.white, isDark ? 0.065 : 0.82)}`,
+        ].join(', ')
       : undefined,
     '&:hover': {
       borderColor: getAlphaColor(accent, isDark ? 0.46 : 0.3) || accentBorder,
@@ -337,8 +357,11 @@ export const getReactFlowEdgeStyle = (theme, { isMobile = false, emphasis = 'def
   const isSubtle = emphasis === 'subtle';
 
   return {
-    stroke: alpha(theme.palette.text.secondary, isDark ? (isSubtle ? 0.36 : 0.44) : (isSubtle ? 0.3 : 0.4)),
-    strokeWidth: isMobile ? (isSubtle ? 1.5 : 1.85) : (isSubtle ? 1.3 : 1.65),
+    stroke: alpha(
+      theme.palette.text.secondary,
+      isDark ? (isSubtle ? 0.36 : 0.44) : isSubtle ? 0.3 : 0.4,
+    ),
+    strokeWidth: isMobile ? (isSubtle ? 1.5 : 1.85) : isSubtle ? 1.3 : 1.65,
     ...(isSubtle ? { opacity: 0.8 } : { opacity: 0.9 }),
   };
 };
@@ -360,9 +383,8 @@ export const getReactFlowDefaultEdgeOptions = (theme, { isMobile = false } = {})
   labelBgBorderRadius: 8,
 });
 
-export const getReactFlowBackgroundColor = (theme) => (
-  alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.09 : 0.07)
-);
+export const getReactFlowBackgroundColor = (theme) =>
+  alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.09 : 0.07);
 
 // ─── New premium helpers ──────────────────────────────────────────────────────
 
@@ -372,13 +394,14 @@ export const getReactFlowBackgroundColor = (theme) => (
  */
 export const getReactFlowNodeStatusDotSx = (theme, status) => {
   const isDark = theme.palette.mode === 'dark';
-  const tone = {
-    active: theme.palette.success.main,
-    pending: theme.palette.info.main,
-    blocked: theme.palette.error.main,
-    disabled: theme.palette.text.disabled,
-    ready: theme.palette.text.secondary,
-  }[status] || theme.palette.text.secondary;
+  const tone =
+    {
+      active: theme.palette.success.main,
+      pending: theme.palette.info.main,
+      blocked: theme.palette.error.main,
+      disabled: theme.palette.text.disabled,
+      ready: theme.palette.text.secondary,
+    }[status] || theme.palette.text.secondary;
 
   const isActive = status === 'active';
 
@@ -388,13 +411,19 @@ export const getReactFlowNodeStatusDotSx = (theme, status) => {
       `0 0 0 2px ${alpha(tone, isDark ? 0.22 : 0.14)}`,
       `0 1px 3px ${alpha(tone, isDark ? 0.44 : 0.3)}`,
     ].join(', '),
-    ...(isActive ? {
-      '@keyframes dotPulse': {
-        '0%, 100%': { boxShadow: `0 0 0 2px ${alpha(tone, isDark ? 0.22 : 0.14)}, 0 1px 3px ${alpha(tone, isDark ? 0.44 : 0.3)}` },
-        '50%': { boxShadow: `0 0 0 4px ${alpha(tone, isDark ? 0.1 : 0.07)}, 0 1px 3px ${alpha(tone, isDark ? 0.34 : 0.22)}` },
-      },
-      animation: 'dotPulse 2.4s ease-in-out infinite',
-    } : {}),
+    ...(isActive
+      ? {
+          '@keyframes dotPulse': {
+            '0%, 100%': {
+              boxShadow: `0 0 0 2px ${alpha(tone, isDark ? 0.22 : 0.14)}, 0 1px 3px ${alpha(tone, isDark ? 0.44 : 0.3)}`,
+            },
+            '50%': {
+              boxShadow: `0 0 0 4px ${alpha(tone, isDark ? 0.1 : 0.07)}, 0 1px 3px ${alpha(tone, isDark ? 0.34 : 0.22)}`,
+            },
+          },
+          animation: 'dotPulse 2.4s ease-in-out infinite',
+        }
+      : {}),
   };
 };
 

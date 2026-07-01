@@ -2,18 +2,19 @@ import { alpha } from '@mui/material/styles';
 import { getAppPanelSurfaceSx, getSidebarChromeSx } from '@/features/styles/interfaceChrome';
 import { getInteractionColors, UI_LAYOUT } from '@/styles/shared';
 
-const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth;   // 260
-const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth; // 52
+const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth; // 260
+const _COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth; // 52
 const SIDEBAR_RADIUS = '10px';
 
 // ─── Shared token ────────────────────────────────────────────────────────────
 // Every clickable row uses the same horizontal inset (px: ROW_PX = 8px each side).
 // The icon column is ICON_COL wide — a fixed-width slot that centers the icon.
 // Height is controlled by the row's minHeight, not the icon slot.
-export const ROW_PX = 1;        // MUI spacing → 8px each side
-export const ICON_COL = 36;     // px — fixed icon column width only (not height)
-const ROW_HEIGHT = 36;   // px — single consistent row height for all items
-const focusRing = (theme) => `0 0 0 3px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.16 : 0.1)}`;
+export const ROW_PX = 1; // MUI spacing → 8px each side
+export const ICON_COL = 36; // px — fixed icon column width only (not height)
+const ROW_HEIGHT = 36; // px — single consistent row height for all items
+const focusRing = (theme) =>
+  `0 0 0 3px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.16 : 0.1)}`;
 
 export function getSidebarRailTooltipSlotProps(theme) {
   return {
@@ -25,52 +26,35 @@ export function getSidebarRailTooltipSlotProps(theme) {
         },
       ],
     },
-    tooltip: {
-      sx: {
-        ...theme.typography.uiCaptionMd,
-        borderRadius: '6px',
-        px: 1,
-        py: 0.5,
-        color: theme.palette.background.paper,
-        bgcolor: theme.palette.text.primary,
-      },
-    },
-    arrow: {
-      sx: {
-        color: theme.palette.text.primary,
-      },
-    },
   };
 }
 
-export function getCollapsingLabelSx(theme, collapsed, maxWidth = 200) {
+export function getCollapsingLabelSx(_theme, collapsed, maxWidth = 200) {
   return {
     flex: '1 1 auto',
     minWidth: 0,
     maxWidth: collapsed ? 0 : maxWidth,
     opacity: collapsed ? 0 : 1,
     overflow: 'hidden',
-    transition: theme.transitions.create(['max-width', 'opacity'], {
-      duration: 180,
-      easing: theme.transitions.easing.easeInOut,
-    }),
   };
 }
 
 // ─── Nav row (toggle, nav items, footer) ─────────────────────────────────────
-export function buildNavRowSx(theme, { isActive = false, disabled = false } = {}) {
+export function buildNavRowSx(
+  theme,
+  { isActive = false, disabled = false, collapsed = false } = {},
+) {
   const interaction = getInteractionColors(theme, { active: isActive });
   return {
     display: 'flex',
     alignItems: 'center',
-    width: '100%',
+    width: collapsed ? '36px' : '100%',
     height: ROW_HEIGHT,
     minHeight: ROW_HEIGHT,
     px: ROW_PX,
     py: 0,
     gap: 0,
-    border: '0.5px solid',
-    borderColor: isActive ? interaction.activeBorder : 'transparent',
+    border: 'none',
     outline: 'none',
     appearance: 'none',
     textAlign: 'left',
@@ -78,19 +62,24 @@ export function buildNavRowSx(theme, { isActive = false, disabled = false } = {}
     borderRadius: SIDEBAR_RADIUS,
     boxSizing: 'border-box',
     backgroundColor: isActive ? interaction.activeBackground : 'transparent',
-    boxShadow: 'none',
+    boxShadow: isActive ? `inset 0 0 0 1px ${interaction.activeBorder}` : 'none',
     color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
     opacity: disabled ? 0.4 : 1,
-    transition: theme.transitions.create(['background-color', 'border-color', 'color', 'opacity'], {
-      duration: theme.transitions.duration.shorter,
-    }),
+    transition: theme.transitions.create(
+      ['background-color', 'color', 'opacity', 'box-shadow', 'width'],
+      {
+        duration: theme.transitions.duration.shorter,
+      },
+    ),
     '&:hover:not(:disabled)': {
       backgroundColor: isActive ? interaction.activeHoverBackground : interaction.hoverBackground,
       color: theme.palette.text.primary,
     },
     '&:focus-visible': {
       outline: 'none',
-      boxShadow: focusRing(theme),
+      boxShadow: isActive
+        ? `inset 0 0 0 1px ${interaction.activeBorder}, ${focusRing(theme)}`
+        : focusRing(theme),
     },
   };
 }
@@ -146,26 +135,15 @@ export function buildConversationRowSx(theme, { isActive = false, menuOpen = fal
 }
 
 // ─── Desktop nav element ──────────────────────────────────────────────────────
-export function buildDesktopNavSx(theme, open) {
+export function buildDesktopNavSx(theme) {
   return {
-    width: open ? EXPANDED_WIDTH : COLLAPSED_WIDTH,
+    width: EXPANDED_WIDTH,
     flexShrink: 0,
-    height: '100vh',
-    position: 'sticky',
-    top: 0,
+    height: '100%',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
     boxSizing: 'border-box',
-    zIndex: 2,
-    willChange: 'width',
-    transition: theme.transitions.create('width', {
-      easing: theme.transitions.easing.easeInOut,
-      duration: 240,
-    }),
-    '@media (prefers-reduced-motion: reduce)': {
-      transition: 'none',
-    },
     ...getAppPanelSurfaceSx(theme),
     ...getSidebarChromeSx(theme),
   };

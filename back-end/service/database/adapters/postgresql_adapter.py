@@ -247,30 +247,6 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY datname
         """
 
-    def get_schema_info_for_ai(self, schema: str = "public") -> dict:
-        """
-        Return queries to get full schema info for AI context.
-
-        Returns:
-            dict with 'tables' and 'columns' SQL queries
-        """
-        schema = self._sanitize_schema(schema)
-        return {
-            "tables": f"""
-                SELECT table_name 
-                FROM information_schema.tables 
-                WHERE table_schema = '{schema}' 
-                AND table_type = 'BASE TABLE'
-                ORDER BY table_name
-            """,
-            "columns": f"""
-                SELECT table_name, column_name, data_type 
-                FROM information_schema.columns 
-                WHERE table_schema = '{schema}'
-                ORDER BY table_name, ordinal_position
-            """,
-        }
-
     def validate_connection(self, connection: Any) -> bool:
         """Validate PostgreSQL connection is alive."""
         try:
@@ -283,47 +259,6 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         except Exception as e:
             logger.debug(f"PostgreSQL connection validation failed: {e}")
         return False
-
-    def format_column_info(self, raw_column: Any) -> Dict:
-        """Format PostgreSQL column information."""
-        if isinstance(raw_column, dict):
-            # Build type string with precision/scale if applicable
-            type_str = raw_column.get("data_type", "")
-            if raw_column.get("character_maximum_length"):
-                type_str += f"({raw_column['character_maximum_length']})"
-            elif raw_column.get("numeric_precision"):
-                if raw_column.get("numeric_scale"):
-                    type_str += f"({raw_column['numeric_precision']},{raw_column['numeric_scale']})"
-                else:
-                    type_str += f"({raw_column['numeric_precision']})"
-
-            return {
-                "name": raw_column.get("column_name", ""),
-                "type": type_str,
-                "nullable": raw_column.get("is_nullable", "NO") == "YES",
-                "key": raw_column.get("column_key", ""),
-                "default": raw_column.get("column_default"),
-                "extra": "",  # PostgreSQL doesn't have EXTRA like MySQL
-            }
-        else:
-            # Tuple format: (name, type, nullable, default, key, max_length, precision, scale)
-            type_str = raw_column[1]
-            if raw_column[5]:  # character_maximum_length
-                type_str += f"({raw_column[5]})"
-            elif raw_column[6]:  # numeric_precision
-                if raw_column[7]:  # numeric_scale
-                    type_str += f"({raw_column[6]},{raw_column[7]})"
-                else:
-                    type_str += f"({raw_column[6]})"
-
-            return {
-                "name": raw_column[0],
-                "type": type_str,
-                "nullable": raw_column[2] == "YES",
-                "key": raw_column[4],
-                "default": raw_column[3],
-                "extra": "",
-            }
 
     # =========================================================================
     # Schema Caching Methods (for AI context)
@@ -339,32 +274,6 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             ORDER BY table_name
         """
         return query, ()  # No params needed, schema is embedded
-
-    def get_columns_for_table_cache(
-        self, db_name: str, table_name: str, schema: str = "public"
-    ) -> tuple:
-        """Return SQL query and params to get column names for a table."""
-        schema = self._sanitize_schema(schema)
-        query = f"""
-            SELECT column_name
-            FROM information_schema.columns
-            WHERE table_schema = '{schema}' AND table_name = %s
-            ORDER BY ordinal_position
-        """
-        return query, (table_name,)
-
-    def get_column_details_for_table(
-        self, db_name: str, table_name: str, schema: str = "public"
-    ) -> tuple:
-        """Return SQL query and params to get full column details for a table."""
-        schema = self._sanitize_schema(schema)
-        query = f"""
-            SELECT column_name, data_type, is_nullable, column_default
-            FROM information_schema.columns
-            WHERE table_schema = '{schema}' AND table_name = %s
-            ORDER BY ordinal_position
-        """
-        return query, (table_name,)
 
     def get_set_timeout_sql(self, timeout_seconds: int) -> str:
         """Return PostgreSQL query timeout SQL."""
@@ -444,26 +353,6 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             WHERE t.relname = %s
             AND n.nspname = '{schema}'
             ORDER BY i.relname, a.attnum
-        """
-        return query, (table_name,)
-
-    def get_constraints_query(
-        self, table_name: str, db_name: str = None, schema: str = "public"
-    ) -> tuple:
-        """Return SQL query and params to get constraints for a PostgreSQL table."""
-        schema = self._sanitize_schema(schema)
-        query = f"""
-            SELECT 
-                tc.constraint_name,
-                tc.constraint_type,
-                kcu.column_name
-            FROM information_schema.table_constraints tc
-            JOIN information_schema.key_column_usage kcu
-                ON tc.constraint_name = kcu.constraint_name
-                AND tc.table_schema = kcu.table_schema
-            WHERE tc.table_name = %s
-            AND tc.table_schema = '{schema}'
-            ORDER BY tc.constraint_type, tc.constraint_name, kcu.ordinal_position
         """
         return query, (table_name,)
 

@@ -2,7 +2,7 @@
  * Shared styling helpers built on theme tokens.
  */
 import { alpha } from '@mui/material/styles';
-import { HOVER_CAPABLE_QUERY, BACKDROP_FILTER_FALLBACK_QUERY } from '@/styles/mediaQueries';
+import { BACKDROP_FILTER_FALLBACK_QUERY, HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 
 const DIALOG_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
 
@@ -16,13 +16,26 @@ export const UI_LAYOUT = Object.freeze({
   dialogDesktopOffset: 64,
 });
 
+// ─── Z-index layer cake ───────────────────────────────────────────────────────
+//
+// Must stay in sync with MUI's built-in zIndex defaults:
+//   appBar        1100
+//   drawer        1200
+//   modal         1300  ← ALL MUI portals: Menu, Popover, Select, Autocomplete
+//   snackbar      1400
+//   tooltip       1500
+//
+// Rule: artifactFullscreen MUST stay between drawer (1200) and modal (1300).
+// If it ever exceeds 1300, MUI sidebar menus/popovers will be hidden behind
+// the fullscreen panel — which is the bug this change was made to fix.
+// ─────────────────────────────────────────────────────────────────────────────
 export const UI_Z_INDEX = Object.freeze({
   mainContentBase: 1,
   mainContentControl: 3,
   artifactStickyHeader: 2,
-  artifactFullscreen: 1310,
-  mainContentModal: 1320,
-  confirmModal: 1400,
+  artifactFullscreen: 1250,   // above drawer (1200), BELOW MUI modal (1300)
+  mainContentModal: 1320,     // our custom modals — above MUI modal
+  confirmModal: 1400,         // highest priority — confirm/destructive dialogs
 });
 
 export const UI_POPOVER = Object.freeze({
@@ -42,18 +55,10 @@ export const getScrollbarStyles = (_theme, _opts = {}) => ({
   '&::-webkit-scrollbar': { display: 'none' },
 });
 
-export const getPaletteInteractionColors = (
-  palette,
-  {
-    active = false,
-    tone = 'neutral',
-  } = {},
-) => {
+export const getPaletteInteractionColors = (palette, { active = false, tone = 'neutral' } = {}) => {
   const isDark = palette.mode === 'dark';
   const semanticColor = palette[tone]?.main;
-  const color = tone === 'neutral'
-    ? palette.text.primary
-    : semanticColor || palette.text.primary;
+  const color = tone === 'neutral' ? palette.text.primary : semanticColor || palette.text.primary;
   const textColor = tone === 'neutral' ? palette.text.primary : color;
   const restingTextColor = tone === 'neutral' ? palette.text.secondary : color;
 
@@ -82,17 +87,13 @@ export const getPaletteInteractionColors = (
     hoverColor: palette.text.primary,
     activeColor: palette.text.primary,
     background: active
-      ? (isDark ? alpha(black, 0.78) : alpha(palette.text.primary, 0.08))
+      ? isDark
+        ? alpha(black, 0.78)
+        : alpha(palette.text.primary, 0.08)
       : 'transparent',
-    hoverBackground: isDark
-      ? alpha(black, 0.58)
-      : alpha(palette.text.primary, 0.045),
-    activeBackground: isDark
-      ? alpha(black, 0.78)
-      : alpha(palette.text.primary, 0.08),
-    activeHoverBackground: isDark
-      ? black
-      : alpha(palette.text.primary, 0.11),
+    hoverBackground: isDark ? alpha(black, 0.58) : alpha(palette.text.primary, 0.045),
+    activeBackground: isDark ? alpha(black, 0.78) : alpha(palette.text.primary, 0.08),
+    activeHoverBackground: isDark ? black : alpha(palette.text.primary, 0.11),
     border: alpha(palette.text.primary, isDark ? 0.1 : 0.08),
     hoverBorder: alpha(palette.text.primary, isDark ? 0.16 : 0.14),
     activeBorder: alpha(palette.text.primary, isDark ? 0.2 : 0.16),
@@ -100,9 +101,8 @@ export const getPaletteInteractionColors = (
   };
 };
 
-export const getInteractionColors = (theme, options = {}) => (
-  getPaletteInteractionColors(theme.palette, options)
-);
+export const getInteractionColors = (theme, options = {}) =>
+  getPaletteInteractionColors(theme.palette, options);
 
 export const getInteractiveControlSx = (
   theme,
@@ -121,15 +121,20 @@ export const getInteractiveControlSx = (
     color: interaction.color,
     backgroundColor: interaction.background,
     borderColor: showBorder && active ? interaction.activeBorder : 'transparent',
-    transition: theme.transitions.create(['background-color', 'border-color', 'color', 'box-shadow'], {
-      duration: theme.transitions.duration.shorter,
-    }),
+    transition: theme.transitions.create(
+      ['background-color', 'border-color', 'color', 'box-shadow'],
+      {
+        duration: theme.transitions.duration.shorter,
+      },
+    ),
     [HOVER_CAPABLE_QUERY]: {
       '&:hover': {
         color: interaction.hoverColor,
         backgroundColor: active ? interaction.activeHoverBackground : interaction.hoverBackground,
         borderColor: showBorder
-          ? (active ? interaction.activeBorder : interaction.hoverBorder)
+          ? active
+            ? interaction.activeBorder
+            : interaction.hoverBorder
           : 'transparent',
       },
     },
@@ -165,11 +170,7 @@ export const getInteractiveIconButtonSx = (
 
 export const getSegmentedToggleGroupSx = (
   theme,
-  {
-    itemMinHeight = 34,
-    itemRadius = '8px',
-    gap = 0.25,
-  } = {},
+  { itemMinHeight = 34, itemRadius = '8px', gap = 0.25 } = {},
 ) => {
   const interaction = getInteractionColors(theme);
 
@@ -235,11 +236,7 @@ export const getPopoverMenuListSx = () => ({
 
 export const getPopoverMenuItemSx = (
   theme,
-  {
-    active = false,
-    tone = 'neutral',
-    columns = 'auto minmax(0, 1fr)',
-  } = {},
+  { active = false, tone = 'neutral', columns = 'auto minmax(0, 1fr)' } = {},
 ) => {
   const interaction = getInteractionColors(theme, { active, tone });
 
@@ -292,11 +289,7 @@ export const getPopoverMenuItemSx = (
 
 export const getInsetPanelSx = (
   theme,
-  {
-    backgroundOpacity = 0.5,
-    borderRadius = 2,
-    enableHover = false,
-  } = {},
+  { backgroundOpacity = 0.5, borderRadius = 2, enableHover = false } = {},
 ) => ({
   borderRadius,
   border: '1px solid',
@@ -314,13 +307,7 @@ export const getInsetPanelSx = (
     : {}),
 });
 
-export const getUtilityIconButtonSx = (
-  theme,
-  {
-    padding = 0.5,
-    radius = '6px',
-  } = {},
-) => {
+export const getUtilityIconButtonSx = (theme, { padding = 0.5, radius = '6px' } = {}) => {
   const baseSx = getInteractiveControlSx(theme, { radius });
   return {
     ...baseSx,
@@ -401,17 +388,11 @@ export const getSelectableMenuItemSx = (
 
 export const getDialogPaperSx = (
   theme,
-  {
-    isMobile = false,
-    desktopMaxHeight = 720,
-    desktopMinHeight = 400,
-  } = {},
+  { isMobile = false, desktopMaxHeight = 720, desktopMinHeight = 400 } = {},
 ) => ({
   ...getPopoverPaperSx(theme, theme.palette.mode === 'dark', {
     borderRadius: isMobile ? 0 : '16px',
-    height: isMobile
-      ? '100vh'
-      : `calc(100vh - ${UI_LAYOUT.dialogDesktopOffset}px)`,
+    height: isMobile ? '100vh' : `calc(100vh - ${UI_LAYOUT.dialogDesktopOffset}px)`,
     maxHeight: isMobile ? '100vh' : desktopMaxHeight,
     minHeight: isMobile ? '100vh' : desktopMinHeight,
     [DIALOG_VIEWPORT_SUPPORT_QUERY]: isMobile
@@ -422,7 +403,7 @@ export const getDialogPaperSx = (
         }
       : {},
     overflow: 'hidden',
-  })
+  }),
 });
 
 export const getDialogHeaderSx = () => ({
@@ -466,9 +447,7 @@ export const getDialogFooterSx = () => ({
 export const getPopoverPaperSx = (theme, isDark, overrides = {}) => ({
   borderRadius: '14px',
   border: `0.5px solid ${
-    isDark
-      ? alpha(theme.palette.text.primary, 0.12)
-      : alpha(theme.palette.text.primary, 0.09)
+    isDark ? alpha(theme.palette.text.primary, 0.12) : alpha(theme.palette.text.primary, 0.09)
   }`,
   backgroundColor: isDark
     ? alpha(theme.palette.background.paper, 0.96)

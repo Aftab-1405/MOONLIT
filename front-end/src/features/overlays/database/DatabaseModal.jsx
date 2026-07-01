@@ -1,48 +1,39 @@
-import React, { useState, useEffect, useCallback, memo, useMemo } from 'react';
+import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
+import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
+import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
+import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
 import {
-  Box,
-  Typography,
   Alert,
-  IconButton,
+  Box,
   Button,
-  TextField,
+  Fade,
+  IconButton,
   InputAdornment,
-  useMediaQuery,
   Slide,
   Stack,
-  Fade,
+  TextField,
   ToggleButton,
   ToggleButtonGroup,
   Tooltip,
+  Typography,
+  useMediaQuery,
 } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
-import { useSettings } from '@/contexts/SettingsContext';
-import { useLocalStorage } from '@/hooks';
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
-import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
-import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
-import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import DatabaseIcon from '@/components/icons/DatabaseIcon';
-import {
-  getDatabases,
-  connectDb,
-  disconnectDb,
-  switchDatabase,
-  selectDatabase,
-} from '@/api';
-import { getSelectedDatabase } from '@/utils/databaseResponse';
+import { alpha, useTheme } from '@mui/material/styles';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { connectDb, disconnectDb, getDatabases } from '@/api';
 import { queryClient, queryKeys } from '@/api/queryClient';
-import { useFormValidation } from '@/hooks/useFormValidation';
-import {
-  credentialsSchema,
-  connectionStringSchema,
-  dbFieldSchemas,
-} from '@/utils/validationSchemas';
-import { DB_TYPES } from '@/config/databases';
 import { ButtonLoadingSpinner, DialogShell } from '@/components';
-import { UI_LAYOUT } from '@/styles/shared';
+import DatabaseIcon from '@/components/icons/DatabaseIcon';
+import { DB_TYPES } from '@/config/databases';
+import { useSettings } from '@/contexts/SettingsContext';
 import {
+  getPreferenceBackdropSx,
+  getPreferenceBodySx,
+  getPreferenceButtonSx,
+  getPreferencePaperSx,
+  getPreferenceRootSx,
+  getPreferenceToggleGroupSx,
   PreferenceFooterActions,
   PreferenceLayout,
   PreferenceNavItem,
@@ -50,14 +41,17 @@ import {
   PreferencePageHeader,
   PreferenceRow,
   PreferenceSection,
-  getPreferenceBackdropSx,
-  getPreferenceBodySx,
-  getPreferenceButtonSx,
-  getPreferencePaperSx,
-  getPreferenceRootSx,
-  getPreferenceToggleGroupSx,
 } from '@/features/overlays/preference-surface';
+import { useLocalStorage } from '@/hooks';
+import { useFormValidation } from '@/hooks/useFormValidation';
+import { UI_LAYOUT } from '@/styles/shared';
+import { getSelectedDatabase } from '@/utils/databaseResponse';
 import logger from '@/utils/logger';
+import {
+  connectionStringSchema,
+  credentialsSchema,
+  dbFieldSchemas,
+} from '@/utils/validationSchemas';
 
 const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
@@ -90,35 +84,39 @@ function FieldGrid({ children }) {
 const VisibilityToggleAdornment = memo(({ show, onToggle }) => (
   <InputAdornment position="end" sx={{ mr: 0, alignSelf: 'center' }}>
     <Tooltip title={show ? 'Hide password' : 'Show password'}>
-    <IconButton
-      size="small"
-      onClick={onToggle}
-      edge="end"
-      aria-label={show ? 'Hide password' : 'Show password'}
-      disableRipple
-      sx={{
-        width: 32,
-        height: 32,
-        mr: -0.5,
-        color: 'text.secondary',
-        backgroundColor: 'transparent',
-        border: 'none',
-        boxShadow: 'none',
-        '&:hover': {
-          color: 'text.primary',
+      <IconButton
+        size="small"
+        onClick={onToggle}
+        edge="end"
+        aria-label={show ? 'Hide password' : 'Show password'}
+        disableRipple
+        sx={{
+          width: 32,
+          height: 32,
+          mr: -0.5,
+          color: 'text.secondary',
           backgroundColor: 'transparent',
           border: 'none',
           boxShadow: 'none',
-        },
-        '&:focus-visible': {
-          outline: '2px solid',
-          outlineColor: 'primary.main',
-          outlineOffset: 2,
-        },
-      }}
-    >
-      {show ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
-    </IconButton>
+          '&:hover': {
+            color: 'text.primary',
+            backgroundColor: 'transparent',
+            border: 'none',
+            boxShadow: 'none',
+          },
+          '&:focus-visible': {
+            outline: '2px solid',
+            outlineColor: 'primary.main',
+            outlineOffset: 2,
+          },
+        }}
+      >
+        {show ? (
+          <VisibilityOffOutlinedIcon fontSize="small" />
+        ) : (
+          <VisibilityOutlinedIcon fontSize="small" />
+        )}
+      </IconButton>
     </Tooltip>
   </InputAdornment>
 ));
@@ -133,7 +131,14 @@ function EmptyState({ icon, title, subtitle }) {
         {title}
       </Typography>
       {subtitle ? (
-        <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.disabled', mt: 0.5, display: 'block' }}>
+        <Typography
+          sx={{
+            ...theme.typography.uiCaptionMd,
+            color: 'text.disabled',
+            mt: 0.5,
+            display: 'block',
+          }}
+        >
           {subtitle}
         </Typography>
       ) : null}
@@ -213,15 +218,17 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
               gap: 1.5,
               minWidth: 0,
               border: '1px solid',
-              borderColor: isSelected ? alpha(theme.palette.success.main, 0.3) : 'divider',
+              borderColor: isSelected ? alpha(theme.palette.primary.main, 0.3) : 'divider',
               backgroundColor: isSelected
                 ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07)
                 : 'transparent',
-              '&:hover': !loading ? {
-                backgroundColor: isSelected
-                  ? alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09)
-                  : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
-              } : undefined,
+              '&:hover': !loading
+                ? {
+                  backgroundColor: isSelected
+                    ? alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09)
+                    : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
+                }
+                : undefined,
               '&:focus-visible': {
                 outline: `2px solid ${theme.palette.primary.main}`,
                 outlineOffset: 1,
@@ -229,7 +236,9 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
             }}
           >
             {isSelected ? (
-              <CheckCircleOutlineRoundedIcon sx={{ fontSize: 18, color: 'success.main', flexShrink: 0 }} />
+              <CheckCircleOutlineRoundedIcon
+                sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }}
+              />
             ) : (
               <DatabaseIcon sx={{ width: 16, height: 16, opacity: 0.78 }} />
             )}
@@ -257,6 +266,7 @@ function DatabaseModal({
   open,
   onClose,
   onConnect,
+  onSelectDatabase,
   isConnected,
   currentDatabase,
   availableDatabases = [],
@@ -285,7 +295,10 @@ function DatabaseModal({
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [databases, setDatabases] = useState([]);
-  const sharedDatabasesKey = useMemo(() => availableDatabases.join('\u001f'), [availableDatabases]);
+  const _sharedDatabasesKey = useMemo(
+    () => availableDatabases.join('\u001f'),
+    [availableDatabases],
+  );
 
   useEffect(() => {
     if (success) {
@@ -295,11 +308,19 @@ function DatabaseModal({
       return () => clearTimeout(timer);
     }
   }, [success]);
-  const [isRemote, setIsRemote] = useState(false);
+  const [_isRemote, setIsRemote] = useState(false);
   const [connectionActive, setConnectionActive] = useState(isConnected);
   const [selectedDatabase, setSelectedDatabase] = useState(currentDatabase);
-  const { errors: fieldErrors, validateField, validateForm, clearError } = useFormValidation(dbFieldSchemas);
-  const currentDbConfig = useMemo(() => DB_TYPES.find((db) => db.value === dbType) || DB_TYPES[1], [dbType]);
+  const {
+    errors: fieldErrors,
+    validateField,
+    validateForm,
+    clearError,
+  } = useFormValidation(dbFieldSchemas);
+  const currentDbConfig = useMemo(
+    () => DB_TYPES.find((db) => db.value === dbType) || DB_TYPES[1],
+    [dbType],
+  );
   const supportsConnectionString = currentDbConfig.supportsConnectionString;
   const hasDatabases = databases.length > 0;
   const databaseSurfaceLeft = '0px';
@@ -332,15 +353,15 @@ function DatabaseModal({
           setFormData((prev) => ({ ...prev, ...savedConnection.formData }));
         }
       } else {
-        // Not a saved connection tab, completely clear previous form data 
+        // Not a saved connection tab, completely clear previous form data
         // to prevent bleeding credentials from one provider to another.
         const dbConfig = DB_TYPES.find((db) => db.value === dbType);
-        setFormData({ 
+        setFormData({
           host: '',
           user: '',
           password: '',
           database: '',
-          port: dbConfig?.defaultPort?.toString() || '' 
+          port: dbConfig?.defaultPort?.toString() || '',
         });
         setConnectionString(''); // Clear connection string as well
       }
@@ -392,7 +413,7 @@ function DatabaseModal({
     if (open && connectionActive && databases.length === 0) {
       fetchDatabases();
     }
-  }, [availableDatabases, connectionActive, databases.length, fetchDatabases, open, sharedDatabasesKey]);
+  }, [availableDatabases, connectionActive, databases.length, fetchDatabases, open]);
 
   useEffect(() => {
     if (!hasDatabases && mobileSection === 'databases') {
@@ -405,12 +426,15 @@ function DatabaseModal({
     setError(null);
   }, []);
 
-  const handleInputChange = useCallback((event) => {
-    const { name, value } = event.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    clearError(name);
-    setError(null);
-  }, [clearError]);
+  const handleInputChange = useCallback(
+    (event) => {
+      const { name, value } = event.target;
+      setFormData((prev) => ({ ...prev, [name]: value }));
+      clearError(name);
+      setError(null);
+    },
+    [clearError],
+  );
 
   const handleConnect = useCallback(async () => {
     setLoading(true);
@@ -458,7 +482,6 @@ function DatabaseModal({
             },
           });
         }
-
       } else {
         setError(response.message || 'Failed to connect');
       }
@@ -479,24 +502,26 @@ function DatabaseModal({
     validateForm,
   ]);
 
-  const handleSelectDatabase = useCallback(async (dbName) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = isRemote ? await switchDatabase(dbName) : await selectDatabase(dbName);
-      if (response.status === 'success') {
-        setSuccess(`Switched to ${dbName}`);
-        setSelectedDatabase(dbName);
-        onConnect?.(response.data);
-      } else {
-        setError(response.message);
+  const handleSelectDatabase = useCallback(
+    async (dbName) => {
+      setLoading(true);
+      setError(null);
+      try {
+        const response = await onSelectDatabase?.(dbName);
+        if (response?.success) {
+          setSuccess(`Switched to ${dbName}`);
+          setSelectedDatabase(dbName);
+        } else {
+          setError(response?.error || 'Failed to select database');
+        }
+      } catch (err) {
+        setError(err.message || 'Failed to select database');
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      setError(err.message || 'Failed to select database');
-    } finally {
-      setLoading(false);
-    }
-  }, [isRemote, onConnect]);
+    },
+    [onSelectDatabase],
+  );
 
   const handleDisconnect = useCallback(async () => {
     setLoading(true);
@@ -516,16 +541,19 @@ function DatabaseModal({
 
   const toggleGroupSx = useMemo(() => getPreferenceToggleGroupSx(theme), [theme]);
   const dangerButtonSx = useMemo(() => getPreferenceButtonSx(theme, { tone: 'danger' }), [theme]);
-  const successButtonSx = useMemo(() => ({
-    minHeight: 34,
-    borderRadius: '8px',
-    px: 1.5,
-    textTransform: 'none',
-    ...theme.typography.uiNavItem,
-    fontWeight: 600,
-    boxShadow: 'none',
-    '&:hover': { boxShadow: 'none' },
-  }), [theme]);
+  const successButtonSx = useMemo(
+    () => ({
+      minHeight: 34,
+      borderRadius: '8px',
+      px: 1.5,
+      textTransform: 'none',
+      ...theme.typography.uiNavItem,
+      fontWeight: 600,
+      boxShadow: 'none',
+      '&:hover': { boxShadow: 'none' },
+    }),
+    [theme],
+  );
 
   const navContent = (
     <PreferenceNavList ariaLabel="Database type">
@@ -574,7 +602,7 @@ function DatabaseModal({
             <ToggleButtonGroup
               value={connectionMode}
               exclusive
-              onChange={(event, value) => value && setConnectionMode(value)}
+              onChange={(_event, value) => value && setConnectionMode(value)}
               size="small"
               sx={toggleGroupSx}
             >
@@ -592,96 +620,116 @@ function DatabaseModal({
       ) : null}
       <DatabaseSection title="Connection Details">
         <FieldGrid>
-        {connectionMode === 'connection_string' && supportsConnectionString ? (
-          <TextField
-            fullWidth
-            label="Connection String"
-            value={connectionString}
-            onChange={(event) => {
-              setConnectionString(event.target.value);
-              clearError('connectionString');
-            }}
-            onBlur={(e) => validateField('connectionString', e.target.value)}
-            type={showConnectionString ? 'text' : 'password'}
-            error={!!fieldErrors.connectionString}
-            helperText={fieldErrors.connectionString || 'e.g., postgresql://user:pass@host:5432/db'}
-            variant="standard"
-            InputProps={{
-              endAdornment: <VisibilityToggleAdornment show={showConnectionString} onToggle={() => setShowConnectionString(!showConnectionString)} />,
-            }}
-          />
-        ) : (
-          <Stack spacing={2}>
-            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+          {connectionMode === 'connection_string' && supportsConnectionString ? (
+            <TextField
+              fullWidth
+              label="Connection String"
+              value={connectionString}
+              onChange={(event) => {
+                setConnectionString(event.target.value);
+                clearError('connectionString');
+              }}
+              onBlur={(e) => validateField('connectionString', e.target.value)}
+              type={showConnectionString ? 'text' : 'password'}
+              error={!!fieldErrors.connectionString}
+              helperText={
+                fieldErrors.connectionString || 'e.g., postgresql://user:pass@host:5432/db'
+              }
+              variant="standard"
+              InputProps={{
+                endAdornment: (
+                  <VisibilityToggleAdornment
+                    show={showConnectionString}
+                    onToggle={() => setShowConnectionString(!showConnectionString)}
+                  />
+                ),
+              }}
+            />
+          ) : (
+            <Stack spacing={2}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2}>
+                <TextField
+                  fullWidth
+                  name="host"
+                  label="Host"
+                  placeholder="e.g., db.example.com"
+                  value={formData.host}
+                  onChange={handleInputChange}
+                  onBlur={(e) => validateField('host', e.target.value)}
+                  error={!!fieldErrors.host}
+                  helperText={fieldErrors.host}
+                  variant="standard"
+                />
+                <TextField
+                  sx={{ width: { xs: '100%', sm: 100 }, flexShrink: 0 }}
+                  name="port"
+                  label="Port"
+                  value={formData.port}
+                  onChange={handleInputChange}
+                  onBlur={(e) => validateField('port', e.target.value)}
+                  error={!!fieldErrors.port}
+                  helperText={fieldErrors.port}
+                  variant="standard"
+                />
+              </Stack>
               <TextField
                 fullWidth
-                name="host"
-                label="Host"
-                placeholder="e.g., db.example.com"
-                value={formData.host}
+                name="user"
+                label="Username"
+                autoCapitalize="none"
+                value={formData.user}
                 onChange={handleInputChange}
-                onBlur={(e) => validateField('host', e.target.value)}
-                error={!!fieldErrors.host}
-                helperText={fieldErrors.host}
+                onBlur={(e) => validateField('user', e.target.value)}
+                error={!!fieldErrors.user}
+                helperText={fieldErrors.user}
                 variant="standard"
               />
               <TextField
-                sx={{ width: { xs: '100%', sm: 100 }, flexShrink: 0 }}
-                name="port"
-                label="Port"
-                value={formData.port}
+                fullWidth
+                name="password"
+                label="Password"
+                type={showPassword ? 'text' : 'password'}
+                value={formData.password}
                 onChange={handleInputChange}
-                onBlur={(e) => validateField('port', e.target.value)}
-                error={!!fieldErrors.port}
-                helperText={fieldErrors.port}
+                onBlur={(e) => validateField('password', e.target.value)}
+                error={!!fieldErrors.password}
+                helperText={fieldErrors.password}
+                variant="standard"
+                InputProps={{
+                  endAdornment: (
+                    <VisibilityToggleAdornment
+                      show={showPassword}
+                      onToggle={() => setShowPassword(!showPassword)}
+                    />
+                  ),
+                }}
+              />
+              <TextField
+                fullWidth
+                name="database"
+                label="Database (Optional)"
+                value={formData.database}
+                onChange={handleInputChange}
+                onBlur={(e) => validateField('database', e.target.value)}
+                error={!!fieldErrors.database}
+                helperText={fieldErrors.database}
+                autoCapitalize="none"
                 variant="standard"
               />
             </Stack>
-            <TextField
-              fullWidth
-              name="user"
-              label="Username"
-              autoCapitalize="none"
-              value={formData.user}
-              onChange={handleInputChange}
-              onBlur={(e) => validateField('user', e.target.value)}
-              error={!!fieldErrors.user}
-              helperText={fieldErrors.user}
-              variant="standard"
-            />
-            <TextField
-              fullWidth
-              name="password"
-              label="Password"
-              type={showPassword ? 'text' : 'password'}
-              value={formData.password}
-              onChange={handleInputChange}
-              onBlur={(e) => validateField('password', e.target.value)}
-              error={!!fieldErrors.password}
-              helperText={fieldErrors.password}
-              variant="standard"
-              InputProps={{
-                endAdornment: <VisibilityToggleAdornment show={showPassword} onToggle={() => setShowPassword(!showPassword)} />,
-              }}
-            />
-            <TextField
-              fullWidth
-              name="database"
-              label="Database (Optional)"
-              value={formData.database}
-              onChange={handleInputChange}
-              onBlur={(e) => validateField('database', e.target.value)}
-              error={!!fieldErrors.database}
-              helperText={fieldErrors.database}
-              autoCapitalize="none"
-              variant="standard"
-            />
-          </Stack>
-        )}
+          )}
         </FieldGrid>
       </DatabaseSection>
-      {error ? <Alert severity="error" sx={{ borderRadius: 2, mt: 1 }}>{error}</Alert> : null}
-      {success ? <Alert severity="success" sx={{ borderRadius: 2, mt: 1 }}>{success}</Alert> : null}
+      {error ? (
+        <Alert severity="error" sx={{ borderRadius: 2, mt: 1 }}>
+          {error}
+        </Alert>
+      ) : null}
+      {success ? (
+        <Alert severity="success" sx={{ borderRadius: 2, mt: 1 }}>
+          {success}
+        </Alert>
+      ) : null}
     </Box>
   );
 
@@ -726,7 +774,7 @@ function DatabaseModal({
             <ToggleButtonGroup
               value={mobileSection}
               exclusive
-              onChange={(event, value) => value && setMobileSection(value)}
+              onChange={(_event, value) => value && setMobileSection(value)}
               size="small"
               sx={toggleGroupSx}
             >
@@ -767,10 +815,12 @@ function DatabaseModal({
             >
               Disconnect
             </Button>
-          ) : <Box />}
+          ) : (
+            <Box />
+          )}
           <Button
             variant="contained"
-            color="success"
+            color="primary"
             disableElevation
             onClick={handleConnect}
             disabled={loading || connectionActive}

@@ -1,10 +1,10 @@
 import { Box, Button, Typography } from '@mui/material';
-import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 import {
-  PREFERENCE_LAYOUT,
   getPreferenceButtonSx,
   getPreferenceSectionSurfaceSx,
+  PREFERENCE_LAYOUT,
 } from '@/features/overlays/preference-surface/preferenceSurfaceStyles';
+import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 
 export function PreferencePageHeader({ title, onClose }) {
   return (
@@ -103,9 +103,7 @@ function PreferenceSidebar({ children }) {
         ...getScrollbarStyles(theme),
       })}
     >
-      <Box sx={{ position: { md: 'sticky' }, top: { md: 86 } }}>
-        {children}
-      </Box>
+      <Box sx={{ position: { md: 'sticky' }, top: { md: 86 } }}>{children}</Box>
     </Box>
   );
 }
@@ -178,7 +176,9 @@ export function PreferenceNavItem({ active, onClick, icon, textColor, children }
               },
             },
             '&:hover': {
-              backgroundColor: active ? interaction.activeHoverBackground : interaction.hoverBackground,
+              backgroundColor: active
+                ? interaction.activeHoverBackground
+                : interaction.hoverBackground,
               color: textColor || 'text.primary',
               border: 0,
               boxShadow: active
@@ -234,14 +234,19 @@ export function PreferenceSection({ title, description, children, sx = {} }) {
           {description}
         </Typography>
       ) : null}
-      <Box sx={(theme) => ({ ...getPreferenceSectionSurfaceSx(theme), mt: 0.5 })}>
-        {children}
-      </Box>
+      <Box sx={(theme) => ({ ...getPreferenceSectionSurfaceSx(theme), mt: 0.5 })}>{children}</Box>
     </Box>
   );
 }
 
-export function PreferenceRow({ label, description, children, disabled = false, sx = {}, onClick = undefined }) {
+export function PreferenceRow({
+  label,
+  description,
+  children,
+  disabled = false,
+  sx = {},
+  onClick = undefined,
+}) {
   return (
     <Box
       role="group"
@@ -267,11 +272,11 @@ export function PreferenceRow({ label, description, children, disabled = false, 
         ...sx,
       })}
     >
-      <Box 
-        sx={{ 
-          flex: 1, 
-          minWidth: 0, 
-          display: 'block' 
+      <Box
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          display: 'block',
         }}
       >
         <Typography
@@ -302,13 +307,13 @@ export function PreferenceRow({ label, description, children, disabled = false, 
           justifyContent: { xs: 'stretch', sm: 'flex-end' },
           alignItems: 'center',
           '& > *': {
-          maxWidth: '100%',
-        },
-        '& > .MuiFormControl-root, & > .MuiToggleButtonGroup-root': {
-          width: { xs: '100%', sm: 'auto' },
-        },
-      }}
-    >
+            maxWidth: '100%',
+          },
+          '& > .MuiFormControl-root, & > .MuiToggleButtonGroup-root': {
+            width: { xs: '100%', sm: 'auto' },
+          },
+        }}
+      >
         {children}
       </Box>
     </Box>

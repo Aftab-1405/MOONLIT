@@ -63,9 +63,6 @@ class ConversationSummarizer(Protocol):
 class ConversationTaskStateStore(Protocol):
     """Port for task-mode state persisted with a conversation."""
 
-    def get_task_status(self, conversation_id: str) -> str:
-        """Return the current task status for a conversation."""
-
     def update_task_checkpoint_summary(
         self, conversation_id: str, summary: str, run_id: str
     ) -> bool:

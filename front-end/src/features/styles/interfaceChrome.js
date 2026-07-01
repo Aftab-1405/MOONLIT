@@ -21,10 +21,7 @@ function getHairlineBorder(theme, opacity = null) {
 }
 
 export function getAppDividerColor(theme) {
-  return alpha(
-    theme.palette.text.primary,
-    theme.palette.mode === 'dark' ? 0.09 : 0.07,
-  );
+  return alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.09 : 0.07);
 }
 
 export function getAppPanelSurfaceSx(theme) {
@@ -82,7 +79,8 @@ export function getComposerSurfaceSx(theme) {
       : alpha(theme.palette.background.paper, 1),
     backgroundImage: 'none',
     boxShadow: `0 0 0 1px ${ring}`,
-    transition: 'box-shadow 160ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 140ms ease, transform 140ms ease',
+    transition:
+      'box-shadow 160ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 140ms ease, transform 140ms ease',
   };
 }
 

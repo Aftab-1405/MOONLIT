@@ -50,13 +50,14 @@ export function createAssistantMessage({
   timelineOverride = null,
   usage = null,
 } = {}) {
-  const parsed = (textOverride !== null || Array.isArray(stepsOverride))
-    ? {
-      text: textOverride ?? '',
-      steps: Array.isArray(stepsOverride) ? stepsOverride : [],
-      timeline: Array.isArray(timelineOverride) ? timelineOverride : [],
-    }
-    : parseAssistantContent(rawContent, thinking, tools, timelineOverride);
+  const parsed =
+    textOverride !== null || Array.isArray(stepsOverride)
+      ? {
+          text: textOverride ?? '',
+          steps: Array.isArray(stepsOverride) ? stepsOverride : [],
+          timeline: Array.isArray(timelineOverride) ? timelineOverride : [],
+        }
+      : parseAssistantContent(rawContent, thinking, tools, timelineOverride);
 
   return {
     id,
@@ -72,13 +73,12 @@ export function createAssistantMessage({
 export function normalizeConversationMessage(message, index = 0) {
   const sender = message?.sender === 'user' ? 'user' : 'ai';
   const timestamp = message?.timestamp;
-  const timestampPart = (
+  const timestampPart =
     typeof timestamp === 'string' || typeof timestamp === 'number'
       ? String(timestamp)
       : timestamp?.seconds
         ? String(timestamp.seconds)
-        : String(index)
-  );
+        : String(index);
   const id = `${sender}-${timestampPart}-${index}`;
 
   if (sender === 'user') {
@@ -87,9 +87,8 @@ export function normalizeConversationMessage(message, index = 0) {
 
   // If the backend persisted an ordered timeline, use it directly.
   // Otherwise fall back to reconstructing from flat tools/thinking fields.
-  const rawTimeline = Array.isArray(message?.timeline) && message.timeline.length > 0
-    ? message.timeline
-    : null;
+  const rawTimeline =
+    Array.isArray(message?.timeline) && message.timeline.length > 0 ? message.timeline : null;
   // Normalize Python snake_case keys (is_complete) → camelCase (isComplete)
   const storedTimeline = rawTimeline ? rawTimeline.map(normalizeTimelineItem) : null;
 
@@ -128,7 +127,12 @@ export function isMessageActive(message) {
  * Build text + steps + timeline from stored assistant message fields.
  * Used for legacy messages that predate timeline persistence.
  */
-function parseAssistantContent(text, thinkingField = null, toolsField = null, timelineOverride = null) {
+function parseAssistantContent(
+  text,
+  thinkingField = null,
+  toolsField = null,
+  timelineOverride = null,
+) {
   const parsedText = String(text || '').trim();
 
   // If a stored timeline was passed through, use it as-is and derive steps from it.
@@ -178,7 +182,7 @@ function parseAssistantContent(text, thinkingField = null, toolsField = null, ti
 
   // Only use the synthetic timeline when there are non-text items to interleave.
   // Pure-text messages don't need it (the legacy text block path handles them fine).
-  const timeline = (steps.length > 0 && syntheticTimeline.length > 0) ? syntheticTimeline : [];
+  const timeline = steps.length > 0 && syntheticTimeline.length > 0 ? syntheticTimeline : [];
 
   return { text: parsedText, steps, timeline };
 }

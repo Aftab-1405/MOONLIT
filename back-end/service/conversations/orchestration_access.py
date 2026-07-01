@@ -72,10 +72,6 @@ class FirestoreConversationTaskStateStore:
         db = FirestoreService.get_db()
         return db.collection("conversations").document(conversation_id)
 
-    def get_task_status(self, conversation_id: str) -> str:
-        snap = self._conversation_ref(conversation_id).get()
-        return snap.to_dict().get("task_status", "") if snap.exists else ""
-
     @staticmethod
     def _lease_is_active(data: dict, now: datetime) -> bool:
         expires_at = data.get("task_lease_expires_at")

@@ -11,8 +11,8 @@
  * @module api/conversations
  */
 
-import { get, del, patch, postRaw } from "@/api/client";
-import { CONVERSATIONS } from "@/api/endpoints";
+import { del, get, patch, postRaw } from '@/api/client';
+import { CONVERSATIONS } from '@/api/endpoints';
 
 const MAX_CONCURRENT_EXECUTION_READS = 4;
 const MAX_CACHED_EXECUTION_READS = 200;
@@ -21,10 +21,7 @@ const executionResultQueue = [];
 let activeExecutionReads = 0;
 
 function drainExecutionResultQueue() {
-  while (
-    activeExecutionReads < MAX_CONCURRENT_EXECUTION_READS &&
-    executionResultQueue.length > 0
-  ) {
+  while (activeExecutionReads < MAX_CONCURRENT_EXECUTION_READS && executionResultQueue.length > 0) {
     const { task, resolve, reject } = executionResultQueue.shift();
     activeExecutionReads += 1;
     Promise.resolve()
@@ -132,12 +129,12 @@ export async function sendMessage(
     prompt,
     conversationId = null,
     enableReasoning = true,
-    reasoningEffort = "medium",
-    responseStyle = "balanced",
+    reasoningEffort = 'medium',
+    responseStyle = 'balanced',
     maxRows = 1000,
     provider = null,
     model = null,
-    taskMode = "normal",
+    taskMode = 'normal',
   },
   signal,
 ) {
@@ -160,7 +157,7 @@ export async function sendMessage(
       // upstream proxy) negotiates gzip with the backend, it buffers the entire
       // compressed SSE stream before forwarding it — making all tokens arrive
       // simultaneously and killing the streaming effect.
-      headers: { "Accept-Encoding": "identity" },
+      headers: { 'Accept-Encoding': 'identity' },
     },
   );
 }
@@ -179,12 +176,12 @@ export async function resumeAgent(
     conversationId,
     resume,
     enableReasoning = true,
-    reasoningEffort = "medium",
-    responseStyle = "balanced",
+    reasoningEffort = 'medium',
+    responseStyle = 'balanced',
     maxRows = 1000,
     provider = null,
     model = null,
-    taskMode = "normal",
+    taskMode = 'normal',
   },
   signal,
 ) {
@@ -204,7 +201,7 @@ export async function resumeAgent(
     {
       signal,
       // Same reason as sendMessage — prevent proxy compression buffering.
-      headers: { "Accept-Encoding": "identity" },
+      headers: { 'Accept-Encoding': 'identity' },
     },
   );
 }

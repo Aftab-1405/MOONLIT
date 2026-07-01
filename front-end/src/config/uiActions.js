@@ -12,7 +12,9 @@ export const UI_ACTIONS = {
     done: 'Prepared SQL query',
     validate: ({ payload }) => {
       const query = typeof payload?.query === 'string' ? payload.query.trim() : '';
-      return query ? { ok: true, payload: { ...payload, query } } : { ok: false, reason: 'Missing SQL query.' };
+      return query
+        ? { ok: true, payload: { ...payload, query } }
+        : { ok: false, reason: 'Missing SQL query.' };
     },
   },
   open_database_modal: {
@@ -20,7 +22,8 @@ export const UI_ACTIONS = {
     done: 'Opened database connection',
     validate: ({ payload }) => {
       const dbType = payload?.db_type;
-      if (dbType === undefined || dbType === null || dbType === '') return { ok: true, payload: payload || {} };
+      if (dbType === undefined || dbType === null || dbType === '')
+        return { ok: true, payload: payload || {} };
       return VALID_DB_TYPES.includes(dbType)
         ? { ok: true, payload }
         : { ok: false, reason: `Unsupported database type: ${dbType}.` };

@@ -73,6 +73,7 @@ class PromptBuilder:
             - Use prose for simple answers and bullets only for genuinely discrete items. Ask one clarifying question only when blocked by material ambiguity.
             - Synthesize tool results instead of dumping them. State correctness-affecting assumptions and uncertainty plainly.
             - On tool failure, briefly explain what failed and take the safest useful next step. Never disguise missing evidence as a confident answer.
+            - Never begin or wrap your response in context-structure XML tags such as <assistant_response>, <previous_assistant_turn>, <current_user_request>, or any tag defined in <context_structure>. Respond in plain prose only.
             </response_rules>
             """
         ).strip()

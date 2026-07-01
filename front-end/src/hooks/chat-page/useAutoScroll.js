@@ -8,7 +8,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 const PINNED_THRESHOLD_PX = 96;
 const POST_STREAM_SETTLE_MS = 700;
 
-function useAutoScroll({ messageCount, isStreaming, isConversationLoading = false, activityKey = '' }) {
+function useAutoScroll({
+  messageCount,
+  isStreaming,
+  isConversationLoading = false,
+  _activityKey = '',
+}) {
   const [scrollContainer, setScrollContainer] = useState(null);
   const scheduleRafRef = useRef(null);
   const prevMessageCountRef = useRef(messageCount);
@@ -57,7 +62,8 @@ function useAutoScroll({ messageCount, isStreaming, isConversationLoading = fals
     if (!scrollContainer) return undefined;
 
     const handleScroll = () => {
-      const distanceFromBottom = scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
+      const distanceFromBottom =
+        scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
       pinnedRef.current = distanceFromBottom <= PINNED_THRESHOLD_PX;
     };
 
@@ -100,7 +106,7 @@ function useAutoScroll({ messageCount, isStreaming, isConversationLoading = fals
     if (shouldAutoFollow()) {
       scheduleScrollToBottom();
     }
-  }, [activityKey, scheduleScrollToBottom, scrollContainer, shouldAutoFollow]);
+  }, [scheduleScrollToBottom, scrollContainer, shouldAutoFollow]);
   useEffect(() => {
     if (!scrollContainer || typeof ResizeObserver === 'undefined') return undefined;
 
@@ -120,7 +126,7 @@ function useAutoScroll({ messageCount, isStreaming, isConversationLoading = fals
     return () => {
       observer.disconnect();
     };
-  }, [messageCount, scrollContainer, scheduleScrollToBottom, shouldAutoFollow]);
+  }, [scrollContainer, scheduleScrollToBottom, shouldAutoFollow]);
 
   useEffect(() => {
     return () => {

@@ -1,67 +1,65 @@
-/**
- * QueryTabs - Tab bar for managing multiple SQL queries
- */
-
-import { memo } from 'react';
-import {
-  Box,
-  IconButton,
-  Tooltip,
-  ToggleButton,
-  ToggleButtonGroup,
-} from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
-import RemoveCircleOutlineRounded from '@mui/icons-material/RemoveCircleOutlineRounded';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import FiberManualRecordRoundedIcon from '@mui/icons-material/FiberManualRecordRounded';
-import PostAddRounded from '@mui/icons-material/PostAddRounded';
+import { Box, IconButton, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { memo } from 'react';
+import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
 import SidebarPanelIcon from '@/components/icons/SidebarPanelIcon';
-import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 import { getArtifactActionButtonSx } from '@/features/sidebar-right/artifact-loader';
-import { getAppBarSurfaceSx, getAppDividerColor } from '@/features/styles/interfaceChrome';
+import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 
-const TAB_HEIGHT = 30;
-const TAB_MIN_WIDTH = 112;
-const TAB_MAX_WIDTH = 220;
+const TAB_HEIGHT = 32;
+const TAB_MIN_WIDTH = 104;
+const TAB_MAX_WIDTH = 196;
 
 function getTabSx(theme, active) {
   const interaction = getInteractionColors(theme, { active });
+  const activeBackground = alpha(
+    theme.palette.text.primary,
+    theme.palette.mode === 'dark' ? 0.09 : 0.055,
+  );
+  const activeHoverBackground = alpha(
+    theme.palette.text.primary,
+    theme.palette.mode === 'dark' ? 0.12 : 0.075,
+  );
+
   return {
     height: TAB_HEIGHT,
     minWidth: TAB_MIN_WIDTH,
     maxWidth: TAB_MAX_WIDTH,
     flex: '0 1 auto',
-    px: 1,
+    px: 1.125,
     py: 0,
     gap: 0.75,
     border: 0,
-    borderRadius: '8px',
+    borderRadius: '9px',
     textTransform: 'none',
     color: active ? 'text.primary' : 'text.secondary',
-    bgcolor: active ? interaction.activeBackground : 'transparent',
-    transition: theme.transitions.create(['background-color', 'color'], {
+    bgcolor: active ? activeBackground : 'transparent',
+    boxShadow: active
+      ? `inset 0 0 0 1px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.075)}`
+      : 'none',
+    transition: theme.transitions.create(['background-color', 'box-shadow', 'color'], {
       duration: theme.transitions.duration.shorter,
     }),
     '&:hover': {
       color: 'text.primary',
-      bgcolor: active ? interaction.activeHoverBackground : interaction.hoverBackground,
+      bgcolor: active ? activeHoverBackground : interaction.hoverBackground,
     },
     '&.Mui-selected': {
       color: 'text.primary',
-      bgcolor: interaction.activeBackground,
-      '&:hover': {
-        bgcolor: interaction.activeHoverBackground,
-      },
+      bgcolor: activeBackground,
+      '&:hover': { bgcolor: activeHoverBackground },
     },
     '&.MuiToggleButtonGroup-grouped': {
       border: 0,
       mx: 0,
       '&:not(:first-of-type)': {
-        borderRadius: '8px',
+        borderRadius: '9px',
         marginLeft: 0,
       },
-      '&:first-of-type': {
-        borderRadius: '8px',
-      },
+      '&:first-of-type': { borderRadius: '9px' },
     },
   };
 }
@@ -82,24 +80,21 @@ function QueryTabs({
       sx={{
         display: 'flex',
         alignItems: 'center',
-        gap: 0.75,
-        px: 1,
-        py: 0.75,
-        borderBottom: '1px solid',
-        borderColor: getAppDividerColor(theme),
-        ...getAppBarSurfaceSx(theme),
+        gap: 0.625,
+        px: 1.125,
+        py: 0.875,
+        bgcolor: 'transparent',
         flexShrink: 0,
-        minHeight: 46,
+        minHeight: 48,
       }}
     >
-      {/* Sidebar toggle */}
       {!schemaSidebarOpen && (
-        <Tooltip title="Show schema sidebar">
+        <Tooltip title="Show schema explorer">
           <IconButton
             size="small"
             onClick={onToggleSidebar}
-            aria-label="Show schema sidebar"
-            sx={getArtifactActionButtonSx(theme, { size: 30 })}
+            aria-label="Show schema explorer"
+            sx={getArtifactActionButtonSx(theme, { size: 32 })}
           >
             <SidebarPanelIcon sx={{ fontSize: 18 }} />
           </IconButton>
@@ -136,24 +131,30 @@ function QueryTabs({
               aria-label={tab.title}
               sx={getTabSx(theme, active)}
             >
+              <CodeEditorIcon
+                sx={{
+                  width: 14,
+                  height: 14,
+                  flexShrink: 0,
+                  color: active ? 'text.primary' : 'text.disabled',
+                }}
+              />
               <Box
                 component="span"
                 sx={{
                   whiteSpace: 'nowrap',
                   overflow: 'hidden',
-                  textOverflow: 'clip',
+                  textOverflow: 'ellipsis',
                   flex: 1,
                   minWidth: 0,
                   textAlign: 'left',
-                  maskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
-                  WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
                 }}
               >
                 {tab.title}
               </Box>
               {tab.isDirty && (
                 <FiberManualRecordRoundedIcon
-                  sx={{ fontSize: 8, color: 'primary.main', flexShrink: 0 }}
+                  sx={{ fontSize: 7, color: 'text.primary', flexShrink: 0 }}
                 />
               )}
               {tabs.length > 1 && (
@@ -163,33 +164,45 @@ function QueryTabs({
                     role="button"
                     tabIndex={0}
                     aria-label={`Close ${tab.title}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
+                    onClick={(event) => {
+                      event.stopPropagation();
                       onTabClose(tab.id);
                     }}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault();
-                        e.stopPropagation();
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        event.stopPropagation();
                         onTabClose(tab.id);
                       }
                     }}
                     sx={{
-                      width: 22,
-                      height: 22,
+                      width: 20,
+                      height: 20,
                       display: 'inline-flex',
                       alignItems: 'center',
                       justifyContent: 'center',
                       color: 'inherit',
-                      opacity: active ? 0.82 : 0.58,
+                      opacity: active ? 0.72 : 0,
                       borderRadius: '6px',
+                      transition: theme.transitions.create(['background-color', 'opacity'], {
+                        duration: theme.transitions.duration.shorter,
+                      }),
+                      '.MuiToggleButton-root:hover &': { opacity: 0.72 },
                       '&:hover': {
                         opacity: 1,
-                        bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.06),
+                        bgcolor: alpha(
+                          theme.palette.text.primary,
+                          theme.palette.mode === 'dark' ? 0.12 : 0.06,
+                        ),
+                      },
+                      '&:focus-visible': {
+                        opacity: 1,
+                        outline: `2px solid ${alpha(theme.palette.primary.main, 0.38)}`,
+                        outlineOffset: 1,
                       },
                     }}
                   >
-                    <RemoveCircleOutlineRounded sx={{ fontSize: 16 }} />
+                    <CloseRoundedIcon sx={{ fontSize: 14 }} />
                   </Box>
                 </Tooltip>
               )}
@@ -198,15 +211,21 @@ function QueryTabs({
         })}
       </ToggleButtonGroup>
 
-      {/* Add tab button */}
-      <Tooltip title="New query">
+      <Tooltip title="Create new query">
         <IconButton
           size="small"
           onClick={onTabAdd}
-          aria-label="New query"
-          sx={getArtifactActionButtonSx(theme, { size: 30 })}
+          aria-label="Create new query"
+          sx={{
+            ...getArtifactActionButtonSx(theme, { size: 32 }),
+            color: 'text.primary',
+            bgcolor: alpha(
+              theme.palette.text.primary,
+              theme.palette.mode === 'dark' ? 0.07 : 0.045,
+            ),
+          }}
         >
-          <PostAddRounded sx={{ fontSize: 18 }} />
+          <AddRoundedIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Tooltip>
     </Box>

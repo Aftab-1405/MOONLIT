@@ -7,7 +7,7 @@
  * @module hooks/useWorkspaceCanvas
  */
 
-import { useState, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 const MIN_CANVAS_WIDTH_FLOOR = 320;
 const MIN_CANVAS_WIDTH_RATIO = 0.5;
@@ -44,35 +44,44 @@ export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
   const [workspaceCanvasArtifact, setWorkspaceCanvasArtifact] = useState(null);
   const [workspaceCanvasWidth, setWorkspaceCanvasWidth] = useState(DEFAULT_CANVAS_WIDTH);
 
-  const handleOpenCanvasArtifact = useCallback((artifact) => {
-    if (!artifact?.type) return;
-    setWorkspaceCanvasArtifact(artifact);
-    setWorkspaceCanvasOpen(true);
-    setWorkspaceCanvasWidth((prev) => {
-      const { minWidth, maxWidth } = getCanvasWidthBounds(sidebarWidth);
-      const preferred = Math.max(DEFAULT_CANVAS_WIDTH, prev);
-      return Math.min(maxWidth, Math.max(minWidth, preferred));
-    });
-  }, [sidebarWidth]);
+  const handleOpenCanvasArtifact = useCallback(
+    (artifact) => {
+      if (!artifact?.type) return;
+      setWorkspaceCanvasArtifact(artifact);
+      setWorkspaceCanvasOpen(true);
+      setWorkspaceCanvasWidth((prev) => {
+        const { minWidth, maxWidth } = getCanvasWidthBounds(sidebarWidth);
+        const preferred = Math.max(DEFAULT_CANVAS_WIDTH, prev);
+        return Math.min(maxWidth, Math.max(minWidth, preferred));
+      });
+    },
+    [sidebarWidth],
+  );
 
-  const handleOpenSqlEditor = useCallback((query = '', results = null) => {
-    handleOpenCanvasArtifact({
-      type: 'sql-editor',
-      title: 'SQL editor',
-      props: {
-        initialQuery: query,
-        initialResults: results,
-      },
-    });
-  }, [handleOpenCanvasArtifact]);
+  const handleOpenSqlEditor = useCallback(
+    (query = '', results = null) => {
+      handleOpenCanvasArtifact({
+        type: 'sql-editor',
+        title: 'SQL editor',
+        props: {
+          initialQuery: query,
+          initialResults: results,
+        },
+      });
+    },
+    [handleOpenCanvasArtifact],
+  );
 
   const handleCloseWorkspaceCanvas = useCallback(() => {
     setWorkspaceCanvasOpen(false);
   }, []);
 
-  const handleCanvasResize = useCallback((deltaX) => {
-    setWorkspaceCanvasWidth((prev) => clampCanvasWidth(prev - deltaX, sidebarWidth));
-  }, [sidebarWidth]);
+  const handleCanvasResize = useCallback(
+    (deltaX) => {
+      setWorkspaceCanvasWidth((prev) => clampCanvasWidth(prev - deltaX, sidebarWidth));
+    },
+    [sidebarWidth],
+  );
 
   useEffect(() => {
     if (!workspaceCanvasOpen) return undefined;

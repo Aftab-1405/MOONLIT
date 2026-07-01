@@ -1,36 +1,27 @@
-import { memo, useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  Button,
-  ToggleButtonGroup,
-  ToggleButton,
-  Switch,
-  Select,
-  MenuItem,
-  FormControl,
-  Fade,
-  useMediaQuery,
-  Typography,
-} from '@mui/material';
-import { useTheme as useMuiTheme } from '@mui/material/styles';
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
-import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
 import MemoryIcon from '@mui/icons-material/Memory';
+import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
+import {
+  Box,
+  Button,
+  Fade,
+  FormControl,
+  MenuItem,
+  Select,
+  Switch,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+  useMediaQuery,
+} from '@mui/material';
+import { useTheme as useMuiTheme } from '@mui/material/styles';
+import { memo, useEffect, useMemo, useState } from 'react';
+import { DialogShell } from '@/components';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
-import UserDBContextManagerForAI from '@/features/overlays/settings/UserDBContextManagerForAI';
-import { DialogShell } from '@/components';
-import { getPopoverPaperSx, UI_Z_INDEX } from '@/styles/shared';
 import {
-  PreferenceFooterActions,
-  PreferenceLayout,
-  PreferenceNavItem,
-  PreferenceNavList,
-  PreferencePageHeader,
-  PreferenceRow,
-  PreferenceSection,
   getPreferenceBackdropSx,
   getPreferenceBodySx,
   getPreferenceButtonSx,
@@ -38,7 +29,16 @@ import {
   getPreferencePaperSx,
   getPreferenceRootSx,
   getPreferenceToggleGroupSx,
+  PreferenceFooterActions,
+  PreferenceLayout,
+  PreferenceNavItem,
+  PreferenceNavList,
+  PreferencePageHeader,
+  PreferenceRow,
+  PreferenceSection,
 } from '@/features/overlays/preference-surface';
+import UserDBContextManagerForAI from '@/features/overlays/settings/UserDBContextManagerForAI';
+import { getPopoverPaperSx, UI_Z_INDEX } from '@/styles/shared';
 
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: PaletteRoundedIcon },
@@ -47,11 +47,7 @@ const SECTIONS = [
   { id: 'context', label: 'AI Context', icon: MemoryIcon },
 ];
 
-function SettingsModal({
-  open,
-  onClose,
-  initialSection = null,
-}) {
+function SettingsModal({ open, onClose, initialSection = null }) {
   const { settings, updateSetting, resetSettings } = useAppTheme();
   const [activeSection, setActiveSection] = useState('appearance');
 
@@ -70,10 +66,13 @@ function SettingsModal({
   const theme = useMuiTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
-  const selectMenuProps = useMemo(() => ({
-    PaperProps: { sx: getPopoverPaperSx(theme, theme.palette.mode === 'dark') },
-    sx: { zIndex: UI_Z_INDEX.mainContentModal + 10 },
-  }), [theme]);
+  const selectMenuProps = useMemo(
+    () => ({
+      PaperProps: { sx: getPopoverPaperSx(theme, theme.palette.mode === 'dark') },
+      sx: { zIndex: UI_Z_INDEX.mainContentModal + 10 },
+    }),
+    [theme],
+  );
 
   const settingsSurfaceLeft = '0px';
   const settingsSurfaceWidth = '100vw';
@@ -111,7 +110,7 @@ function SettingsModal({
                   <ToggleButtonGroup
                     value={settings.theme}
                     exclusive
-                    onChange={(e, value) => value && updateSetting('theme', value)}
+                    onChange={(_e, value) => value && updateSetting('theme', value)}
                     size="small"
                     sx={toggleGroupSx}
                   >
@@ -134,8 +133,11 @@ function SettingsModal({
           <Fade in key="ai">
             <Box>
               <PreferenceSection title="AI Settings">
-
-                <PreferenceRow label="Response Style" description="How AI formats responses" htmlFor="setting-response-style">
+                <PreferenceRow
+                  label="Response Style"
+                  description="How AI formats responses"
+                  htmlFor="setting-response-style"
+                >
                   <FormControl size="small" sx={controlSx}>
                     <Select
                       id="setting-response-style"
@@ -150,7 +152,11 @@ function SettingsModal({
                   </FormControl>
                 </PreferenceRow>
 
-                <PreferenceRow label="Reasoning Effort" description="Token budget for models that support reasoning" htmlFor="setting-reasoning-effort">
+                <PreferenceRow
+                  label="Reasoning Effort"
+                  description="Token budget for models that support reasoning"
+                  htmlFor="setting-reasoning-effort"
+                >
                   <FormControl size="small" sx={controlSx}>
                     <Select
                       id="setting-reasoning-effort"
@@ -173,10 +179,12 @@ function SettingsModal({
           <Fade in key="database">
             <Box>
               <PreferenceSection title="Database Settings">
-                <PreferenceRow 
-                  label="Confirm Before Running" 
+                <PreferenceRow
+                  label="Confirm Before Running"
                   description="Show dialog before executing SQL"
-                  onClick={() => updateSetting('confirmBeforeRun', !(settings.confirmBeforeRun ?? true))}
+                  onClick={() =>
+                    updateSetting('confirmBeforeRun', !(settings.confirmBeforeRun ?? true))
+                  }
                 >
                   <Switch
                     inputProps={{ id: 'setting-confirm-run' }}
@@ -186,7 +194,11 @@ function SettingsModal({
                     size="small"
                   />
                 </PreferenceRow>
-                <PreferenceRow label="Query Timeout" description="Max wait time for results" htmlFor="setting-query-timeout">
+                <PreferenceRow
+                  label="Query Timeout"
+                  description="Max wait time for results"
+                  htmlFor="setting-query-timeout"
+                >
                   <FormControl size="small" sx={controlSx}>
                     <Select
                       id="setting-query-timeout"
@@ -204,7 +216,11 @@ function SettingsModal({
                 </PreferenceRow>
                 <PreferenceRow
                   label="Max Rows"
-                  description={settings.maxRows === 0 ? '⚠️ No limit — may slow down' : 'Limit results to prevent slowdown'}
+                  description={
+                    settings.maxRows === 0
+                      ? '⚠️ No limit — may slow down'
+                      : 'Limit results to prevent slowdown'
+                  }
                   htmlFor="setting-max-rows"
                 >
                   <FormControl size="small" sx={controlSx}>
@@ -219,11 +235,17 @@ function SettingsModal({
                       <MenuItem value={1000}>1,000</MenuItem>
                       <MenuItem value={5000}>5,000</MenuItem>
                       <MenuItem value={10000}>10,000</MenuItem>
-                      <MenuItem value={0} sx={{ color: 'warning.main', fontWeight: 500 }}>No Limit ⚠️</MenuItem>
+                      <MenuItem value={0} sx={{ color: 'warning.main', fontWeight: 500 }}>
+                        No Limit ⚠️
+                      </MenuItem>
                     </Select>
                   </FormControl>
                 </PreferenceRow>
-                <PreferenceRow label="NULL Display" description="How to show NULL values" htmlFor="setting-null-display">
+                <PreferenceRow
+                  label="NULL Display"
+                  description="How to show NULL values"
+                  htmlFor="setting-null-display"
+                >
                   <FormControl size="small" sx={controlSx}>
                     <Select
                       id="setting-null-display"
@@ -240,10 +262,12 @@ function SettingsModal({
                 </PreferenceRow>
               </PreferenceSection>
               <PreferenceSection title="Connection">
-                <PreferenceRow 
-                  label="Remember Connection" 
+                <PreferenceRow
+                  label="Remember Connection"
                   description="Auto-fill on next visit"
-                  onClick={() => updateSetting('rememberConnection', !(settings.rememberConnection ?? false))}
+                  onClick={() =>
+                    updateSetting('rememberConnection', !(settings.rememberConnection ?? false))
+                  }
                 >
                   <Switch
                     inputProps={{ id: 'setting-remember-connection' }}
@@ -253,13 +277,19 @@ function SettingsModal({
                     size="small"
                   />
                 </PreferenceRow>
-                <PreferenceRow label="Connection Persistence" description="Keep alive after closing tab" htmlFor="setting-connection-persistence">
+                <PreferenceRow
+                  label="Connection Persistence"
+                  description="Keep alive after closing tab"
+                  htmlFor="setting-connection-persistence"
+                >
                   <FormControl size="small" sx={controlSx}>
                     <Select
                       id="setting-connection-persistence"
                       value={settings.connectionPersistence ?? 0}
                       MenuProps={selectMenuProps}
-                      onChange={(e) => updateSetting('connectionPersistence', Number(e.target.value))}
+                      onChange={(e) =>
+                        updateSetting('connectionPersistence', Number(e.target.value))
+                      }
                     >
                       <MenuItem value={0}>Never</MenuItem>
                       <MenuItem value={5}>5 min</MenuItem>
@@ -269,7 +299,11 @@ function SettingsModal({
                     </Select>
                   </FormControl>
                 </PreferenceRow>
-                <PreferenceRow label="Default Database Type" description="Pre-selected when connecting" htmlFor="setting-default-db-type">
+                <PreferenceRow
+                  label="Default Database Type"
+                  description="Pre-selected when connecting"
+                  htmlFor="setting-default-db-type"
+                >
                   <FormControl size="small" sx={controlSx}>
                     <Select
                       id="setting-default-db-type"
@@ -297,7 +331,7 @@ function SettingsModal({
                   component="h2"
                   sx={(theme) => ({
                     ...theme.typography.uiCardTitle,
-                    color: "text.primary",
+                    color: 'text.primary',
                     fontWeight: 650,
                     pb: { xs: 1.5, md: 2 },
                     letterSpacing: 0,

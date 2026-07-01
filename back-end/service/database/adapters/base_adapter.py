@@ -158,19 +158,6 @@ class BaseDatabaseAdapter(ABC):
         """
         pass
 
-    @abstractmethod
-    def format_column_info(self, raw_column: Any) -> Dict:
-        """
-        Format database-specific column information into standard format.
-
-        Args:
-            raw_column: Raw column information from database
-
-        Returns:
-            Dict with keys: name, type, nullable, key, default, extra
-        """
-        pass
-
     # =========================================================================
     # Schema Caching Methods (for AI context)
     # =========================================================================
@@ -191,41 +178,6 @@ class BaseDatabaseAdapter(ABC):
         """
         # Default: return the standard tables query
         return self.get_tables_query(), (db_name,)
-
-    def get_columns_for_table_cache(
-        self, db_name: str, table_name: str, schema: str = "public"
-    ) -> tuple:
-        """
-        Return SQL query and params to get columns for a table (for caching).
-
-        Args:
-            db_name: Database name
-            table_name: Table name
-            schema: Schema name (PostgreSQL)
-
-        Returns:
-            Tuple of (query_string, params_tuple)
-        """
-        # Default: use standard table schema query but only return column names
-        return self.get_table_schema_query(), (db_name, table_name)
-
-    def get_column_details_for_table(
-        self, db_name: str, table_name: str, schema: str = "public"
-    ) -> tuple:
-        """
-        Return SQL query and params to get full column details for a table.
-        Query should return: column_name, data_type, is_nullable, column_default
-
-        Args:
-            db_name: Database name
-            table_name: Table name
-            schema: Schema name (PostgreSQL)
-
-        Returns:
-            Tuple of (query_string, params_tuple)
-        """
-        # Default: use standard table schema query
-        return self.get_table_schema_query(), (db_name, table_name)
 
     def get_set_timeout_sql(self, timeout_seconds: int) -> Optional[str]:
         """
@@ -307,24 +259,6 @@ class BaseDatabaseAdapter(ABC):
         Return SQL query and params to get indexes for a table.
 
         Query should return: index_name, column_name, is_unique, is_primary
-
-        Args:
-            table_name: Table name
-            db_name: Database name (MySQL)
-            schema: Schema name (PostgreSQL)
-
-        Returns:
-            Tuple of (query_string, params_tuple)
-        """
-        return None, ()  # Default: not supported
-
-    def get_constraints_query(
-        self, table_name: str, db_name: str = None, schema: str = "public"
-    ) -> tuple:
-        """
-        Return SQL query and params to get constraints for a table.
-
-        Query should return: constraint_name, constraint_type, column_name
 
         Args:
             table_name: Table name

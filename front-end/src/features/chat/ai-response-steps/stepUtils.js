@@ -101,16 +101,17 @@ export function getDetailedResult(name, result) {
     write_sql_editor_query: () => 'UI action completed: query prepared',
     open_database_modal: () => 'UI action completed: database modal opened',
     open_settings_modal: () => 'UI action completed: settings opened',
-    navigate_new_chat: () => result.requiresConfirmation
-      ? 'UI action awaiting confirmation: new chat'
-      : 'UI action completed: new chat opened',
+    navigate_new_chat: () =>
+      result.requiresConfirmation
+        ? 'UI action awaiting confirmation: new chat'
+        : 'UI action completed: new chat opened',
   };
 
   return details[name]?.() || 'Completed successfully';
 }
 
 export function normalizeSteps(steps) {
-  const validSteps = Array.isArray(steps) ? steps.filter((step) => step && step.type) : [];
+  const validSteps = Array.isArray(steps) ? steps.filter((step) => step?.type) : [];
   return validSteps
     .map((step, idx) => {
       if (step.type === 'thinking') {
@@ -139,7 +140,11 @@ export function normalizeSteps(steps) {
           id: getStepId(step, idx),
           type: 'tool',
           name: step.name,
-          actionText: config ? (isRunning ? config.running : config.done) : formatToolName(step.name),
+          actionText: config
+            ? isRunning
+              ? config.running
+              : config.done
+            : formatToolName(step.name),
           parsedArgs,
           parsedResult,
           isRunning,
@@ -192,23 +197,25 @@ export function buildStepsSummary(normalizedSteps) {
 
 export function isAnyStepActive(normalizedSteps) {
   return normalizedSteps.some(
-    (s) =>
-      (s.type === 'tool' && s.isRunning) ||
-      (s.type === 'thinking' && !s.isComplete)
+    (s) => (s.type === 'tool' && s.isRunning) || (s.type === 'thinking' && !s.isComplete),
   );
 }
 
 export function getCurrentStepIndex(normalizedSteps) {
-  return normalizedSteps.findIndex((step) =>
-    (step.type === 'thinking' && !step.isComplete)
-    || (step.type === 'tool' && step.isRunning)
+  return normalizedSteps.findIndex(
+    (step) =>
+      (step.type === 'thinking' && !step.isComplete) || (step.type === 'tool' && step.isRunning),
   );
 }
 
 export function areAllStepsComplete(normalizedSteps, isStreaming) {
-  return !isStreaming && normalizedSteps.every((step) =>
-    (step.type === 'thinking' && step.isComplete)
-    || (step.type === 'tool' && !step.isRunning)
-    || (step.type === 'skill')
+  return (
+    !isStreaming &&
+    normalizedSteps.every(
+      (step) =>
+        (step.type === 'thinking' && step.isComplete) ||
+        (step.type === 'tool' && !step.isRunning) ||
+        step.type === 'skill',
+    )
   );
 }

@@ -3,7 +3,7 @@
  * @module useLocalStorage
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import logger from '@/utils/logger';
 
 /**
@@ -39,25 +39,24 @@ function isBrowser() {
 
 /**
  * React hook for localStorage-backed state.
- * 
+ *
  * @template T
  * @param {string} key - localStorage key
  * @param {T} initialValue - Default value if key doesn't exist
  * @returns {[T, SetValue<T>, () => void]} [value, setValue, removeValue]
  */
 export function useLocalStorage(key, initialValue) {
-  
   const [storedValue, setStoredValue] = useState(() => {
     if (!isBrowser()) {
       return initialValue;
     }
-    
+
     try {
       const item = window.localStorage.getItem(key);
       if (item === null) {
         return initialValue;
       }
-      
+
       const parsed = safeJsonParse(item);
       return parsed !== undefined ? parsed : initialValue;
     } catch (error) {
@@ -85,32 +84,35 @@ export function useLocalStorage(key, initialValue) {
     } catch (error) {
       logger.warn(`useLocalStorage: Error reading key "${key}":`, error);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]); // intentionally excludes initialValue — read only when key identity changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, initialValue]); // intentionally excludes initialValue — read only when key identity changes
 
-  const setValue = useCallback((value) => {
-    try {
-      // Resolve functional updates using the ref — avoids side effects inside a
-      // state updater (which React 18 StrictMode calls twice to detect impurity).
-      const valueToStore = value instanceof Function ? value(storedValueRef.current) : value;
+  const setValue = useCallback(
+    (value) => {
+      try {
+        // Resolve functional updates using the ref — avoids side effects inside a
+        // state updater (which React 18 StrictMode calls twice to detect impurity).
+        const valueToStore = value instanceof Function ? value(storedValueRef.current) : value;
 
-      if (isBrowser()) {
-        if (valueToStore === undefined || valueToStore === null) {
-          window.localStorage.removeItem(key);
-        } else {
-          window.localStorage.setItem(key, JSON.stringify(valueToStore));
+        if (isBrowser()) {
+          if (valueToStore === undefined || valueToStore === null) {
+            window.localStorage.removeItem(key);
+          } else {
+            window.localStorage.setItem(key, JSON.stringify(valueToStore));
+          }
+        }
+
+        setStoredValue(valueToStore);
+      } catch (error) {
+        logger.warn(`useLocalStorage: Error setting key "${key}":`, error);
+        if (error.name === 'QuotaExceededError') {
+          logger.error('localStorage quota exceeded. Consider clearing old data.');
         }
       }
+    },
+    [key],
+  );
 
-      setStoredValue(valueToStore);
-    } catch (error) {
-      logger.warn(`useLocalStorage: Error setting key "${key}":`, error);
-      if (error.name === 'QuotaExceededError') {
-        logger.error('localStorage quota exceeded. Consider clearing old data.');
-      }
-    }
-  }, [key]);
-  
   const removeValue = useCallback(() => {
     try {
       if (isBrowser()) {
@@ -121,12 +123,12 @@ export function useLocalStorage(key, initialValue) {
       logger.warn(`useLocalStorage: Error removing key "${key}":`, error);
     }
   }, [key, initialValue]);
-  
+
   useEffect(() => {
     if (!isBrowser()) {
       return;
     }
-    
+
     const handleStorageChange = (event) => {
       if (event.key === key && event.newValue !== null) {
         const parsed = safeJsonParse(event.newValue);
@@ -137,10 +139,10 @@ export function useLocalStorage(key, initialValue) {
         setStoredValue(initialValue);
       }
     };
-    
+
     window.addEventListener('storage', handleStorageChange);
     return () => window.removeEventListener('storage', handleStorageChange);
   }, [key, initialValue]);
-  
+
   return [storedValue, setValue, removeValue];
 }

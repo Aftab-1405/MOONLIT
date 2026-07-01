@@ -10,13 +10,8 @@ export const ARTIFACT_ROOT_SX = {
   overflow: 'hidden',
 };
 
-export const ARTIFACT_STANDALONE_INSET = { xs: 1, sm: 2 };
-
 export function useArtifactActions(actions = []) {
-  return useMemo(
-    () => actions.filter((action) => action && !action.hidden),
-    [actions],
-  );
+  return useMemo(() => actions.filter((action) => action && !action.hidden), [actions]);
 }
 
 export const getArtifactActionButtonSx = (theme, { active = false, size = 36 } = {}) => {

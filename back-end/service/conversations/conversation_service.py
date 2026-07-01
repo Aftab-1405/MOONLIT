@@ -618,7 +618,6 @@ class ConversationService:
             "threshold_tokens": None,
         }
         try:
-            import json
 
             from config import get_config
             from langchain_core.messages import HumanMessage, SystemMessage
@@ -1378,70 +1377,6 @@ def _summarize_tool_result(tool_name: str, result, status: str) -> str:
     return "completed"
 
 
-def _find_safe_user_boundary(
-    messages: list, start_idx: int, target_end_idx: int
-) -> int | None:
-    """Walk backward to end on a user message so blocks do not split a turn."""
-    end_idx = min(target_end_idx, len(messages))
-    if end_idx <= start_idx:
-        return None
-
-    while end_idx > start_idx and messages[end_idx - 1].get("sender") != "user":
-        end_idx -= 1
-
-    if end_idx <= start_idx:
-        if target_end_idx - start_idx >= 2:
-            return min(target_end_idx, len(messages))
-        return None
-
-    return end_idx
-
-
-def _select_summary_end_idx(
-    messages: list,
-    start_idx: int,
-    *,
-    context_is_trimmed: bool,
-    active_context_budget: int = 4000,
-) -> int | None:
-    """
-    Choose the next Firestore slice to summarize using token budgets.
-    """
-    import json
-
-    from llm_provider.token_budget import estimate_tokens
-
-    unsummarized_count = len(messages) - start_idx
-    if unsummarized_count <= 0:
-        return None
-
-    # Only trigger summarization if the unsummarized tail exceeds the active_context_budget.
-    if not context_is_trimmed:
-        return None
-
-    # Walk backwards from the end to find the maximum unsummarized tail that fits in half the budget
-    target_budget = active_context_budget // 2
-    total_tokens = 0
-    retain_from = len(messages)
-
-    for i in range(len(messages) - 1, start_idx - 1, -1):
-        msg = messages[i]
-        content = msg.get("content", "")
-        tokens = estimate_tokens(content)
-        timeline = msg.get("timeline", [])
-        if timeline:
-            tokens += estimate_tokens(json.dumps(timeline))
-
-        if total_tokens + tokens > target_budget:
-            break
-
-        total_tokens += tokens
-        retain_from = i
-
-    if retain_from <= start_idx:
-        retain_from = start_idx + 2  # ensure we at least summarize something
-
-    return _find_safe_user_boundary(messages, start_idx, retain_from)
 
 
 def _ai_message_content_to_str(content) -> str:

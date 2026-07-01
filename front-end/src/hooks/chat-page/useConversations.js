@@ -1,23 +1,18 @@
 /**
  * useConversations Hook
- * 
+ *
  * Manages conversation state, CRUD operations, and URL synchronization.
  * Extracted from Chat.jsx for better separation of concerns.
- * 
+ *
  * @module hooks/useConversations
  */
 
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import {
-  getConversations,
-  getConversation,
-  deleteConversation,
-  renameConversation,
-} from '@/api';
+import { deleteConversation, getConversation, getConversations, renameConversation } from '@/api';
 import { queryClient, queryKeys } from '@/api/queryClient';
-import logger from '@/utils/logger';
 import { normalizeConversationMessage } from '@/utils/chatMessages';
+import logger from '@/utils/logger';
 
 /**
  * Hook for managing conversations and messages
@@ -32,7 +27,7 @@ export function useConversations() {
   const [isConversationsLoading, setIsConversationsLoading] = useState(false);
   const [isConversationLoading, setIsConversationLoading] = useState(Boolean(conversationId));
   const [routeConversationLoadState, setRouteConversationLoadState] = useState(
-    conversationId ? 'loading' : 'idle'
+    conversationId ? 'loading' : 'idle',
   );
   const prevConversationIdRef = useRef(null);
   const lastLoadedConversationIdRef = useRef(null);
@@ -117,7 +112,7 @@ export function useConversations() {
       if (data.status === 'success' && data.conversation) {
         setCurrentConversationId(convId);
         const formattedMessages = (data.conversation.messages || []).map((msg, index) =>
-          normalizeConversationMessage(msg, index)
+          normalizeConversationMessage(msg, index),
         );
         queryClient.setQueryData(queryKeys.conversation(convId), {
           ...data,
@@ -139,21 +134,24 @@ export function useConversations() {
       }
     }
   }, []);
-  const handleDeleteConversation = useCallback(async (convId) => {
-    try {
-      await deleteConversation(convId);
-      queryClient.removeQueries({ queryKey: queryKeys.conversation(convId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
-      setConversations((prev) => prev.filter((c) => c.id !== convId));
-      if (currentConversationId === convId) {
-        navigate('/chat');
+  const handleDeleteConversation = useCallback(
+    async (convId) => {
+      try {
+        await deleteConversation(convId);
+        queryClient.removeQueries({ queryKey: queryKeys.conversation(convId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+        setConversations((prev) => prev.filter((c) => c.id !== convId));
+        if (currentConversationId === convId) {
+          navigate('/chat');
+        }
+      } catch (error) {
+        if (error.name === 'AbortError') return; // Ignore abort errors
+        logger.error('Failed to delete conversation:', error);
+        throw error;
       }
-    } catch (error) {
-      if (error.name === 'AbortError') return; // Ignore abort errors
-      logger.error('Failed to delete conversation:', error);
-      throw error;
-    }
-  }, [currentConversationId, navigate]);
+    },
+    [currentConversationId, navigate],
+  );
   const handleRenameConversation = useCallback(async (convId, title) => {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) return;
@@ -162,7 +160,7 @@ export function useConversations() {
       const savedTitle = data.title || trimmedTitle;
       queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
       setConversations((prev) =>
-        prev.map((c) => (c.id === convId ? { ...c, title: savedTitle } : c))
+        prev.map((c) => (c.id === convId ? { ...c, title: savedTitle } : c)),
       );
     } catch (error) {
       if (error.name === 'AbortError') return;
@@ -196,7 +194,10 @@ export function useConversations() {
     };
 
     if (conversationId) {
-      if (conversationId !== prevConversationIdRef.current || conversationId !== lastLoadedConversationIdRef.current) {
+      if (
+        conversationId !== prevConversationIdRef.current ||
+        conversationId !== lastLoadedConversationIdRef.current
+      ) {
         if (conversationId === newlyCreatedConvIdRef.current) {
           newlyCreatedConvIdRef.current = null;
           lastLoadedConversationIdRef.current = conversationId;

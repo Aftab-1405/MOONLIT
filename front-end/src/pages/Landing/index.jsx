@@ -1,14 +1,14 @@
-import { useEffect, useCallback } from 'react';
 import { Box } from '@mui/material';
 import GlobalStyles from '@mui/material/GlobalStyles';
+import { alpha, useTheme } from '@mui/material/styles';
+import { useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useTheme, alpha } from '@mui/material/styles';
 import { useAuth } from '@/contexts/AuthContext';
-import Hero from '@/pages/Landing/Hero';
-import ValueGrid from '@/pages/Landing/ValueGrid';
 import DemoSection from '@/pages/Landing/DemoSection';
-import StepsGrid from '@/pages/Landing/StepsGrid';
 import FinalCTA from '@/pages/Landing/FinalCTA';
+import Hero from '@/pages/Landing/Hero';
+import StepsGrid from '@/pages/Landing/StepsGrid';
+import ValueGrid from '@/pages/Landing/ValueGrid';
 import {
   HOVER_CAPABLE_QUERY as SHARED_HOVER_CAPABLE_QUERY,
   REDUCED_MOTION_QUERY as SHARED_REDUCED_MOTION_QUERY,
@@ -54,24 +54,21 @@ export const Section = ({ children, sx = {}, id, fullHeight = true, tinted = fal
   );
 };
 
-const LANDING_GLOBAL_STYLES = (
+
+const LANDING_KEYFRAMES = (
   <GlobalStyles
     styles={{
-      '@keyframes float': {
-        '0%, 100%': { transform: 'translateY(0px)' },
-        '50%': { transform: 'translateY(-18px)' },
-      },
       '@keyframes fadeIn': {
         from: { opacity: 0, transform: 'translateY(10px)' },
         to: { opacity: 1, transform: 'translateY(0)' },
       },
-      '@keyframes pulse-dot': {
-        '0%, 100%': { opacity: 1, transform: 'scale(1)' },
-        '50%': { opacity: 0.4, transform: 'scale(0.85)' },
-      },
       '@keyframes shimmer': {
         '0%': { backgroundPosition: '-200% center' },
         '100%': { backgroundPosition: '200% center' },
+      },
+      '@keyframes pulse-dot': {
+        '0%, 100%': { opacity: 1, transform: 'scale(1)' },
+        '50%': { opacity: 0.4, transform: 'scale(0.85)' },
       },
     }}
   />
@@ -81,7 +78,9 @@ export default function Landing() {
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
 
-  useEffect(() => { document.title = 'Moonlit - AI Database Assistant'; }, []);
+  useEffect(() => {
+    document.title = 'Moonlit - AI Database Assistant';
+  }, []);
 
   const handleGetStarted = useCallback(() => {
     navigate(isAuthenticated ? '/chat' : '/auth');
@@ -89,7 +88,7 @@ export default function Landing() {
 
   return (
     <>
-      {LANDING_GLOBAL_STYLES}
+      {LANDING_KEYFRAMES}
       <Box
         sx={{
           height: '100dvh',

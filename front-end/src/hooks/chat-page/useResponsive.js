@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
 import { useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { useMemo } from 'react';
 
 export function useResponsive() {
   const theme = useTheme();
@@ -8,8 +8,5 @@ export function useResponsive() {
   const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
   const isDesktop = useMediaQuery(theme.breakpoints.up('md'));
 
-  return useMemo(
-    () => ({ isMobile, isTablet, isDesktop }),
-    [isDesktop, isMobile, isTablet]
-  );
+  return useMemo(() => ({ isMobile, isTablet, isDesktop }), [isDesktop, isMobile, isTablet]);
 }

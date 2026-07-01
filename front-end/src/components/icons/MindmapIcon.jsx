@@ -1,21 +1,15 @@
-import SvgIcon from '@mui/material/SvgIcon';
+import IconBase from './IconBase';
 
-/** Schema mindmap / relationship graph — custom vector in theme `currentColor`. */
 function MindmapIcon(props) {
   return (
-    <SvgIcon viewBox="0 0 24 24" fontSize="inherit" {...props}>
-      <circle cx="12" cy="12" r="2.5" />
-      <circle cx="5" cy="7" r="2" />
-      <circle cx="19" cy="7" r="2" />
-      <circle cx="7" cy="19" r="2" />
-      <circle cx="17" cy="19" r="2" />
-      <path
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        d="M12 9.5V7.2M9.8 13.2 7.4 14.8M14.2 13.2l2.4 1.6M10.2 10.8 6.6 8.4M13.8 10.8l3.6-2.4M10.5 13.8 8.2 17M13.5 13.8l2.3 3.2"
-      />
-    </SvgIcon>
+    <IconBase {...props}>
+      <rect x="8.5" y="9" width="7" height="6" rx="2" />
+      <rect x="3" y="3" width="5" height="4" rx="1.5" />
+      <rect x="16" y="3" width="5" height="4" rx="1.5" />
+      <rect x="3" y="17" width="5" height="4" rx="1.5" />
+      <rect x="16" y="17" width="5" height="4" rx="1.5" />
+      <path d="m8.5 10.5-3-3.5M15.5 10.5l3-3.5M8.5 13.5l-3 3.5M15.5 13.5l3 3.5" />
+    </IconBase>
   );
 }
 

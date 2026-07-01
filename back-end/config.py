@@ -74,7 +74,6 @@ class Config:
         for header in _sensitive_header_names_raw.split(",")
         if header.strip()
     }
-    DEBUG_BODY_LOG_MAX_CHARS = int(os.getenv("DEBUG_BODY_LOG_MAX_CHARS", 200))
     _sensitive_body_paths_raw = os.getenv(
         "SENSITIVE_BODY_LOG_PATHS",
         "/api/v1/pass_user_prompt_to_llm,/api/v1/resume_agent",
@@ -125,6 +124,7 @@ class Config:
     BEDROCK_MODELS = [
         m.strip() for m in os.getenv("BEDROCK_MODELS", "").split(",") if m.strip()
     ]
+
 
     # LLM Rate Limiting
     LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "True").lower() == "true"
@@ -367,23 +367,11 @@ class Config:
     UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS = int(
         os.getenv("UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS", 32768)
     )
-    RESERVED_SYSTEM_TOKENS = int(os.getenv("RESERVED_SYSTEM_TOKENS", 1000))
-    RESERVED_VAMP_MEMORY_TOKENS = int(
-        os.getenv("RESERVED_VAMP_MEMORY_TOKENS", 3000)
-    )
-    RESERVED_TOOL_SCHEMA_TOKENS = int(
-        os.getenv("RESERVED_TOOL_SCHEMA_TOKENS", 2000)
-    )
     RESERVED_OUTPUT_TOKENS = int(os.getenv("RESERVED_OUTPUT_TOKENS", 4000))
-    RESERVED_SAFETY_MARGIN_TOKENS = int(
-        os.getenv("RESERVED_SAFETY_MARGIN_TOKENS", 500)
-    )
     MIN_USABLE_INPUT_BUDGET_TOKENS = int(
         os.getenv("MIN_USABLE_INPUT_BUDGET_TOKENS", 1000)
     )
-    ACTIVE_CONTEXT_UTILIZATION_RATIO = float(
-        os.getenv("ACTIVE_CONTEXT_UTILIZATION_RATIO", 0.80)
-    )
+
 
     # Per-user quota windows
     USER_QUOTA_MINUTE_TTL_SECONDS = int(
@@ -432,7 +420,6 @@ class Config:
     CONVERSATION_ID_MAX_LENGTH = int(os.getenv("CONVERSATION_ID_MAX_LENGTH", 100))
     LLM_PROVIDER_MAX_LENGTH = int(os.getenv("LLM_PROVIDER_MAX_LENGTH", 50))
     LLM_MODEL_MAX_LENGTH = int(os.getenv("LLM_MODEL_MAX_LENGTH", 150))
-    TASK_MODE_MAX_LENGTH = int(os.getenv("TASK_MODE_MAX_LENGTH", 50))
     DEFAULT_REQUEST_MAX_ROWS = int(os.getenv("DEFAULT_REQUEST_MAX_ROWS", 1000))
     REQUEST_MAX_ROWS_LIMIT = int(os.getenv("REQUEST_MAX_ROWS_LIMIT", 100000))
     CONVERSATION_TITLE_MAX_LENGTH = int(os.getenv("CONVERSATION_TITLE_MAX_LENGTH", 80))

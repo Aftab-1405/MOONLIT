@@ -4,20 +4,18 @@
  * Contains query tabs and the CodeMirror SQL editor.
  */
 
-import { lazy, memo, Suspense } from "react";
-import { Box, Skeleton } from "@mui/material";
-import { alpha, useTheme } from "@mui/material/styles";
-import QueryTabs from "@/features/sidebar-right/artifacts/sql-workspace/QueryTabs";
-import { getAppSunkenSurfaceSx } from "@/features/styles/interfaceChrome";
+import { Box, Skeleton } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { lazy, memo, Suspense } from 'react';
+import QueryTabs from '@/features/sidebar-right/artifacts/sql-workspace/QueryTabs';
 
 const SqlEditorSurface = lazy(
-  () =>
-    import("@/features/sidebar-right/artifacts/sql-workspace/SqlEditorSurface"),
+  () => import('@/features/sidebar-right/artifacts/sql-workspace/SqlEditorSurface'),
 );
 
 function EditorFallback() {
   const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = theme.palette.mode === 'dark';
   const skeletonColor = alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06);
 
   return (
@@ -25,16 +23,14 @@ function EditorFallback() {
       sx={{
         flex: 1,
         minHeight: 0,
-        display: "grid",
-        gridTemplateColumns: "52px minmax(0, 1fr)",
-        overflow: "hidden",
-        ...getAppSunkenSurfaceSx(theme),
+        display: 'grid',
+        gridTemplateColumns: '52px minmax(0, 1fr)',
+        overflow: 'hidden',
+        bgcolor: 'background.paper',
       }}
     >
       <Box
         sx={{
-          borderRight: "1px solid",
-          borderColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.07),
           py: 1.75,
           px: 1,
         }}
@@ -45,7 +41,7 @@ function EditorFallback() {
             variant="text"
             width={line < 3 ? 18 : 24}
             height={18}
-            sx={{ mx: "auto", bgcolor: skeletonColor }}
+            sx={{ mx: 'auto', bgcolor: skeletonColor }}
           />
         ))}
       </Box>
@@ -78,18 +74,21 @@ function QueryWorkspace({
   onRunQuery,
   onToggleSidebar,
   schemaSidebarOpen,
+  onClearError,
 }) {
   return (
     <Box
       sx={(theme) => ({
-        flex: "1 1 0",
-        display: "flex",
-        flexDirection: "column",
+        flex: '1 1 0',
+        display: 'flex',
+        flexDirection: 'column',
         minWidth: 0,
         minHeight: 0,
-        overflow: "hidden",
-        ...getAppSunkenSurfaceSx(theme),
-        isolation: "isolate",
+        overflow: 'hidden',
+        borderRadius: '12px',
+        bgcolor: 'background.paper',
+        boxShadow: `inset 0 0 0 1px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.065 : 0.055)}`,
+        isolation: 'isolate',
       })}
     >
       {/* Query Tabs */}
@@ -106,12 +105,13 @@ function QueryWorkspace({
       {/* SQL Editor (lazy — CodeMirror loaded on demand) */}
       <Suspense fallback={<EditorFallback />}>
         <SqlEditorSurface
-          query={activeTab?.query || ""}
+          query={activeTab?.query || ''}
           error={activeTab?.error}
           isConnected={isConnected}
           onQueryChange={onQueryChange}
           onQueryExecute={onQueryExecute}
           onRunQuery={onRunQuery}
+          onClearError={onClearError}
         />
       </Suspense>
     </Box>

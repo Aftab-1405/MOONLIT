@@ -1,13 +1,13 @@
 /**
  * Database API Module
- * 
+ *
  * Handles database connection management:
  * - Connection status
  * - Connect/disconnect
  * - List databases
  * - Switch database
  * - Schema management
- * 
+ *
  * @module api/database
  */
 
@@ -16,7 +16,7 @@ import { DATABASE } from '@/api/endpoints';
 
 /**
  * Get current database connection status.
- * 
+ *
  * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function getStatus() {
@@ -25,7 +25,7 @@ export async function getStatus() {
 
 /**
  * Connect to a database.
- * 
+ *
  * @param {Object} params - Connection parameters
  * @param {string} params.db_type - Database type (mysql, postgresql, etc.)
  * @param {string} [params.host] - Database host
@@ -42,7 +42,7 @@ export async function connect(params) {
 
 /**
  * Disconnect from current database.
- * 
+ *
  * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function disconnect() {
@@ -51,7 +51,7 @@ export async function disconnect() {
 
 /**
  * List available databases.
- * 
+ *
  * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function getDatabases() {
@@ -60,7 +60,7 @@ export async function getDatabases() {
 
 /**
  * Switch to a different database (for remote connections).
- * 
+ *
  * @param {string} database - Target database name
  * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
@@ -71,7 +71,7 @@ export async function switchDatabase(database) {
 /**
  * Select a database on existing local connection.
  * Uses session's db_config, no need to re-send credentials.
- * 
+ *
  * @param {string} database - Target database name
  * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
@@ -81,7 +81,7 @@ export async function selectDatabase(database) {
 
 /**
  * Get available schemas.
- * 
+ *
  * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
 export async function getSchemas() {
@@ -90,7 +90,7 @@ export async function getSchemas() {
 
 /**
  * Select a schema for AI context.
- * 
+ *
  * @param {string} schemaName - Schema name
  * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */

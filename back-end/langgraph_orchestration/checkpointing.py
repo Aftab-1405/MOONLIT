@@ -11,7 +11,6 @@ from typing import Optional
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.checkpoint.base import BaseCheckpointSaver
 from langgraph.checkpoint.redis.aio import AsyncRedisSaver
-from redis.asyncio import Redis
 
 from config import get_config
 

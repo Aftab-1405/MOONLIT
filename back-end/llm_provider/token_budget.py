@@ -446,9 +446,6 @@ def get_message_tokens(msg: dict, *, model_id: str | None = None) -> int:
         tokens += estimate_model_tokens(json.dumps(timeline), model_id)
     return tokens
 
-# Static Pre-computation
-STATIC_SYSTEM_TOKENS = 0
-STATIC_TOOL_TOKENS = 0
 STATIC_BUDGETS: dict[str, dict[str, int]] = {}
 
 def eagerly_initialize_static_budgets():
@@ -456,7 +453,6 @@ def eagerly_initialize_static_budgets():
     Pre-computes and caches Bedrock tool specs and token-count results
     for the static system prompt and ALL_TOOLS to prevent runtime latency.
     """
-    global STATIC_SYSTEM_TOKENS, STATIC_TOOL_TOKENS
     import logging
     logger = logging.getLogger(__name__)
 
@@ -466,10 +462,8 @@ def eagerly_initialize_static_budgets():
         from config import get_config
         
         provider = get_config().LLM_PROVIDER
-        from llm_provider.model_factory import get_default_model
         from llm_provider.model_factory import get_provider_models
         model_ids = get_provider_models(provider)
-        default_model_id = get_default_model(provider)
 
         # 1. Pre-compute and cache Bedrock tool specs
         for tool in ALL_TOOLS:
@@ -494,9 +488,6 @@ def eagerly_initialize_static_budgets():
                 "system": int(sys_res.get("tokens", 0)),
                 "tools": int(tool_res.get("tokens", 0)),
             }
-        default_budget = STATIC_BUDGETS.get(default_model_id, {})
-        STATIC_SYSTEM_TOKENS = default_budget.get("system", 0)
-        STATIC_TOOL_TOKENS = default_budget.get("tools", 0)
         logger.info("Pre-computed static budgets for %d models", len(STATIC_BUDGETS))
     except Exception as e:
         logger.warning(f"Failed to eagerly initialize static token budgets: {e}")

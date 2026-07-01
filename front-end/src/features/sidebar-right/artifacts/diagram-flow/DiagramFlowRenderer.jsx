@@ -1,36 +1,28 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '@xyflow/react/dist/style.css';
+import Dagre from '@dagrejs/dagre';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
+import SettingsSuggestRoundedIcon from '@mui/icons-material/SettingsSuggestRounded';
+import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
+import { Box, CircularProgress, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
-  ReactFlow,
-  BaseEdge,
   Background,
+  BaseEdge,
+  getBezierPath,
   Handle,
   MarkerType,
   Position,
-  getBezierPath,
-  useInternalNode,
+  ReactFlow,
   useEdgesState,
+  useInternalNode,
   useNodesState,
 } from '@xyflow/react';
-import Dagre from '@dagrejs/dagre';
-import {
-  Box,
-  CircularProgress,
-  Stack,
-  Typography,
-  useMediaQuery,
-  useTheme,
-} from '@mui/material';
-import { alpha } from '@mui/material/styles';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
-import SettingsSuggestRoundedIcon from '@mui/icons-material/SettingsSuggestRounded';
-import MindmapIcon from '@/components/icons/MindmapIcon';
+import { getReadOnlyReactFlowProps } from '@/config/reactFlow';
 import { ArtifactShell } from '@/features/sidebar-right/artifact-loader';
 import {
   FLOW_NODE_CARD_CLASS,
-  HIDDEN_FLOW_HANDLE_STYLE,
   getReactFlowBackgroundColor,
   getReactFlowCanvasSx,
   getReactFlowCountBadgeSx,
@@ -42,8 +34,8 @@ import {
   getReactFlowNodeStatusDotSx,
   getReactFlowStatusSx,
   getReactFlowTagChipSx,
+  HIDDEN_FLOW_HANDLE_STYLE,
 } from '@/styles/reactFlowStyles';
-import { getReadOnlyReactFlowProps } from '@/config/reactFlow';
 
 const VALID_DIRECTIONS = new Set(['LR', 'TD', 'TB']);
 const STREAM_SETTLE_MS = 350;
@@ -68,8 +60,6 @@ const FORBIDDEN_STYLE_KEYS = new Set([
 
 const PREMIUM_NODE_TYPE = 'premium';
 const NODE_STATUSES = new Set(['ready', 'active', 'pending', 'blocked', 'disabled']);
-
-
 
 const normalizeTags = (tags) => {
   if (!Array.isArray(tags)) return [];
@@ -99,9 +89,15 @@ const normalizeStyle = (style) => {
 };
 
 const normalizeNodeStyle = (node) => {
-  const rawStyle = (node.style && typeof node.style === 'object')
-    ? node.style
-    : ((node.data && typeof node.data === 'object' && node.data.style && typeof node.data.style === 'object') ? node.data.style : {});
+  const rawStyle =
+    node.style && typeof node.style === 'object'
+      ? node.style
+      : node.data &&
+          typeof node.data === 'object' &&
+          node.data.style &&
+          typeof node.data.style === 'object'
+        ? node.data.style
+        : {};
 
   const style = normalizeStyle(rawStyle) || {};
 
@@ -119,9 +115,15 @@ const normalizeNodeStyle = (node) => {
 };
 
 const normalizeEdgeStyle = (edge) => {
-  const rawStyle = (edge.style && typeof edge.style === 'object')
-    ? edge.style
-    : ((edge.data && typeof edge.data === 'object' && edge.data.style && typeof edge.data.style === 'object') ? edge.data.style : {});
+  const rawStyle =
+    edge.style && typeof edge.style === 'object'
+      ? edge.style
+      : edge.data &&
+          typeof edge.data === 'object' &&
+          edge.data.style &&
+          typeof edge.data.style === 'object'
+        ? edge.data.style
+        : {};
 
   const style = normalizeStyle(rawStyle) || {};
 
@@ -143,8 +145,12 @@ const getDiagramViewport = (nodes, viewportSize, isMobile) => {
   const padding = isMobile ? 24 : 36;
   const minX = Math.min(...nodes.map((node) => node.position.x));
   const minY = Math.min(...nodes.map((node) => node.position.y));
-  const maxX = Math.max(...nodes.map((node) => node.position.x + (node.width || DEFAULT_NODE_WIDTH)));
-  const maxY = Math.max(...nodes.map((node) => node.position.y + (node.height || DEFAULT_NODE_HEIGHT)));
+  const maxX = Math.max(
+    ...nodes.map((node) => node.position.x + (node.width || DEFAULT_NODE_WIDTH)),
+  );
+  const maxY = Math.max(
+    ...nodes.map((node) => node.position.y + (node.height || DEFAULT_NODE_HEIGHT)),
+  );
   const graphWidth = Math.max(maxX - minX, 1);
   const graphHeight = Math.max(maxY - minY, 1);
   const zoom = Math.min(
@@ -228,7 +234,7 @@ const normalizeDiagram = (diagram) => {
     const id = typeof node?.id === 'string' ? node.id.trim() : '';
     if (!id || nodeIds.has(id)) return;
     nodeIds.add(id);
-    
+
     // Support label at top level, nested in data.label, or as raw string in data
     let label = '';
     if (typeof node.label === 'string' && node.label.trim()) {
@@ -242,7 +248,8 @@ const normalizeDiagram = (diagram) => {
     }
 
     const subtitleVal = node.subtitle || node.data?.subtitle;
-    const subtitle = typeof subtitleVal === 'string' && subtitleVal.trim() ? subtitleVal.trim() : '';
+    const subtitle =
+      typeof subtitleVal === 'string' && subtitleVal.trim() ? subtitleVal.trim() : '';
 
     const countVal = node.count !== undefined ? node.count : node.data?.count;
     const count = Number.isFinite(countVal) ? countVal : undefined;
@@ -277,9 +284,10 @@ const normalizeDiagram = (diagram) => {
       const source = typeof edge?.source === 'string' ? edge.source.trim() : '';
       const target = typeof edge?.target === 'string' ? edge.target.trim() : '';
       if (!nodeIds.has(source) || !nodeIds.has(target)) return;
-      const id = typeof edge.id === 'string' && edge.id.trim()
-        ? edge.id.trim()
-        : `${source}-${target}-${index}`;
+      const id =
+        typeof edge.id === 'string' && edge.id.trim()
+          ? edge.id.trim()
+          : `${source}-${target}-${index}`;
 
       const labelVal = edge.label || edge.data?.label;
       const dashedVal = edge.dashed !== undefined ? edge.dashed : edge.data?.dashed;
@@ -376,7 +384,7 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
   const typeOverridesSx = {
     ...(isEntity && {
       borderRadius: '6px',
-      borderLeft: `3px solid ${theme.palette.success.main}`,
+      borderLeft: `3px solid ${theme.palette.primary.main}`,
     }),
     ...(isProcess && {
       borderRadius: '16px',
@@ -405,17 +413,27 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
         opacity: disabled ? 0.62 : 1,
         ...typeOverridesSx,
         ...accentSx,
-        ...(!disabled && data.customStyle && typeof data.customStyle === 'object' ? {
-          ...data.customStyle,
-          ...((data.customStyle.backgroundColor || data.customStyle.background) ? { backgroundImage: 'none' } : {}),
-          '&:hover': {
-            ...data.customStyle,
-            ...((data.customStyle.backgroundColor || data.customStyle.background) ? { backgroundImage: 'none' } : {}),
-          }
-        } : {}),
+        ...(!disabled && data.customStyle && typeof data.customStyle === 'object'
+          ? {
+              ...data.customStyle,
+              ...(data.customStyle.backgroundColor || data.customStyle.background
+                ? { backgroundImage: 'none' }
+                : {}),
+              '&:hover': {
+                ...data.customStyle,
+                ...(data.customStyle.backgroundColor || data.customStyle.background
+                  ? { backgroundImage: 'none' }
+                  : {}),
+              },
+            }
+          : {}),
       }}
     >
-      <Handle type="target" position={data.targetPosition || Position.Left} style={HIDDEN_FLOW_HANDLE_STYLE} />
+      <Handle
+        type="target"
+        position={data.targetPosition || Position.Left}
+        style={HIDDEN_FLOW_HANDLE_STYLE}
+      />
 
       {/* Status indicator dot — top-right corner */}
       {status && (
@@ -436,16 +454,38 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
 
       {/* Primary content: label + subtitle */}
       <Box sx={{ minWidth: 0, width: '100%' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75, width: '100%', minWidth: 0, mb: 0.25 }}>
-          {isEntity && <TableChartRoundedIcon sx={{ fontSize: 16, color: theme.palette.success.main, flexShrink: 0 }} />}
-          {isProcess && <SettingsSuggestRoundedIcon sx={{ fontSize: 16, color: theme.palette.primary.main, flexShrink: 0 }} />}
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 0.75,
+            width: '100%',
+            minWidth: 0,
+            mb: 0.25,
+          }}
+        >
+          {isEntity && (
+            <TableChartRoundedIcon
+              sx={{ fontSize: 16, color: theme.palette.primary.main, flexShrink: 0 }}
+            />
+          )}
+          {isProcess && (
+            <SettingsSuggestRoundedIcon
+              sx={{ fontSize: 16, color: theme.palette.primary.main, flexShrink: 0 }}
+            />
+          )}
           <Typography
             noWrap
             sx={{
               ...theme.typography.uiBodySm,
               lineHeight: 1.25,
               letterSpacing: 0,
-              color: disabled ? 'text.disabled' : (data.customStyle?.color ? 'inherit' : 'text.primary'),
+              color: disabled
+                ? 'text.disabled'
+                : data.customStyle?.color
+                  ? 'inherit'
+                  : 'text.primary',
               textAlign: 'center',
               fontSize: data.customStyle?.fontSize ? 'inherit' : undefined,
               fontWeight: data.customStyle?.fontWeight ? 'inherit' : 660,
@@ -462,7 +502,11 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
               ...theme.typography.uiCaption2xs,
               lineHeight: 1.35,
               letterSpacing: 0,
-              color: disabled ? 'text.disabled' : (data.customStyle?.color ? 'inherit' : 'text.secondary'),
+              color: disabled
+                ? 'text.disabled'
+                : data.customStyle?.color
+                  ? 'inherit'
+                  : 'text.secondary',
               textAlign: 'center',
               opacity: data.customStyle?.color ? 0.82 : 1,
             }}
@@ -513,15 +557,20 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
           )}
 
           {/* Individual tag chips instead of a joined string */}
-          {hasTags && data.tags.map((tag) => (
-            <Box key={tag} component="span" sx={getReactFlowTagChipSx(theme)}>
-              {tag}
-            </Box>
-          ))}
+          {hasTags &&
+            data.tags.map((tag) => (
+              <Box key={tag} component="span" sx={getReactFlowTagChipSx(theme)}>
+                {tag}
+              </Box>
+            ))}
         </Box>
       )}
 
-      <Handle type="source" position={data.sourcePosition || Position.Right} style={HIDDEN_FLOW_HANDLE_STYLE} />
+      <Handle
+        type="source"
+        position={data.sourcePosition || Position.Right}
+        style={HIDDEN_FLOW_HANDLE_STYLE}
+      />
     </Box>
   );
 });
@@ -630,7 +679,7 @@ const edgeTypes = {
 
 function DiagramFlowRenderer({
   code,
-  title,
+  _title,
   onClose,
   onRequestClose,
   isFullscreen = false,
@@ -665,10 +714,13 @@ function DiagramFlowRenderer({
     };
   }, [code]);
 
-  useEffect(() => () => {
-    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
-    if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current);
+    },
+    [],
+  );
 
   const parseResult = useMemo(() => {
     if (!stableCode || isReceiving) return { diagram: null, error: null };
@@ -684,17 +736,17 @@ function DiagramFlowRenderer({
     if (!parseResult.diagram) return { nodes: [], edges: [] };
     return buildFlowElements(parseResult.diagram, isMobile, theme);
   }, [parseResult.diagram, isMobile, theme]);
-  
+
   const reactFlowProps = useMemo(() => getReadOnlyReactFlowProps(theme), [theme]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState(flowElements.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState(flowElements.edges);
-  
+
   const initialViewport = useMemo(
     () => getDiagramViewport(nodes, viewportSize, isMobile),
     [isMobile, nodes, viewportSize],
   );
-  
+
   const defaultEdgeOptions = useMemo(
     () => getReactFlowDefaultEdgeOptions(theme, { isMobile }),
     [isMobile, theme],
@@ -705,20 +757,21 @@ function DiagramFlowRenderer({
     setEdges(flowElements.edges);
   }, [flowElements, setNodes, setEdges]);
 
-
-
-  const fitDiagramViewport = useCallback((instance = flowInstanceRef.current) => {
-    if (!instance || nodes.length === 0) return false;
-    if (typeof instance.fitView === 'function') {
-      instance.fitView({
-        padding: isFullscreen ? 0.16 : 0.12,
-        duration: 0,
-      });
-    } else {
-      instance.setViewport(initialViewport, { duration: 0 });
-    }
-    return true;
-  }, [initialViewport, isFullscreen, nodes.length]);
+  const fitDiagramViewport = useCallback(
+    (instance = flowInstanceRef.current) => {
+      if (!instance || nodes.length === 0) return false;
+      if (typeof instance.fitView === 'function') {
+        instance.fitView({
+          padding: isFullscreen ? 0.16 : 0.12,
+          duration: 0,
+        });
+      } else {
+        instance.setViewport(initialViewport, { duration: 0 });
+      }
+      return true;
+    },
+    [initialViewport, isFullscreen, nodes.length],
+  );
 
   const handleFlowInit = useCallback((instance) => {
     flowInstanceRef.current = instance;
@@ -796,7 +849,7 @@ function DiagramFlowRenderer({
       if (frame) cancelAnimationFrame(frame);
       observer.disconnect();
     };
-  }, [isFullscreen]);
+  }, []);
 
   const handleCopy = useCallback(() => {
     navigator.clipboard.writeText(code);
@@ -805,14 +858,11 @@ function DiagramFlowRenderer({
     copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
   }, [code]);
 
-  const graphTitle = title || 'Flow Diagram';
-
   if (parseResult.error) {
     return (
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
         <ArtifactShell
-          title={graphTitle}
-          icon={<MindmapIcon sx={{ width: 20, height: 20 }} />}
+          title="DIAGRAM"
           chrome={chrome}
           onClose={onClose}
           onRequestClose={onRequestClose}
@@ -831,7 +881,11 @@ function DiagramFlowRenderer({
             {
               key: 'copy',
               label: copied ? 'Copied!' : 'Copy code',
-              icon: copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />,
+              icon: copied ? (
+                <CheckRoundedIcon sx={{ fontSize: 18 }} />
+              ) : (
+                <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />
+              ),
               onClick: handleCopy,
             },
           ]}
@@ -871,8 +925,7 @@ function DiagramFlowRenderer({
 
   const flowContent = (
     <ArtifactShell
-      title={graphTitle}
-      icon={<MindmapIcon sx={{ width: 20, height: 20 }} />}
+      title="DIAGRAM"
       chrome={chrome}
       onClose={onClose}
       onRequestClose={onRequestClose}
@@ -885,7 +938,11 @@ function DiagramFlowRenderer({
         {
           key: 'copy',
           label: copied ? 'Copied!' : 'Copy code',
-          icon: copied ? <CheckRoundedIcon sx={{ fontSize: 18 }} /> : <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />,
+          icon: copied ? (
+            <CheckRoundedIcon sx={{ fontSize: 18 }} />
+          ) : (
+            <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />
+          ),
           onClick: handleCopy,
         },
       ]}

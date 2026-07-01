@@ -1,37 +1,32 @@
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
+import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
+import PauseCircleOutlineRoundedIcon from '@mui/icons-material/PauseCircleOutlineRounded';
 import {
   Box,
-  Typography,
-  IconButton,
-  Tooltip,
   Button,
+  IconButton,
   Skeleton,
-  useTheme,
+  Tooltip,
+  Typography,
   useMediaQuery,
-} from "@mui/material";
-import { alpha, keyframes } from "@mui/material/styles";
-import Fade from "@mui/material/Fade";
-import InlineExecutionTable from "./InlineExecutionTable";
-import ContentCopyRoundedIcon from "@mui/icons-material/ContentCopyRounded";
-import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
-import AccountTreeOutlinedIcon from "@mui/icons-material/AccountTreeOutlined";
-import PauseCircleOutlineRoundedIcon from "@mui/icons-material/PauseCircleOutlineRounded";
-import ErrorOutlineRoundedIcon from "@mui/icons-material/ErrorOutlineRounded";
-import { useState, useMemo, useRef, useEffect, useCallback, memo } from "react";
-import { copyToClipboard } from "@/utils/clipboard";
-import {
-  slideIn,
-} from "@/features/chat/ai-response-steps/timelineShared";
-import { StepsAccordion } from "@/features/chat/ai-response-steps";
-import MarkdownRenderer from "@/features/chat/MarkdownRenderer";
-import { MESSAGE_STATUS } from "@/utils/chatMessages";
-import {
-  HOVER_CAPABLE_QUERY,
-  REDUCED_MOTION_QUERY,
-} from "@/styles/mediaQueries";
-import { UI_LAYOUT } from "@/styles/shared";
+  useTheme,
+} from '@mui/material';
+import Fade from '@mui/material/Fade';
+import { alpha, keyframes } from '@mui/material/styles';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { StepsAccordion } from '@/features/chat/ai-response-steps';
+import { slideIn } from '@/features/chat/ai-response-steps/timelineShared';
+import MarkdownRenderer from '@/features/chat/MarkdownRenderer';
+import { HOVER_CAPABLE_QUERY, REDUCED_MOTION_QUERY } from '@/styles/mediaQueries';
+import { UI_LAYOUT } from '@/styles/shared';
+import { MESSAGE_STATUS } from '@/utils/chatMessages';
+import { copyToClipboard } from '@/utils/clipboard';
+import InlineExecutionTable from './InlineExecutionTable';
 
 const COPY_FEEDBACK_DURATION = 2000;
-const CANVAS_CODE_LANGUAGES = new Set(["diagram-flow"]);
+const CANVAS_CODE_LANGUAGES = new Set(['diagram-flow']);
 const FENCED_CODE_BLOCK_PATTERN = /```([A-Za-z0-9_-]+)[^\n]*\n([\s\S]*?)```/g;
 
 const softPulse = keyframes`
@@ -40,46 +35,46 @@ const softPulse = keyframes`
 `;
 
 const messageActionsRowSx = {
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "flex-start",
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-start',
   gap: 0.5,
-  flexWrap: "wrap",
+  flexWrap: 'wrap',
   minHeight: 30,
   opacity: 0,
-  transform: "translateY(-2px)",
-  transition: "opacity 140ms ease, transform 140ms ease",
+  transform: 'translateY(-2px)',
+  transition: 'opacity 140ms ease, transform 140ms ease',
 };
 
 const turnGroupHoverSx = {
   [HOVER_CAPABLE_QUERY]: {
-    "&:hover .msg-actions-row": { opacity: 1, transform: "translateY(0)" },
-    "&:focus-within .msg-actions-row": {
+    '&:hover .msg-actions-row': { opacity: 1, transform: 'translateY(0)' },
+    '&:focus-within .msg-actions-row': {
       opacity: 1,
-      transform: "translateY(0)",
+      transform: 'translateY(0)',
     },
   },
-  "@media (pointer: coarse)": {
-    "& .msg-actions-row": { opacity: 1, transform: "translateY(0)" },
+  '@media (pointer: coarse)': {
+    '& .msg-actions-row': { opacity: 1, transform: 'translateY(0)' },
   },
 };
 
 const getMessageActionButtonSx = (theme, copied = false) => ({
   width: 30,
   height: 30,
-  borderRadius: "8px",
-  color: copied ? "success.main" : "text.secondary",
-  transition: theme.transitions.create(["background-color", "color"], {
+  borderRadius: '8px',
+  color: copied ? 'success.main' : 'text.secondary',
+  transition: theme.transitions.create(['background-color', 'color'], {
     duration: theme.transitions.duration.shorter,
   }),
   [HOVER_CAPABLE_QUERY]: {
-    "&:hover": {
-      color: "text.primary",
+    '&:hover': {
+      color: 'text.primary',
       bgcolor: alpha(theme.palette.text.primary, 0.045),
     },
   },
-  "&:focus-visible": {
-    outline: `2px solid ${alpha(theme.palette.text.primary, theme.palette.mode === "dark" ? 0.18 : 0.12)}`,
+  '&:focus-visible': {
+    outline: `2px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.18 : 0.12)}`,
     outlineOffset: 2,
   },
 });
@@ -98,10 +93,7 @@ function useCopyToClipboard() {
   const setCopiedWithTimeout = useCallback(() => {
     setCopied(true);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    timeoutRef.current = setTimeout(
-      () => setCopied(false),
-      COPY_FEEDBACK_DURATION,
-    );
+    timeoutRef.current = setTimeout(() => setCopied(false), COPY_FEEDBACK_DURATION);
   }, []);
 
   const copyText = useCallback(
@@ -121,18 +113,14 @@ function useCopyToClipboard() {
         });
       };
 
-      if (
-        htmlContent &&
-        navigator.clipboard?.write &&
-        typeof ClipboardItem !== "undefined"
-      ) {
-        const htmlBlob = new Blob([htmlContent], { type: "text/html" });
-        const textBlob = new Blob([plainText], { type: "text/plain" });
+      if (htmlContent && navigator.clipboard?.write && typeof ClipboardItem !== 'undefined') {
+        const htmlBlob = new Blob([htmlContent], { type: 'text/html' });
+        const textBlob = new Blob([plainText], { type: 'text/plain' });
         navigator.clipboard
           .write([
             new ClipboardItem({
-              "text/html": htmlBlob,
-              "text/plain": textBlob,
+              'text/html': htmlBlob,
+              'text/plain': textBlob,
             }),
           ])
           .then(setCopiedWithTimeout)
@@ -150,14 +138,14 @@ function useCopyToClipboard() {
 const CopyButton = memo(function CopyButton({
   copied,
   onClick,
-  className = "message-action-btn",
+  className = 'message-action-btn',
   sx = {},
-  "data-testid": dataTestId,
+  'data-testid': dataTestId,
 }) {
   const theme = useTheme();
 
   return (
-    <Tooltip title={copied ? "Copied!" : "Copy"}>
+    <Tooltip title={copied ? 'Copied!' : 'Copy'}>
       <IconButton
         className={className}
         aria-label="Copy"
@@ -181,13 +169,10 @@ const UserMessage = memo(function UserMessage({ message }) {
   const { copied, copyText } = useCopyToClipboard();
   const theme = useTheme();
   const handleCopy = useCallback(() => copyText(message), [copyText, message]);
-  const bubbleBg = alpha(
-    theme.palette.text.primary,
-    theme.palette.mode === "dark" ? 0.055 : 0.035,
-  );
+  const bubbleBg = alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.055 : 0.035);
   const bubbleBorder = alpha(
     theme.palette.text.primary,
-    theme.palette.mode === "dark" ? 0.1 : 0.075,
+    theme.palette.mode === 'dark' ? 0.1 : 0.075,
   );
 
   return (
@@ -201,24 +186,24 @@ const UserMessage = memo(function UserMessage({ message }) {
       >
         <Box
           sx={{
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "flex-end",
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
             gap: 0.5,
           }}
         >
           <Box
             sx={{
-              display: "inline-flex",
-              flexDirection: "column",
-              maxWidth: { xs: "min(90%, 72ch)", sm: "min(78%, 75ch)" },
-              borderRadius: "14px 14px 6px 14px",
+              display: 'inline-flex',
+              flexDirection: 'column',
+              maxWidth: { xs: 'min(90%, 72ch)', sm: 'min(78%, 75ch)' },
+              borderRadius: '14px 14px 6px 14px',
               px: { xs: 1.5, sm: 1.75 },
               py: { xs: 1, sm: 1.1 },
               bgcolor: bubbleBg,
-              border: "1px solid",
+              border: '1px solid',
               borderColor: bubbleBorder,
-              color: "text.primary",
+              color: 'text.primary',
             }}
           >
             <Typography
@@ -226,9 +211,9 @@ const UserMessage = memo(function UserMessage({ message }) {
               data-testid="user-message"
               sx={{
                 lineHeight: 1.6,
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                fontSize: { xs: "0.925rem", sm: "0.97rem" },
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                fontSize: { xs: '0.925rem', sm: '0.97rem' },
               }}
             >
               {message}
@@ -240,11 +225,7 @@ const UserMessage = memo(function UserMessage({ message }) {
             aria-label="Message actions"
             sx={messageActionsRowSx}
           >
-            <CopyButton
-              copied={copied}
-              onClick={handleCopy}
-              data-testid="action-bar-copy"
-            />
+            <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
           </Box>
         </Box>
       </Box>
@@ -253,28 +234,23 @@ const UserMessage = memo(function UserMessage({ message }) {
 });
 
 function parseJSON(value) {
-  if (!value || value === "null") return null;
+  if (!value || value === 'null') return null;
   try {
-    return typeof value === "string" ? JSON.parse(value) : value;
+    return typeof value === 'string' ? JSON.parse(value) : value;
   } catch {
     return null;
   }
 }
 
 function getQueryExecutionMeta(step, fallbackConversationId = null) {
-  if (
-    step?.name !== "execute_query" ||
-    step?.status !== "done" ||
-    !step?.result
-  ) {
+  if (step?.name !== 'execute_query' || step?.status !== 'done' || !step?.result) {
     return null;
   }
 
   const parsedResult = parseJSON(step.result);
-  const result =
-    parsedResult && typeof parsedResult === "object" ? parsedResult : {};
+  const result = parsedResult && typeof parsedResult === 'object' ? parsedResult : {};
   const nestedResult =
-    result.data && typeof result.data === "object" && !Array.isArray(result.data)
+    result.data && typeof result.data === 'object' && !Array.isArray(result.data)
       ? result.data
       : {};
   const executionId =
@@ -302,23 +278,20 @@ function getQueryExecutionMeta(step, fallbackConversationId = null) {
  */
 function extractCanvasCodeArtifacts(markdown) {
   const artifacts = [];
-  String(markdown || "").replace(
-    FENCED_CODE_BLOCK_PATTERN,
-    (match, rawLanguage, code, offset) => {
-      const language = String(rawLanguage || "").toLowerCase();
-      if (CANVAS_CODE_LANGUAGES.has(language)) {
-        artifacts.push({
-          key: `${language}-${offset}`,
-          type: "react-flow",
-          title: "Diagram",
-          props: {
-            code: String(code || "").trim(),
-          },
-        });
-      }
-      return match;
-    },
-  );
+  String(markdown || '').replace(FENCED_CODE_BLOCK_PATTERN, (match, rawLanguage, code, offset) => {
+    const language = String(rawLanguage || '').toLowerCase();
+    if (CANVAS_CODE_LANGUAGES.has(language)) {
+      artifacts.push({
+        key: `${language}-${offset}`,
+        type: 'react-flow',
+        title: 'Diagram',
+        props: {
+          code: String(code || '').trim(),
+        },
+      });
+    }
+    return match;
+  });
   return artifacts;
 }
 
@@ -328,16 +301,13 @@ function extractCanvasCodeArtifacts(markdown) {
  * Only used to show a "Building diagram…" placeholder card during streaming.
  */
 function hasOpenCanvasBlock(markdown) {
-  const src = String(markdown || "");
+  const src = String(markdown || '');
   for (const lang of CANVAS_CODE_LANGUAGES) {
     // Opening fence exists AND the closing ``` is not present after it
-    const openPattern = new RegExp("```" + lang + "(?:\\s|\\n|$)", "i");
+    const openPattern = new RegExp(`\`\`\`${lang}(?:\\s|\\n|$)`, 'i');
     if (!openPattern.test(src)) continue;
     // If a COMPLETE block is present, it's not partial
-    const completePattern = new RegExp(
-      "```" + lang + "[^\\n]*\\n[\\s\\S]*?```",
-      "i",
-    );
+    const completePattern = new RegExp(`\`\`\`${lang}[^\\n]*\\n[\\s\\S]*?\`\`\``, 'i');
     if (!completePattern.test(src)) return true;
   }
   return false;
@@ -355,32 +325,29 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
   onOpen,
 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = theme.palette.mode === 'dark';
   const panelBorder = alpha(theme.palette.text.primary, isDark ? 0.1 : 0.075);
-  const panelBg = alpha(theme.palette.text.primary, isDark ? 0.028 : 0.018);
-  const panelHoverBg = alpha(
-    theme.palette.text.primary,
-    isDark ? 0.045 : 0.03,
-  );
+  const panelBg = 'transparent';
+  const panelHoverBg = alpha(theme.palette.text.primary, isDark ? 0.045 : 0.03);
 
   return (
     <Box
       sx={{
-        display: "flex",
-        alignItems: "center",
+        display: 'flex',
+        alignItems: 'center',
         gap: { xs: 1.5, sm: 2 },
         px: { xs: 1.25, sm: 1.5 },
         py: { xs: 1.1, sm: 1.25 },
-        borderRadius: "8px",
-        border: "1px solid",
+        borderRadius: '8px',
+        border: '1px solid',
         borderColor: panelBorder,
         bgcolor: panelBg,
-        transition: theme.transitions.create(["background-color", "border-color"], {
+        transition: theme.transitions.create(['background-color', 'border-color'], {
           duration: theme.transitions.duration.shorter,
         }),
         ...(!isGenerating && {
           [HOVER_CAPABLE_QUERY]: {
-            "&:hover": {
+            '&:hover': {
               bgcolor: panelHoverBg,
               borderColor: alpha(theme.palette.text.primary, isDark ? 0.14 : 0.1),
             },
@@ -392,17 +359,17 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
         sx={{
           width: { xs: 36, sm: 40 },
           height: { xs: 36, sm: 40 },
-          borderRadius: "10px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          borderRadius: '10px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           flexShrink: 0,
           bgcolor: alpha(theme.palette.text.primary, isDark ? 0.075 : 0.045),
-          transition: "background-color 140ms ease",
+          transition: 'background-color 140ms ease',
           ...(isGenerating && {
             animation: `${softPulse} 2.2s ease-in-out infinite`,
-            "@media (prefers-reduced-motion: reduce)": {
-              animation: "none",
+            '@media (prefers-reduced-motion: reduce)': {
+              animation: 'none',
             },
           }),
         }}
@@ -413,7 +380,7 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
             color: isGenerating
               ? alpha(theme.palette.text.primary, isDark ? 0.38 : 0.34)
               : alpha(theme.palette.text.primary, isDark ? 0.74 : 0.68),
-            transition: "color 140ms ease",
+            transition: 'color 140ms ease',
           }}
         />
       </Box>
@@ -427,14 +394,14 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
             lineHeight: 1.25,
             color: isGenerating
               ? alpha(theme.palette.text.primary, isDark ? 0.42 : 0.38)
-              : "text.primary",
-            transition: "color 140ms ease",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+              : 'text.primary',
+            transition: 'color 140ms ease',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
           }}
         >
-          {artifact.title || "Diagram"}
+          {artifact.title || 'Diagram'}
         </Typography>
 
         <Typography
@@ -443,15 +410,15 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
             fontFamily: theme.typography.fontFamily,
             lineHeight: 1.4,
             mt: 0.35,
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
             color: isGenerating
               ? alpha(theme.palette.text.primary, isDark ? 0.34 : 0.3)
               : alpha(theme.palette.text.secondary, isDark ? 0.55 : 0.65),
           }}
         >
-          {isGenerating ? "Generating diagram\u2026" : "Interactive node graph"}
+          {isGenerating ? 'Generating diagram\u2026' : 'Interactive node graph'}
         </Typography>
       </Box>
 
@@ -462,7 +429,7 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
             flexShrink: 0,
             px: { xs: 1.75, sm: 2.25 },
             py: 0.625,
-            borderRadius: "6px",
+            borderRadius: '6px',
             bgcolor: alpha(theme.palette.text.primary, isDark ? 0.055 : 0.035),
           }}
         >
@@ -470,9 +437,9 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
             sx={{
               ...theme.typography.uiBodySm,
               fontFamily: theme.typography.fontFamily,
-              fontSize: { xs: "0.75rem", sm: "0.8125rem" },
+              fontSize: { xs: '0.75rem', sm: '0.8125rem' },
               fontWeight: 600,
-              userSelect: "none",
+              userSelect: 'none',
               color: alpha(theme.palette.text.primary, isDark ? 0.42 : 0.38),
             }}
           >
@@ -488,27 +455,27 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
           onClick={() => onOpen?.(artifact)}
           sx={{
             flexShrink: 0,
-            borderRadius: "8px",
-            textTransform: "none",
+            borderRadius: '8px',
+            textTransform: 'none',
             ...theme.typography.uiBodySm,
             fontFamily: theme.typography.fontFamily,
-            fontSize: { xs: "0.75rem", sm: "0.8125rem" },
+            fontSize: { xs: '0.75rem', sm: '0.8125rem' },
             fontWeight: 650,
             px: { xs: 1.75, sm: 2.25 },
             py: 0.625,
-            color: "text.primary",
+            color: 'text.primary',
             borderColor: alpha(theme.palette.text.primary, isDark ? 0.18 : 0.14),
             transition:
-              "background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease",
+              'background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease',
             [HOVER_CAPABLE_QUERY]: {
-              "&:hover": {
+              '&:hover': {
                 borderColor: alpha(theme.palette.text.primary, isDark ? 0.24 : 0.18),
                 bgcolor: alpha(theme.palette.text.primary, isDark ? 0.065 : 0.045),
-                boxShadow: "none",
+                boxShadow: 'none',
               },
             },
-            "&:active": {
-              transform: "translateY(1px)",
+            '&:active': {
+              transform: 'translateY(1px)',
             },
           }}
         >
@@ -544,18 +511,12 @@ const AIMessage = memo(function AIMessage({
     }
   }, [isStreaming, isWaiting]);
 
-  const displayText = text || "";
-  const displaySteps = useMemo(
-    () => (Array.isArray(steps) ? steps : []),
-    [steps],
-  );
+  const displayText = text || '';
+  const displaySteps = useMemo(() => (Array.isArray(steps) ? steps : []), [steps]);
   // Simple filter — no pre-stripping needed since MarkdownRenderer suppresses
   // canvas blocks itself.
   const displayTimeline = useMemo(
-    () =>
-      Array.isArray(timeline)
-        ? timeline.filter((item) => item && item.type)
-        : [],
+    () => (Array.isArray(timeline) ? timeline.filter((item) => item?.type) : []),
     [timeline],
   );
   const hasTimeline = displayTimeline.length > 0;
@@ -565,7 +526,7 @@ const AIMessage = memo(function AIMessage({
       displaySteps.length === 0 &&
       !displayText.trim() &&
       !hasTimeline,
-    [isWaiting, isStreaming, displaySteps, displayText, hasTimeline]
+    [isWaiting, isStreaming, displaySteps, displayText, hasTimeline],
   );
 
   const effectiveTimeline = useMemo(() => {
@@ -573,9 +534,9 @@ const AIMessage = memo(function AIMessage({
     if (showThinkingSpinner) {
       return [
         {
-          id: "thinking-dummy",
-          type: "thinking",
-          content: "",
+          id: 'thinking-dummy',
+          type: 'thinking',
+          content: '',
           isComplete: false,
         },
       ];
@@ -585,10 +546,7 @@ const AIMessage = memo(function AIMessage({
 
   const hasEffectiveTimeline = effectiveTimeline.length > 0;
   // Complete canvas code artifacts (both fences present)
-  const artifacts = useMemo(
-    () => extractCanvasCodeArtifacts(displayText),
-    [displayText],
-  );
+  const artifacts = useMemo(() => extractCanvasCodeArtifacts(displayText), [displayText]);
 
   // Partial artifacts — opening fence detected but closing fence not yet
   // arrived. Shows a "Building diagram…" placeholder card during streaming.
@@ -598,10 +556,10 @@ const AIMessage = memo(function AIMessage({
     if (!hasOpenCanvasBlock(displayText)) return [];
     return Array.from(CANVAS_CODE_LANGUAGES).map((lang) => ({
       key: `partial-${lang}`,
-      type: "react-flow",
-      title: "Diagram",
+      type: 'react-flow',
+      title: 'Diagram',
       isGenerating: true,
-      props: { code: "" },
+      props: { code: '' },
     }));
   }, [displayText, isStreaming, isWaiting, artifacts]);
 
@@ -636,8 +594,6 @@ const AIMessage = memo(function AIMessage({
     copyRich(htmlContent, plainTextContent);
   }, [copyRich, displayText]);
 
-
-
   const renderTextBlock = useCallback(
     (content, key) => {
       if (!content || !String(content).trim()) return null;
@@ -650,11 +606,11 @@ const AIMessage = memo(function AIMessage({
             pr: { xs: 0.5, sm: 3 },
             minWidth: 0,
             py: 0.25,
-            overflowAnchor: "none",
+            overflowAnchor: 'none',
             // Same entry spec as StepsAccordion and timeline items — one
             // consistent fade-in for every piece of content that materialises.
             animation: `${slideIn} 0.22s ease-out both`,
-            "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+            '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
           }}
         >
           <MarkdownRenderer
@@ -676,7 +632,7 @@ const AIMessage = memo(function AIMessage({
         <Box
           key={key}
           data-testid={`assistant-${step.type}-step`}
-          sx={{ pl: { xs: 0, sm: 0.5 }, py: 0.5, minWidth: 0 }}
+          sx={{ pl: { xs: 0, sm: 0.5 }, pr: { xs: 0.5, sm: 3 }, py: 0.5, minWidth: 0 }}
         >
           <StepsAccordion steps={[step]} isStreaming={isWaiting || isStreaming} />
           {executionMeta?.executionId && (
@@ -700,29 +656,16 @@ const AIMessage = memo(function AIMessage({
           ...turnGroupHoverSx,
         }}
       >
-        <Box
-          ref={contentRef}
-          sx={{ position: "relative", lineHeight: 1.65, minWidth: 0 }}
-        >
+        <Box ref={contentRef} sx={{ position: 'relative', lineHeight: 1.65, minWidth: 0 }}>
           {/* Fade in+out so it cross-fades with the first arriving step
                rather than instantly popping out when the accordion mounts. */}
           {hasEffectiveTimeline ? (
             effectiveTimeline.map((item, index) => {
-              if (item.type === "text") {
-                return renderTextBlock(
-                  item.content || "",
-                  item.id || `text-${index}`,
-                );
+              if (item.type === 'text') {
+                return renderTextBlock(item.content || '', item.id || `text-${index}`);
               }
-              if (
-                item.type === "thinking" ||
-                item.type === "tool" ||
-                item.type === "skill"
-              ) {
-                return renderStepBlock(
-                  item,
-                  item.id || `${item.type}-${index}`,
-                );
+              if (item.type === 'thinking' || item.type === 'tool' || item.type === 'skill') {
+                return renderStepBlock(item, item.id || `${item.type}-${index}`);
               }
               return null;
             })
@@ -732,8 +675,7 @@ const AIMessage = memo(function AIMessage({
                 renderStepBlock(step, step.id || `${step.type}-${index}`),
               )}
 
-              {displayText.trim() &&
-                renderTextBlock(displayText, "fallback-text")}
+              {displayText.trim() && renderTextBlock(displayText, 'fallback-text')}
             </>
           )}
 
@@ -744,8 +686,8 @@ const AIMessage = memo(function AIMessage({
                 pr: { xs: 0.5, sm: 3 },
                 mt: 1,
                 mb: 1,
-                display: "flex",
-                flexDirection: "column",
+                display: 'flex',
+                flexDirection: 'column',
                 gap: 1,
               }}
             >
@@ -766,35 +708,29 @@ const AIMessage = memo(function AIMessage({
             role="status"
             aria-label="Task paused"
             sx={{
-              display: "flex",
-              alignItems: "center",
+              display: 'flex',
+              alignItems: 'center',
               gap: 1,
               mt: 1,
               ml: { xs: 0, sm: 0.5 },
               py: 0.9,
               px: 1.5,
-              borderRadius: "8px",
+              borderRadius: '8px',
               bgcolor: (th) =>
-                alpha(
-                  th.palette.warning.main,
-                  th.palette.mode === "dark" ? 0.1 : 0.06,
-                ),
-              border: "1px solid",
+                alpha(th.palette.warning.main, th.palette.mode === 'dark' ? 0.1 : 0.06),
+              border: '1px solid',
               borderColor: (th) =>
-                alpha(
-                  th.palette.warning.main,
-                  th.palette.mode === "dark" ? 0.28 : 0.22,
-                ),
-              maxWidth: "max-content",
+                alpha(th.palette.warning.main, th.palette.mode === 'dark' ? 0.28 : 0.22),
+              maxWidth: 'max-content',
             }}
           >
             <PauseCircleOutlineRoundedIcon
-              sx={{ fontSize: 16, color: "warning.main", flexShrink: 0 }}
+              sx={{ fontSize: 16, color: 'warning.main', flexShrink: 0 }}
             />
             <Typography
               variant="caption"
               sx={{
-                color: "warning.main",
+                color: 'warning.main',
                 fontWeight: 600,
                 letterSpacing: 0.1,
               }}
@@ -810,152 +746,144 @@ const AIMessage = memo(function AIMessage({
           aria-label="Message actions"
           sx={{
             ...messageActionsRowSx,
-            width: "100%",
+            width: '100%',
             mt: 0,
             pl: { xs: 0, sm: 0.5 },
           }}
         >
-          <CopyButton
-            copied={copied}
-            onClick={handleCopy}
-            data-testid="action-bar-copy"
-          />
+          <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
         </Box>
       </Box>
     </Fade>
   );
 });
 
-const ConversationLoadingSkeleton = memo(
-  function ConversationLoadingSkeleton() {
-    const theme = useTheme();
-    const isDark = theme.palette.mode === "dark";
-    const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
-    const animation = prefersReducedMotion ? false : "wave";
-    const skBg = alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06);
-    const skBgLight = alpha(theme.palette.text.primary, isDark ? 0.05 : 0.04);
+const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() {
+  const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
+  const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
+  const animation = prefersReducedMotion ? false : 'wave';
+  const skBg = alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06);
+  const skBgLight = alpha(theme.palette.text.primary, isDark ? 0.05 : 0.04);
 
-    return (
+  return (
+    <Box
+      role="status"
+      aria-label="Loading conversation"
+      sx={{ flex: 1, py: { xs: 1.25, sm: 1.75 }, overflowAnchor: 'none' }}
+    >
       <Box
-        role="status"
-        aria-label="Loading conversation"
-        sx={{ flex: 1, py: { xs: 1.25, sm: 1.75 }, overflowAnchor: "none" }}
+        sx={{
+          width: '100%',
+          maxWidth: UI_LAYOUT.chatInputMaxWidth,
+          mx: 'auto',
+          px: { xs: 1.25, sm: 2 },
+          pt: 0.25,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: { xs: 2.25, sm: 2.75 },
+        }}
       >
-        <Box
-          sx={{
-            width: "100%",
-            maxWidth: UI_LAYOUT.chatInputMaxWidth,
-            mx: "auto",
-            px: { xs: 1.25, sm: 2 },
-            pt: 0.25,
-            display: "flex",
-            flexDirection: "column",
-            gap: { xs: 2.25, sm: 2.75 },
-          }}
-        >
-          {/* First exchange — user bubble */}
-          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+        {/* First exchange — user bubble */}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Skeleton
+            variant="rounded"
+            animation={animation}
+            sx={{
+              width: { xs: 148, sm: 210 },
+              height: { xs: 30, sm: 38 },
+              borderRadius: '10px',
+              bgcolor: skBg,
+            }}
+          />
+        </Box>
+
+        {/* First exchange — AI response with fake step row */}
+        <Box>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              pl: { xs: 0, sm: 0.5 },
+              mb: 1.5,
+            }}
+          >
+            <Skeleton
+              variant="circular"
+              animation={animation}
+              width={13}
+              height={13}
+              sx={{ flexShrink: 0, bgcolor: skBgLight }}
+            />
             <Skeleton
               variant="rounded"
               animation={animation}
               sx={{
-                width: { xs: 148, sm: 210 },
-                height: { xs: 30, sm: 38 },
-                borderRadius: "10px",
-                bgcolor: skBg,
+                width: '38%',
+                maxWidth: 196,
+                height: 9,
+                borderRadius: 999,
+                bgcolor: skBgLight,
               }}
             />
           </Box>
-
-          {/* First exchange — AI response with fake step row */}
-          <Box>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-                pl: { xs: 0, sm: 0.5 },
-                mb: 1.5,
-              }}
-            >
-              <Skeleton
-                variant="circular"
-                animation={animation}
-                width={13}
-                height={13}
-                sx={{ flexShrink: 0, bgcolor: skBgLight }}
-              />
-              <Skeleton
-                variant="rounded"
-                animation={animation}
-                sx={{
-                  width: "38%",
-                  maxWidth: 196,
-                  height: 9,
-                  borderRadius: 999,
-                  bgcolor: skBgLight,
-                }}
-              />
-            </Box>
-            {["100%", "92%", "100%", "84%", "100%", "76%", "46%"].map(
-              (width, idx) => (
-                <Skeleton
-                  key={idx}
-                  variant="rounded"
-                  animation={animation}
-                  sx={{
-                    width,
-                    height: { xs: 10, sm: 12 },
-                    mb: { xs: 0.85, sm: 1 },
-                    borderRadius: 999,
-                    bgcolor: skBg,
-                  }}
-                />
-              ),
-            )}
-          </Box>
-
-          {/* Second exchange — shorter user bubble */}
-          <Box sx={{ display: "flex", justifyContent: "flex-end" }}>
+          {['100%', '92%', '100%', '84%', '100%', '76%', '46%'].map((width, idx) => (
             <Skeleton
+              key={idx}
               variant="rounded"
               animation={animation}
               sx={{
-                width: { xs: 100, sm: 148 },
-                height: { xs: 30, sm: 38 },
-                borderRadius: "10px",
+                width,
+                height: { xs: 10, sm: 12 },
+                mb: { xs: 0.85, sm: 1 },
+                borderRadius: 999,
                 bgcolor: skBg,
               }}
             />
-          </Box>
+          ))}
+        </Box>
 
-          {/* Second exchange — AI response text lines */}
-          <Box>
-            {["100%", "90%", "68%"].map((width, idx) => (
-              <Skeleton
-                key={idx}
-                variant="rounded"
-                animation={animation}
-                sx={{
-                  width,
-                  height: { xs: 10, sm: 12 },
-                  mb: { xs: 0.85, sm: 1 },
-                  borderRadius: 999,
-                  bgcolor: skBg,
-                }}
-              />
-            ))}
-          </Box>
+        {/* Second exchange — shorter user bubble */}
+        <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <Skeleton
+            variant="rounded"
+            animation={animation}
+            sx={{
+              width: { xs: 100, sm: 148 },
+              height: { xs: 30, sm: 38 },
+              borderRadius: '10px',
+              bgcolor: skBg,
+            }}
+          />
+        </Box>
+
+        {/* Second exchange — AI response text lines */}
+        <Box>
+          {['100%', '90%', '68%'].map((width, idx) => (
+            <Skeleton
+              key={idx}
+              variant="rounded"
+              animation={animation}
+              sx={{
+                width,
+                height: { xs: 10, sm: 12 },
+                mb: { xs: 0.85, sm: 1 },
+                borderRadius: 999,
+                bgcolor: skBg,
+              }}
+            />
+          ))}
         </Box>
       </Box>
-    );
-  },
-);
+    </Box>
+  );
+});
 
 function normalizeAssistantMessage(message) {
   return {
     id: message.id,
-    text: message.text || "",
+    text: message.text || '',
     steps: message.steps || [],
     timeline: message.timeline || [],
     status: message.status || MESSAGE_STATUS.DONE,
@@ -975,23 +903,17 @@ const MessageList = memo(function MessageList({
     () =>
       messages.map((message, index) => {
         const id = message.id || `message-${index}`;
-        if (message.role === "user") {
-          return { id, role: "user", text: message.text };
+        if (message.role === 'user') {
+          return { id, role: 'user', text: message.text };
         }
-        return { id, role: "assistant", ...normalizeAssistantMessage(message) };
+        return { id, role: 'assistant', ...normalizeAssistantMessage(message) };
       }),
     [messages],
   );
-  const effectiveVisibleCount =
-    normalizedMessages.length <= 50 ? 60 : visibleCount;
-  const hiddenCount = Math.max(
-    0,
-    normalizedMessages.length - effectiveVisibleCount,
-  );
+  const effectiveVisibleCount = normalizedMessages.length <= 50 ? 60 : visibleCount;
+  const hiddenCount = Math.max(0, normalizedMessages.length - effectiveVisibleCount);
   const visibleMessages =
-    hiddenCount > 0
-      ? normalizedMessages.slice(-effectiveVisibleCount)
-      : normalizedMessages;
+    hiddenCount > 0 ? normalizedMessages.slice(-effectiveVisibleCount) : normalizedMessages;
 
   if (isLoadingConversation) {
     return <ConversationLoadingSkeleton />;
@@ -1002,12 +924,12 @@ const MessageList = memo(function MessageList({
       <Box
         sx={{
           flex: 1,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
           px: 2,
           py: 4,
-          textAlign: "center",
+          textAlign: 'center',
         }}
       >
         <Box
@@ -1017,21 +939,19 @@ const MessageList = memo(function MessageList({
             maxWidth: 380,
             px: { xs: 2, sm: 2.5 },
             py: { xs: 2, sm: 2.5 },
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
             gap: 0.75,
-            textAlign: "center",
-            bgcolor: "transparent",
+            textAlign: 'center',
+            bgcolor: 'transparent',
           }}
         >
-          <ErrorOutlineRoundedIcon
-            sx={{ fontSize: 20, color: "text.secondary", mb: 0.25 }}
-          />
+          <ErrorOutlineRoundedIcon sx={{ fontSize: 20, color: 'text.secondary', mb: 0.25 }} />
           <Typography
             sx={(th) => ({
               ...th.typography.uiBodySm,
-              color: "text.primary",
+              color: 'text.primary',
               fontWeight: 600,
             })}
           >
@@ -1040,7 +960,7 @@ const MessageList = memo(function MessageList({
           <Typography
             sx={(th) => ({
               ...th.typography.uiCaptionMd,
-              color: "text.secondary",
+              color: 'text.secondary',
             })}
           >
             Select it again from the sidebar.
@@ -1055,55 +975,52 @@ const MessageList = memo(function MessageList({
       sx={{
         flex: 1,
         py: { xs: 1.25, sm: 1.75 },
-        overflowAnchor: "none",
-        display: "flex",
-        flexDirection: "column",
+        overflowAnchor: 'none',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       <Box
         sx={{
-          width: "100%",
+          width: '100%',
           maxWidth: UI_LAYOUT.chatInputMaxWidth,
-          mx: "auto",
+          mx: 'auto',
           px: { xs: 1.25, sm: 2 },
           pt: 0.25,
           flex: 1,
-          display: "flex",
-          flexDirection: "column",
+          display: 'flex',
+          flexDirection: 'column',
           minWidth: 0,
         }}
       >
         {hiddenCount > 0 && (
-          <Box sx={{ pb: 1.5, display: "flex", justifyContent: "center" }}>
+          <Box sx={{ pb: 1.5, display: 'flex', justifyContent: 'center' }}>
             <Button
               size="small"
               onClick={() => setVisibleCount((c) => c + 50)}
               sx={(th) => ({
                 minHeight: 28,
-                borderRadius: "6px",
-                color: "text.secondary",
+                borderRadius: '6px',
+                color: 'text.secondary',
                 backgroundColor: alpha(
                   th.palette.text.primary,
-                  th.palette.mode === "dark" ? 0.05 : 0.03,
+                  th.palette.mode === 'dark' ? 0.05 : 0.03,
                 ),
                 ...th.typography.uiCaptionSm,
                 px: 1.5,
-                textTransform: "none",
+                textTransform: 'none',
                 fontWeight: 500,
                 letterSpacing: 0,
-                transition: th.transitions.create(
-                  ["background-color", "color"],
-                  {
-                    duration: th.transitions.duration.shorter,
-                  },
-                ),
+                transition: th.transitions.create(['background-color', 'color'], {
+                  duration: th.transitions.duration.shorter,
+                }),
                 [HOVER_CAPABLE_QUERY]: {
-                  "&:hover": {
+                  '&:hover': {
                     backgroundColor: alpha(
                       th.palette.text.primary,
-                      th.palette.mode === "dark" ? 0.08 : 0.05,
+                      th.palette.mode === 'dark' ? 0.08 : 0.05,
                     ),
-                    color: "text.primary",
+                    color: 'text.primary',
                   },
                 },
               })}
@@ -1113,7 +1030,7 @@ const MessageList = memo(function MessageList({
           </Box>
         )}
         {visibleMessages.map((message) =>
-          message.role === "user" ? (
+          message.role === 'user' ? (
             <UserMessage key={message.id} message={message.text} />
           ) : (
             <AIMessage

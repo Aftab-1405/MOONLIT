@@ -1,37 +1,37 @@
-import { memo, useCallback, useState } from "react";
+import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import DriveFileRenameOutlineRoundedIcon from '@mui/icons-material/DriveFileRenameOutlineRounded';
+import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
+import QuestionAnswerOutlinedIcon from '@mui/icons-material/QuestionAnswerOutlined';
 import {
   Box,
-  Typography,
   IconButton,
-  Tooltip,
   ListItemButton,
   ListItemIcon,
-  Skeleton,
   Menu,
   MenuItem,
-} from "@mui/material";
-import { alpha, useTheme } from "@mui/material/styles";
-import QuestionAnswerOutlinedIcon from "@mui/icons-material/QuestionAnswerOutlined";
-import DeleteOutlineRoundedIcon from "@mui/icons-material/DeleteOutlineRounded";
-import DriveFileRenameOutlineRoundedIcon from "@mui/icons-material/DriveFileRenameOutlineRounded";
-import MoreHorizRoundedIcon from "@mui/icons-material/MoreHorizRounded";
-import CheckCircleOutlineRoundedIcon from "@mui/icons-material/CheckCircleOutlineRounded";
-import { HOVER_CAPABLE_QUERY, TOUCH_DEVICE_QUERY } from "@/styles/mediaQueries";
+  Skeleton,
+  Tooltip,
+  Typography,
+} from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { memo, useCallback, useState } from 'react';
+import {
+  buildConversationRowSx,
+  buildNavRowSx,
+  getCollapsingLabelSx,
+  getSidebarRailTooltipSlotProps,
+  ICON_COL,
+} from '@/features/sidebar-left/styles/sidebarStyles';
+import { INTERFACE_RADIUS } from '@/features/styles/interfaceChrome';
+import { HOVER_CAPABLE_QUERY, TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
 import {
   getPopoverMenuItemSx,
   getPopoverMenuListSx,
   getPopoverPaperSx,
   getSelectableMenuItemSx,
   getUtilityIconButtonSx,
-} from "@/styles/shared";
-import {
-  buildNavRowSx,
-  buildConversationRowSx,
-  ICON_COL,
-  getCollapsingLabelSx,
-  getSidebarRailTooltipSlotProps,
-} from "@/features/sidebar-left/styles/sidebarStyles";
-import { INTERFACE_RADIUS } from "@/features/styles/interfaceChrome";
+} from '@/styles/shared';
 
 // ─── ConversationItem ─────────────────────────────────────────────────────────
 export const ConversationItem = memo(function ConversationItem({
@@ -42,13 +42,13 @@ export const ConversationItem = memo(function ConversationItem({
   onRename,
 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = theme.palette.mode === 'dark';
   const [menuAnchor, setMenuAnchor] = useState(null);
   const menuOpen = Boolean(menuAnchor);
   const utilityIconButtonSx = getUtilityIconButtonSx(theme);
   const renameMenuItemSx = getPopoverMenuItemSx(theme);
-  const deleteMenuItemSx = getPopoverMenuItemSx(theme, { tone: "error" });
-  const title = conv.title || "New Conversation";
+  const deleteMenuItemSx = getPopoverMenuItemSx(theme, { tone: 'error' });
+  const title = conv.title || 'New Conversation';
 
   const handleClick = useCallback(() => onSelect(conv.id), [onSelect, conv.id]);
   const handleMenuOpen = useCallback((e) => {
@@ -75,7 +75,7 @@ export const ConversationItem = memo(function ConversationItem({
 
   const handleKeyDown = useCallback(
     (e) => {
-      if (e.key === "Enter" || e.key === " ") {
+      if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         handleClick();
       }
@@ -84,24 +84,22 @@ export const ConversationItem = memo(function ConversationItem({
   );
 
   return (
-    <Box component="li" sx={{ listStyle: "none" }}>
+    <Box component="li" sx={{ listStyle: 'none' }}>
       <Box
         component="div"
         role="button"
         tabIndex={0}
         onClick={handleClick}
         onKeyDown={handleKeyDown}
-        aria-current={isActive ? "true" : undefined}
+        aria-current={isActive ? 'true' : undefined}
         aria-label={`Open ${title}`}
         sx={{
           ...buildConversationRowSx(theme, { isActive, menuOpen }),
           [TOUCH_DEVICE_QUERY]: {
-            "& .options-btn": { opacity: 1 },
-            "& .conv-title": {
-              maskImage:
-                "linear-gradient(to right, black 78%, transparent 98%)",
-              WebkitMaskImage:
-                "linear-gradient(to right, black 78%, transparent 98%)",
+            '& .options-btn': { opacity: 1 },
+            '& .conv-title': {
+              maskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
+              WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
             },
           },
         }}
@@ -112,32 +110,31 @@ export const ConversationItem = memo(function ConversationItem({
           sx={{
             width: ICON_COL,
             minWidth: ICON_COL,
-            display: "inline-flex",
-            alignItems: "center",
-            justifyContent: "center",
-            color: isActive ? "success.main" : "text.secondary",
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: isActive ? 'text.primary' : 'text.secondary',
           }}
         >
           {isActive ? (
             <CheckCircleOutlineRoundedIcon sx={{ fontSize: 18 }} />
           ) : (
-            <QuestionAnswerOutlinedIcon sx={{ fontSize: 16 }} />
+            <QuestionAnswerOutlinedIcon sx={{ fontSize: 18 }} />
           )}
         </Box>
         <Typography
           className="conv-title"
           sx={{
-            flex: "1 1 auto",
+            flex: '1 1 auto',
             minWidth: 0,
             ...theme.typography.uiNavItem,
             fontWeight: isActive ? 500 : 400,
             lineHeight: 1.35,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "clip",
-            maskImage: "linear-gradient(to right, black 78%, transparent 98%)",
-            WebkitMaskImage:
-              "linear-gradient(to right, black 78%, transparent 98%)",
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'clip',
+            maskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
           }}
         >
           {title}
@@ -153,21 +150,20 @@ export const ConversationItem = memo(function ConversationItem({
             aria-expanded={menuOpen}
             sx={{
               ...utilityIconButtonSx,
-              position: "absolute",
+              position: 'absolute',
               right: 4,
-              top: "50%",
+              top: '50%',
               opacity: menuOpen ? 1 : undefined,
-              color: menuOpen ? "text.primary" : undefined,
+              color: menuOpen ? 'text.primary' : undefined,
               bgcolor: menuOpen
                 ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06)
                 : undefined,
-              transform: "translateY(-50%)",
-              transition: theme.transitions.create(
-                ["background-color", "color", "opacity"],
-                { duration: theme.transitions.duration.shorter },
-              ),
-              "&:active": {
-                transform: "translateY(-50%)",
+              transform: 'translateY(-50%)',
+              transition: theme.transitions.create(['background-color', 'color', 'opacity'], {
+                duration: theme.transitions.duration.shorter,
+              }),
+              '&:active': {
+                transform: 'translateY(-50%)',
               },
             }}
           >
@@ -181,8 +177,8 @@ export const ConversationItem = memo(function ConversationItem({
         open={menuOpen}
         onClose={handleMenuClose}
         onClick={(e) => e.stopPropagation()}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{
           paper: {
             sx: getPopoverPaperSx(theme, isDark, {
@@ -217,18 +213,6 @@ export const ConversationItem = memo(function ConversationItem({
   );
 });
 
-// ─── SidebarNavItem ───────────────────────────────────────────────────────────
-//
-// Layout model (collapsed width = 52px, row px = 8px each side):
-//
-//  ┌──────────────────────────────────────────────────────────────────┐
-//  │  8px │  ←── ICON_COL (36px) ──→  │  label (fades out) │  8px  │
-//  └──────────────────────────────────────────────────────────────────┘
-//
-// The icon column is always 36px wide and centered within itself.
-// It never moves — no justifyContent switching, no px switching.
-// The label box collapses to maxWidth:0 + opacity:0 when collapsed.
-//
 export const SidebarNavItem = memo(function SidebarNavItem({
   label,
   tooltip,
@@ -242,7 +226,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   uiTarget,
 }) {
   const theme = useTheme();
-  const tooltipTitle = disabled || isCollapsed ? tooltip || label : "";
+  const tooltipTitle = disabled || isCollapsed ? tooltip || label : '';
   const railTooltipSlotProps = getSidebarRailTooltipSlotProps(theme);
 
   return (
@@ -255,7 +239,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
       disableFocusListener={!tooltipTitle}
       disableTouchListener={!tooltipTitle}
     >
-      <Box component="span" sx={{ display: "block" }}>
+      <Box component="span" sx={{ display: 'block', width: isCollapsed ? '36px' : '100%' }}>
         <Box
           component="button"
           type="button"
@@ -264,58 +248,43 @@ export const SidebarNavItem = memo(function SidebarNavItem({
           aria-label={label}
           data-ui-target={uiTarget}
           sx={{
-            ...buildNavRowSx(theme, { isActive, disabled }),
+            ...buildNavRowSx(theme, { isActive, disabled, collapsed: isCollapsed }),
             px: 0,
-            width: "100%",
-            "&:hover:not(:disabled) .shortcut-hint": { opacity: 1 },
+            '&:hover:not(:disabled) .shortcut-hint': { opacity: 1 },
           }}
         >
           {/* ── Icon column ── always ICON_COL wide, icon centered inside ── */}
           <Box
             component="span"
             sx={{
-              display: "inline-flex",
+              display: 'inline-flex',
               flexShrink: 0,
               width: ICON_COL,
-              justifyContent: "center",
-              alignItems: "center",
-              position: "relative",
+              justifyContent: 'center',
+              alignItems: 'center',
+              position: 'relative',
             }}
           >
             <Box
               component="span"
-              sx={{ display: "inline-flex", color: "inherit" }}
+              sx={{
+                display: 'inline-flex',
+                color: showStatus ? 'text.primary' : 'inherit',
+              }}
             >
               {icon}
             </Box>
-
-            {showStatus && (
-              <Box
-                sx={{
-                  position: "absolute",
-                  top: 6,
-                  right: 6,
-                  width: 6,
-                  height: 6,
-                  borderRadius: "50%",
-                  backgroundColor: theme.palette.success.main,
-                  border: `1.5px solid ${theme.palette.background.paper}`,
-                }}
-              />
-            )}
           </Box>
 
           {/* ── Label — collapses to zero when sidebar is collapsed ── */}
-          <Box
-            sx={getCollapsingLabelSx(theme, isCollapsed)}
-          >
+          <Box sx={getCollapsingLabelSx(theme, isCollapsed)}>
             <Typography
               noWrap
               sx={{
                 ...theme.typography.uiNavItem,
                 fontWeight: isActive ? 500 : 400,
-                color: "inherit",
-                textAlign: "left",
+                color: 'inherit',
+                textAlign: 'left',
               }}
             >
               {label}
@@ -329,11 +298,11 @@ export const SidebarNavItem = memo(function SidebarNavItem({
               component="span"
               sx={{
                 ...theme.typography.uiNavShortcut,
-                color: "text.secondary",
+                color: 'text.secondary',
                 flexShrink: 0,
                 opacity: 0,
-                transition: "opacity 0.15s ease",
-                whiteSpace: "nowrap",
+                transition: 'opacity 0.15s ease',
+                whiteSpace: 'nowrap',
                 pr: 0.5,
               }}
             >
@@ -356,19 +325,19 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
   onClosePopover,
   theme,
 }) {
-  const isDark = theme.palette.mode === "dark";
+  const isDark = theme.palette.mode === 'dark';
   const [menuAnchor, setMenuAnchor] = useState(null);
   const menuOpen = Boolean(menuAnchor);
   const utilityIconButtonSx = getUtilityIconButtonSx(theme);
   const renameMenuItemSx = getPopoverMenuItemSx(theme);
-  const deleteMenuItemSx = getPopoverMenuItemSx(theme, { tone: "error" });
+  const deleteMenuItemSx = getPopoverMenuItemSx(theme, { tone: 'error' });
   const rowSx = getSelectableMenuItemSx(theme, {
     isActive,
     minHeight: 36,
     columns: `${ICON_COL}px minmax(0, 1fr) 26px`,
     gap: 0,
   });
-  const title = conv.title || "New Conversation";
+  const title = conv.title || 'New Conversation';
 
   const handleClick = useCallback(() => {
     onClosePopover();
@@ -412,23 +381,22 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
           py: 0,
           pl: 0,
           pr: 0.5,
-          boxShadow: "none",
-          "&.Mui-selected": {
+          boxShadow: 'none',
+          '&.Mui-selected': {
             backgroundColor: rowSx.backgroundColor,
-            boxShadow: "none",
+            boxShadow: 'none',
           },
-          "&.Mui-selected:hover": {
+          '&.Mui-selected:hover': {
             backgroundColor:
-              rowSx[HOVER_CAPABLE_QUERY]?.["&:hover"]?.backgroundColor ||
-              rowSx.backgroundColor,
-            boxShadow: "none",
+              rowSx[HOVER_CAPABLE_QUERY]?.['&:hover']?.backgroundColor || rowSx.backgroundColor,
+            boxShadow: 'none',
           },
-          "& .history-options-btn": { opacity: menuOpen ? 1 : 0 },
-          "&:hover .history-options-btn, &:focus-within .history-options-btn": {
+          '& .history-options-btn': { opacity: menuOpen ? 1 : 0 },
+          '&:hover .history-options-btn, &:focus-within .history-options-btn': {
             opacity: 1,
           },
           [TOUCH_DEVICE_QUERY]: {
-            "& .history-options-btn": { opacity: 1 },
+            '& .history-options-btn': { opacity: 1 },
           },
         }}
       >
@@ -436,17 +404,15 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
           sx={{
             minWidth: ICON_COL,
             width: ICON_COL,
-            justifyContent: "center",
-            color: isActive ? "success.main" : "text.secondary",
+            justifyContent: 'center',
+            color: isActive ? 'text.primary' : 'text.secondary',
           }}
         >
           {isActive ? (
-            <CheckCircleOutlineRoundedIcon
-              sx={{ fontSize: 18, color: "success.main" }}
-            />
+            <CheckCircleOutlineRoundedIcon sx={{ fontSize: 18, color: 'text.primary' }} />
           ) : (
             <QuestionAnswerOutlinedIcon
-              sx={{ fontSize: 16, color: theme.palette.text.secondary }}
+              sx={{ fontSize: 18, color: theme.palette.text.secondary }}
             />
           )}
         </ListItemIcon>
@@ -455,13 +421,12 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
             ...theme.typography.uiNavItem,
             minWidth: 0,
             fontWeight: isActive ? 500 : 400,
-            color: "text.primary",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "clip",
-            maskImage: "linear-gradient(to right, black 78%, transparent 98%)",
-            WebkitMaskImage:
-              "linear-gradient(to right, black 78%, transparent 98%)",
+            color: 'text.primary',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'clip',
+            maskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
+            WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
           }}
         >
           {title}
@@ -479,7 +444,7 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
               width: 26,
               height: 26,
               opacity: menuOpen ? 1 : 0,
-              color: menuOpen ? "text.primary" : undefined,
+              color: menuOpen ? 'text.primary' : undefined,
               bgcolor: menuOpen
                 ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06)
                 : undefined,
@@ -494,8 +459,8 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
         open={menuOpen}
         onClose={handleMenuClose}
         onClick={(e) => e.stopPropagation()}
-        anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-        transformOrigin={{ vertical: "top", horizontal: "right" }}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{
           paper: {
             sx: getPopoverPaperSx(theme, isDark, {
@@ -530,20 +495,16 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
 // ─── HistoryListSkeleton ──────────────────────────────────────────────────────
 export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
   const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = theme.palette.mode === 'dark';
 
   return (
-    <Box
-      role="status"
-      aria-label="Loading recent conversations"
-      sx={{ px: 1, pb: 1 }}
-    >
+    <Box role="status" aria-label="Loading recent conversations" sx={{ px: 1, pb: 1 }}>
       {[0, 1, 2, 3, 4].map((i) => (
         <Box
           key={i}
           sx={{
-            display: "grid",
-            alignItems: "center",
+            display: 'grid',
+            alignItems: 'center',
             gridTemplateColumns: `${ICON_COL}px minmax(0, 1fr)`,
             px: 0,
             py: 0,
@@ -552,7 +513,7 @@ export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
             minHeight: 36,
           }}
         >
-          <Box sx={{ width: ICON_COL, display: "flex", justifyContent: "center" }}>
+          <Box sx={{ width: ICON_COL, display: 'flex', justifyContent: 'center' }}>
             <Skeleton
               variant="circular"
               width={16}

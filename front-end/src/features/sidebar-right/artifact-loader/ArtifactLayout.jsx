@@ -1,28 +1,20 @@
-import { memo } from 'react';
-import {
-  Box,
-  Fade,
-  IconButton,
-  Stack,
-  Tooltip,
-  Typography,
-  useMediaQuery,
-} from '@mui/material';
-import { useTheme } from '@mui/material/styles';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded';
 import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import { getScrollbarStyles, UI_Z_INDEX } from '@/styles/shared';
-import {
-  getAppBarSurfaceSx,
-  getAppDividerColor,
-  getAppPanelSurfaceSx,
-} from '@/features/styles/interfaceChrome';
+import { Box, IconButton, Stack, Tooltip, Typography, useMediaQuery } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { memo } from 'react';
 import {
   ARTIFACT_ROOT_SX,
   getArtifactActionButtonSx,
   useArtifactActions,
 } from '@/features/sidebar-right/artifact-loader/artifactLayoutUtils';
+import {
+  getAppBarSurfaceSx,
+  getAppDividerColor,
+  getAppPanelSurfaceSx,
+} from '@/features/styles/interfaceChrome';
+import { getScrollbarStyles } from '@/styles/shared';
 
 function getArtifactBarSx(theme) {
   return {
@@ -79,13 +71,7 @@ function ArtifactToolbar({ children, sx = {} }) {
   );
 }
 
-function ArtifactHeader({
-  icon,
-  title,
-  subtitle,
-  actions,
-  sx = {},
-}) {
+function ArtifactHeader({ icon, title, subtitle, actions, sx = {} }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const visibleActions = useArtifactActions(actions);
@@ -149,7 +135,14 @@ function ArtifactHeader({
       </Stack>
 
       {visibleActions.length ? (
-        <Stack direction="row" alignItems="center" gap={0.5} flexShrink={0} flexWrap="wrap" justifyContent="flex-end">
+        <Stack
+          direction="row"
+          alignItems="center"
+          gap={0.5}
+          flexShrink={0}
+          flexWrap="wrap"
+          justifyContent="flex-end"
+        >
           {visibleActions.map((action) => (
             <ArtifactActionButton key={action.key || action.label} {...action} />
           ))}
@@ -201,12 +194,7 @@ function ArtifactFooter({ children, sx = {} }) {
   );
 }
 
-export function ArtifactEmptyState({
-  icon,
-  title = 'Nothing to display',
-  message,
-  sx = {},
-}) {
+export function ArtifactEmptyState({ icon, title = 'Nothing to display', message, sx = {} }) {
   const theme = useTheme();
 
   return (
@@ -236,15 +224,15 @@ export function ArtifactEmptyState({
         {title}
       </Typography>
       {message ? (
-        <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary', maxWidth: 360 }}>
+        <Typography
+          sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary', maxWidth: 360 }}
+        >
           {message}
         </Typography>
       ) : null}
     </Box>
   );
 }
-
-
 
 function ArtifactShell({
   title,
@@ -270,8 +258,8 @@ function ArtifactShell({
   const isStandalone = chrome === 'standalone';
   const requestClose = onRequestClose || onClose;
   const handleFullscreenClick = isFullscreen
-    ? (onExitFullscreen || onToggleFullscreen)
-    : (onEnterFullscreen || onToggleFullscreen);
+    ? onExitFullscreen || onToggleFullscreen
+    : onEnterFullscreen || onToggleFullscreen;
 
   const shellActions = useArtifactActions([
     ...actions,
@@ -279,9 +267,11 @@ function ArtifactShell({
       ? {
           key: 'fullscreen',
           label: isFullscreen ? 'Exit fullscreen' : 'Fullscreen',
-          icon: isFullscreen
-            ? <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
-            : <FullscreenRoundedIcon sx={{ fontSize: 18 }} />,
+          icon: isFullscreen ? (
+            <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
+          ) : (
+            <FullscreenRoundedIcon sx={{ fontSize: 18 }} />
+          ),
           onClick: handleFullscreenClick,
           active: isFullscreen,
         }
@@ -328,7 +318,9 @@ function ArtifactShell({
     >
       {panel}
     </Box>
-  ) : panel;
+  ) : (
+    panel
+  );
 
   return shell;
 }

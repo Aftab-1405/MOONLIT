@@ -1,4 +1,4 @@
-import { keyframes } from "@mui/material/styles";
+import { keyframes } from '@mui/material/styles';
 
 /**
  * Shimmer sweep used for "live" / waiting text across chat surfaces.
@@ -19,4 +19,4 @@ export const slideIn = keyframes`
   to   { opacity: 1; }
 `;
 
-export const TIMELINE_LINE_X = { xs: 10, sm: 11 };
+export const TIMELINE_LINE_X = { xs: 12, sm: 14 };

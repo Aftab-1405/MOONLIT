@@ -340,10 +340,57 @@ def execute_sql_query(
 
             column_names = adapter.get_column_names_from_cursor(cursor)
 
+            # Determine column types
+            import datetime
+            import decimal
+
+            column_types = {}
+            for col_idx, col_name in enumerate(column_names):
+                detected_type = None
+                for row in rows:
+                    if col_idx < len(row):
+                        val = row[col_idx]
+                        if val is not None:
+                            if isinstance(val, bool):
+                                detected_type = "boolean"
+                            elif isinstance(val, int):
+                                detected_type = "integer"
+                            elif isinstance(val, (float, decimal.Decimal)):
+                                detected_type = "float"
+                            elif isinstance(val, datetime.datetime):
+                                detected_type = "datetime"
+                            elif isinstance(val, datetime.date):
+                                detected_type = "date"
+                            else:
+                                detected_type = "string"
+                            break
+
+                # Fallback to cursor.description type_code metadata if all values are null
+                if detected_type is None and cursor.description and col_idx < len(cursor.description):
+                    desc = cursor.description[col_idx]
+                    type_code = desc[1]
+                    type_name = str(type_code).lower()
+                    if "date" in type_name or "time" in type_name:
+                        detected_type = "datetime"
+                    elif "int" in type_name or "long" in type_name:
+                        detected_type = "integer"
+                    elif "num" in type_name or "float" in type_name or "decimal" in type_name or "double" in type_name:
+                        detected_type = "float"
+                    elif "bool" in type_name:
+                        detected_type = "boolean"
+                    else:
+                        detected_type = "string"
+
+                column_types[col_name] = detected_type or "string"
+
             row_count = len(rows)
             total_rows = None if truncated else row_count
 
-            result = {"fields": column_names, "rows": rows}
+            result = {
+                "fields": column_names,
+                "column_types": column_types,
+                "rows": rows
+            }
 
             message = f"Query executed in {execution_time}ms. "
             if truncated:

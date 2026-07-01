@@ -1,37 +1,34 @@
-import { useMemo } from "react";
-import { Box, Container, Typography, Stack } from "@mui/material";
-import { useTheme, alpha } from "@mui/material/styles";
-import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
-import SpeedIcon from "@mui/icons-material/Speed";
-import VisibilityIcon from "@mui/icons-material/Visibility";
-import {
-  Section,
-  REDUCED_MOTION_QUERY,
-  HOVER_CAPABLE_QUERY,
-} from "@/pages/Landing/index";
-import { getMoonlitBrandGradients } from "@/theme/themeEffects";
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import SpeedIcon from '@mui/icons-material/Speed';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import { Box, Container, Stack, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { motion } from 'framer-motion';
+import { useMemo } from 'react';
+import { HOVER_CAPABLE_QUERY, REDUCED_MOTION_QUERY, Section } from '@/pages/Landing/index';
+import { getMoonlitBrandGradients } from '@/theme/themeEffects';
 
 function ValueGrid() {
   const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = theme.palette.mode === 'dark';
   const brandGradients = getMoonlitBrandGradients(theme);
 
   const values = useMemo(
     () => [
       {
         Icon: AutoAwesomeIcon,
-        title: "Natural Language Queries",
-        desc: "Just ask what you want to know. The AI translates your questions into optimized SQL automatically.",
+        title: 'Natural Language Queries',
+        desc: 'Just ask what you want to know. The AI translates your questions into optimized SQL automatically.',
       },
       {
         Icon: SpeedIcon,
-        title: "Instant Results",
-        desc: "Get answers in seconds, not hours. View as tables, charts, or export to CSV with one click.",
+        title: 'Instant Results',
+        desc: 'Get answers in seconds, not hours. View as tables, charts, or export to CSV with one click.',
       },
       {
         Icon: VisibilityIcon,
-        title: "Visualize Instantly",
-        desc: "Turn query results into beautiful charts. Bar, line, pie, or doughnut — generated on the fly.",
+        title: 'Visualize Instantly',
+        desc: 'Turn query results into beautiful charts. Bar, line, pie, or doughnut — generated on the fly.',
       },
     ],
     [],
@@ -44,11 +41,11 @@ function ValueGrid() {
           <Typography
             sx={{
               ...theme.typography.uiCaptionSm,
-              color: "text.secondary",
+              color: 'text.secondary',
               fontWeight: 600,
               letterSpacing: 0,
-              textTransform: "none",
-              display: "block",
+              textTransform: 'none',
+              display: 'block',
               mb: 1.5,
             }}
           >
@@ -59,16 +56,16 @@ function ValueGrid() {
             fontWeight="bold"
             sx={{ ...theme.typography.uiHeadingLandingLg }}
           >
-            Built for{" "}
+            Built for{' '}
             <Box
               component="span"
               sx={{
                 background: brandGradients.shimmer,
-                backgroundSize: "200% auto",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                backgroundClip: "text",
-                animation: "shimmer 5s linear infinite",
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'shimmer 5s linear infinite',
               }}
             >
               Everyone.
@@ -77,20 +74,20 @@ function ValueGrid() {
           <Typography
             variant="body2"
             color="text.secondary"
-            sx={{ mt: 1.5, maxWidth: 480, mx: "auto", opacity: 0.7 }}
+            sx={{ mt: 1.5, maxWidth: 480, mx: 'auto', opacity: 0.7 }}
           >
-            Everything you need to explore, query, and visualize your databases
-            — without writing a single line of SQL.
+            Everything you need to explore, query, and visualize your databases — without writing a
+            single line of SQL.
           </Typography>
         </Box>
 
         <Box
           sx={{
-            display: "grid",
+            display: 'grid',
             gridTemplateColumns: {
-              xs: "1fr",
-              sm: "repeat(2, 1fr)",
-              md: "repeat(3, 1fr)",
+              xs: '1fr',
+              sm: 'repeat(2, 1fr)',
+              md: 'repeat(3, 1fr)',
             },
             gap: 2.5,
           }}
@@ -98,46 +95,41 @@ function ValueGrid() {
           {values.map((v, i) => (
             <Box
               key={v.title}
+              component={motion.div}
+              // Animate into view when the card enters the viewport (fixes mount-time animation bug)
+              initial={{ opacity: 0, y: 18 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: '-60px' }}
+              transition={{ duration: 0.45, ease: 'easeOut', delay: i * 0.08 }}
               sx={{
                 p: { xs: 3, md: 4 },
-                position: "relative",
+                position: 'relative',
                 backgroundColor: isDark
                   ? alpha(theme.palette.text.primary, 0.03)
                   : alpha(theme.palette.text.primary, 0.02),
                 border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
                 borderRadius: 3,
+                // will-change hints the browser to GPU-composite this layer before hover
+                willChange: 'transform',
                 transition: theme.transitions.create(
-                  [
-                    "border-color",
-                    "background-color",
-                    "transform",
-                    "box-shadow",
-                  ],
+                  ['border-color', 'background-color', 'transform', 'box-shadow'],
                   { duration: 250 },
                 ),
-                animation: {
-                  xs: "none",
-                  md: `fadeIn 0.5s ease-out ${i * 0.08}s both`,
-                },
                 [REDUCED_MOTION_QUERY]: {
-                  animation: "none",
-                  transition: "none",
+                  transition: 'none',
                 },
                 [HOVER_CAPABLE_QUERY]: {
-                  "&:hover": {
-                    borderColor: alpha(
-                      theme.palette.text.primary,
-                      isDark ? 0.22 : 0.14,
-                    ),
+                  '&:hover': {
+                    borderColor: alpha(theme.palette.text.primary, isDark ? 0.22 : 0.14),
                     backgroundColor: isDark
                       ? alpha(theme.palette.text.primary, 0.055)
                       : alpha(theme.palette.text.primary, 0.035),
-                    transform: "translateY(-5px)",
+                    transform: 'translateY(-5px)',
                     boxShadow: isDark
                       ? `0 20px 42px -18px ${alpha(theme.palette.common.black, 0.44)}`
                       : `0 20px 40px -18px ${alpha(theme.palette.common.black, 0.12)}`,
-                    "& .icon-container": { transform: "scale(1.06)" },
-                    "& .card-number": { opacity: 0.5 },
+                    '& .icon-container': { transform: 'scale(1.06)' },
+                    '& .card-number': { opacity: 0.5 },
                   },
                 },
               }}
@@ -145,22 +137,22 @@ function ValueGrid() {
               <Typography
                 className="card-number"
                 sx={{
-                  position: "absolute",
+                  position: 'absolute',
                   top: 20,
                   right: 20,
-                  fontFamily: theme.typography.fontFamilyMono || "monospace",
-                  fontSize: "0.65rem",
+                  fontFamily: theme.typography.fontFamilyMono || 'monospace',
+                  fontSize: '0.65rem',
                   fontWeight: 600,
                   letterSpacing: 0,
-                  color: "text.secondary",
+                  color: 'text.secondary',
                   opacity: 0.2,
-                  transition: theme.transitions.create("opacity", {
+                  transition: theme.transitions.create('opacity', {
                     duration: 250,
                   }),
-                  userSelect: "none",
+                  userSelect: 'none',
                 }}
               >
-                {String(i + 1).padStart(2, "0")}
+                {String(i + 1).padStart(2, '0')}
               </Typography>
 
               <Stack spacing={2} alignItems="flex-start">
@@ -174,10 +166,10 @@ function ValueGrid() {
                       ? alpha(theme.palette.text.primary, 0.09)
                       : alpha(theme.palette.text.primary, 0.055),
                     border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.16 : 0.1)}`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transition: theme.transitions.create("transform", {
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: theme.transitions.create('transform', {
                       duration: 250,
                     }),
                     boxShadow: isDark
@@ -185,7 +177,7 @@ function ValueGrid() {
                       : `inset 0 1px 0 ${alpha(theme.palette.common.white, 0.85)}`,
                   }}
                 >
-                  <v.Icon sx={{ fontSize: 22, color: "text.primary" }} />
+                  <v.Icon sx={{ fontSize: 22, color: 'text.primary' }} />
                 </Box>
 
                 <Box>

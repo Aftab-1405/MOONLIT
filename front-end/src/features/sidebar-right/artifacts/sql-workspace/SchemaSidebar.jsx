@@ -1,65 +1,71 @@
-/**
- * SchemaSidebar - Database Schema Explorer
- * 
- * Displays database schemas, tables, and columns in a collapsible tree structure.
- */
-
-import { useState, memo, useCallback, useEffect, useMemo } from 'react';
-import {
-  Box,
-  Typography,
-  IconButton,
-  Collapse,
-  Tooltip,
-  Fade,
-} from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
-import KeyboardArrowRightRoundedIcon from '@mui/icons-material/KeyboardArrowRightRounded';
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
-import HighlightOffRounded from '@mui/icons-material/HighlightOffRounded';
+import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
-import ViewColumnRoundedIcon from '@mui/icons-material/ViewColumnRounded';
-import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
+import TableRowsOutlinedIcon from '@mui/icons-material/TableRowsOutlined';
+import ViewColumnOutlinedIcon from '@mui/icons-material/ViewColumnOutlined';
+import { Box, Collapse, Fade, IconButton, Skeleton, Tooltip, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { ButtonLoadingSpinner } from '@/components';
 import SchemaIcon from '@/components/icons/SchemaIcon';
 import { useDatabaseConnection } from '@/contexts/DatabaseContext';
 import { getArtifactActionButtonSx } from '@/features/sidebar-right/artifact-loader';
-import {
-  getAppBarSurfaceSx,
-  getAppDividerColor,
-  getAppPanelSurfaceSx,
-} from '@/features/styles/interfaceChrome';
+import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 
-const SCHEMA_ROW_HEIGHT = 32;
-const SCHEMA_ICON_SLOT = 24;
+const TREE_ROW_HEIGHT = 32;
+const ICON_SLOT = 24;
 
-function getSchemaBarSx(theme) {
+function getColumnMeta(column) {
+  if (typeof column === 'string') return { name: column, dataType: '' };
+  if (!column || typeof column !== 'object') return { name: '', dataType: '' };
+
   return {
-    borderColor: getAppDividerColor(theme),
-    ...getAppBarSurfaceSx(theme),
+    name: column.name || column.column_name || '',
+    dataType: column.data_type || column.type || '',
   };
 }
 
-function getColumnLabel(column) {
-  if (typeof column === 'string') return column;
-  if (!column || typeof column !== 'object') return '';
-
-  const name = column.name || column.column_name || '';
-  const dataType = column.data_type || column.type || '';
-  return dataType ? `${name} ${dataType}` : name;
-}
-
-function getSchemaTreeRowSx(theme, interaction, { radius = '6px' } = {}) {
+function getTreeRowSx(theme, interaction, { radius = '7px' } = {}) {
   return {
-    minHeight: SCHEMA_ROW_HEIGHT,
-    transition: theme.transitions.create(['background-color'], {
-      duration: theme.transitions.duration.shortest,
-    }),
+    width: '100%',
+    minHeight: TREE_ROW_HEIGHT,
+    display: 'flex',
+    alignItems: 'center',
+    border: 0,
     borderRadius: radius,
-    '&:hover': {
-      bgcolor: interaction.hoverBackground,
+    color: 'inherit',
+    bgcolor: 'transparent',
+    font: 'inherit',
+    textAlign: 'left',
+    cursor: 'pointer',
+    userSelect: 'none',
+    transition: theme.transitions.create(['background-color', 'color'], {
+      duration: theme.transitions.duration.shorter,
+    }),
+    '&:hover': { bgcolor: interaction.hoverBackground },
+    '&:focus-visible': {
+      outline: `2px solid ${alpha(theme.palette.primary.main, 0.36)}`,
+      outlineOffset: -2,
     },
   };
+}
+
+function TreeIconSlot({ children, color = 'text.secondary' }) {
+  return (
+    <Box
+      component="span"
+      sx={{
+        width: ICON_SLOT,
+        display: 'inline-flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0,
+        color,
+      }}
+    >
+      {children}
+    </Box>
+  );
 }
 
 function SchemaStatusText({ children, color = 'text.secondary' }) {
@@ -67,93 +73,80 @@ function SchemaStatusText({ children, color = 'text.secondary' }) {
 
   return (
     <Fade in timeout={160}>
-      <Box
+      <Typography
         sx={{
           minHeight: 28,
           display: 'flex',
           alignItems: 'center',
-          px: 0.75,
-          py: 0,
+          px: 1,
+          ...theme.typography.uiCaptionXs,
+          color,
+          fontFamily: theme.typography.fontFamilyMono,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
       >
-        <Typography
-          sx={{
-            ...theme.typography.uiCaptionXs,
-            color,
-            fontFamily: theme.typography.fontFamilyMono,
-            minWidth: 0,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'clip',
-            maskImage: 'linear-gradient(to right, black 84%, transparent 98%)',
-            WebkitMaskImage: 'linear-gradient(to right, black 84%, transparent 98%)',
-          }}
-        >
-          {children}
-        </Typography>
-      </Box>
+        {children}
+      </Typography>
     </Fade>
   );
 }
 
-function SchemaItem({ schema, currentDatabase, fetchTableSchema }) {
+function ColumnItem({ column }) {
   const theme = useTheme();
-  const [expanded, setExpanded] = useState(true);
   const interaction = getInteractionColors(theme);
+  const { name, dataType } = getColumnMeta(column);
 
   return (
-    <Box>
-      <Box
-        onClick={() => setExpanded((v) => !v)}
+    <Box
+      title={dataType ? `${name} · ${dataType}` : name}
+      sx={{
+        minHeight: 29,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 0.25,
+        px: 0.75,
+        borderRadius: '6px',
+        transition: theme.transitions.create('background-color', {
+          duration: theme.transitions.duration.shortest,
+        }),
+        '&:hover': { bgcolor: interaction.hoverBackground },
+      }}
+    >
+      <TreeIconSlot color="text.disabled">
+        <ViewColumnOutlinedIcon sx={{ fontSize: 14 }} />
+      </TreeIconSlot>
+      <Typography
         sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 0,
-          px: 0.75,
-          py: 0,
-          cursor: 'pointer',
-          userSelect: 'none',
-          ...getSchemaTreeRowSx(theme, interaction),
+          ...theme.typography.uiCaptionXs,
+          minWidth: 0,
+          flex: 1,
+          color: 'text.secondary',
+          fontFamily: theme.typography.fontFamilyMono,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
         }}
       >
-        <Box sx={{ width: SCHEMA_ICON_SLOT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {expanded ? (
-            <KeyboardArrowDownRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-          ) : (
-            <KeyboardArrowRightRoundedIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
-          )}
-        </Box>
-        <Box sx={{ width: SCHEMA_ICON_SLOT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'text.secondary' }}>
-          <SchemaIcon sx={{ width: 16, height: 16 }} />
-        </Box>
+        {name}
+      </Typography>
+      {dataType ? (
         <Typography
           sx={{
-            ...theme.typography.uiCaptionMd,
-            fontWeight: 600,
-            color: 'text.primary',
-            minWidth: 0,
+            ...theme.typography.uiCaptionXs,
+            ml: 0.5,
+            maxWidth: '46%',
+            color: 'text.disabled',
+            fontFamily: theme.typography.fontFamilyMono,
             whiteSpace: 'nowrap',
             overflow: 'hidden',
-            textOverflow: 'clip',
-            maskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
-            WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
+            textOverflow: 'ellipsis',
           }}
         >
-          {schema.name}
+          {dataType}
         </Typography>
-      </Box>
-      <Collapse in={expanded}>
-        <Box sx={{ pl: 1 }}>
-          {schema.tables.map((table) => (
-            <TableItem
-              key={`${currentDatabase || 'db'}-${table.name}`}
-              table={table}
-              currentDatabase={currentDatabase}
-              fetchTableSchema={fetchTableSchema}
-            />
-          ))}
-        </Box>
-      </Collapse>
+      ) : null}
     </Box>
   );
 }
@@ -194,92 +187,131 @@ function TableItem({ table, currentDatabase, fetchTableSchema }) {
   return (
     <Box>
       <Box
+        component="button"
+        type="button"
+        aria-expanded={expanded}
         onClick={handleToggle}
         sx={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 0,
+          ...getTreeRowSx(theme, interaction),
           px: 0.75,
-          py: 0,
-          cursor: 'pointer',
-          userSelect: 'none',
-          ...getSchemaTreeRowSx(theme, interaction),
         }}
       >
-        <Box sx={{ width: SCHEMA_ICON_SLOT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-          {expanded ? (
-            <KeyboardArrowDownRoundedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
-          ) : (
-            <KeyboardArrowRightRoundedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
-          )}
-        </Box>
-        <Box sx={{ width: SCHEMA_ICON_SLOT, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: 'text.secondary' }}>
-          <TableChartRoundedIcon sx={{ fontSize: 17 }} />
-        </Box>
+        <TreeIconSlot>
+          <ChevronRightRoundedIcon
+            sx={{
+              fontSize: 16,
+              transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: theme.transitions.create('transform', {
+                duration: theme.transitions.duration.shorter,
+              }),
+            }}
+          />
+        </TreeIconSlot>
+        <TreeIconSlot color={expanded ? 'primary.main' : 'text.secondary'}>
+          <TableRowsOutlinedIcon sx={{ fontSize: 16 }} />
+        </TreeIconSlot>
         <Typography
+          component="span"
           sx={{
             ...theme.typography.uiCaptionSm,
-            color: 'text.primary',
             minWidth: 0,
+            flex: 1,
+            color: 'text.primary',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
-            textOverflow: 'clip',
-            maskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
-            WebkitMaskImage: 'linear-gradient(to right, black 82%, transparent 98%)',
+            textOverflow: 'ellipsis',
           }}
         >
           {table.name}
         </Typography>
       </Box>
-      <Collapse in={expanded}>
-        <Box sx={{ pl: 4 }}>
+      <Collapse in={expanded} timeout={160}>
+        <Box sx={{ pl: 5.5, pr: 0.25, pb: 0.25 }}>
           {columnsLoading ? (
-            <SchemaStatusText key="columns-loading">Loading columns...</SchemaStatusText>
+            <SchemaStatusText>Loading columns…</SchemaStatusText>
           ) : columnsError ? (
-            <SchemaStatusText key="columns-error" color="error.main">{columnsError}</SchemaStatusText>
+            <SchemaStatusText color="error.main">{columnsError}</SchemaStatusText>
           ) : columns.length === 0 ? (
-            <SchemaStatusText key="columns-empty">No columns</SchemaStatusText>
-          ) : columns.map((column) => (
-            <Box
-              key={getColumnLabel(column)}
-              sx={{
-                minHeight: 28,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 0,
-                px: 0.75,
-                py: 0,
-                ...getSchemaTreeRowSx(theme, interaction, { radius: '4px' }),
-              }}
-            >
-              <Box
-                sx={{
-                  width: SCHEMA_ICON_SLOT,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                  color: 'text.secondary',
-                }}
-              >
-                <ViewColumnRoundedIcon sx={{ fontSize: 15 }} />
-              </Box>
-              <Typography
-                sx={{
-                  ...theme.typography.uiCaptionXs,
-                  color: 'text.secondary',
-                  fontFamily: theme.typography.fontFamilyMono,
-                  minWidth: 0,
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'clip',
-                  maskImage: 'linear-gradient(to right, black 84%, transparent 98%)',
-                  WebkitMaskImage: 'linear-gradient(to right, black 84%, transparent 98%)',
-                }}
-              >
-                {getColumnLabel(column)}
-              </Typography>
-            </Box>
+            <SchemaStatusText>No columns found</SchemaStatusText>
+          ) : (
+            columns.map((column, index) => (
+              <ColumnItem key={`${getColumnMeta(column).name}-${index}`} column={column} />
+            ))
+          )}
+        </Box>
+      </Collapse>
+    </Box>
+  );
+}
+
+function SchemaItem({ schema, currentDatabase, fetchTableSchema }) {
+  const theme = useTheme();
+  const interaction = getInteractionColors(theme);
+  const [expanded, setExpanded] = useState(true);
+
+  return (
+    <Box>
+      <Box
+        component="button"
+        type="button"
+        aria-expanded={expanded}
+        onClick={() => setExpanded((value) => !value)}
+        sx={{
+          ...getTreeRowSx(theme, interaction, { radius: '8px' }),
+          px: 0.75,
+          mb: 0.25,
+        }}
+      >
+        <TreeIconSlot>
+          <ChevronRightRoundedIcon
+            sx={{
+              fontSize: 17,
+              transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
+              transition: theme.transitions.create('transform', {
+                duration: theme.transitions.duration.shorter,
+              }),
+            }}
+          />
+        </TreeIconSlot>
+        <TreeIconSlot color="primary.main">
+          <SchemaIcon sx={{ width: 16, height: 16 }} />
+        </TreeIconSlot>
+        <Typography
+          component="span"
+          sx={{
+            ...theme.typography.uiCaptionMd,
+            minWidth: 0,
+            flex: 1,
+            fontWeight: 650,
+            color: 'text.primary',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          {schema.name}
+        </Typography>
+        <Typography
+          component="span"
+          sx={{
+            ...theme.typography.uiCaptionXs,
+            color: 'text.disabled',
+            fontFamily: theme.typography.fontFamilyMono,
+            pr: 0.5,
+          }}
+        >
+          {schema.tables.length}
+        </Typography>
+      </Box>
+      <Collapse in={expanded} timeout={180}>
+        <Box sx={{ pl: 1 }}>
+          {schema.tables.map((table) => (
+            <TableItem
+              key={`${currentDatabase || 'db'}-${table.name}`}
+              table={table}
+              currentDatabase={currentDatabase}
+              fetchTableSchema={fetchTableSchema}
+            />
           ))}
         </Box>
       </Collapse>
@@ -287,41 +319,112 @@ function TableItem({ table, currentDatabase, fetchTableSchema }) {
   );
 }
 
-function SchemaSidebar({ width, _open = true, isConnected, currentDatabase, onClose, onResizeStart, _resizing = false }) {
+function SchemaLoadingState() {
+  return (
+    <Box aria-label="Loading schema" sx={{ px: 1, py: 0.5 }}>
+      {[76, 62, 84, 55, 70, 66].map((width, index) => (
+        <Box
+          key={`${width}-${index}`}
+          sx={{ display: 'flex', alignItems: 'center', gap: 1, height: 32, px: 0.75 }}
+        >
+          <Skeleton variant="rounded" width={16} height={16} sx={{ borderRadius: '4px' }} />
+          <Skeleton variant="text" width={`${width}%`} height={16} />
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+function SchemaEmptyState({ message, tone }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+
+  return (
+    <Fade in timeout={180}>
+      <Box
+        sx={{
+          height: '100%',
+          minHeight: 180,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 1.25,
+          px: 2.5,
+          py: 4,
+          textAlign: 'center',
+        }}
+      >
+        <Box
+          sx={{
+            width: 38,
+            height: 38,
+            display: 'grid',
+            placeItems: 'center',
+            borderRadius: '11px',
+            color: tone === 'error' ? 'error.main' : 'text.disabled',
+            bgcolor: alpha(
+              tone === 'error' ? theme.palette.error.main : theme.palette.text.primary,
+              theme.palette.mode === 'dark' ? 0.08 : 0.045,
+            ),
+          }}
+        >
+          <SchemaIcon sx={{ width: 18, height: 18 }} />
+        </Box>
+        <Typography
+          sx={{
+            ...theme.typography.uiCaptionSm,
+            maxWidth: 190,
+            color: tone === 'error' ? 'error.main' : 'text.secondary',
+            lineHeight: 1.55,
+          }}
+        >
+          {message}
+        </Typography>
+      </Box>
+    </Fade>
+  );
+}
+
+function SchemaSidebar({
+  width,
+  isConnected,
+  currentDatabase,
+  onClose,
+  onResizeStart,
+  resizing = false,
+}) {
+  const theme = useTheme();
   const { fetchSchemaTables, fetchTableSchema, invalidateSchemaTables } = useDatabaseConnection();
   const [schemaInfo, setSchemaInfo] = useState(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
   const [schemaError, setSchemaError] = useState('');
 
-  const loadSchema = useCallback(async (isCancelled, { force = false } = {}) => {
-    setSchemaLoading(true);
-    setSchemaError('');
+  const loadSchema = useCallback(
+    async (isCancelled, { force = false } = {}) => {
+      setSchemaLoading(true);
+      setSchemaError('');
 
-    try {
-      const response = await fetchSchemaTables({
-        database: currentDatabase,
-        force,
-      });
+      try {
+        const response = await fetchSchemaTables({ database: currentDatabase, force });
+        if (isCancelled()) return;
 
-      if (isCancelled()) return;
-
-      if (response.status === 'success') {
-        const tables = (response.data?.tables || []).map((tableName) => ({ name: tableName }));
-        setSchemaInfo({
-          name: response.data?.schema || currentDatabase || 'Schema',
-          tables,
-        });
-      } else {
-        setSchemaError(response.message || 'Schema unavailable');
+        if (response.status === 'success') {
+          const tables = (response.data?.tables || []).map((tableName) => ({ name: tableName }));
+          setSchemaInfo({
+            name: response.data?.schema || currentDatabase || 'Schema',
+            tables,
+          });
+        } else {
+          setSchemaError(response.message || 'Schema unavailable');
+        }
+      } catch (error) {
+        if (!isCancelled()) setSchemaError(error.message || 'Schema unavailable');
+      } finally {
+        if (!isCancelled()) setSchemaLoading(false);
       }
-    } catch (error) {
-      if (!isCancelled()) setSchemaError(error.message || 'Schema unavailable');
-    } finally {
-      if (!isCancelled()) setSchemaLoading(false);
-    }
-  }, [currentDatabase, fetchSchemaTables]);
+    },
+    [currentDatabase, fetchSchemaTables],
+  );
 
   useEffect(() => {
     if (!isConnected) return undefined;
@@ -339,42 +442,20 @@ function SchemaSidebar({ width, _open = true, isConnected, currentDatabase, onCl
   const handleRefreshSchema = useCallback(() => {
     if (!isConnected || schemaLoading) return;
 
-    let cancelled = false;
+    const cancelled = false;
     invalidateSchemaTables(currentDatabase);
     loadSchema(() => cancelled, { force: true });
   }, [currentDatabase, invalidateSchemaTables, isConnected, loadSchema, schemaLoading]);
 
   const schemaContent = useMemo(() => {
-    if (!isConnected) {
-      return {
-        message: 'Connect to a database to view schema',
-        tone: 'disabled',
-      };
-    }
-
-    if (schemaLoading) {
-      return {
-        message: 'Loading schema...',
-        tone: 'disabled',
-      };
-    }
-
-    if (schemaError) {
-      return {
-        message: schemaError,
-        tone: 'error',
-      };
-    }
-
+    if (!isConnected)
+      return { message: 'Connect a database to browse its schema.', tone: 'disabled' };
+    if (schemaError) return { message: schemaError, tone: 'error' };
     if (!schemaInfo || schemaInfo.tables.length === 0) {
-      return {
-        message: 'No tables found for this database',
-        tone: 'disabled',
-      };
+      return { message: 'No tables were found in this schema.', tone: 'disabled' };
     }
-
     return null;
-  }, [isConnected, schemaError, schemaInfo, schemaLoading]);
+  }, [isConnected, schemaError, schemaInfo]);
 
   return (
     <Box
@@ -385,36 +466,45 @@ function SchemaSidebar({ width, _open = true, isConnected, currentDatabase, onCl
         flexDirection: 'column',
         flexShrink: 0,
         minHeight: 0,
-        borderRight: '1px solid',
-        borderColor: getAppDividerColor(theme),
-        ...getAppPanelSurfaceSx(theme),
         position: 'relative',
-        transition: 'none',
+        overflow: 'hidden',
+        borderRadius: '12px',
+        bgcolor: 'background.paper',
+        boxShadow: `inset 0 0 0 1px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.065 : 0.055)}`,
       }}
     >
-      {/* Header */}
       <Box
         sx={{
+          minHeight: 48,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          px: 1.25,
+          gap: 1,
+          px: 1.5,
           py: 0.75,
-          borderBottom: '1px solid',
-          ...getSchemaBarSx(theme),
           flexShrink: 0,
-          minHeight: 46,
         }}
       >
-        <Typography
-          sx={{
-            ...theme.typography.uiCaptionMd,
-            fontWeight: 650,
-            color: 'text.primary',
-          }}
-        >
-          Schema
-        </Typography>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography
+            sx={{ ...theme.typography.uiCaptionMd, fontWeight: 650, color: 'text.primary' }}
+          >
+            Schema explorer
+          </Typography>
+          <Typography
+            sx={{
+              ...theme.typography.uiCaptionXs,
+              mt: 0.125,
+              color: 'text.disabled',
+              fontFamily: theme.typography.fontFamilyMono,
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            {currentDatabase || 'No database selected'}
+          </Typography>
+        </Box>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.25 }}>
           <Tooltip title="Refresh schema">
             <span>
@@ -425,56 +515,41 @@ function SchemaSidebar({ width, _open = true, isConnected, currentDatabase, onCl
                 aria-label="Refresh schema"
                 sx={getArtifactActionButtonSx(theme, { size: 30 })}
               >
-                <RefreshRoundedIcon sx={{ fontSize: 16 }} />
+                {schemaLoading ? (
+                  <ButtonLoadingSpinner size={14} />
+                ) : (
+                  <RefreshRoundedIcon sx={{ fontSize: 16 }} />
+                )}
               </IconButton>
             </span>
           </Tooltip>
-          <Tooltip title="Close sidebar">
+          <Tooltip title="Hide schema explorer">
             <IconButton
               size="small"
               onClick={onClose}
-              aria-label="Close schema sidebar"
+              aria-label="Hide schema explorer"
               sx={getArtifactActionButtonSx(theme, { size: 30 })}
             >
-              <HighlightOffRounded sx={{ fontSize: 16 }} />
+              <CloseRoundedIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
         </Box>
       </Box>
 
-      {/* Schema tree */}
       <Box
         sx={{
           flex: 1,
           minHeight: 0,
           overflowY: 'auto',
-          py: 0.5,
+          px: 0.75,
+          pb: 0.75,
           ...getScrollbarStyles(theme),
         }}
       >
-        {schemaContent ? (
-          <Fade in timeout={180} key={schemaContent.message}>
-            <Box
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                height: '100%',
-                px: 2,
-                py: 4,
-              }}
-            >
-              <Typography
-                sx={{
-                  ...theme.typography.uiCaptionSm,
-                  color: schemaContent.tone === 'error' ? 'error.main' : 'text.secondary',
-                  textAlign: 'center',
-                }}
-              >
-                {schemaContent.message}
-              </Typography>
-            </Box>
-          </Fade>
+        {schemaLoading && !schemaInfo ? (
+          <SchemaLoadingState />
+        ) : schemaContent ? (
+          <SchemaEmptyState message={schemaContent.message} tone={schemaContent.tone} />
         ) : (
           <SchemaItem
             schema={schemaInfo}
@@ -484,26 +559,38 @@ function SchemaSidebar({ width, _open = true, isConnected, currentDatabase, onCl
         )}
       </Box>
 
-      {/* Resize handle */}
       <Box
-        onMouseDown={(e) => {
-          e.preventDefault();
-          onResizeStart(e);
+        onMouseDown={(event) => {
+          event.preventDefault();
+          onResizeStart?.(event);
         }}
+        aria-hidden="true"
         sx={{
           position: 'absolute',
           top: 0,
-          right: -3,
+          right: -4,
           bottom: 0,
-          width: 6,
+          width: 8,
           cursor: 'col-resize',
           zIndex: 10,
-          transition: 'background-color 0.15s ease',
-          '&:hover': {
-            bgcolor: alpha(theme.palette.primary.main, isDark ? 0.25 : 0.15),
+          '&::after': {
+            content: '""',
+            position: 'absolute',
+            top: '50%',
+            right: 3,
+            width: 2,
+            height: 34,
+            borderRadius: 999,
+            bgcolor: resizing ? 'primary.main' : 'transparent',
+            boxShadow: resizing ? `0 0 10px ${alpha(theme.palette.primary.main, 0.28)}` : 'none',
+            transform: 'translateY(-50%)',
+            transition: theme.transitions.create(['background-color', 'box-shadow'], {
+              duration: theme.transitions.duration.shorter,
+            }),
           },
-          '&:active': {
-            bgcolor: alpha(theme.palette.primary.main, isDark ? 0.35 : 0.25),
+          '&:hover::after, &:active::after': {
+            bgcolor: 'primary.main',
+            boxShadow: `0 0 10px ${alpha(theme.palette.primary.main, 0.28)}`,
           },
         }}
       />

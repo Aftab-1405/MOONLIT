@@ -9,7 +9,6 @@ No Flask dependencies - context validation is done by caller.
 import hashlib
 import json
 import logging
-import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any
 
@@ -133,13 +132,6 @@ class ContextService:
         from service.context.context_repository import ContextRepository
 
         return ContextRepository._normalize_user_id(user_id)
-
-    @staticmethod
-    def _get_context_ref(user_id):
-        """Get Firestore document reference for user context."""
-        from service.context.context_repository import ContextRepository
-
-        return ContextRepository.get_ref(user_id)
 
     @staticmethod
     def _get_context(user_id: str) -> Dict:
@@ -378,20 +370,6 @@ class ContextService:
         return {"tables": tables, "columns": columns}
 
     @staticmethod
-    def is_schema_changed(
-        user_id: str, database: str, current_tables: List[str], current_columns: Dict
-    ) -> bool:
-        """Check if schema has changed since last context update."""
-        cached = ContextService.get_schema_context(user_id, database)
-        if not cached:
-            return True
-
-        current_hash = ContextService.compute_schema_hash(
-            current_tables, current_columns
-        )
-        return cached.get("schema_hash") != current_hash
-
-    @staticmethod
     def clear_schema_context(user_id: str, database: str) -> bool:
         """Clear schema context for a database (forces refresh on next access)."""
         from service.context.context_repository import ContextRepository
@@ -403,31 +381,6 @@ class ContextService:
             ContextMetrics.record_clear(user_id)
             logger.info(f"Cleared schema context for {database}")
         return success
-
-    @staticmethod
-    def get_schema_summary(user_id: str) -> List[Dict]:
-        """Get summary of stored schema contexts for UI display."""
-        context = ContextService._get_context(user_id)
-        schemas = context.get("database_schemas", {})
-
-        summary = []
-        for db_name, schema_data in schemas.items():
-            summary.append(
-                {
-                    "database": db_name,
-                    "table_count": len(schema_data.get("tables", [])),
-                    "cached_at": schema_data.get("cached_at"),
-                }
-            )
-
-        summary.sort(key=lambda x: x.get("cached_at") or "", reverse=True)
-        return summary
-
-    @staticmethod
-    def get_all_schema_contexts(user_id: str) -> Dict:
-        """Get all stored schema contexts for user."""
-        context = ContextService._get_context(user_id)
-        return context.get("database_schemas", {})
 
     # =========================================================================
     # Query History
@@ -478,37 +431,4 @@ class ContextService:
             "updated_at": context.get("updated_at"),
         }
 
-    @staticmethod
-    def clear_all_context(user_id: str) -> bool:
-        """Clear all context for user."""
-        from service.context.context_repository import ContextRepository
 
-        return ContextRepository.delete(user_id)
-
-    # =========================================================================
-    # User Preferences
-    # =========================================================================
-
-    @staticmethod
-    def set_user_preference(user_id: str, key: str, value: Any) -> bool:
-        """Set a user preference."""
-        try:
-            return ContextService._update_context(
-                user_id, {f"preferences.{key}": value}
-            )
-        except Exception as e:
-            logger.error(f"Error setting preference {key} for user {user_id}: {e}")
-            return False
-
-    @staticmethod
-    def get_user_preference(user_id: str, key: str, default: Any = None) -> Any:
-        """Get a single user preference."""
-        context = ContextService._get_context(user_id)
-        preferences = context.get("preferences", {})
-        return preferences.get(key, default)
-
-    @staticmethod
-    def get_user_preferences(user_id: str) -> Dict:
-        """Get all user preferences."""
-        context = ContextService._get_context(user_id)
-        return context.get("preferences", {})

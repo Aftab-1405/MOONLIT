@@ -6,7 +6,7 @@ implementations are registered by the composition root during app startup.
 
 from __future__ import annotations
 
-from typing import Any, TypeVar, Protocol as TypingProtocol
+from typing import Any, TypeVar
 
 from api_contract.conversations_protocols import (
     ConversationAgentStreamer,

@@ -5,7 +5,12 @@ export const queryKeys = {
   dbDatabases: ['db', 'databases'],
   dbSchemas: (database) => ['db', 'schemas', database || '__current__'],
   dbTables: (database) => ['db', 'tables', database || '__current__'],
-  dbTableSchema: (database, tableName) => ['db', 'tableSchema', database || '__current__', tableName],
+  dbTableSchema: (database, tableName) => [
+    'db',
+    'tableSchema',
+    database || '__current__',
+    tableName,
+  ],
   llmOptions: ['llm', 'options'],
   conversations: ['conversations', 'list'],
   conversation: (conversationId) => ['conversations', 'detail', conversationId],

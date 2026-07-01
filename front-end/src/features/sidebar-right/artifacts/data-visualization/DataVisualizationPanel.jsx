@@ -1,7 +1,3 @@
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { Box, Button, Snackbar, Typography } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import AnalyticsOutlinedIcon from '@mui/icons-material/AnalyticsOutlined';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
 import FilterAltRoundedIcon from '@mui/icons-material/FilterAltRounded';
@@ -10,6 +6,9 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
+import { Box, Button, Snackbar, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
 import { ArtifactEmptyState, ArtifactShell } from '@/features/sidebar-right/artifact-loader';
 import PerspectiveDashboard from '@/features/sidebar-right/artifacts/data-visualization/PerspectiveDashboard';
@@ -19,7 +18,7 @@ import { copyToClipboard } from '@/utils/clipboard';
 function DataVisualizationPanel({
   data,
   chrome = 'standalone',
-  title = 'Data Analysis',
+  _title = 'Data Analysis',
   onClose,
   onOpenArtifact,
   onRequestClose,
@@ -42,22 +41,29 @@ function DataVisualizationPanel({
   const rows = useMemo(() => data?.rows || [], [data?.rows]);
   const memoizedData = useMemo(() => ({ columns, rows }), [columns, rows]);
 
-  const storageKey = useMemo(() => createAnalysisStorageKey({
-    sourceQuery,
-    columns,
-    database: currentDatabase,
-  }), [columns, currentDatabase, sourceQuery]);
+  const storageKey = useMemo(
+    () =>
+      createAnalysisStorageKey({
+        sourceQuery,
+        columns,
+        database: currentDatabase,
+      }),
+    [columns, currentDatabase, sourceQuery],
+  );
   const isTruncated = Boolean(data?.truncated);
   const displayedRowCount = data?.row_count ?? rows.length;
 
   const requestOpenArtifact = onRequestOpenArtifact || onOpenArtifact;
 
   const openEditor = useCallback(() => {
-    requestOpenArtifact?.({
-      type: 'sql-editor',
-      title: 'SQL Editor',
-      props: { initialQuery: sourceQuery, initialResults: data },
-    }, { preserveFullscreen: isFullscreen });
+    requestOpenArtifact?.(
+      {
+        type: 'sql-editor',
+        title: 'SQL Editor',
+        props: { initialQuery: sourceQuery, initialResults: data },
+      },
+      { preserveFullscreen: isFullscreen },
+    );
   }, [data, isFullscreen, requestOpenArtifact, sourceQuery]);
 
   const runDashboardAction = useCallback(async (action, successMessage, ...args) => {
@@ -100,9 +106,7 @@ function DataVisualizationPanel({
       }}
     >
       <ArtifactShell
-        title={title}
-        subtitle={`${displayedRowCount.toLocaleString()} rows${isTruncated ? ' · partial result' : ' · saved automatically'}`}
-        icon={<AnalyticsOutlinedIcon sx={{ fontSize: 20 }} />}
+        title="PERSPECTIVE"
         chrome={chrome}
         onClose={onClose}
         onRequestClose={onRequestClose}
@@ -146,7 +150,8 @@ function DataVisualizationPanel({
             key: 'export-visualization',
             label: 'Export visualization',
             icon: <ImageOutlinedIcon sx={{ fontSize: 18 }} />,
-            onClick: () => runDashboardAction('exportVisualization', 'Visualization export started.'),
+            onClick: () =>
+              runDashboardAction('exportVisualization', 'Visualization export started.'),
             disabled: !viewerReady,
           },
           {
@@ -157,32 +162,41 @@ function DataVisualizationPanel({
             disabled: !viewerReady,
           },
         ]}
-        footer={selection?.row ? (
-          <Box sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, minWidth: 0 }}>
-            <Typography
-              noWrap
-              sx={{ ...theme.typography.uiCaptionSm, color: 'text.secondary', flex: 1, minWidth: 0 }}
+        footer={
+          selection?.row ? (
+            <Box
+              sx={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1, minWidth: 0 }}
             >
-              Selected: {Object.entries(selection.row).slice(0, 3).map(([key, value]) => `${key}: ${value ?? 'NULL'}`).join(' · ')}
-            </Typography>
-            {selection.config ? (
-              <Button
-                size="small"
-                startIcon={<FilterAltRoundedIcon />}
-                onClick={applySelectionFilter}
+              <Typography
+                noWrap
+                sx={{
+                  ...theme.typography.uiCaptionSm,
+                  color: 'text.secondary',
+                  flex: 1,
+                  minWidth: 0,
+                }}
               >
-                Filter to selection
+                Selected:{' '}
+                {Object.entries(selection.row)
+                  .slice(0, 3)
+                  .map(([key, value]) => `${key}: ${value ?? 'NULL'}`)
+                  .join(' · ')}
+              </Typography>
+              {selection.config ? (
+                <Button
+                  size="small"
+                  startIcon={<FilterAltRoundedIcon />}
+                  onClick={applySelectionFilter}
+                >
+                  Filter to selection
+                </Button>
+              ) : null}
+              <Button size="small" startIcon={<ContentCopyRoundedIcon />} onClick={copySelection}>
+                Copy row
               </Button>
-            ) : null}
-            <Button
-              size="small"
-              startIcon={<ContentCopyRoundedIcon />}
-              onClick={copySelection}
-            >
-              Copy row
-            </Button>
-          </Box>
-        ) : null}
+            </Box>
+          ) : null
+        }
       >
         {isTruncated ? (
           <Box
@@ -196,13 +210,17 @@ function DataVisualizationPanel({
               py: 1,
               borderRadius: 1.5,
               color: 'warning.main',
-              bgcolor: alpha(theme.palette.warning.main, theme.palette.mode === 'dark' ? 0.12 : 0.08),
+              bgcolor: alpha(
+                theme.palette.warning.main,
+                theme.palette.mode === 'dark' ? 0.12 : 0.08,
+              ),
               border: `1px solid ${alpha(theme.palette.warning.main, 0.24)}`,
             }}
           >
             <WarningAmberRoundedIcon sx={{ fontSize: 18, flexShrink: 0 }} />
             <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary' }}>
-              Analysis only includes the first {displayedRowCount.toLocaleString()} rows. Increase the query row limit or aggregate in SQL before drawing conclusions.
+              Analysis only includes the first {displayedRowCount.toLocaleString()} rows. Increase
+              the query row limit or aggregate in SQL before drawing conclusions.
             </Typography>
           </Box>
         ) : null}

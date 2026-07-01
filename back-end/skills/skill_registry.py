@@ -149,17 +149,6 @@ class SkillRegistry:
         self._skills = _load_skills()
         self._skill_map = {skill.name: skill for skill in self._skills}
 
-    def list_skill_cards(self) -> list[dict[str, str]]:
-        return [
-            {
-                "name": skill.name,
-                "description": skill.description,
-                "when_to_use": skill.when_to_use,
-                "avoid_when": skill.avoid_when,
-            }
-            for skill in self._skills
-        ]
-
     def build_available_skills_context(self) -> str:
         if not self._skills:
             return ""

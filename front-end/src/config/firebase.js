@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, GithubAuthProvider } from 'firebase/auth';
+import { GithubAuthProvider, GoogleAuthProvider, getAuth } from 'firebase/auth';
 import { getFirebaseConfig } from '@/api';
 import logger from '@/utils/logger';
+
 let firebaseApp = null;
 let auth = null;
 let googleProvider = null;
@@ -12,7 +13,7 @@ export const initializeFirebase = async () => {
 
   try {
     const data = await getFirebaseConfig();
-    
+
     if (data.status !== 'success') {
       throw new Error('Failed to fetch Firebase config');
     }
@@ -22,7 +23,7 @@ export const initializeFirebase = async () => {
     auth = getAuth(firebaseApp);
     googleProvider = new GoogleAuthProvider();
     googleProvider.setCustomParameters({
-      prompt: 'select_account'
+      prompt: 'select_account',
     });
     githubProvider = new GithubAuthProvider();
     githubProvider.addScope('read:user');

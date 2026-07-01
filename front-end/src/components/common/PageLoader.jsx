@@ -1,61 +1,101 @@
-/**
- * PageLoader - Minimal loading component with Moonlit branding
- *
- * Features:
- * - "Moonlit" title with breathing effect
- * - Smooth, non-intrusive animation
- */
+import { Box, keyframes, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 
-import { Box, Typography, keyframes } from "@mui/material";
-import { useTheme, alpha } from "@mui/material/styles";
+import { getMoonlitGradient } from '@/theme/index';
 
-import { getMoonlitGradient } from "@/theme/index";
-// Pure opacity pulse — no scale, which causes subpixel jitter on text rendering.
 const breathe = keyframes`
-  0%, 100% { opacity: 0.35; }
+  0%, 100% { opacity: 0.58; }
   50%       { opacity: 1; }
 `;
 const fadeIn = keyframes`
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+`;
+const horizonSweep = keyframes`
+  0%   { transform: translateX(-130%); opacity: 0; }
+  20%  { opacity: 1; }
+  80%  { opacity: 1; }
+  100% { transform: translateX(230%); opacity: 0; }
 `;
 
 function PageLoader() {
   const theme = useTheme();
-  // Monochrome glow — keeps the drop shadow consistent with the design system.
   const glowColor = alpha(
-    theme.palette.text.primary,
-    theme.palette.mode === "dark" ? 0.14 : 0.09,
+    theme.palette.primary.glow || theme.palette.primary.main,
+    theme.palette.mode === 'dark' ? 0.24 : 0.12,
   );
 
   return (
     <Box
       sx={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "background.default",
-        animation: `${fadeIn} 0.3s ease-out`,
+        minHeight: '100vh',
+        '@supports (height: 100dvh)': { minHeight: '100dvh' },
+        display: 'grid',
+        placeItems: 'center',
+        backgroundColor: 'background.default',
+        px: 3,
       }}
+      role="status"
+      aria-live="polite"
+      aria-label="Loading Moonlit"
     >
-      <Typography
+      <Box
+        aria-hidden="true"
         sx={{
-          ...theme.typography.uiLoaderWordmark,
-          background: getMoonlitGradient(theme),
-          backgroundClip: "text",
-          WebkitBackgroundClip: "text",
-          WebkitTextFillColor: "transparent",
-          filter: `drop-shadow(0 0 18px ${glowColor})`,
-          animation: `${breathe} 2.5s ease-in-out infinite`,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 1.75,
+          animation: `${fadeIn} 420ms ease-out both`,
+          '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         }}
       >
-        Moonlit
-      </Typography>
+        <Typography
+          sx={{
+            ...theme.typography.uiLoaderWordmark,
+            background: getMoonlitGradient(theme),
+            backgroundClip: 'text',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            filter: `drop-shadow(0 0 20px ${glowColor})`,
+            letterSpacing: '-0.025em',
+            animation: `${breathe} 2.4s ease-in-out infinite`,
+            '@media (prefers-reduced-motion: reduce)': {
+              animation: 'none',
+              opacity: 1,
+            },
+          }}
+        >
+          Moonlit
+        </Typography>
+        <Box
+          sx={{
+            position: 'relative',
+            width: 112,
+            height: 1,
+            overflow: 'hidden',
+            borderRadius: 999,
+            backgroundColor: alpha(theme.palette.text.primary, 0.12),
+            '&::after': {
+              content: '""',
+              position: 'absolute',
+              inset: 0,
+              width: '42%',
+              borderRadius: 'inherit',
+              backgroundColor: 'text.primary',
+              boxShadow: `0 0 10px ${glowColor}`,
+              animation: `${horizonSweep} 1.8s ease-in-out infinite`,
+            },
+            '@media (prefers-reduced-motion: reduce)': {
+              '&::after': {
+                width: '100%',
+                opacity: 0.5,
+                animation: 'none',
+              },
+            },
+          }}
+        />
+      </Box>
     </Box>
   );
 }

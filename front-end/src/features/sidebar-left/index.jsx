@@ -1,41 +1,31 @@
-import { useState, memo, useCallback, useMemo, useEffect } from "react";
-import {
-  Box,
-  Typography,
-  Tooltip,
-  Avatar,
-  Collapse,
-  Drawer,
-  useMediaQuery,
-} from "@mui/material";
-import { alpha, useTheme } from "@mui/material/styles";
-import ExpandMoreRoundedIcon from "@mui/icons-material/ExpandMoreRounded";
-import DatabaseIcon from "@/components/icons/DatabaseIcon";
-import MindmapIcon from "@/components/icons/MindmapIcon";
-import NewChatIcon from "@/components/icons/NewChatIcon";
-import RecentChatIcon from "@/components/icons/RecentChatIcon";
-import SearchIcon from "@/components/icons/SearchIcon";
-import SidebarPanelIcon from "@/components/icons/SidebarPanelIcon";
-import { getUserContext } from "@/api";
-import { queryClient, queryKeys } from "@/api/queryClient";
-import { getInteractionColors, getScrollbarStyles } from "@/styles/shared";
-import logger from "@/utils/logger";
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
+import { Avatar, Box, Collapse, Drawer, Tooltip, Typography, useMediaQuery } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import DatabaseIcon from '@/components/icons/DatabaseIcon';
+import MindmapIcon from '@/components/icons/MindmapIcon';
+import NewChatIcon from '@/components/icons/NewChatIcon';
+import RecentChatIcon from '@/components/icons/RecentChatIcon';
+import SearchIcon from '@/components/icons/SearchIcon';
+import SidebarPanelIcon from '@/components/icons/SidebarPanelIcon';
+import SidebarOverlays from '@/features/sidebar-left/components/SidebarOverlays';
 import {
   ConversationItem,
-  SidebarNavItem,
   HistoryListSkeleton,
-} from "@/features/sidebar-left/components/SidebarPrimitives";
-import SidebarOverlays from "@/features/sidebar-left/components/SidebarOverlays";
+  SidebarNavItem,
+} from '@/features/sidebar-left/components/SidebarPrimitives';
 import {
   buildDesktopNavSx,
   buildMobileDrawerPaperStyles,
-  buildSidebarSectionLabelSx,
   buildNavRowSx,
+  buildSidebarSectionLabelSx,
   getCollapsingLabelSx,
   getSidebarRailTooltipSlotProps,
   ICON_COL,
   ROW_PX,
-} from "@/features/sidebar-left/styles/sidebarStyles";
+} from '@/features/sidebar-left/styles/sidebarStyles';
+import { useMindmapSchema } from '@/hooks/chat-page/useMindmapSchema';
+import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 
 // ─── Main Sidebar component ───────────────────────────────────────────────────
 function Sidebar({
@@ -59,46 +49,34 @@ function Sidebar({
   onMobileClose,
 }) {
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-  const isDark = theme.palette.mode === "dark";
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+  const isDark = theme.palette.mode === 'dark';
 
   const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
   const [historyPopoverAnchor, setHistoryPopoverAnchor] = useState(null);
   const [searchPopoverAnchor, setSearchPopoverAnchor] = useState(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [mindmapOpen, setMindmapOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [recentsCollapsed, setRecentsCollapsed] = useState(false);
-  const [schemaData, setSchemaData] = useState(null);
-  const [schemaLoading, setSchemaLoading] = useState(false);
+
+  const { mindmapOpen, schemaData, schemaLoading, handleOpenMindmap, handleCloseMindmap } =
+    useMindmapSchema({ isConnected, currentDatabase });
 
   const scrollbarStyles = useMemo(() => getScrollbarStyles(theme), [theme]);
-  const neutralInteraction = useMemo(
-    () => getInteractionColors(theme),
-    [theme],
-  );
-  const mobileDrawerPaperStyles = useMemo(
-    () => buildMobileDrawerPaperStyles(theme),
-    [theme],
-  );
-  const desktopNavSx = useMemo(
-    () => buildDesktopNavSx(theme, open),
-    [theme, open],
-  );
-  const railTooltipSlotProps = useMemo(
-    () => getSidebarRailTooltipSlotProps(theme),
-    [theme],
-  );
-  const closeMindmapSurface = useCallback(() => setMindmapOpen(false), []);
+  const neutralInteraction = useMemo(() => getInteractionColors(theme), [theme]);
+  const mobileDrawerPaperStyles = useMemo(() => buildMobileDrawerPaperStyles(theme), [theme]);
+  const desktopNavSx = useMemo(() => buildDesktopNavSx(theme), [theme]);
+  const railTooltipSlotProps = useMemo(() => getSidebarRailTooltipSlotProps(theme), [theme]);
+  const closeMindmapSurface = useCallback(() => handleCloseMindmap(), [handleCloseMindmap]);
 
   const userInitials = useMemo(() => {
     const name = user?.displayName?.trim();
-    if (!name) return "M";
+    if (!name) return 'M';
     const parts = name.split(/\s+/).filter(Boolean);
     return (
       parts
         .slice(0, 2)
         .map((p) => p[0]?.toUpperCase())
-        .join("") || "M"
+        .join('') || 'M'
     );
   }, [user?.displayName]);
 
@@ -121,19 +99,13 @@ function Sidebar({
         onOpenDbModal?.();
       }
     },
-    [
-      closeMindmapSurface,
-      isConnected,
-      availableDatabases.length,
-      onOpenDbModal,
-    ],
+    [closeMindmapSurface, isConnected, availableDatabases.length, onOpenDbModal],
   );
 
   const handleHistoryClick = useCallback(
     (event) => {
       closeMindmapSurface();
-      if (conversations.length > 0)
-        setHistoryPopoverAnchor(event.currentTarget);
+      if (conversations.length > 0) setHistoryPopoverAnchor(event.currentTarget);
     },
     [closeMindmapSurface, conversations.length],
   );
@@ -146,42 +118,12 @@ function Sidebar({
     [closeMindmapSurface],
   );
 
-  const handleOpenMindmap = useCallback(async () => {
-    if (!isConnected || !currentDatabase) return;
-    setSchemaLoading(true);
-    try {
-      const data = await queryClient.fetchQuery({
-        queryKey: queryKeys.userContext,
-        queryFn: getUserContext,
-        staleTime: 60 * 1000,
-      });
-      if (data.status === "success") {
-        setSchemaData(
-          data.schemas?.find((s) => s.database === currentDatabase) || null,
-        );
-      }
-    } catch (err) {
-      logger.error("Failed to fetch schema:", err);
-      setSchemaData(null);
-    } finally {
-      setSchemaLoading(false);
-      setMindmapOpen(true);
-    }
-  }, [currentDatabase, isConnected]);
-
-  const handleCloseMindmap = useCallback(() => setMindmapOpen(false), []);
-  const toggleRecentsCollapsed = useCallback(
-    () => setRecentsCollapsed((p) => !p),
-    [],
-  );
+  const toggleRecentsCollapsed = useCallback(() => setRecentsCollapsed((p) => !p), []);
   const handleCloseDbPopover = useCallback(() => setDbPopoverAnchor(null), []);
-  const handleCloseHistoryPopover = useCallback(
-    () => setHistoryPopoverAnchor(null),
-    [],
-  );
+  const handleCloseHistoryPopover = useCallback(() => setHistoryPopoverAnchor(null), []);
   const handleCloseSearchPopover = useCallback(() => {
     setSearchPopoverAnchor(null);
-    setSearchQuery("");
+    setSearchQuery('');
   }, []);
   const handleProfileClick = useCallback(
     (e) => {
@@ -209,7 +151,7 @@ function Sidebar({
       setDbPopoverAnchor(null);
       setHistoryPopoverAnchor(null);
       setSearchPopoverAnchor(null);
-      setSearchQuery("");
+      setSearchQuery('');
     }
   }, [isMobile, mobileOpen, open]);
 
@@ -217,23 +159,23 @@ function Sidebar({
   const topNavItems = useMemo(
     () => [
       {
-        id: "new-chat",
-        label: "New chat",
-        tooltip: "New chat",
+        id: 'new-chat',
+        label: 'New chat',
+        tooltip: 'New chat',
         icon: <NewChatIcon sx={{ fontSize: 18 }} />,
         onClick: () => {
           closeMindmapSurface();
           onNewChat?.();
         },
-        shortcut: "Ctrl+Shift+O",
+        shortcut: 'Ctrl+Shift+O',
       },
       {
-        id: "search",
-        label: "Search chats",
-        tooltip: "Search chats",
+        id: 'search',
+        label: 'Search chats',
+        tooltip: 'Search chats',
         icon: <SearchIcon sx={{ fontSize: 18 }} />,
         onClick: handleSearchClick,
-        shortcut: "Ctrl+K",
+        shortcut: 'Ctrl+K',
       },
     ],
     [closeMindmapSurface, handleSearchClick, onNewChat],
@@ -242,24 +184,22 @@ function Sidebar({
   const workspaceNavItems = useMemo(() => {
     const items = [
       {
-        id: "database",
-        label: "Database",
-        tooltip: isConnected
-          ? currentDatabase || "Connected"
-          : "Connect database",
-        icon: <DatabaseIcon sx={{ fontSize: 17 }} />,
+        id: 'database',
+        label: 'Database',
+        tooltip: isConnected ? currentDatabase || 'Connected' : 'Connect database',
+        icon: <DatabaseIcon sx={{ fontSize: 18 }} />,
         onClick: handleDatabaseAction,
         showStatus: isConnected,
-        uiTarget: "database_button",
+        uiTarget: 'database_button',
       },
     ];
     items.push({
-      id: "mindmap",
-      label: "Mindmap",
+      id: 'mindmap',
+      label: 'Mindmap',
       tooltip:
         isConnected && currentDatabase
-          ? "Mindmap"
-          : "Connect a database to view the schema mindmap",
+          ? 'Mindmap'
+          : 'Connect a database to view the schema mindmap',
       icon: <MindmapIcon sx={{ fontSize: 18 }} />,
       onClick: handleOpenMindmap,
       disabled: !isConnected || !currentDatabase,
@@ -332,16 +272,13 @@ function Sidebar({
    * The icon column is ICON_COL wide (same as SidebarNavItem) so the
    * toggle icon is always pixel-aligned with every nav icon below it.
    */
-  const renderHeader = ({ collapsed = false, mobile = false } = {}) => {
-    const label = mobile
-      ? "Close sidebar"
-      : collapsed
-        ? "Expand sidebar"
-        : "Collapse sidebar";
+  const renderHeader = ({ mobile = false } = {}) => {
+    const collapsed = !mobile && !open;
+    const label = mobile ? 'Close sidebar' : collapsed ? 'Expand sidebar' : 'Collapse sidebar';
     return (
       <Box component="header" sx={{ px: ROW_PX, pt: 1, pb: 0.5 }}>
         <Tooltip
-          title={collapsed ? label : ""}
+          title={collapsed ? label : ''}
           placement="right"
           arrow
           slotProps={railTooltipSlotProps}
@@ -356,7 +293,7 @@ function Sidebar({
             aria-label={label}
             aria-expanded={mobile ? undefined : !collapsed}
             sx={{
-              ...buildNavRowSx(theme),
+              ...buildNavRowSx(theme, { collapsed }),
               px: 0,
             }}
           >
@@ -364,11 +301,11 @@ function Sidebar({
             <Box
               component="span"
               sx={{
-                display: "inline-flex",
+                display: 'inline-flex',
                 flexShrink: 0,
                 width: ICON_COL,
-                justifyContent: "center",
-                alignItems: "center",
+                justifyContent: 'center',
+                alignItems: 'center',
               }}
             >
               <SidebarPanelIcon sx={{ fontSize: 18 }} />
@@ -380,9 +317,9 @@ function Sidebar({
                 noWrap
                 sx={{
                   ...theme.typography.uiBrandWordmark,
-                  fontSize: "1rem",
-                  color: "text.primary",
-                  whiteSpace: "nowrap",
+                  fontSize: '1rem',
+                  color: 'text.primary',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 Moonlit
@@ -398,18 +335,14 @@ function Sidebar({
    * Nav group — renders a list of SidebarNavItem rows.
    * px: ROW_PX on the container gives the hover pill a small inset from the sidebar edges.
    */
-  const renderNavGroup = (
-    items,
-    collapsed,
-    { pt = 1, ariaLabel = "Navigation" } = {},
-  ) => (
+  const renderNavGroup = (items, collapsed, { pt = 1, ariaLabel = 'Navigation' } = {}) => (
     <Box
       role="group"
       aria-label={ariaLabel}
       sx={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "2px",
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
         pt,
         px: ROW_PX,
       }}
@@ -438,11 +371,11 @@ function Sidebar({
   const renderHistorySection = () => (
     <Box
       sx={{
-        flex: recentsCollapsed ? "0 0 auto" : 1,
+        flex: recentsCollapsed ? '0 0 auto' : 1,
         minHeight: 0,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       {/* Section header / collapse toggle */}
@@ -452,31 +385,31 @@ function Sidebar({
         aria-expanded={!recentsCollapsed}
         onClick={toggleRecentsCollapsed}
         sx={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          width: "100%",
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          width: '100%',
           px: 2,
           pt: 1.5,
           pb: 0.75,
-          border: "none",
-          outline: "none",
-          appearance: "none",
-          cursor: "pointer",
-          backgroundColor: "transparent",
+          border: 'none',
+          outline: 'none',
+          appearance: 'none',
+          cursor: 'pointer',
+          backgroundColor: 'transparent',
           flexShrink: 0,
-          "&:hover .toggle-hint": { opacity: 0.7 },
-          "&:focus-visible": {
+          '&:hover .toggle-hint': { opacity: 0.7 },
+          '&:focus-visible': {
             outline: `2px solid ${alpha(theme.palette.text.primary, 0.3)}`,
             outlineOffset: -2,
-            borderRadius: "8px",
+            borderRadius: '8px',
           },
         }}
       >
         <Box
           sx={{
-            display: "inline-flex",
-            alignItems: "center",
+            display: 'inline-flex',
+            alignItems: 'center',
             gap: 0.875,
             minWidth: 0,
           }}
@@ -494,12 +427,12 @@ function Sidebar({
           component="span"
           sx={{
             ...theme.typography.uiNavShortcut,
-            color: "text.secondary",
+            color: 'text.secondary',
             opacity: 0,
-            transition: "opacity 0.15s ease",
+            transition: 'opacity 0.15s ease',
           }}
         >
-          {recentsCollapsed ? "Show" : "Hide"}
+          {recentsCollapsed ? 'Show' : 'Hide'}
         </Typography>
       </Box>
 
@@ -510,7 +443,7 @@ function Sidebar({
         sx={{
           flex: recentsCollapsed ? 0 : 1,
           minHeight: 0,
-          overflow: recentsCollapsed ? "hidden" : "auto",
+          overflow: recentsCollapsed ? 'hidden' : 'auto',
           ...scrollbarStyles,
         }}
       >
@@ -518,12 +451,12 @@ function Sidebar({
           component="ul"
           role="list"
           sx={{
-            listStyle: "none",
+            listStyle: 'none',
             m: 0,
             px: 1,
             pb: 1,
-            overflowY: "auto",
-            overflowX: "hidden",
+            overflowY: 'auto',
+            overflowX: 'hidden',
             ...scrollbarStyles,
           }}
         >
@@ -538,22 +471,16 @@ function Sidebar({
                 mt: 0.5,
                 px: 1.25,
                 py: 1.1,
-                borderRadius: "8px",
-                border: "1px solid",
-                borderColor: alpha(
-                  theme.palette.text.primary,
-                  isDark ? 0.08 : 0.06,
-                ),
-                bgcolor: alpha(
-                  theme.palette.background.paper,
-                  isDark ? 0.3 : 0.55,
-                ),
+                borderRadius: '8px',
+                border: '1px solid',
+                borderColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
+                bgcolor: alpha(theme.palette.background.paper, isDark ? 0.3 : 0.55),
               }}
             >
               <Typography
                 sx={{
                   ...theme.typography.uiNavItem,
-                  color: "text.secondary",
+                  color: 'text.secondary',
                   lineHeight: 1.35,
                 }}
               >
@@ -581,100 +508,98 @@ function Sidebar({
    * Footer — profile avatar + name + chevron.
    * Same icon-column model as nav items.
    */
-  const renderFooter = ({ collapsed = false } = {}) => (
-    <Box
-      component="footer"
-      sx={{
-        px: ROW_PX,
-        py: 0.75,
-        borderTop: `1px solid ${alpha(theme.palette.divider, isDark ? 0.5 : 0.65)}`,
-      }}
-    >
-      <Tooltip
-        title={collapsed ? user?.displayName || "Profile" : ""}
-        placement="right"
-        arrow
-        slotProps={railTooltipSlotProps}
-        disableHoverListener={!collapsed}
-        disableFocusListener={!collapsed}
-        disableTouchListener={!collapsed}
+  const renderFooter = ({ mobile = false } = {}) => {
+    const collapsed = !mobile && !open;
+    return (
+      <Box
+        component="footer"
+        sx={{
+          px: ROW_PX,
+          py: 0.75,
+          borderTop: `1px solid ${alpha(theme.palette.divider, isDark ? 0.5 : 0.65)}`,
+        }}
       >
-        <Box
-          component="button"
-          type="button"
-          onClick={handleProfileClick}
-          aria-label={`${user?.displayName || "Profile"}, Settings`}
-          sx={{
-            ...buildNavRowSx(theme),
-            px: 0,
-            opacity: 0.8,
-            "&:hover": {
-              opacity: 1,
-              backgroundColor: neutralInteraction.hoverBackground,
-              color: theme.palette.text.primary,
-            },
-          }}
+        <Tooltip
+          title={collapsed ? user?.displayName || 'Profile' : ''}
+          placement="right"
+          arrow
+          slotProps={railTooltipSlotProps}
+          disableHoverListener={!collapsed}
+          disableFocusListener={!collapsed}
+          disableTouchListener={!collapsed}
         >
-          {/* Avatar — in the same ICON_COL slot as all nav icons */}
           <Box
-            component="span"
+            component="button"
+            type="button"
+            onClick={handleProfileClick}
+            aria-label={`${user?.displayName || 'Profile'}, Settings`}
             sx={{
-              display: "inline-flex",
-              flexShrink: 0,
-              width: ICON_COL,
-              justifyContent: "center",
-              alignItems: "center",
+              ...buildNavRowSx(theme, { collapsed }),
+              px: 0,
+              opacity: 0.8,
+              '&:hover': {
+                opacity: 1,
+                backgroundColor: neutralInteraction.hoverBackground,
+                color: theme.palette.text.primary,
+              },
             }}
           >
-            <Avatar
-              src={user?.photoURL || undefined}
+            {/* Avatar — in the same ICON_COL slot as all nav icons */}
+            <Box
+              component="span"
               sx={{
-                width: 26,
-                height: 26,
-                fontSize: "0.7rem",
-                fontWeight: 700,
+                display: 'inline-flex',
+                flexShrink: 0,
+                width: ICON_COL,
+                justifyContent: 'center',
+                alignItems: 'center',
               }}
             >
-              {!user?.photoURL && userInitials}
-            </Avatar>
-          </Box>
+              <Avatar
+                src={user?.photoURL || undefined}
+                sx={{
+                  width: 26,
+                  height: 26,
+                  fontSize: '0.7rem',
+                  fontWeight: 700,
+                }}
+              >
+                {!user?.photoURL && userInitials}
+              </Avatar>
+            </Box>
 
-          {/* Name — fades + collapses when collapsed */}
-          <Box sx={getCollapsingLabelSx(theme, collapsed)}>
-            <Typography
-              noWrap
+            {/* Name — fades + collapses when collapsed */}
+            <Box sx={getCollapsingLabelSx(theme, collapsed)}>
+              <Typography
+                noWrap
+                sx={{
+                  ...theme.typography.uiNavItem,
+                  fontWeight: 500,
+                  color: 'text.primary',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {user?.displayName || 'Profile'}
+              </Typography>
+            </Box>
+
+            <Box
               sx={{
-                ...theme.typography.uiNavItem,
-                fontWeight: 500,
-                color: "text.primary",
-                whiteSpace: "nowrap",
+                maxWidth: collapsed ? 0 : 20,
+                opacity: collapsed ? 0 : 1,
+                overflow: 'hidden',
+                flexShrink: 0,
               }}
             >
-              {user?.displayName || "Profile"}
-            </Typography>
+              <ExpandMoreRoundedIcon
+                sx={{ fontSize: 18, color: 'text.secondary', display: 'block' }}
+              />
+            </Box>
           </Box>
-
-          {/* Chevron — fades out when collapsed */}
-          <Box
-            sx={{
-              maxWidth: collapsed ? 0 : 20,
-              opacity: collapsed ? 0 : 1,
-              overflow: "hidden",
-              flexShrink: 0,
-              transition: theme.transitions.create(["max-width", "opacity"], {
-                duration: 180,
-                easing: theme.transitions.easing.easeInOut,
-              }),
-            }}
-          >
-            <ExpandMoreRoundedIcon
-              sx={{ fontSize: 18, color: "text.secondary", display: "block" }}
-            />
-          </Box>
-        </Box>
-      </Tooltip>
-    </Box>
-  );
+        </Tooltip>
+      </Box>
+    );
+  };
 
   // ── Content trees ────────────────────────────────────────────────────────────
 
@@ -683,13 +608,13 @@ function Sidebar({
     <Box
       component="nav"
       aria-label="Sidebar"
-      sx={{ height: "100%", display: "flex", flexDirection: "column" }}
+      sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}
     >
       {renderHeader({ mobile: true })}
-      {renderNavGroup(topNavItems, false, { ariaLabel: "Primary actions" })}
+      {renderNavGroup(topNavItems, false, { ariaLabel: 'Primary actions' })}
       {renderNavGroup(workspaceNavItems, false, {
         pt: 0.25,
-        ariaLabel: "Workspace actions",
+        ariaLabel: 'Workspace actions',
       })}
       {renderHistorySection()}
       {renderFooter()}
@@ -701,21 +626,21 @@ function Sidebar({
   // and crossfade via opacity/visibility — no unmount/remount jitter.
   const desktopContent = (
     <>
-      {renderHeader({ collapsed: !open })}
+      {renderHeader()}
 
       <Box
         sx={{
-          display: "flex",
-          flexDirection: "column",
+          display: 'flex',
+          flexDirection: 'column',
           flex: 1,
-          overflow: "hidden",
+          overflow: 'hidden',
           minHeight: 0,
         }}
       >
-        {renderNavGroup(topNavItems, !open, { ariaLabel: "Primary actions" })}
+        {renderNavGroup(topNavItems, !open, { ariaLabel: 'Primary actions' })}
         {renderNavGroup(workspaceNavItems, !open, {
           pt: 0.25,
-          ariaLabel: "Workspace actions",
+          ariaLabel: 'Workspace actions',
         })}
 
         {/* Scrollable zone — history list (expanded) and history icon (collapsed) */}
@@ -723,22 +648,21 @@ function Sidebar({
           sx={{
             flex: 1,
             minHeight: 0,
-            position: "relative",
-            display: "flex",
-            flexDirection: "column",
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
           }}
         >
-          {/* Expanded: full history list */}
           <Box
             sx={{
-              position: "absolute",
+              position: 'absolute',
               inset: 0,
-              display: "flex",
-              flexDirection: "column",
+              display: 'flex',
+              flexDirection: 'column',
               opacity: open ? 1 : 0,
-              visibility: open ? "visible" : "hidden",
-              pointerEvents: open ? "auto" : "none",
-              transition: theme.transitions.create("opacity", {
+              visibility: open ? 'visible' : 'hidden',
+              pointerEvents: open ? 'auto' : 'none',
+              transition: theme.transitions.create('opacity', {
                 duration: 160,
               }),
             }}
@@ -746,14 +670,13 @@ function Sidebar({
             {renderHistorySection()}
           </Box>
 
-          {/* Collapsed: single history icon row */}
           <Box
             sx={{
               px: ROW_PX,
               opacity: open ? 0 : 1,
-              visibility: open ? "hidden" : "visible",
-              pointerEvents: open ? "none" : "auto",
-              transition: theme.transitions.create("opacity", {
+              visibility: open ? 'hidden' : 'visible',
+              pointerEvents: open ? 'none' : 'auto',
+              transition: theme.transitions.create('opacity', {
                 duration: 160,
               }),
             }}
@@ -770,7 +693,7 @@ function Sidebar({
         </Box>
       </Box>
 
-      {renderFooter({ collapsed: !open })}
+      {renderFooter()}
     </>
   );
 
@@ -784,7 +707,7 @@ function Sidebar({
           onClose={onMobileClose}
           SlideProps={{ mountOnEnter: true, unmountOnExit: true }}
           PaperProps={{
-            "aria-label": "Sidebar",
+            'aria-label': 'Sidebar',
             sx: mobileDrawerPaperStyles,
           }}
         >
@@ -797,9 +720,27 @@ function Sidebar({
 
   return (
     <>
-      <Box component="nav" aria-label="Sidebar" sx={desktopNavSx}>
-        {desktopContent}
-      </Box>
+      <Collapse
+        orientation="horizontal"
+        in={open}
+        collapsedSize={52}
+        timeout={220}
+        easing="cubic-bezier(0.22, 1, 0.36, 1)"
+        sx={{
+          flexShrink: 0,
+          height: '100vh',
+          position: 'sticky',
+          top: 0,
+          zIndex: 2,
+          '& .MuiCollapse-wrapper, & .MuiCollapse-wrapperInner': {
+            height: '100%',
+          },
+        }}
+      >
+        <Box component="nav" aria-label="Sidebar" sx={desktopNavSx}>
+          {desktopContent}
+        </Box>
+      </Collapse>
       <SidebarOverlays {...overlayProps} />
     </>
   );
@@ -810,8 +751,7 @@ function areConversationMetaEqual(prev = [], next = []) {
   if (prev === next) return true;
   if (prev.length !== next.length) return false;
   for (let i = 0; i < prev.length; i++) {
-    if (prev[i]?.id !== next[i]?.id || prev[i]?.title !== next[i]?.title)
-      return false;
+    if (prev[i]?.id !== next[i]?.id || prev[i]?.title !== next[i]?.title) return false;
   }
   return true;
 }

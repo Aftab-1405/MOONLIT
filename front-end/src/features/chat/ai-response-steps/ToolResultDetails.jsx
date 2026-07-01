@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { Box, Typography, Collapse, useTheme, ButtonBase, Link } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import { Box, ButtonBase, Collapse, Link, Typography, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import { useState } from 'react';
 import { MarkdownRenderer } from '@/features/chat';
+import { getDetailedResult } from '@/features/chat/ai-response-steps/stepUtils';
 import { TRANSITIONS } from '@/theme/index';
 import { normalizeCitationMarkdown } from '@/utils/toolResultFormatting';
-import { getDetailedResult } from '@/features/chat/ai-response-steps/stepUtils';
 
 const getStepTypeScale = (theme) => {
   const isDark = theme.palette.mode === 'dark';
@@ -85,8 +85,10 @@ const resolveColumnsForTable = (columnsByTable, table) => {
 
   if (Array.isArray(columnsByTable)) {
     const normalizedTable = normalizeTableKey(table);
-    const matches = columnsByTable.filter((column) =>
-      normalizeTableKey(column?.table || column?.table_name || column?.tableName) === normalizedTable
+    const matches = columnsByTable.filter(
+      (column) =>
+        normalizeTableKey(column?.table || column?.table_name || column?.tableName) ===
+        normalizedTable,
     );
     return matches.length ? matches : null;
   }
@@ -96,7 +98,7 @@ const resolveColumnsForTable = (columnsByTable, table) => {
 
   const normalizedTable = normalizeTableKey(table);
   const matchingKey = Object.keys(columnsByTable).find(
-    (key) => normalizeTableKey(key) === normalizedTable
+    (key) => normalizeTableKey(key) === normalizedTable,
   );
 
   return matchingKey && Array.isArray(columnsByTable[matchingKey])
@@ -228,7 +230,7 @@ const ColumnList = ({ columns, limit }) => {
 
 const ToolMetaGrid = ({ items }) => {
   const visibleItems = items.filter(
-    (item) => item.value !== undefined && item.value !== null && item.value !== ''
+    (item) => item.value !== undefined && item.value !== null && item.value !== '',
   );
   if (visibleItems.length === 0) return null;
 
@@ -320,9 +322,7 @@ const SchemaResultDetails = ({ result }) => {
                       gap: 1.2,
                     }}
                   >
-                    <Typography
-                      sx={{ ...type.primaryMono, minWidth: 0, overflowWrap: 'anywhere' }}
-                    >
+                    <Typography sx={{ ...type.primaryMono, minWidth: 0, overflowWrap: 'anywhere' }}>
                       {table}
                     </Typography>
                     <Box

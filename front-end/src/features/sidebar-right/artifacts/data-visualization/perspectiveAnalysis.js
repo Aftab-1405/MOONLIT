@@ -1,26 +1,5 @@
 const STORAGE_PREFIX = 'moonlit:perspective:v4:';
-const SAMPLE_SIZE = 100;
-
-function zipRows(columns, rows) {
-  if (!columns.length || !rows.length || !Array.isArray(rows[0])) return rows;
-  return rows.map((row) => Object.fromEntries(
-    columns.map((column, index) => [column, row[index]]),
-  ));
-}
-
-export function normalizeTabularData(data) {
-  if (Array.isArray(data)) return data;
-  if (!data) return [];
-
-  if (Array.isArray(data.result?.rows)) {
-    const columns = data.result.columns || data.result.fields || data.columns || [];
-    return zipRows(columns, data.result.rows);
-  }
-  if (Array.isArray(data.rows)) {
-    return zipRows(data.columns || data.fields || [], data.rows);
-  }
-  return Array.isArray(data.data) ? data.data : [];
-}
+const _SAMPLE_SIZE = 100;
 
 function hashText(value) {
   let hash = 2166136261;
@@ -73,19 +52,26 @@ export function inferColumnType(values) {
   if (!populated.length) return 'string';
   if (populated.every((value) => typeof value === 'boolean')) return 'boolean';
   if (populated.every((value) => Number.isInteger(value))) return 'integer';
-  if (populated.every((value) => typeof value === 'number' && Number.isFinite(value))) return 'float';
-  if (populated.every((value) => (
-    typeof value === 'string'
-    && /^\d{4}-\d{2}-\d{2}$/.test(value)
-    && !Number.isNaN(Date.parse(`${value}T00:00:00Z`))
-  ))) {
+  if (populated.every((value) => typeof value === 'number' && Number.isFinite(value)))
+    return 'float';
+  if (
+    populated.every(
+      (value) =>
+        typeof value === 'string' &&
+        /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+        !Number.isNaN(Date.parse(`${value}T00:00:00Z`)),
+    )
+  ) {
     return 'date';
   }
-  if (populated.every((value) => (
-    typeof value === 'string'
-    && /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}/.test(value)
-    && !Number.isNaN(Date.parse(value))
-  ))) {
+  if (
+    populated.every(
+      (value) =>
+        typeof value === 'string' &&
+        /^\d{4}-\d{2}-\d{2}[T\s]\d{2}:\d{2}/.test(value) &&
+        !Number.isNaN(Date.parse(value)),
+    )
+  ) {
     return 'datetime';
   }
   return 'string';

@@ -320,7 +320,7 @@ async def get_conversation(
         raise _firestore_unavailable_response(e)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Error fetching conversation")
         raise HTTPException(status_code=500, detail="An internal error occurred while fetching conversation.")
 
@@ -358,7 +358,7 @@ async def fetch_execution_result(
         raise _firestore_unavailable_response(e)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         logger.exception("Error fetching execution result")
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 

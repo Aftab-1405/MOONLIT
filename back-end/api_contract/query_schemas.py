@@ -9,6 +9,7 @@ class QueryResultData(BaseModel):
     """Tabular query result."""
 
     columns: list[str] = Field(default_factory=list)
+    column_types: dict[str, str] = Field(default_factory=dict)
     rows: list[list[Any]] = Field(default_factory=list)
 
 

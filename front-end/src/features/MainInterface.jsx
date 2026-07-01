@@ -1,35 +1,37 @@
 // Main Interface - Logged-in application shell
 
-import { lazy, memo, Suspense, useMemo, useRef, useState } from "react";
+import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
+import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
+import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import {
   Box,
-  Typography,
+  Button,
+  Collapse,
+  Fade,
+  IconButton,
   Menu,
   MenuItem,
-  Snackbar,
-  Button,
   Slide,
-  Fade,
-  Collapse,
-  IconButton,
   Tooltip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  TextField,
-} from "@mui/material";
-import { alpha } from "@mui/material/styles";
-import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
-import SettingsOutlinedIcon from "@mui/icons-material/SettingsOutlined";
-import MenuRoundedIcon from "@mui/icons-material/MenuRounded";
-import Sidebar from "@/features/sidebar-left";
-import { ChatInput, MessageList, WelcomeScreen } from "@/features/chat";
-import ArtifactLoader from "@/features/sidebar-right/index";
-import { ConfirmDialog, ResizeHandle } from "@/components";
+  Typography,
+} from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import { AnimatePresence } from 'framer-motion';
+import { lazy, memo, Suspense, useMemo, useRef, useState } from 'react';
+import { ConfirmDialog, ResizeHandle } from '@/components';
+import Notification from '@/components/ui/toast';
+import { ChatInput, MessageList, WelcomeScreen } from '@/features/chat';
+import RenameConversationDialog from '@/features/chat/RenameConversationDialog';
+import Sidebar from '@/features/sidebar-left';
+import ArtifactLoader from '@/features/sidebar-right/index';
+import {
+  getAppPanelSurfaceSx,
+  getAppSunkenSurfaceSx,
+  getShellWorkspaceSx,
+} from '@/features/styles/interfaceChrome';
+import { useChatPageController } from '@/hooks/chat-page/useChatPageController';
 import {
   getInteractionColors,
-  getInteractiveControlSx,
   getInteractiveIconButtonSx,
   getPopoverMenuItemSx,
   getPopoverMenuListSx,
@@ -37,20 +39,10 @@ import {
   getScrollbarStyles,
   UI_LAYOUT,
   UI_Z_INDEX,
-} from "@/styles/shared";
-import { useChatPageController } from "@/hooks/chat-page/useChatPageController";
-import {
-  getAppPanelSurfaceSx,
-  getAppSunkenSurfaceSx,
-  getShellWorkspaceSx,
-} from "@/features/styles/interfaceChrome";
+} from '@/styles/shared';
 
-const DatabaseModal = lazy(
-  () => import("@/features/overlays/database/DatabaseModal"),
-);
-const SettingsModal = lazy(
-  () => import("@/features/overlays/settings/SettingsModal"),
-);
+const DatabaseModal = lazy(() => import('@/features/overlays/database/DatabaseModal'));
+const SettingsModal = lazy(() => import('@/features/overlays/settings/SettingsModal'));
 
 const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
   open,
@@ -62,7 +54,7 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
   onConfirm,
   theme,
 }) {
-  const isDark = theme.palette.mode === "dark";
+  const isDark = theme.palette.mode === 'dark';
 
   return (
     <Collapse in={open} timeout={250}>
@@ -72,31 +64,28 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
           aria-live="polite"
           aria-atomic="true"
           sx={{
-            width: "100%",
+            width: '100%',
             maxWidth: UI_LAYOUT.chatInputMaxWidth,
-            mx: "auto",
-            position: "relative",
+            mx: 'auto',
+            position: 'relative',
             zIndex: 1,
           }}
         >
           <Box
             sx={{
-              position: "relative",
+              position: 'relative',
               zIndex: 1,
               mx: { xs: 1, sm: 0 },
               mb: -3.5, // Slide behind composer
-              display: "flex",
-              flexDirection: { xs: "column", sm: "row" },
-              alignItems: { xs: "flex-start", sm: "center" },
-              justifyContent: "space-between",
+              display: 'flex',
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'flex-start', sm: 'center' },
+              justifyContent: 'space-between',
               gap: { xs: 1.5, sm: 2 },
-              borderTopLeftRadius: "20px",
-              borderTopRightRadius: "20px",
-              border: "1px solid",
-              borderColor: alpha(
-                theme.palette.text.primary,
-                isDark ? 0.12 : 0.08,
-              ),
+              borderTopLeftRadius: '20px',
+              borderTopRightRadius: '20px',
+              border: '1px solid',
+              borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
               borderBottom: 0,
               ...getAppPanelSurfaceSx(theme),
               px: { xs: 2.25, sm: 3 },
@@ -108,21 +97,21 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
               <Typography
                 sx={{
                   ...theme.typography.uiBodySm,
-                  color: "text.primary",
+                  color: 'text.primary',
                   fontWeight: 700,
                   lineHeight: 1.35,
                 }}
               >
-                {title || "Confirm action"}
+                {title || 'Confirm action'}
               </Typography>
               {message && (
                 <Typography
                   sx={{
                     mt: 0.25,
                     ...theme.typography.uiCaptionMd,
-                    color: "text.secondary",
+                    color: 'text.secondary',
                     lineHeight: 1.45,
-                    overflowWrap: "anywhere",
+                    overflowWrap: 'anywhere',
                   }}
                 >
                   {message}
@@ -131,11 +120,11 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
             </Box>
             <Box
               sx={{
-                display: "flex",
-                alignItems: "center",
+                display: 'flex',
+                alignItems: 'center',
                 gap: 1.5,
                 flexShrink: 0,
-                alignSelf: { xs: "flex-end", sm: "center" },
+                alignSelf: { xs: 'flex-end', sm: 'center' },
               }}
             >
               <Button
@@ -143,47 +132,47 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                 onClick={onCancel}
                 sx={{
                   minHeight: 28,
-                  borderRadius: "6px",
-                  textTransform: "none",
-                  color: "text.secondary",
+                  borderRadius: '6px',
+                  textTransform: 'none',
+                  color: 'text.secondary',
                   px: 1.5,
                   ...theme.typography.uiCaptionMd,
                   fontWeight: 500,
-                  "&:hover": {
+                  '&:hover': {
                     bgcolor: alpha(theme.palette.text.primary, 0.06),
                   },
-                  "&.Mui-focusVisible": {
+                  '&.Mui-focusVisible': {
                     boxShadow: `0 0 0 3px ${alpha(theme.palette.text.primary, isDark ? 0.18 : 0.12)}`,
-                    outline: "none",
+                    outline: 'none',
                   },
                 }}
               >
-                {cancelText || "Not now"}
+                {cancelText || 'Not now'}
               </Button>
               <Button
                 size="small"
                 onClick={onConfirm}
                 sx={{
                   minHeight: 28,
-                  borderRadius: "6px",
-                  textTransform: "none",
+                  borderRadius: '6px',
+                  textTransform: 'none',
                   color: theme.palette.primary.main,
                   px: 1.5,
                   ...theme.typography.uiCaptionMd,
                   fontWeight: 700,
-                  textDecoration: "underline",
-                  textUnderlineOffset: "3px",
-                  "&:hover": {
-                    textDecoration: "underline",
+                  textDecoration: 'underline',
+                  textUnderlineOffset: '3px',
+                  '&:hover': {
+                    textDecoration: 'underline',
                     bgcolor: alpha(theme.palette.primary.main, 0.08),
                   },
-                  "&.Mui-focusVisible": {
+                  '&.Mui-focusVisible': {
                     boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, isDark ? 0.28 : 0.2)}`,
-                    outline: "none",
+                    outline: 'none',
                   },
                 }}
               >
-                {confirmText || "Confirm"}
+                {confirmText || 'Confirm'}
               </Button>
             </Box>
           </Box>
@@ -193,11 +182,7 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
   );
 });
 
-const MobileSidebarOpenButton = memo(function MobileSidebarOpenButton({
-  visible,
-  theme,
-  onOpen,
-}) {
+const MobileSidebarOpenButton = memo(function MobileSidebarOpenButton({ visible, theme, onOpen }) {
   if (!visible) return null;
 
   return (
@@ -207,18 +192,18 @@ const MobileSidebarOpenButton = memo(function MobileSidebarOpenButton({
         onClick={onOpen}
         aria-label="Open sidebar"
         sx={{
-          position: "absolute",
-          top: "max(env(safe-area-inset-top), 12px)",
+          position: 'absolute',
+          top: 'max(env(safe-area-inset-top), 12px)',
           left: 12,
           zIndex: UI_Z_INDEX.mainContentControl,
-          ...getInteractiveIconButtonSx(theme, { size: 44, radius: "8px" }),
+          ...getInteractiveIconButtonSx(theme, { size: 44, radius: '8px' }),
           width: 44,
           height: 44,
           ...getAppPanelSurfaceSx(theme),
-          boxShadow: "none",
+          boxShadow: 'none',
           opacity: 0.82,
-          transition: "opacity 0.15s ease",
-          "&:hover": {
+          transition: 'opacity 0.15s ease',
+          '&:hover': {
             opacity: 1,
             backgroundColor: getInteractionColors(theme).hoverBackground,
           },
@@ -250,29 +235,25 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
   return (
     <Box
       sx={{
-        position: "relative",
+        position: 'relative',
         zIndex: UI_Z_INDEX.mainContentBase,
         flex: 1,
         minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        contain: "layout paint style",
+        display: 'flex',
+        flexDirection: 'column',
+        contain: 'layout paint style',
       }}
     >
-      <WelcomeScreen
-        visible={showWelcomeState}
-        user={user}
-        chatInputProps={chatInputSharedProps}
-      />
+      <WelcomeScreen visible={showWelcomeState} user={user} chatInputProps={chatInputSharedProps} />
 
       <Fade in={showConversationPanel} timeout={300} unmountOnExit>
         <Box
           sx={{
-            display: "flex",
-            flexDirection: "column",
+            display: 'flex',
+            flexDirection: 'column',
             flex: 1,
             minHeight: 0,
-            position: "relative",
+            position: 'relative',
           }}
         >
           <Box
@@ -280,8 +261,8 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
             sx={{
               flex: 1,
               minHeight: 0,
-              overflowY: "auto",
-              overflowX: "hidden",
+              overflowY: 'auto',
+              overflowX: 'hidden',
               px: { xs: 0, sm: 1 },
               pt: { xs: 2, sm: 3 },
               pb: { xs: 1, sm: 2 },
@@ -291,7 +272,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
             <MessageList
               messages={messages}
               isLoadingConversation={isConversationLoading}
-              loadError={conversationLoadState === "error"}
+              loadError={conversationLoadState === 'error'}
               conversationId={currentConversationId}
               onRunQuery={handleRunQuery}
               onOpenCanvasArtifact={handleOpenCanvasArtifact}
@@ -304,7 +285,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
               zIndex: 2,
               px: { xs: 0, sm: 1 },
               pt: { xs: 1, sm: 1.5 },
-              pb: "max(env(safe-area-inset-bottom), 8px)",
+              pb: 'max(env(safe-area-inset-bottom), 8px)',
             }}
           >
             <GuidedConfirmationPrompt
@@ -317,10 +298,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
               onConfirm={handleGuidedConfirm}
               theme={theme}
             />
-            <ChatInput
-              {...chatInputSharedProps}
-              messageCount={messages.length}
-            />
+            <ChatInput {...chatInputSharedProps} messageCount={messages.length} />
           </Box>
         </Box>
       </Fade>
@@ -333,6 +311,7 @@ const WorkspaceOverlayLayer = memo(
     dbModalOpen,
     handleCloseDbModal,
     handleDbConnect,
+    handleDbModalSelectDatabase,
     isDbConnected,
     currentDatabase,
     availableDatabases,
@@ -348,6 +327,7 @@ const WorkspaceOverlayLayer = memo(
             open={dbModalOpen}
             onClose={handleCloseDbModal}
             onConnect={handleDbConnect}
+            onSelectDatabase={handleDbModalSelectDatabase}
             isConnected={isDbConnected}
             currentDatabase={currentDatabase}
             availableDatabases={availableDatabases}
@@ -414,10 +394,9 @@ function MainInterface() {
     dbModalOpen,
     handleCloseDbModal,
     handleDbConnect,
-    snackbar,
-    handleCloseSnackbar,
-    snackbarAnchorOrigin,
-    snackbarContentProps,
+    handleDbModalSelectDatabase,
+    notifications,
+    removeToast,
     settingsOpen,
     handleCloseSettings,
     confirmDialog,
@@ -437,16 +416,16 @@ function MainInterface() {
   } = useChatPageController();
 
   const [isResizingCanvas, setIsResizingCanvas] = useState(false);
-  const isDark = theme.palette.mode === "dark";
+  const _isDark = theme.palette.mode === 'dark';
   const appShellSx = useMemo(
     () => ({
-      display: "flex",
-      flexDirection: "row",
-      width: "100%",
+      display: 'flex',
+      flexDirection: 'row',
+      width: '100%',
       minWidth: 0,
       minHeight: 0,
-      overflow: "hidden",
-      bgcolor: "background.default",
+      overflow: 'hidden',
+      bgcolor: 'background.default',
     }),
     [],
   );
@@ -455,24 +434,24 @@ function MainInterface() {
       flex: 1,
       minWidth: 0,
       minHeight: 0,
-      display: "flex",
-      flexDirection: "row",
-      alignItems: "stretch",
-      overflow: "hidden",
-      position: "relative",
+      display: 'flex',
+      flexDirection: 'row',
+      alignItems: 'stretch',
+      overflow: 'hidden',
+      position: 'relative',
     }),
     [],
   );
   const mainContentSx = useMemo(
     () => ({
       flex: 1,
-      display: "flex",
-      flexDirection: "column",
+      display: 'flex',
+      flexDirection: 'column',
       mt: 0,
       minWidth: 0,
       minHeight: 0,
-      overflow: "hidden",
-      position: "relative",
+      overflow: 'hidden',
+      position: 'relative',
       zIndex: UI_Z_INDEX.mainContentBase,
       ...getShellWorkspaceSx(theme),
     }),
@@ -480,84 +459,27 @@ function MainInterface() {
   );
   const desktopCanvasShellSx = useMemo(
     () => ({
-      display: "flex",
+      display: 'flex',
       flexShrink: 0,
       minHeight: 0,
-      alignSelf: "stretch",
-      height: "100%",
+      alignSelf: 'stretch',
+      height: '100%',
     }),
     [],
   );
   const mobileCanvasShellSx = useMemo(
     () => (theme) => ({
-      position: "fixed",
+      position: 'fixed',
       top: 0,
       left: 0,
       right: 0,
       bottom: 0,
       zIndex: UI_Z_INDEX.artifactFullscreen,
-      display: "flex",
-      flexDirection: "column",
+      display: 'flex',
+      flexDirection: 'column',
       ...getAppSunkenSurfaceSx(theme),
     }),
     [],
-  );
-  const snackbarSx = useMemo(
-    () => ({
-      maxWidth: "min(420px, calc(100vw - 32px))",
-      "& .MuiSnackbarContent-root": {
-        width: "100%",
-        borderRadius: "8px",
-        boxShadow: "none",
-      },
-      "@media (max-width: 599.95px)": {
-        "&.MuiSnackbar-anchorOriginTopCenter": {
-          top: "max(8px, env(safe-area-inset-top)) !important",
-        },
-      },
-    }),
-    [],
-  );
-  const renameDialogPaperSx = useMemo(
-    () => ({
-      borderRadius: "14px",
-      border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08)}`,
-      ...getAppPanelSurfaceSx(theme),
-      boxShadow: "none",
-    }),
-    [isDark, theme],
-  );
-  const renameFieldSx = useMemo(
-    () => ({
-      "& .MuiOutlinedInput-root": {
-        borderRadius: "8px",
-        ...theme.typography.uiInput,
-      },
-      "& .MuiInputLabel-root": {
-        ...theme.typography.uiCaptionMd,
-      },
-    }),
-    [theme],
-  );
-  const renameActionsSx = useMemo(
-    () => ({
-      px: 3,
-      pb: 2.5,
-      pt: 1,
-      gap: 1,
-      "& .MuiButton-root": {
-        minHeight: 34,
-        borderRadius: "8px",
-        px: 1.5,
-        textTransform: "none",
-        ...theme.typography.uiNavItem,
-      },
-    }),
-    [theme],
-  );
-  const renameCancelButtonSx = useMemo(
-    () => getInteractiveControlSx(theme, { size: 34, radius: "8px" }),
-    [theme],
   );
 
   return (
@@ -567,17 +489,17 @@ function MainInterface() {
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
         anchorOrigin={{
-          vertical: "top",
-          horizontal: sidebarOpen ? "left" : "right",
+          vertical: 'top',
+          horizontal: sidebarOpen ? 'left' : 'right',
         }}
-        transformOrigin={{ vertical: "bottom", horizontal: "left" }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         MenuListProps={{ sx: getPopoverMenuListSx() }}
         PaperProps={{
           sx: {
-            ...getPopoverPaperSx(theme, theme.palette.mode === "dark"),
+            ...getPopoverPaperSx(theme, theme.palette.mode === 'dark'),
             width: 240,
             p: 0,
-            overflow: "hidden",
+            overflow: 'hidden',
           },
         }}
       >
@@ -586,10 +508,10 @@ function MainInterface() {
           <Typography
             sx={{
               ...theme.typography.uiCaptionXs,
-              color: "text.secondary",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+              color: 'text.secondary',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
             }}
           >
             {user?.email}
@@ -602,19 +524,15 @@ function MainInterface() {
             ...getPopoverMenuItemSx(theme),
           }}
         >
-          <SettingsOutlinedIcon
-            sx={{ color: "text.secondary", flexShrink: 0 }}
-          />
-          <Typography
-            sx={{ ...theme.typography.uiNavItem, color: "text.primary" }}
-          >
+          <SettingsOutlinedIcon sx={{ color: 'text.secondary', flexShrink: 0 }} />
+          <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary' }}>
             Settings
           </Typography>
         </MenuItem>
         {/* Separator */}
         <Box
           sx={{
-            height: "0.5px",
+            height: '0.5px',
             backgroundColor: alpha(theme.palette.text.primary, 0.07),
             my: 0.75,
             mx: 0.5,
@@ -626,10 +544,8 @@ function MainInterface() {
             ...getPopoverMenuItemSx(theme),
           }}
         >
-          <LogoutOutlinedIcon sx={{ color: "text.secondary", flexShrink: 0 }} />
-          <Typography
-            sx={{ ...theme.typography.uiNavItem, color: "text.primary" }}
-          >
+          <LogoutOutlinedIcon sx={{ color: 'text.secondary', flexShrink: 0 }} />
+          <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary' }}>
             Sign out
           </Typography>
         </MenuItem>
@@ -646,12 +562,7 @@ function MainInterface() {
         onMobileClose={handleMobileDrawerClose}
       />
       <Box ref={workspaceContainerRef} sx={workspaceContainerSx}>
-        <Box
-          component="main"
-          id="main-content"
-          aria-label="Chat workspace"
-          sx={mainContentSx}
-        >
+        <Box component="main" id="main-content" aria-label="Chat workspace" sx={mainContentSx}>
           <MobileSidebarOpenButton
             visible={isNarrowLayout}
             theme={theme}
@@ -704,12 +615,7 @@ function MainInterface() {
         )}
       </Box>
       {isNarrowLayout && (
-        <Slide
-          direction="up"
-          in={workspaceCanvasOpen}
-          mountOnEnter
-          unmountOnExit
-        >
+        <Slide direction="up" in={workspaceCanvasOpen} mountOnEnter unmountOnExit>
           <Box sx={mobileCanvasShellSx}>
             <ArtifactLoader
               artifact={workspaceCanvasArtifact}
@@ -727,6 +633,7 @@ function MainInterface() {
         dbModalOpen={dbModalOpen}
         handleCloseDbModal={handleCloseDbModal}
         handleDbConnect={handleDbConnect}
+        handleDbModalSelectDatabase={handleDbModalSelectDatabase}
         isDbConnected={isDbConnected}
         currentDatabase={currentDatabase}
         availableDatabases={commonSidebarProps.availableDatabases}
@@ -736,15 +643,36 @@ function MainInterface() {
         settingsInitialSection={settingsInitialSection}
       />
 
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={4000}
-        onClose={handleCloseSnackbar}
-        anchorOrigin={snackbarAnchorOrigin}
-        message={snackbar.message}
-        ContentProps={snackbarContentProps}
-        sx={snackbarSx}
-      />
+      <div
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: isNarrowLayout ? 'auto' : '24px',
+          left: isNarrowLayout ? '50%' : 'auto',
+          transform: isNarrowLayout ? 'translateX(-50%)' : 'none',
+          zIndex: 9999,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px',
+          pointerEvents: 'none',
+          width: 'calc(100% - 32px)',
+          maxWidth: '380px',
+        }}
+      >
+        <AnimatePresence>
+          {notifications.map((notification) => (
+            <Notification
+              key={notification.id}
+              type={notification.type}
+              title={notification.title}
+              message={notification.message}
+              showIcon={notification.showIcon}
+              duration={notification.duration}
+              onClose={() => removeToast(notification.id)}
+            />
+          ))}
+        </AnimatePresence>
+      </div>
       <ConfirmDialog
         open={confirmDialog.open}
         onClose={handleConfirmDialogClose}
@@ -757,67 +685,13 @@ function MainInterface() {
         maxWidth="xs"
         loadingText="Running..."
       />
-      <Dialog
+      <RenameConversationDialog
         open={renameConversationDialog.open}
+        title={renameConversationDialog.title}
         onClose={handleRenameConversationDialogClose}
-        maxWidth="xs"
-        fullWidth
-        PaperProps={{
-          component: "form",
-          onSubmit: (event) => {
-            event.preventDefault();
-            handleRenameConversationConfirm();
-          },
-          sx: {
-            ...renameDialogPaperSx,
-          },
-        }}
-      >
-        <DialogTitle
-          sx={{
-            ...theme.typography.uiCardTitle,
-            fontWeight: 700,
-            px: 3,
-            pt: 2.5,
-            pb: 1,
-          }}
-        >
-          Rename conversation
-        </DialogTitle>
-        <DialogContent sx={{ px: 3, pt: 1 }}>
-          <TextField
-            autoFocus
-            fullWidth
-            label="Conversation title"
-            variant="outlined"
-            value={renameConversationDialog.title}
-            onChange={handleRenameConversationTitleChange}
-            inputProps={{ maxLength: 80 }}
-            sx={renameFieldSx}
-          />
-        </DialogContent>
-        <DialogActions sx={renameActionsSx}>
-          <Button
-            onClick={handleRenameConversationDialogClose}
-            color="inherit"
-            sx={renameCancelButtonSx}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            variant="contained"
-            disableElevation
-            disabled={!renameConversationDialog.title.trim()}
-            sx={{
-              boxShadow: "none",
-              "&:hover": { boxShadow: "none" },
-            }}
-          >
-            Rename
-          </Button>
-        </DialogActions>
-      </Dialog>
+        onChange={handleRenameConversationTitleChange}
+        onConfirm={handleRenameConversationConfirm}
+      />
       <ConfirmDialog
         open={deleteConversationDialog.open}
         onClose={handleDeleteConversationDialogClose}

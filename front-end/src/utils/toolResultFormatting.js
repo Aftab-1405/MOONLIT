@@ -6,4 +6,3 @@ export function normalizeCitationMarkdown(content = '') {
     .replace(/\s{2,}/g, ' ')
     .trim();
 }
-

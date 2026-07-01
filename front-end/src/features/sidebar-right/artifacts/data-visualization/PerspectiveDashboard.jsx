@@ -1,3 +1,6 @@
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
+import { Box, CircularProgress, Stack, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
 import {
   forwardRef,
   memo,
@@ -7,16 +10,13 @@ import {
   useRef,
   useState,
 } from 'react';
-import { Box, CircularProgress, Stack, Typography } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { ArtifactEmptyState } from '@/features/sidebar-right/artifact-loader';
 import {
   clearAnalysisConfig,
+  inferColumnType,
   loadAnalysisConfig,
   saveAnalysisConfig,
   toColumnar,
-  inferColumnType,
 } from '@/features/sidebar-right/artifacts/data-visualization/perspectiveAnalysis';
 
 import '@perspective-dev/viewer/themes';
@@ -66,12 +66,10 @@ function withTimeout(promise, timeoutMs, stage) {
   });
 }
 
-const PerspectiveDashboard = forwardRef(function PerspectiveDashboard({
-  data,
-  storageKey,
-  onReadyChange,
-  onSelectionChange,
-}, ref) {
+const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
+  { data, storageKey, onReadyChange, onSelectionChange },
+  ref,
+) {
   const theme = useTheme();
   const viewerRef = useRef(null);
   const previousInputRef = useRef({ data, storageKey });
@@ -87,8 +85,8 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard({
   const hasData = Boolean(data?.columns?.length && data?.rows?.length);
 
   if (
-    previousInputRef.current.data !== data
-    || previousInputRef.current.storageKey !== storageKey
+    previousInputRef.current.data !== data ||
+    previousInputRef.current.storageKey !== storageKey
   ) {
     previousInputRef.current = { data, storageKey };
     viewerVersionRef.current += 1;
@@ -102,21 +100,25 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard({
     return saveAnalysisConfig(storageKey, config);
   }, [storageKey]);
 
-  useImperativeHandle(ref, () => ({
-    save: persistConfig,
-    copy: () => viewerRef.current?.copy?.('csv'),
-    download: () => viewerRef.current?.download?.('csv'),
-    exportVisualization: () => viewerRef.current?.download?.('plugin'),
-    applyConfig: (config) => viewerRef.current?.restore?.(config),
-    reset: async () => {
-      const viewer = viewerRef.current;
-      if (!viewer?.reset) return;
-      clearAnalysisConfig(storageKey);
-      await viewer.reset(true);
-      await viewer.restore({ plugin: 'Datagrid', theme: perspectiveTheme });
-      await persistConfig();
-    },
-  }), [persistConfig, perspectiveTheme, storageKey]);
+  useImperativeHandle(
+    ref,
+    () => ({
+      save: persistConfig,
+      copy: () => viewerRef.current?.copy?.('csv'),
+      download: () => viewerRef.current?.download?.('csv'),
+      exportVisualization: () => viewerRef.current?.download?.('plugin'),
+      applyConfig: (config) => viewerRef.current?.restore?.(config),
+      reset: async () => {
+        const viewer = viewerRef.current;
+        if (!viewer?.reset) return;
+        clearAnalysisConfig(storageKey);
+        await viewer.reset(true);
+        await viewer.restore({ plugin: 'Datagrid', theme: perspectiveTheme });
+        await persistConfig();
+      },
+    }),
+    [persistConfig, perspectiveTheme, storageKey],
+  );
 
   useEffect(() => {
     onReadyChange?.(status === 'ready');
@@ -144,7 +146,7 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard({
         configSaveTimerRef.current = null;
       }
     };
-  }, [onSelectionChange, persistConfig, viewerVersion]);
+  }, [onSelectionChange, persistConfig]);
 
   // Handle parent container resizing
   useEffect(() => {
@@ -175,7 +177,7 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard({
       if (frameId) cancelAnimationFrame(frameId);
       observer.disconnect();
     };
-  }, [viewerVersion]);
+  }, []);
 
   useEffect(() => {
     const viewer = viewerRef.current;
@@ -247,12 +249,19 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard({
 
         // 1. Build the explicit schema
         const schema = {};
-        const sampleSize = Math.min(data.rows.length, 100);
-        const sampleRows = data.rows.slice(0, sampleSize);
-        data.columns.forEach((col, colIdx) => {
-          const sampleValues = sampleRows.map((row) => row[colIdx]);
-          schema[col] = inferColumnType(sampleValues);
-        });
+        if (data.column_types) {
+          data.columns.forEach((col) => {
+            schema[col] = data.column_types[col] || 'string';
+          });
+        } else {
+          // Fallback to sample-based inference for backward compatibility
+          const sampleSize = Math.min(data.rows.length, 100);
+          const sampleRows = data.rows.slice(0, sampleSize);
+          data.columns.forEach((col, colIdx) => {
+            const sampleValues = sampleRows.map((row) => row[colIdx]);
+            schema[col] = inferColumnType(sampleValues);
+          });
+        }
 
         setLoadingMessage(`Loading ${data.rows.length.toLocaleString()} rows`);
         table = await withTimeout(
@@ -285,9 +294,11 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard({
         if (viewer.restore) {
           const savedConfig = loadAnalysisConfig(storageKey);
           try {
-            await viewer.restore(savedConfig
-              ? { ...savedConfig, theme: perspectiveThemeRef.current }
-              : { plugin: 'Datagrid', theme: perspectiveThemeRef.current });
+            await viewer.restore(
+              savedConfig
+                ? { ...savedConfig, theme: perspectiveThemeRef.current }
+                : { plugin: 'Datagrid', theme: perspectiveThemeRef.current },
+            );
           } catch {
             clearAnalysisConfig(storageKey);
             await viewer.restore({ plugin: 'Datagrid', theme: perspectiveThemeRef.current });
@@ -315,7 +326,7 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard({
       cancelled = true;
       cleanupPerspectiveResources({ viewer, table, worker });
     };
-  }, [data, hasData, storageKey, viewerVersion]);
+  }, [data, hasData, storageKey]);
 
   if (!hasData) {
     return (
@@ -336,12 +347,14 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard({
         overflow: 'hidden',
         borderRadius: 2,
         border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-        boxShadow: theme.palette.mode === 'dark'
-          ? `0 0 0 1px ${alpha(theme.palette.primary.main, 0.08)}, 0 8px 40px ${alpha('#000', 0.5)}`
-          : `0 1px 2px ${alpha('#000', 0.06)}, 0 6px 24px ${alpha('#000', 0.07)}`,
-        background: theme.palette.mode === 'dark'
-          ? alpha(theme.palette.background.paper, 0.6)
-          : theme.palette.background.paper,
+        boxShadow:
+          theme.palette.mode === 'dark'
+            ? `0 0 0 1px ${alpha(theme.palette.primary.main, 0.08)}, 0 8px 40px ${alpha('#000', 0.5)}`
+            : `0 1px 2px ${alpha('#000', 0.06)}, 0 6px 24px ${alpha('#000', 0.07)}`,
+        background:
+          theme.palette.mode === 'dark'
+            ? alpha(theme.palette.background.paper, 0.6)
+            : theme.palette.background.paper,
         '& perspective-viewer': {
           display: 'block',
           width: '100%',
@@ -373,16 +386,12 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard({
             backdropFilter: 'blur(6px)',
             bgcolor: alpha(
               theme.palette.background.paper,
-              theme.palette.mode === 'dark' ? 0.55 : 0.70,
+              theme.palette.mode === 'dark' ? 0.55 : 0.7,
             ),
             zIndex: 1,
           }}
         >
-          <CircularProgress
-            size={28}
-            thickness={3}
-            sx={{ color: theme.palette.primary.main }}
-          />
+          <CircularProgress size={28} thickness={3} sx={{ color: theme.palette.primary.main }} />
           <Typography
             sx={{
               ...theme.typography.uiCaptionMd,
