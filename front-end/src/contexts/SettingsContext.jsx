@@ -3,7 +3,7 @@
  * @module SettingsContext
  */
 
-import { createContext, useContext, useCallback, useMemo } from 'react';
+import { createContext, useCallback, useContext, useMemo } from 'react';
 import { defaultUserSettings } from '@/config/userSettings';
 import { useLocalStorage } from '@/hooks';
 
@@ -25,20 +25,29 @@ export function useSettings() {
 
 export function SettingsProvider({ children }) {
   const [rawSettings, setRawSettings] = useLocalStorage(SETTINGS_KEY, defaultSettings);
-  const settings = useMemo(() => ({
-    ...defaultSettings,
-    ...rawSettings,
-  }), [rawSettings]);
+  const settings = useMemo(
+    () => ({
+      ...defaultSettings,
+      ...rawSettings,
+    }),
+    [rawSettings],
+  );
 
   /** Update a single setting by key. */
-  const updateSetting = useCallback((key, value) => {
-    setRawSettings(prev => ({ ...prev, [key]: value }));
-  }, [setRawSettings]);
+  const updateSetting = useCallback(
+    (key, value) => {
+      setRawSettings((prev) => ({ ...prev, [key]: value }));
+    },
+    [setRawSettings],
+  );
 
   /** Update multiple settings at once. */
-  const updateSettings = useCallback((newSettings) => {
-    setRawSettings(prev => ({ ...prev, ...newSettings }));
-  }, [setRawSettings]);
+  const updateSettings = useCallback(
+    (newSettings) => {
+      setRawSettings((prev) => ({ ...prev, ...newSettings }));
+    },
+    [setRawSettings],
+  );
 
   /** Reset all settings to defaults. */
   const resetSettings = useCallback(() => {
@@ -46,27 +55,29 @@ export function SettingsProvider({ children }) {
   }, [setRawSettings]);
 
   /** Read a setting with optional fallback. */
-  const getSetting = useCallback((key, defaultValue = null) => {
-    return settings[key] ?? defaultValue;
-  }, [settings]);
+  const getSetting = useCallback(
+    (key, defaultValue = null) => {
+      return settings[key] ?? defaultValue;
+    },
+    [settings],
+  );
 
   const isDarkMode = settings.theme === 'dark';
 
-  const value = useMemo(() => ({
-    settings,
-    isDarkMode,
+  const value = useMemo(
+    () => ({
+      settings,
+      isDarkMode,
 
-    updateSetting,
-    updateSettings,
-    resetSettings,
-    getSetting,
+      updateSetting,
+      updateSettings,
+      resetSettings,
+      getSetting,
 
-    theme: settings.theme,
-  }), [settings, isDarkMode, updateSetting, updateSettings, resetSettings, getSetting]);
-
-  return (
-    <SettingsContext.Provider value={value}>
-      {children}
-    </SettingsContext.Provider>
+      theme: settings.theme,
+    }),
+    [settings, isDarkMode, updateSetting, updateSettings, resetSettings, getSetting],
   );
+
+  return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;
 }

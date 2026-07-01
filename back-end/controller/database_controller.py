@@ -187,25 +187,39 @@ def _normalize_database_selection_response(
 def _normalize_rows(rows: list[Any]) -> list[list[Any]]:
     normalized = []
     for row in rows:
+        row_list = []
         if isinstance(row, list):
-            normalized.append(row)
+            row_list = row
         elif isinstance(row, tuple):
-            normalized.append(list(row))
+            row_list = list(row)
         else:
-            normalized.append([row])
+            row_list = [row]
+        
+        # Handle binary data (bytes) cleanly to prevent JSON serialization crash
+        normalized_row = []
+        for val in row_list:
+            if isinstance(val, bytes):
+                try:
+                    normalized_row.append(val.decode("utf-8"))
+                except UnicodeDecodeError:
+                    normalized_row.append(f"\\x{val.hex()}")
+            else:
+                normalized_row.append(val)
+        normalized.append(normalized_row)
     return normalized
 
 
 def _normalize_query_response(result: dict) -> RunSqlQueryData:
     result_payload = result.get("result") or {}
     columns = result_payload.get("columns") or result_payload.get("fields") or []
+    column_types = result_payload.get("column_types") or {}
     rows = _normalize_rows(result_payload.get("rows") or [])
     query_type = result.get("query_type") or "SELECT"
     if query_type not in {"SELECT", "WITH"}:
         query_type = "OTHER"
 
     return RunSqlQueryData(
-        result=QueryResultData(columns=columns, rows=rows),
+        result=QueryResultData(columns=columns, column_types=column_types, rows=rows),
         row_count=result.get("row_count", len(rows)),
         total_rows=result.get("total_rows"),
         truncated=bool(result.get("truncated", False)),

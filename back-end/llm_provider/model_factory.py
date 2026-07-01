@@ -1,8 +1,4 @@
-"""
-Model factory — provider-agnostic ChatModel instantiation.
-
-Now explicitly uses AWS Bedrock via ChatBedrockConverse for robust tool calling.
-"""
+"""Provider-agnostic chat-model construction and configuration."""
 
 import logging
 from functools import lru_cache
@@ -14,11 +10,60 @@ from config import get_config
 
 logger = logging.getLogger(__name__)
 
+
 def get_default_model(provider: str) -> str:
-    """Return the configured default model for *provider*."""
+    """Return an explicit default or the first configured provider model."""
     config = get_config()
     provider = provider.strip().lower()
-    return getattr(config, f"{provider.upper()}_MODEL", "")
+    singular = str(getattr(config, f"{provider.upper()}_MODEL", "") or "").strip()
+    if singular:
+        return singular
+    configured = getattr(config, f"{provider.upper()}_MODELS", []) or []
+    return str(configured[0]).strip() if configured else ""
+
+
+def _reasoning_request_fields(
+    model: str,
+    *,
+    enable_reasoning: bool,
+    reasoning_effort: str,
+) -> dict:
+    from llm_provider.model_capabilities import model_capability
+
+    effort = str(reasoning_effort or "medium").lower()
+    if effort not in {"low", "medium", "high"}:
+        raise ValueError(f"Unsupported reasoning effort: {reasoning_effort}")
+    reasoning_type = model_capability(model, "reasoning_type", "none")
+    if reasoning_type == "openai_effort":
+        # GPT OSS has no fully-disabled reasoning mode. Low is its documented
+        # minimum and avoids pretending that reasoning can be turned off.
+        return {"reasoning_effort": effort if enable_reasoning else "low"}
+    return {}
+
+
+@lru_cache(maxsize=32)
+def _get_cached_chat_model(
+    provider: str,
+    model: str,
+    enable_reasoning: bool,
+    reasoning_effort: str,
+    temperature: float,
+    max_tokens: int,
+) -> BaseChatModel:
+    from llm_provider.bedrock_client import init_chat_bedrock
+
+    request_fields = _reasoning_request_fields(
+        model,
+        enable_reasoning=enable_reasoning,
+        reasoning_effort=reasoning_effort,
+    )
+    return init_chat_bedrock(
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        additional_model_request_fields=request_fields or None,
+    )
+
 
 def get_chat_model(
     provider: str,
@@ -28,58 +73,71 @@ def get_chat_model(
     enable_reasoning: bool = True,
     reasoning_effort: str = "medium",
     temperature: float = 0.2,
+    max_tokens: int | None = None,
 ) -> BaseChatModel:
-    """
-    Instantiate the correct ChatModel for *provider*.
-    
-    Args:
-        provider: Expected to be 'bedrock'.
-        model: Model ID (e.g. anthropic.claude-3-5-sonnet-20240620-v1:0).
-        api_key: Ignored for Bedrock (uses AWS environment variables).
-        enable_reasoning: Toggle for future use.
-        reasoning_effort: Token budget control.
-        temperature: Sampling temperature.
-        
-    Returns:
-        A LangChain ``BaseChatModel`` ready for ``.bind_tools()``.
-    """
+    """Return a reusable LangChain chat model for the requested configuration."""
+    del api_key  # Bedrock uses the AWS credential provider chain.
     provider = provider.strip().lower()
     if provider != "bedrock":
-        logger.warning(f"Provider {provider} requested, but only 'bedrock' is supported. Falling back to bedrock.")
+        logger.warning(
+            "Provider %s requested, but only Bedrock is supported; using Bedrock.",
+            provider,
+        )
         provider = "bedrock"
 
-    model = model or get_default_model(provider)
-        
-    from llm_provider.bedrock_client import init_chat_bedrock
-    return init_chat_bedrock(
-        model=model,
-        temperature=temperature,
+    selected_model = str(model or get_default_model(provider)).strip()
+    if not selected_model:
+        raise ValueError(f"No model is configured for provider '{provider}'")
+    from llm_provider.model_capabilities import model_capability
+
+    config = get_config()
+    requested_output = int(max_tokens or config.RESERVED_OUTPUT_TOKENS)
+    model_output_limit = int(
+        model_capability(selected_model, "max_output_tokens", requested_output)
     )
+    bounded_output = max(1, min(requested_output, model_output_limit))
+    return _get_cached_chat_model(
+        provider,
+        selected_model,
+        bool(enable_reasoning),
+        str(reasoning_effort or "medium").lower(),
+        float(temperature),
+        bounded_output,
+    )
+
 
 @lru_cache(maxsize=1)
 def get_supported_providers() -> tuple[str, ...]:
-    """Return provider names that are configured."""
     return ("bedrock",)
 
+
 def get_provider_models(provider: str) -> list[str]:
-    """Return the comma-separated model list from env, or the single default."""
     config = get_config()
     provider = provider.strip().lower()
-    models = getattr(config, f"{provider.upper()}_MODELS", [])
+    models = getattr(config, f"{provider.upper()}_MODELS", []) or []
     if models:
-        return list(models)
+        return [str(model).strip() for model in models if str(model).strip()]
     default = get_default_model(provider)
     return [default] if default else []
 
+
 def get_provider_api_key(provider: str) -> str | None:
-    """
-    Return the API key configured for *provider*.
-    For Bedrock, this returns a dummy key if AWS_ACCESS_KEY_ID is set
-    so that rate limiting and credentials-check logic doesn't break.
-    """
+    """Return a non-secret marker when Bedrock authentication can be attempted."""
     config = get_config()
-    if provider.strip().lower() == "bedrock":
-        if config.AWS_ACCESS_KEY_ID:
-            return "aws_credentials_present"
+    if provider.strip().lower() != "bedrock":
+        return None
+    if config.AWS_ACCESS_KEY_ID:
+        return "aws_credentials_present"
+    if config.AWS_REGION:
+        return "aws_provider_chain"
     return None
 
+
+def prewarm_chat_models() -> None:
+    """Construct reusable provider clients/models before accepting traffic."""
+    for provider in get_supported_providers():
+        for model in get_provider_models(provider):
+            try:
+                get_chat_model(provider, model=model)
+            except Exception as exc:
+                logger.warning("Could not prewarm model %s: %s", model, exc)

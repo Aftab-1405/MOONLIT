@@ -3,14 +3,11 @@
  * @module UserSettingsSync
  */
 
-import { useEffect, useRef } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { getUserSettings, saveUserSettings } from '@/api';
 import { queryKeys } from '@/api/queryClient';
-import {
-  mapServerSettingsToClient,
-  pickSyncableSettings,
-} from '@/config/userSettings';
+import { mapServerSettingsToClient, pickSyncableSettings } from '@/config/userSettings';
 import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import logger from '@/utils/logger';
@@ -79,7 +76,7 @@ export function UserSettingsSync() {
     const timer = window.setTimeout(() => {
       saveSettings(pickSyncableSettings(settings), {
         onError: (error) => {
-        logger.warn('Failed to save user settings to server:', error);
+          logger.warn('Failed to save user settings to server:', error);
         },
       });
     }, PERSIST_DEBOUNCE_MS);

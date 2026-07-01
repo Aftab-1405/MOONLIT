@@ -74,7 +74,6 @@ class Config:
         for header in _sensitive_header_names_raw.split(",")
         if header.strip()
     }
-    DEBUG_BODY_LOG_MAX_CHARS = int(os.getenv("DEBUG_BODY_LOG_MAX_CHARS", 200))
     _sensitive_body_paths_raw = os.getenv(
         "SENSITIVE_BODY_LOG_PATHS",
         "/api/v1/pass_user_prompt_to_llm,/api/v1/resume_agent",
@@ -113,10 +112,6 @@ class Config:
     # Providers: bedrock (via langchain-aws)
     LLM_PROVIDER = os.getenv("LLM_PROVIDER", "bedrock").strip().lower()
 
-    # Models supporting native Bedrock thinking API
-    _native_thinking_models_raw = os.getenv("BEDROCK_NATIVE_THINKING_MODELS", "")
-    BEDROCK_NATIVE_THINKING_MODELS = [m.strip().lower() for m in _native_thinking_models_raw.split(",") if m.strip()]
-
     # Provider API keys are resolved per selected provider in llm_provider.model_factory.
 
     # AWS Bedrock
@@ -129,6 +124,7 @@ class Config:
     BEDROCK_MODELS = [
         m.strip() for m in os.getenv("BEDROCK_MODELS", "").split(",") if m.strip()
     ]
+
 
     # LLM Rate Limiting
     LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "True").lower() == "true"
@@ -292,17 +288,51 @@ class Config:
         "VAMP_EMBEDDING_MODEL", "amazon.titan-embed-text-v2:0"
     )
     VAMP_EMBEDDING_DIMENSIONS = int(os.getenv("VAMP_EMBEDDING_DIMENSIONS", 1024))
-    VAMP_CONTEXT_BUDGET_CHARS = int(os.getenv("VAMP_CONTEXT_BUDGET_CHARS", 12000))
+    VAMP_SIMILARITY_THRESHOLD = float(os.getenv("VAMP_SIMILARITY_THRESHOLD", 0.35))
+    VAMP_INDEX_CONCURRENCY = int(os.getenv("VAMP_INDEX_CONCURRENCY", 4))
+    VAMP_MAINTENANCE_INTERVAL_SECONDS = int(
+        os.getenv("VAMP_MAINTENANCE_INTERVAL_SECONDS", 30)
+    )
+    VAMP_MAINTENANCE_INITIAL_DELAY_SECONDS = int(
+        os.getenv("VAMP_MAINTENANCE_INITIAL_DELAY_SECONDS", 5)
+    )
+    VAMP_MAINTENANCE_QUERY_TIMEOUT_SECONDS = float(
+        os.getenv("VAMP_MAINTENANCE_QUERY_TIMEOUT_SECONDS", 15)
+    )
+    VAMP_MAINTENANCE_MAX_BACKOFF_SECONDS = int(
+        os.getenv("VAMP_MAINTENANCE_MAX_BACKOFF_SECONDS", 300)
+    )
+    VAMP_CONTEXT_MIN_TOKENS = int(os.getenv("VAMP_CONTEXT_MIN_TOKENS", 2048))
+    VAMP_CONTEXT_MAX_TOKENS = int(os.getenv("VAMP_CONTEXT_MAX_TOKENS", 12000))
+    VAMP_CONTEXT_WINDOW_RATIO = float(os.getenv("VAMP_CONTEXT_WINDOW_RATIO", 0.05))
     VAMP_SUMMARY_CLAIM_TTL_SECONDS = int(
         os.getenv("VAMP_SUMMARY_CLAIM_TTL_SECONDS", 900)
+    )
+    VAMP_SUMMARY_INLINE_MAX_BYTES = int(
+        os.getenv("VAMP_SUMMARY_INLINE_MAX_BYTES", 700_000)
+    )
+    VAMP_SUMMARY_CHUNK_BYTES = int(
+        os.getenv("VAMP_SUMMARY_CHUNK_BYTES", 450_000)
+    )
+
+    # Interactive Firestore reads need enough time for a cold gRPC channel to
+    # reconnect, while remaining bounded for HTTP request latency.
+    FIRESTORE_INTERACTIVE_READ_TIMEOUT_SECONDS = float(
+        os.getenv("FIRESTORE_INTERACTIVE_READ_TIMEOUT_SECONDS", 8)
+    )
+    FIRESTORE_REST_READ_FALLBACK_ENABLED = (
+        os.getenv("FIRESTORE_REST_READ_FALLBACK_ENABLED", "True").lower()
+        == "true"
     )
 
     # Adaptive step budgets
     AGENT_DEFAULT_STEPS = int(os.getenv("AGENT_DEFAULT_STEPS", 50))
     AGENT_TOOL_TASK_STEPS = int(os.getenv("AGENT_TOOL_TASK_STEPS", 100))
     AGENT_LONG_TASK_STEPS = int(os.getenv("AGENT_LONG_TASK_STEPS", 200))
-    AGENT_APPROVED_AUTONOMOUS_STEPS = int(os.getenv("AGENT_APPROVED_AUTONOMOUS_STEPS", 500))
     AGENT_TOTAL_STEP_BUDGET = int(os.getenv("AGENT_TOTAL_STEP_BUDGET", 500))
+    # Persist and compact long workflows in bounded graph segments. Reaching a
+    # segment boundary is an internal checkpoint, not a user-visible failure.
+    AGENT_STEP_SEGMENT_STEPS = int(os.getenv("AGENT_STEP_SEGMENT_STEPS", 50))
 
     # Session/Cookie Configuration (base defaults)
     DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS", "False").lower() == "true"
@@ -337,23 +367,11 @@ class Config:
     UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS = int(
         os.getenv("UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS", 32768)
     )
-    RESERVED_SYSTEM_TOKENS = int(os.getenv("RESERVED_SYSTEM_TOKENS", 1000))
-    RESERVED_VAMP_MEMORY_TOKENS = int(
-        os.getenv("RESERVED_VAMP_MEMORY_TOKENS", 3000)
-    )
-    RESERVED_TOOL_SCHEMA_TOKENS = int(
-        os.getenv("RESERVED_TOOL_SCHEMA_TOKENS", 2000)
-    )
     RESERVED_OUTPUT_TOKENS = int(os.getenv("RESERVED_OUTPUT_TOKENS", 4000))
-    RESERVED_SAFETY_MARGIN_TOKENS = int(
-        os.getenv("RESERVED_SAFETY_MARGIN_TOKENS", 500)
-    )
     MIN_USABLE_INPUT_BUDGET_TOKENS = int(
         os.getenv("MIN_USABLE_INPUT_BUDGET_TOKENS", 1000)
     )
-    ACTIVE_CONTEXT_UTILIZATION_RATIO = float(
-        os.getenv("ACTIVE_CONTEXT_UTILIZATION_RATIO", 0.80)
-    )
+
 
     # Per-user quota windows
     USER_QUOTA_MINUTE_TTL_SECONDS = int(
@@ -363,9 +381,6 @@ class Config:
     USER_QUOTA_DAY_TTL_SECONDS = int(os.getenv("USER_QUOTA_DAY_TTL_SECONDS", 86400))
 
     # Agent memory windows
-    ACTIVE_MESSAGE_WINDOW = int(os.getenv("ACTIVE_MESSAGE_WINDOW", 20))
-    SUMMARY_BLOCK_SIZE = int(os.getenv("SUMMARY_BLOCK_SIZE", 20))
-    HOT_FIRESTORE_MESSAGES = int(os.getenv("HOT_FIRESTORE_MESSAGES", 10))
 
     # Database connection defaults
     DEFAULT_MYSQL_PORT = int(os.getenv("DEFAULT_MYSQL_PORT", 3306))
@@ -405,7 +420,6 @@ class Config:
     CONVERSATION_ID_MAX_LENGTH = int(os.getenv("CONVERSATION_ID_MAX_LENGTH", 100))
     LLM_PROVIDER_MAX_LENGTH = int(os.getenv("LLM_PROVIDER_MAX_LENGTH", 50))
     LLM_MODEL_MAX_LENGTH = int(os.getenv("LLM_MODEL_MAX_LENGTH", 150))
-    TASK_MODE_MAX_LENGTH = int(os.getenv("TASK_MODE_MAX_LENGTH", 50))
     DEFAULT_REQUEST_MAX_ROWS = int(os.getenv("DEFAULT_REQUEST_MAX_ROWS", 1000))
     REQUEST_MAX_ROWS_LIMIT = int(os.getenv("REQUEST_MAX_ROWS_LIMIT", 100000))
     CONVERSATION_TITLE_MAX_LENGTH = int(os.getenv("CONVERSATION_TITLE_MAX_LENGTH", 80))

@@ -62,14 +62,14 @@ export function useChatPageSessionLifecycle({ isDbConnected, connectionPersisten
       if (csrfToken) {
         headers['x-csrf-token'] = csrfToken;
       }
-      
+
       void fetch(closeUrl, {
         method: 'POST',
         credentials: 'include',
         keepalive: true,
         headers,
         body,
-      }).catch(() => { });
+      }).catch(() => {});
     };
 
     window.addEventListener('beforeunload', handleTabClose);
@@ -86,7 +86,7 @@ export function useChatPageSessionLifecycle({ isDbConnected, connectionPersisten
 
     const ping = () => {
       const sessionInstanceId = readSessionInstanceId();
-      sessionActive(sessionInstanceId).catch(() => { });
+      sessionActive(sessionInstanceId).catch(() => {});
     };
 
     const timerId = setInterval(ping, 15000);

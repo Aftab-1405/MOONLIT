@@ -1,9 +1,9 @@
-import { lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
 import { Box } from '@mui/material';
+import { lazy, Suspense } from 'react';
+import { Route, Routes } from 'react-router-dom';
 import { PageLoader } from '@/components';
-import ProtectedRoute from '@/guards/ProtectedRoute';
 import AdminRoute from '@/guards/AdminRoute';
+import ProtectedRoute from '@/guards/ProtectedRoute';
 
 const Landing = lazy(() => import('@/pages/Landing'));
 const Auth = lazy(() => import('@/pages/Auth'));

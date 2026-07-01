@@ -1,8 +1,9 @@
 """Database feature protocols."""
 
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 
+@runtime_checkable
 class DatabaseContextSync(Protocol):
     """Port for synchronizing database state into user context."""
 

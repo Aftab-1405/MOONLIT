@@ -285,28 +285,6 @@ class OracleAdapter(BaseDatabaseAdapter):
             logger.debug(f"Oracle connection validation failed: {e}")
         return False
 
-    def format_column_info(self, raw_column: Any) -> Dict:
-        """Format Oracle column information."""
-        if isinstance(raw_column, dict):
-            return {
-                "name": raw_column.get("COLUMN_NAME", ""),
-                "type": raw_column.get("DATA_TYPE", ""),
-                "nullable": raw_column.get("NULLABLE", "N") == "Y",
-                "key": "",
-                "default": raw_column.get("DATA_DEFAULT"),
-                "extra": "",
-            }
-        else:
-            # Tuple format: (name, type, nullable, default)
-            return {
-                "name": raw_column[0],
-                "type": raw_column[1],
-                "nullable": raw_column[2] == "Y",
-                "key": "",
-                "default": raw_column[3] if len(raw_column) > 3 else None,
-                "extra": "",
-            }
-
     # =========================================================================
     # Schema Caching Methods (for AI context)
     # =========================================================================
@@ -321,30 +299,6 @@ class OracleAdapter(BaseDatabaseAdapter):
             ORDER BY table_name
         """
         return query, (db_name.upper(),)
-
-    def get_columns_for_table_cache(
-        self, db_name: str, table_name: str, schema: str = None
-    ) -> tuple:
-        """Return SQL query and params to get column names for a table."""
-        query = """
-            SELECT column_name
-            FROM all_tab_columns
-            WHERE owner = :1 AND table_name = :2
-            ORDER BY column_id
-        """
-        return query, (db_name.upper(), table_name.upper())
-
-    def get_column_details_for_table(
-        self, db_name: str, table_name: str, schema: str = None
-    ) -> tuple:
-        """Return SQL query and params to get full column details for a table."""
-        query = """
-            SELECT column_name, data_type, nullable, data_default
-            FROM all_tab_columns
-            WHERE owner = :1 AND table_name = :2
-            ORDER BY column_id
-        """
-        return query, (db_name.upper(), table_name.upper())
 
     def get_set_timeout_sql(self, timeout_seconds: int) -> Optional[str]:
         """Return Oracle query timeout SQL."""
@@ -413,23 +367,6 @@ class OracleAdapter(BaseDatabaseAdapter):
             JOIN all_ind_columns ic ON i.index_name = ic.index_name AND i.owner = ic.index_owner
             WHERE i.table_name = :1 AND i.owner = :2
             ORDER BY i.index_name, ic.column_position
-        """
-        owner = db_name.upper() if db_name else schema.upper() if schema else "PUBLIC"
-        return query, (table_name.upper(), owner)
-
-    def get_constraints_query(
-        self, table_name: str, db_name: str = None, schema: str = None
-    ) -> tuple:
-        """Return SQL query and params to get constraints for an Oracle table."""
-        query = """
-            SELECT 
-                c.constraint_name,
-                c.constraint_type,
-                cc.column_name
-            FROM all_constraints c
-            JOIN all_cons_columns cc ON c.constraint_name = cc.constraint_name AND c.owner = cc.owner
-            WHERE c.table_name = :1 AND c.owner = :2
-            ORDER BY c.constraint_type, c.constraint_name, cc.position
         """
         owner = db_name.upper() if db_name else schema.upper() if schema else "PUBLIC"
         return query, (table_name.upper(), owner)

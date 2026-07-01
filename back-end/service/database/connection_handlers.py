@@ -10,7 +10,6 @@ backend cannot reach a user's locally-running DBMS.
 """
 
 import re
-import socket
 import ipaddress
 import logging
 from typing import Dict
@@ -64,9 +63,9 @@ def _validate_host(host: str) -> dict | None:
         clean_host = host.strip()
         if clean_host.startswith("[") and clean_host.endswith("]"):
             clean_host = clean_host[1:-1]
-            
+        import socket
         addr_infos = socket.getaddrinfo(clean_host, None)
-        for family, _, _, _, sockaddr in addr_infos:
+        for _, _, _, _, sockaddr in addr_infos:
             ip_str = sockaddr[0]
             ip = ipaddress.ip_address(ip_str)
             if ip.is_private or ip.is_loopback or ip.is_link_local:

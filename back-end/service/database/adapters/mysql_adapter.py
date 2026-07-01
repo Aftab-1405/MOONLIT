@@ -179,28 +179,6 @@ class MySQLAdapter(BaseDatabaseAdapter):
             logger.debug(f"MySQL connection validation failed: {e}")
         return False
 
-    def format_column_info(self, raw_column: Any) -> Dict:
-        """Format MySQL column information."""
-        if isinstance(raw_column, dict):
-            return {
-                "name": raw_column.get("COLUMN_NAME", ""),
-                "type": raw_column.get("COLUMN_TYPE", ""),
-                "nullable": raw_column.get("IS_NULLABLE", "NO") == "YES",
-                "key": raw_column.get("COLUMN_KEY", ""),
-                "default": raw_column.get("COLUMN_DEFAULT"),
-                "extra": raw_column.get("EXTRA", ""),
-            }
-        else:
-            # Tuple format: (name, type, nullable, key, default, extra)
-            return {
-                "name": raw_column[0],
-                "type": raw_column[1],
-                "nullable": raw_column[2] == "YES",
-                "key": raw_column[3],
-                "default": raw_column[4],
-                "extra": raw_column[5],
-            }
-
     # =========================================================================
     # Schema Caching Methods (for AI context)
     # =========================================================================
@@ -214,30 +192,6 @@ class MySQLAdapter(BaseDatabaseAdapter):
             ORDER BY TABLE_NAME
         """
         return query, (db_name,)
-
-    def get_columns_for_table_cache(
-        self, db_name: str, table_name: str, schema: str = "public"
-    ) -> tuple:
-        """Return SQL query and params to get column names for a table."""
-        query = """
-            SELECT COLUMN_NAME
-            FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
-            ORDER BY ORDINAL_POSITION
-        """
-        return query, (db_name, table_name)
-
-    def get_column_details_for_table(
-        self, db_name: str, table_name: str, schema: str = "public"
-    ) -> tuple:
-        """Return SQL query and params to get full column details for a table."""
-        query = """
-            SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
-            FROM information_schema.COLUMNS
-            WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
-            ORDER BY ORDINAL_POSITION
-        """
-        return query, (db_name, table_name)
 
     def get_set_timeout_sql(self, timeout_seconds: int) -> str:
         """Return MySQL query timeout SQL."""
@@ -292,25 +246,6 @@ class MySQLAdapter(BaseDatabaseAdapter):
             FROM information_schema.STATISTICS
             WHERE TABLE_SCHEMA = %s AND TABLE_NAME = %s
             ORDER BY INDEX_NAME, SEQ_IN_INDEX
-        """
-        return query, (db_name, table_name)
-
-    def get_constraints_query(
-        self, table_name: str, db_name: str = None, schema: str = "public"
-    ) -> tuple:
-        """Return SQL query and params to get constraints for a MySQL table."""
-        query = """
-            SELECT 
-                tc.CONSTRAINT_NAME AS constraint_name,
-                tc.CONSTRAINT_TYPE AS constraint_type,
-                kcu.COLUMN_NAME AS column_name
-            FROM information_schema.TABLE_CONSTRAINTS tc
-            JOIN information_schema.KEY_COLUMN_USAGE kcu
-                ON tc.CONSTRAINT_NAME = kcu.CONSTRAINT_NAME
-                AND tc.TABLE_SCHEMA = kcu.TABLE_SCHEMA
-                AND tc.TABLE_NAME = kcu.TABLE_NAME
-            WHERE tc.TABLE_SCHEMA = %s AND tc.TABLE_NAME = %s
-            ORDER BY tc.CONSTRAINT_TYPE, tc.CONSTRAINT_NAME, kcu.ORDINAL_POSITION
         """
         return query, (db_name, table_name)
 

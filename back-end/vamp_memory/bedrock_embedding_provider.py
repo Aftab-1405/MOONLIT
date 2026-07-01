@@ -18,9 +18,18 @@ def default_embedding_provider(text: str) -> list[float]:
     if not model_id:
         raise ValueError("VAMP_EMBEDDING_MODEL is not configured in settings/environment")
         
+    request_body = {"inputText": text}
+    if "titan-embed-text-v2" in model_id:
+        request_body.update(
+            {
+                "dimensions": get_config().VAMP_EMBEDDING_DIMENSIONS,
+                "normalize": True,
+            }
+        )
+
     response = client.invoke_model(
         modelId=model_id,
-        body=json.dumps({"inputText": text}),
+        body=json.dumps(request_body),
         accept="application/json",
         contentType="application/json",
     )

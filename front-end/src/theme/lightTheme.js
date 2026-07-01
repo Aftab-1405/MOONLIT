@@ -1,8 +1,8 @@
 /**
  * MUI light theme for Moonlit.
  *
- * Brand palette: strict CRED-inspired monochrome.
- * Primary token uses Cod Gray on an Alabaster canvas; secondary is neutral support.
+ * Brand palette: Moonlit Volt.
+ * Monochrome surfaces stay dominant; accessible chartreuse marks brand intent.
  *
  * Token mapping:
  *   bg-000  → background.default   (pure white canvas)
@@ -12,15 +12,20 @@
  *   text-000 → text.primary
  *   text-200 → text.secondary
  *   text-400 → text.disabled / text.hint
- *   brand-000 → primary.main       (Cod Gray)
+ *   brand-000 → primary.main       (forest-chartreuse)
  *   accent-000 → secondary.main    (neutral support tone)
  */
 
-import { createTheme, alpha, responsiveFontSizes } from '@mui/material/styles';
-import { LIGHT, FONTS, SHAPE, BREAKPOINTS } from '@/theme/tokens';
-import { KEYFRAMES, TRANSITIONS } from '@/theme/themeEffects';
-import { MOBILE_SM_QUERY, REDUCED_MOTION_QUERY, BACKDROP_FILTER_FALLBACK_QUERY } from '@/styles/mediaQueries';
+import { alpha, createTheme, responsiveFontSizes } from '@mui/material/styles';
+import {
+  BACKDROP_FILTER_FALLBACK_QUERY,
+  MOBILE_SM_QUERY,
+  REDUCED_MOTION_QUERY,
+} from '@/styles/mediaQueries';
 import { getPaletteInteractionColors, UI_POPOVER } from '@/styles/shared';
+import { TRANSITIONS } from '@/theme/themeEffects';
+import { BREAKPOINTS, FONTS, LIGHT, SHAPE } from '@/theme/tokens';
+import { createTypography } from '@/theme/typography';
 
 const H = LIGHT; // alias for brevity
 
@@ -106,185 +111,126 @@ const palette = {
   mode: 'light',
 
   background: {
-    default:  H.bg000,   // Alabaster
-    paper:    H.bg100,   // barely-warm white
-    elevated: H.bg000,   // popovers sit at the same white level
-    sunken:   H.bg200,   // soft neutral inset / input bg
+    default: H.bg000,
+    paper: H.bg100,
+    elevated: H.bg100,
+    sunken: H.bg200, // soft neutral inset / input bg
   },
 
   text: {
-    primary:   H.text000,  // near black
-    secondary: H.text200,  // dark gray
-    disabled:  H.text400,  // muted
-    hint:      H.text400,  // alias (used by components)
+    primary: H.text000, // near black
+    secondary: H.text200, // dark gray
+    disabled: H.text400, // muted
+    hint: H.text400, // alias (used by components)
   },
 
   primary: {
-    main:         H.brand000,
-    light:        H.brand200,
-    dark:         H.brandDark,
+    main: H.brand000,
+    light: H.brand200,
+    dark: H.brandDark,
+    glow: H.brandGlow,
     contrastText: '#ffffff',
   },
 
   secondary: {
-    main:         H.accent000,
-    light:        H.accentLight,
-    dark:         H.accentDark,
+    main: H.accent000,
+    light: H.accentLight,
+    dark: H.accentDark,
     contrastText: '#ffffff',
   },
 
   error: {
-    main:         H.danger000,
-    light:        '#ef4444',
-    dark:         '#991b1b',
+    main: H.danger000,
+    light: H.dangerLight,
+    dark: H.dangerDark,
     contrastText: '#ffffff',
   },
 
   success: {
-    main:         H.success000,
-    light:        '#22c55e',
-    dark:         '#166534',
+    main: H.success000,
+    light: H.successLight,
+    dark: H.successDark,
     contrastText: '#ffffff',
   },
 
   warning: {
-    main:         H.warning000,
-    light:        '#f59e0b',
-    dark:         '#92400e',
+    main: H.warning000,
+    light: H.warningLight,
+    dark: H.warningDark,
     contrastText: '#ffffff',
   },
 
   info: {
-    main:         H.info000,
-    light:        H.infoLight,
-    dark:         H.infoDark,
+    main: H.info000,
+    light: H.infoLight,
+    dark: H.infoDark,
     contrastText: '#ffffff',
   },
 
   // divider must be a pure hex so alpha() in cross-cutting consumers works correctly.
   // bg-400 (#e5e2d7) is the deepest cream shade — gives a warm, barely-visible
   // grid line on white when used with alpha(divider, 0.45) at the overlay's 0.35 opacity.
-  divider: H.bg400,  // #e5e2d7 — pure light hex, never pre-alpha-wrapped
+  divider: H.bg400,
 
   // Custom: border tokens (used by components via theme.palette.border.*)
   border: {
-    default: alpha(H.border200, 0.18),
-    subtle:  alpha(H.border200, 0.11),
-    hover:   alpha(H.border200, 0.3),
-    focus:   alpha(H.text000, 0.45),
+    default: alpha(H.border200, 0.16),
+    subtle: alpha(H.border200, 0.1),
+    hover: alpha(H.border200, 0.24),
+    focus: alpha(H.brand000, 0.62),
   },
 
   action: {
-    hover:              alpha(H.text000, 0.04),
-    selected:           alpha(H.text000, 0.07),
-    disabled:           alpha(H.text000, 0.24),
-    disabledBackground: alpha(H.text000, 0.08),
-    focus:              alpha(H.text000, 0.09),
-    active:             alpha(H.text000, 0.62),
+    hover: alpha(H.text000, 0.045),
+    selected: alpha(H.text000, 0.075),
+    disabled: alpha(H.text000, 0.34),
+    disabledBackground: alpha(H.text000, 0.07),
+    focus: alpha(H.text000, 0.1),
+    active: alpha(H.text000, 0.62),
   },
 
   // Custom: scrollbar tokens (read as CSS variables in CssBaseline)
   scrollbar: {
-    track:     'transparent',
-    thumb:     alpha(H.border200, 0.22),
-    thumbHover:alpha(H.border200, 0.38),
+    track: 'transparent',
+    thumb: alpha(H.border200, 0.22),
+    thumbHover: alpha(H.border200, 0.38),
   },
 
   // Custom: code block styling
   code: {
     background: alpha(H.brand000, 0.05),
-    text:       H.brandDark,
-    border:     alpha(H.brand000, 0.14),
+    text: H.brandDark,
+    border: alpha(H.brand000, 0.14),
   },
 
   // Custom: Monaco editor colors
   monaco: {
-    background:    H.bg200,
-    gutter:        H.bg200,
-    highlight:     H.bg300,
+    background: H.bg200,
+    gutter: H.bg200,
+    highlight: H.bg300,
     lineHighlight: H.bg300,
   },
 
   // Custom: chart color series
   chart: [
-    H.text000, H.text200, H.accentDark, H.accent000,
-    H.accentLight, H.text400, H.bg400, H.border200,
+    H.brand000,
+    H.info000,
+    H.warning000,
+    H.infoDark,
+    H.accent000,
+    H.brand200,
+    H.text400,
+    H.danger000,
   ],
-
-  // Custom: glassmorphism surface (used by getGlassmorphismStyles in shared.js)
-  glassmorphism: {
-    background:     alpha(H.bg000, 0.92),
-    backdropFilter: 'blur(16px)',
-    borderColor:    alpha(H.text000, 0.08),
-  },
 };
 
 // ─── Typography ───────────────────────────────────────────────────────────────
 
-const typography = {
-  fontFamily: FONTS.sans,
-  fontFamilyMono: FONTS.mono,
-  fontWeightLight: 300,
-  fontWeightRegular: 400,
-  fontWeightMedium: 500,
-  fontWeightBold: 700,
-
-  h1: { fontSize: '2.5rem',  fontWeight: 700, lineHeight: 1.2,  letterSpacing: 0, color: H.text000, fontFamily: FONTS.serif },
-  h2: { fontSize: '2rem',    fontWeight: 700, lineHeight: 1.25, letterSpacing: 0, color: H.text000, fontFamily: FONTS.serif },
-  h3: { fontSize: '1.5rem',  fontWeight: 600, lineHeight: 1.35, letterSpacing: 0, fontFamily: FONTS.serif },
-  h4: { fontSize: '1.25rem', fontWeight: 600, lineHeight: 1.4 },
-  h5: { fontSize: '1.125rem',fontWeight: 600, lineHeight: 1.5 },
-  h6: { fontSize: '1rem',    fontWeight: 600, lineHeight: 1.5 },
-
-  subtitle1: { fontSize: '1rem',     fontWeight: 500, lineHeight: 1.6,  color: H.text000 },
-  subtitle2: { fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.5,  color: H.text200 },
-  body1:     { fontSize: '1rem',     lineHeight: 1.75, letterSpacing: 0, color: H.text000 },
-  body2:     { fontSize: '0.875rem', lineHeight: 1.7,  letterSpacing: 0, color: H.text000 },
-  caption:   { fontSize: '0.75rem',  lineHeight: 1.5,  letterSpacing: 0, color: H.text200 },
-  overline:  { fontSize: '0.625rem', fontWeight: 600,  letterSpacing: 0,   lineHeight: 1.5, textTransform: 'none', color: H.text200 },
-  button:    { fontFamily: FONTS.sans, textTransform: 'none', fontWeight: 500, fontSize: '0.875rem', letterSpacing: 0 },
-
-  // Custom semantic variants (accessed as Typography variant="uiBodyMd" etc.)
-  mono:           { fontFamily: FONTS.mono, fontSize: '0.875rem', lineHeight: 1.6 },
-  label:          { fontFamily: FONTS.mono, fontSize: '0.6875rem', fontWeight: 500, lineHeight: 1.1, letterSpacing: 0, textTransform: 'none', color: H.text400 },
-  uiBodyMd:       { fontSize: { xs: '0.82rem', sm: '0.9rem' },   lineHeight: 1.65, letterSpacing: 0 },
-  uiBodySm:       { fontSize: { xs: '0.8rem',  sm: '0.875rem' }, lineHeight: 1.55, letterSpacing: 0 },
-  uiCaptionSm:    { fontSize: { xs: '0.72rem', sm: '0.8rem' },   lineHeight: 1.45, letterSpacing: 0 },
-  uiCaptionXs:    { fontSize: { xs: '0.68rem', sm: '0.75rem' },  lineHeight: 1.4,  letterSpacing: 0 },
-  uiMonoLabel:    { fontFamily: FONTS.mono, fontSize: { xs: '0.62rem', sm: '0.6875rem' }, fontWeight: 500, lineHeight: 1.1, letterSpacing: 0, textTransform: 'none' },
-  uiInput:        { fontSize: { xs: '1rem', sm: '0.95rem' } },
-  uiCaption2xs:   { fontSize: { xs: '0.65rem', sm: '0.7rem' },   lineHeight: 1.4,  letterSpacing: 0 },
-  uiCaptionMd:    { fontSize: { xs: '0.75rem', sm: '0.8125rem' },lineHeight: 1.45, letterSpacing: 0 },
-  uiBodyTable:    { fontSize: { xs: '0.78rem', sm: '0.875rem' }, lineHeight: 1.55, letterSpacing: 0 },
-  uiCodeBlock:    { fontSize: '0.85rem', lineHeight: 1.5 },
-  uiBrandWordmark:{ fontFamily: FONTS.serif, fontSize: { xs: '2rem', sm: '2.5rem' }, fontWeight: 800, lineHeight: 1.1, letterSpacing: 0 },
-  uiLoaderWordmark:{ fontFamily: FONTS.serif, fontSize: { xs: '2.5rem', md: '3.5rem' }, fontWeight: 800, lineHeight: 1.1, letterSpacing: 0 },
-  uiHeadingHero:  { fontFamily: FONTS.serif, fontSize: { xs: '2rem', sm: '2.5rem', md: '3.25rem' }, lineHeight: 1.15, letterSpacing: 0 },
-  uiHeadingLandingLg: { fontFamily: FONTS.serif, fontSize: { xs: '1.75rem', md: '2.25rem' }, lineHeight: 1.2 },
-  uiHeadingLandingMd: { fontFamily: FONTS.serif, fontSize: { xs: '1.5rem',  md: '2rem' },    lineHeight: 1.2 },
-  uiBodyLg:       { fontSize: { xs: '1rem', md: '1.125rem' }, lineHeight: 1.7 },
-  uiCardTitle:    { fontSize: '1.1rem',  lineHeight: 1.35 },
-  uiCardBody:     { fontSize: '0.9rem',  lineHeight: 1.7 },
-  uiStepNumber:   { fontSize: '0.85rem', lineHeight: 1.1, letterSpacing: 0 },
-  uiSchemaDbLabel:    { fontSize: { xs: '0.9rem', sm: '0.8rem' },  lineHeight: 1.3 },
-  uiSchemaTableLabel: { fontSize: { xs: '0.85rem', sm: '0.75rem' },lineHeight: 1.3 },
-  uiSchemaColumnLabel:{ fontSize: { xs: '0.75rem', sm: '0.7rem' }, lineHeight: 1.3 },
-  uiSchemaColumnType: { fontSize: { xs: '0.65rem', sm: '0.6rem' }, lineHeight: 1.2 },
-  uiCode:         { fontSizePx: 13 },
-  uiCodeCompact:  { fontSizePx: 12 },
-  // Sidebar-specific variants
-  uiNavItem:      { fontSize: '0.875rem', lineHeight: 1.3, letterSpacing: 0 },
-  uiNavShortcut:  { fontSize: '0.72rem',  lineHeight: 1.4, letterSpacing: 0 },
-  uiSectionLabel: { fontSize: '0.75rem',  fontWeight: 700, lineHeight: 1.25, letterSpacing: 0, textTransform: 'none' },
-  // SQL editor button/menu text
-  uiButtonSm:     { fontSize: '0.75rem',  fontWeight: 600, letterSpacing: 0 },
-  uiMenuItemSm:   { fontSize: '0.8125rem', lineHeight: 1.5 },
-};
+const typography = createTypography(H);
 
 // ─── Component overrides ──────────────────────────────────────────────────────
 
-const focusRing = `0 0 0 3px ${alpha(H.text000, 0.08)}`;
-const surfaceGradient = `linear-gradient(180deg, ${alpha('#000000', 0.012)}, transparent)`;
+const focusRing = `0 0 0 3px ${alpha(H.brand000, 0.16)}`;
 const neutralInteraction = getPaletteInteractionColors(palette);
 const neutralOutlinedButtonStyles = getNeutralOutlinedButtonStyles(palette);
 const neutralTextButtonStyles = getNeutralTextButtonStyles(palette);
@@ -313,7 +259,7 @@ const components = {
   MuiCssBaseline: {
     styleOverrides: {
       // Inject animation keyframes globally
-      ...KEYFRAMES,
+
 
       '*, *::before, *::after': { boxSizing: 'border-box' },
 
@@ -321,7 +267,7 @@ const components = {
         scrollbarWidth: 'none',
       },
       '*::-webkit-scrollbar': { display: 'none' },
-      '*::-webkit-scrollbar-corner':      { backgroundColor: 'transparent' },
+      '*::-webkit-scrollbar-corner': { backgroundColor: 'transparent' },
 
       html: {
         colorScheme: 'light',
@@ -350,43 +296,44 @@ const components = {
         backgroundColor: H.bg000,
 
         // Scrollbar CSS vars
-        '--app-scrollbar-size':    '8px',
-        '--scrollbar-track':       'transparent',
-        '--scrollbar-thumb':       alpha(H.border200, 0.22),
+        '--app-scrollbar-size': '8px',
+        '--scrollbar-track': 'transparent',
+        '--scrollbar-thumb': alpha(H.border200, 0.22),
         '--scrollbar-thumb-hover': alpha(H.border200, 0.38),
 
         // Color CSS vars (used throughout components as var(--color-*))
-        '--dark-mode':             '0',
-        '--color-bg-default':      H.bg000,
-        '--color-bg-paper':        H.bg100,
-        '--color-bg-elevated':     H.bg000,
-        '--color-bg-sunken':       H.bg200,
+        '--dark-mode': '0',
+        '--color-bg-default': H.bg000,
+        '--color-bg-paper': H.bg100,
+        '--color-bg-elevated': H.bg000,
+        '--color-bg-sunken': H.bg200,
 
-        '--color-text-primary':    H.text000,
-        '--color-text-secondary':  H.text200,
-        '--color-text-disabled':   H.text400,
-        '--color-text-hint':       H.text400,
+        '--color-text-primary': H.text000,
+        '--color-text-secondary': H.text200,
+        '--color-text-disabled': H.text400,
+        '--color-text-hint': H.text400,
 
-        '--color-border-default':  alpha(H.border200, 0.18),
-        '--color-border-subtle':   alpha(H.border200, 0.11),
-        '--color-border-hover':    alpha(H.border200, 0.3),
-        '--color-border-focus':    H.brand000,
+        '--color-border-default': alpha(H.border200, 0.18),
+        '--color-border-subtle': alpha(H.border200, 0.11),
+        '--color-border-hover': alpha(H.border200, 0.3),
+        '--color-border-focus': H.brand000,
 
-        '--color-primary':         H.brand000,
-        '--color-primary-light':   H.brand200,
-        '--color-primary-dark':    H.brandDark,
-        '--color-error':           H.danger000,
-        '--color-warning':         H.warning000,
-        '--color-success':         H.success000,
-        '--color-info':            H.info000,
+        '--color-primary': H.brand000,
+        '--color-primary-light': H.brand200,
+        '--color-primary-dark': H.brandDark,
+        '--color-primary-glow': H.brandGlow,
+        '--color-error': H.danger000,
+        '--color-warning': H.warning000,
+        '--color-success': H.success000,
+        '--color-info': H.info000,
 
-        '--radius-sm':   `${SHAPE.radius.sm}px`,
-        '--radius-md':   `${SHAPE.radius.md}px`,
-        '--radius-lg':   `${SHAPE.radius.lg}px`,
+        '--radius-sm': `${SHAPE.radius.sm}px`,
+        '--radius-md': `${SHAPE.radius.md}px`,
+        '--radius-lg': `${SHAPE.radius.lg}px`,
         '--radius-full': `${SHAPE.radius.full}px`,
 
-        '--color-code-bg':     alpha(H.brand000, 0.05),
-        '--color-code-text':   H.brandDark,
+        '--color-code-bg': alpha(H.brand000, 0.05),
+        '--color-code-text': H.brandDark,
         '--color-code-border': alpha(H.brand000, 0.14),
 
         '&::selection': {
@@ -561,15 +508,15 @@ const components = {
         borderRadius: SHAPE.borderRadius,
         // bg-100 as background
         backgroundColor: H.bg100,
-        backgroundImage: surfaceGradient,
+        backgroundImage: 'none',
       },
       elevation1: {
-        boxShadow: `0 1px 3px 0 ${alpha('#000000', 0.06)}`,
+        boxShadow: 'none',
         // Subtle border using border-200
         border: `1px solid ${alpha(H.border200, 0.11)}`,
       },
       elevation2: {
-        boxShadow: `0 4px 6px -1px ${alpha('#000000', 0.07)}`,
+        boxShadow: 'none',
       },
     },
   },
@@ -580,11 +527,11 @@ const components = {
         backgroundColor: H.bg100,
         border: `1px solid ${alpha(H.border200, 0.11)}`,
         boxShadow: 'none',
-        backgroundImage: surfaceGradient,
-        transition: TRANSITIONS.smooth,
+        backgroundImage: 'none',
+        transition: TRANSITIONS.default,
         '&:hover': {
           borderColor: alpha(H.border200, 0.22),
-          boxShadow: `0 8px 20px -12px ${alpha('#000000', 0.1)}`,
+          boxShadow: 'none',
         },
       },
     },
@@ -661,7 +608,7 @@ const components = {
         padding: '6px 12px',
         borderRadius: SHAPE.radius.sm,
         border: `1px solid ${alpha(H.border200, 0.12)}`,
-        boxShadow: `0 4px 6px -2px ${alpha('#000000', 0.08)}`,
+        boxShadow: 'none',
       },
       arrow: { color: H.bg300 },
     },
@@ -689,10 +636,10 @@ const components = {
   MuiAppBar: {
     styleOverrides: {
       root: {
-        backgroundColor: alpha(H.bg000, 0.92),
-        backgroundImage: surfaceGradient,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
+        backgroundColor: H.bg100,
+        backgroundImage: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
         borderBottom: `1px solid ${alpha(H.border200, 0.1)}`,
         boxShadow: 'none',
         [BACKDROP_FILTER_FALLBACK_QUERY]: {
@@ -710,9 +657,7 @@ const components = {
   MuiDialog: {
     styleOverrides: {
       paper: {
-        backgroundColor: H.bg100,
-        border: `1px solid ${alpha(H.border200, 0.11)}`,
-        backgroundImage: surfaceGradient,
+        // Handled by getDialogPaperSx / DialogShell
       },
     },
   },
@@ -720,16 +665,17 @@ const components = {
   MuiMenu: {
     styleOverrides: {
       paper: {
-        backgroundColor: alpha(H.bg000, 0.97),
-        backgroundImage: surfaceGradient,
-        border: `1px solid ${alpha(H.border200, 0.12)}`,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        boxShadow: `0 8px 24px -8px ${alpha('#000000', 0.12)}`,
-        borderRadius: SHAPE.radius.md,
+        borderRadius: '14px',
+        border: `0.5px solid ${alpha(H.text000, 0.09)}`,
+        backgroundColor: H.bg100,
+        backgroundImage: 'none',
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+        boxShadow: 'none',
         [BACKDROP_FILTER_FALLBACK_QUERY]: {
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',
+          backgroundColor: H.bg100,
         },
       },
       list: {
@@ -829,6 +775,7 @@ const components = {
         borderRadius: SHAPE.radius.md,
         border: `1px solid ${alpha(H.border200, 0.11)}`,
         backgroundColor: H.bg100,
+        color: H.text000,
       },
     },
   },
@@ -911,11 +858,11 @@ const components = {
           color: '#ffffff',
           '& + .MuiSwitch-track': {
             opacity: 1,
-            backgroundColor: H.success000,
+            backgroundColor: H.brand000,
           },
         },
         '&.Mui-focusVisible + .MuiSwitch-track': {
-          boxShadow: `0 0 0 4px ${alpha(H.success000, 0.16)}`,
+          boxShadow: `0 0 0 4px ${alpha(H.brand000, 0.18)}`,
         },
       },
       thumb: { boxShadow: 'none', width: 16, height: 16 },
@@ -932,7 +879,7 @@ const components = {
     styleOverrides: {
       root: { borderRadius: SHAPE.radius.md },
       select: { color: H.text000 },
-      icon: { color: H.text200, transition: TRANSITIONS.fast },
+      icon: { color: H.text200, transition: TRANSITIONS.default },
     },
   },
 
@@ -1049,7 +996,7 @@ const components = {
       root: {
         display: 'inline-flex',
         borderRadius: SHAPE.borderRadius,
-        boxShadow: `0 1px 2px ${alpha('#000000', 0.06)}`,
+        boxShadow: 'none',
       },
       grouped: {
         marginLeft: '-1px',
@@ -1096,8 +1043,8 @@ const components = {
     styleOverrides: {
       root: {
         color: H.text200,
-        '&.Mui-checked': { color: H.success000 },
-        '&.MuiCheckbox-indeterminate': { color: H.success000 },
+        '&.Mui-checked': { color: H.brand000 },
+        '&.MuiCheckbox-indeterminate': { color: H.brand000 },
       },
     },
   },
@@ -1106,7 +1053,7 @@ const components = {
     styleOverrides: {
       root: {
         color: H.text200,
-        '&.Mui-checked': { color: H.success000 },
+        '&.Mui-checked': { color: H.brand000 },
       },
     },
   },
@@ -1123,12 +1070,12 @@ const components = {
   MuiPopover: {
     styleOverrides: {
       paper: {
-        backgroundColor: alpha(H.bg000, 0.97),
-        backgroundImage: surfaceGradient,
+        backgroundColor: H.bg100,
+        backgroundImage: 'none',
         border: `1px solid ${alpha(H.border200, 0.12)}`,
-        backdropFilter: 'blur(12px)',
-        WebkitBackdropFilter: 'blur(12px)',
-        boxShadow: `0 8px 24px -8px ${alpha('#000000', 0.12)}`,
+        backdropFilter: 'none',
+        WebkitBackdropFilter: 'none',
+        boxShadow: 'none',
         [BACKDROP_FILTER_FALLBACK_QUERY]: {
           backdropFilter: 'none',
           WebkitBackdropFilter: 'none',

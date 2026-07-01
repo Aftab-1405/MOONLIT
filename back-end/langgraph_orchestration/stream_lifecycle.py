@@ -1,0 +1,207 @@
+"""Ownership-safe lifecycle management for one streamed graph execution."""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from uuid import uuid4
+
+from api_contract.orchestration_protocols import TaskRunAcquisition
+from api_contract.runtime_ports import get_conversation_task_state_store
+
+logger = logging.getLogger(__name__)
+
+DEFAULT_LEASE_SECONDS = 180
+DEFAULT_RENEW_INTERVAL_SECONDS = 60
+
+
+class ConcurrentTaskRunError(RuntimeError):
+    """Raised when another request owns the conversation execution lease."""
+
+
+class TaskRunLease:
+    """Acquire, renew, and owner-safely transition a conversation task run."""
+
+    def __init__(
+        self,
+        conversation_id: str,
+        task_mode: str,
+        *,
+        lease_seconds: int = DEFAULT_LEASE_SECONDS,
+        renew_interval_seconds: int = DEFAULT_RENEW_INTERVAL_SECONDS,
+    ) -> None:
+        self.conversation_id = conversation_id
+        self.task_mode = task_mode
+        self.run_id = uuid4().hex
+        self.lease_seconds = lease_seconds
+        self.renew_interval_seconds = min(
+            renew_interval_seconds, max(1, lease_seconds // 2)
+        )
+        self.previous_status = ""
+        self.previous_task_mode = "normal"
+        self.acquired = False
+        self._renew_task: asyncio.Task | None = None
+        self._stop_renewal = asyncio.Event()
+        self._ownership_lost = asyncio.Event()
+
+    async def acquire(self) -> TaskRunAcquisition:
+        store = get_conversation_task_state_store()
+        worker = asyncio.create_task(
+            asyncio.to_thread(
+                store.try_acquire_task_run,
+                self.conversation_id,
+                self.task_mode,
+                self.run_id,
+                self.lease_seconds,
+            )
+        )
+        try:
+            result = await asyncio.shield(worker)
+        except asyncio.CancelledError:
+            result = await worker
+            if result.acquired:
+                await _await_thread_call(
+                    store.save_interrupted_task,
+                    self.conversation_id,
+                    self.task_mode,
+                    "cancelled",
+                    self.run_id,
+                )
+            raise
+        except Exception:
+            # A timed-out Firestore write can have an ambiguous commit result.
+            # The deterministic run ID lets us safely retire it if it committed.
+            try:
+                await _await_thread_call(
+                    store.save_interrupted_task,
+                    self.conversation_id,
+                    self.task_mode,
+                    "error",
+                    self.run_id,
+                )
+            except Exception:
+                logger.warning(
+                    "Could not clean up an ambiguous task lease acquisition",
+                    exc_info=True,
+                )
+            raise
+        if not result.acquired:
+            raise ConcurrentTaskRunError(
+                "Another request is already running for this conversation."
+            )
+        self.previous_status = result.previous_status
+        self.previous_task_mode = result.previous_task_mode
+        self.acquired = True
+        self._renew_task = asyncio.create_task(self._renew_loop())
+        return result
+
+    async def reset_checkpoint(self) -> bool:
+        return await self._owned_transition(
+            "reset_task_checkpoint", self.task_mode, self.run_id
+        )
+
+    async def change_task_mode(self, task_mode: str) -> bool:
+        self.task_mode = task_mode
+        return await self._owned_transition(
+            "update_task_mode", self.task_mode, self.run_id
+        )
+
+    async def pause(self) -> bool:
+        updated = await self._owned_transition(
+            "save_paused_task", self.task_mode, self.run_id
+        )
+        if updated:
+            self.acquired = False
+            self._stop_renewal.set()
+        return updated
+
+    async def interrupt(self, reason: str) -> bool:
+        updated = await self._owned_transition(
+            "save_interrupted_task", self.task_mode, reason, self.run_id
+        )
+        if updated:
+            self.acquired = False
+            self._stop_renewal.set()
+        return updated
+
+    async def complete(self) -> bool:
+        updated = await self._owned_transition(
+            "clear_task_status", self.task_mode, self.run_id
+        )
+        if updated:
+            self.acquired = False
+            self._stop_renewal.set()
+        return updated
+
+    async def close(self) -> None:
+        self._stop_renewal.set()
+        if self._renew_task is not None:
+            self._renew_task.cancel()
+            try:
+                await self._renew_task
+            except asyncio.CancelledError:
+                pass
+            self._renew_task = None
+
+    def ensure_owned(self) -> None:
+        if self._ownership_lost.is_set():
+            raise RuntimeError("Task execution lease was lost; stream aborted safely.")
+
+    async def _owned_transition(self, method_name: str, *args) -> bool:
+        store = get_conversation_task_state_store()
+        method = getattr(store, method_name)
+        updated = await _await_thread_call(
+            method, self.conversation_id, *args
+        )
+        if not updated:
+            self._ownership_lost.set()
+            self.acquired = False
+            raise RuntimeError("Task execution lease ownership changed.")
+        return True
+
+    async def _renew_loop(self) -> None:
+        store = get_conversation_task_state_store()
+        while not self._stop_renewal.is_set():
+            try:
+                await asyncio.wait_for(
+                    self._stop_renewal.wait(),
+                    timeout=self.renew_interval_seconds,
+                )
+                return
+            except asyncio.TimeoutError:
+                pass
+
+            try:
+                renewed = await _await_thread_call(
+                    store.renew_task_run,
+                    self.conversation_id,
+                    self.run_id,
+                    self.lease_seconds,
+                )
+                if not renewed:
+                    self._ownership_lost.set()
+                    self.acquired = False
+                    logger.error(
+                        "Task lease ownership lost for conversation %s run %s",
+                        self.conversation_id,
+                        self.run_id,
+                    )
+                    return
+            except Exception:
+                # A transient renewal failure is safe while the current lease is
+                # still live; retry on the next interval and retain expiry recovery.
+                logger.warning(
+                    "Failed to renew task lease for conversation %s",
+                    self.conversation_id,
+                    exc_info=True,
+                )
+
+
+async def _await_thread_call(func, /, *args):
+    """Wait for a mutating thread call to finish even if the caller is cancelled."""
+    worker = asyncio.create_task(asyncio.to_thread(func, *args))
+    try:
+        return await asyncio.shield(worker)
+    except asyncio.CancelledError:
+        await worker
+        raise

@@ -1,5 +1,6 @@
 import math
 from typing import Iterable
+from llm_provider.token_budget import estimate_model_tokens
 
 def adaptive_k(total_summaries: int) -> int:
     """VAMP retrieval pool size."""
@@ -9,9 +10,10 @@ def adaptive_k(total_summaries: int) -> int:
 def dedupe_select_budget_then_sort(
     blocks: Iterable[dict],
     *,
-    budget_chars: int,
+    budget_tokens: int,
+    model_id: str | None = None,
 ) -> list[dict]:
-    budget = budget_chars
+    budget = int(budget_tokens)
 
     by_id = {}
     for block in blocks:
@@ -44,7 +46,7 @@ def dedupe_select_budget_then_sort(
 
     for block in candidates:
         text = str(block.get("text", ""))
-        size = len(text)
+        size = estimate_model_tokens(text, model_id)
         if size <= 0:
             continue
 

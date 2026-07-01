@@ -1,29 +1,29 @@
-import { useState, useCallback, useMemo, useEffect, memo } from 'react';
+import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import '@xyflow/react/dist/style.css';
-import {
-  ReactFlow,
-  BaseEdge,
-  Background,
-  useNodesState,
-  useEdgesState,
-  Handle,
-  Position,
-  getBezierPath,
-} from '@xyflow/react';
 import Dagre from '@dagrejs/dagre';
-import { Box, Typography, useTheme, useMediaQuery } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
+import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import {
+  Background,
+  BaseEdge,
+  getBezierPath,
+  Handle,
+  Position,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+} from '@xyflow/react';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import SchemaIcon from '@/components/icons/SchemaIcon';
+import { getReadOnlyReactFlowProps } from '@/config/reactFlow';
 import {
   FLOW_NODE_CARD_CLASS,
-  HIDDEN_FLOW_HANDLE_STYLE,
   getReactFlowDefaultEdgeOptions,
   getReactFlowEdgeStyle,
+  HIDDEN_FLOW_HANDLE_STYLE,
 } from '@/styles/reactFlowStyles';
-import { getReadOnlyReactFlowProps } from '@/config/reactFlow';
 
 const MOBILE_BREAKPOINT_QUERY = 'sm';
 
@@ -121,12 +121,15 @@ const TableNode = memo(({ data }) => {
   const handleToggle = useCallback(() => {
     if (hasColumns && data.onToggle) data.onToggle(data.id);
   }, [data, hasColumns]);
-  const handleKeyDown = useCallback((event) => {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      handleToggle();
-    }
-  }, [handleToggle]);
+  const handleKeyDown = useCallback(
+    (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        handleToggle();
+      }
+    },
+    [handleToggle],
+  );
 
   return (
     <Box
@@ -154,7 +157,7 @@ const TableNode = memo(({ data }) => {
       onKeyDown={handleKeyDown}
     >
       <Handle type="target" position={Position.Left} style={HIDDEN_FLOW_HANDLE_STYLE} />
-      
+
       <SchemaIcon
         sx={{
           width: { xs: 16, sm: 14 },
@@ -162,7 +165,7 @@ const TableNode = memo(({ data }) => {
           opacity: data.expanded ? 1 : 0.78,
         }}
       />
-      
+
       <Box sx={{ minWidth: 0, flex: 1 }}>
         <Typography
           noWrap
@@ -188,7 +191,7 @@ const TableNode = memo(({ data }) => {
           {data.columnCount} columns
         </Typography>
       </Box>
-      
+
       {hasColumns && (
         <Box sx={{ display: 'flex', alignItems: 'center', ml: 'auto' }}>
           <ChevronRightRoundedIcon
@@ -201,7 +204,7 @@ const TableNode = memo(({ data }) => {
           />
         </Box>
       )}
-      
+
       <Handle type="source" position={Position.Right} style={HIDDEN_FLOW_HANDLE_STYLE} />
     </Box>
   );
@@ -220,10 +223,10 @@ const ColumnNode = memo(({ data }) => {
         ...getSchemaNodeCardSx(theme),
         px: { xs: 1.25, sm: 1 },
         py: { xs: 0.75, sm: 0.625 },
-        backgroundColor: isPK 
+        backgroundColor: isPK
           ? alpha(theme.palette.warning.main, isDark ? 0.1 : 0.065)
           : alpha(theme.palette.background.paper, isDark ? 0.92 : 0.96),
-        borderColor: isPK 
+        borderColor: isPK
           ? alpha(theme.palette.warning.main, isDark ? 0.28 : 0.2)
           : alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
         display: 'flex',
@@ -232,14 +235,14 @@ const ColumnNode = memo(({ data }) => {
         minWidth: isMobile ? 138 : 124,
         minHeight: isMobile ? 38 : 32,
         '&:hover': {
-          borderColor: isPK 
+          borderColor: isPK
             ? alpha(theme.palette.warning.main, isDark ? 0.38 : 0.3)
             : alpha(theme.palette.text.primary, isDark ? 0.22 : 0.16),
         },
       }}
     >
       <Handle type="target" position={Position.Left} style={HIDDEN_FLOW_HANDLE_STYLE} />
-      
+
       {isPK && (
         <KeyRoundedIcon
           sx={{
@@ -248,7 +251,7 @@ const ColumnNode = memo(({ data }) => {
           }}
         />
       )}
-      
+
       <Typography
         variant="caption"
         sx={{
@@ -260,7 +263,7 @@ const ColumnNode = memo(({ data }) => {
       >
         {data.label}
       </Typography>
-      
+
       {data.type && (
         <Typography
           variant="caption"
@@ -292,9 +295,7 @@ const edgeTypes = {
 const getSchemaNodeCardSx = (theme, { interactive = false, expanded = false } = {}) => {
   const isDark = theme.palette.mode === 'dark';
   const ink = theme.palette.text.primary;
-  const borderColor = expanded
-    ? alpha(ink, isDark ? 0.34 : 0.24)
-    : alpha(ink, isDark ? 0.14 : 0.1);
+  const borderColor = expanded ? alpha(ink, isDark ? 0.34 : 0.24) : alpha(ink, isDark ? 0.14 : 0.1);
 
   return {
     width: '100%',
@@ -309,18 +310,25 @@ const getSchemaNodeCardSx = (theme, { interactive = false, expanded = false } = 
       ? `0 0 0 2px ${alpha(ink, isDark ? 0.11 : 0.065)}`
       : `0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.24 : 0.07)}`,
     cursor: interactive ? 'pointer' : 'default',
-    transition: theme.transitions.create(['background-color', 'border-color', 'box-shadow', 'transform'], {
-      duration: theme.transitions.duration.shorter,
-    }),
-    '&:hover': interactive ? {
-      borderColor: alpha(ink, isDark ? 0.28 : 0.2),
-      backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.98 : 1),
-      boxShadow: `0 2px 6px ${alpha(theme.palette.common.black, isDark ? 0.26 : 0.08)}`,
-      transform: 'translateY(-1px)',
-    } : undefined,
-    '&:active': interactive ? {
-      transform: 'translateY(0)',
-    } : undefined,
+    transition: theme.transitions.create(
+      ['background-color', 'border-color', 'box-shadow', 'transform'],
+      {
+        duration: theme.transitions.duration.shorter,
+      },
+    ),
+    '&:hover': interactive
+      ? {
+          borderColor: alpha(ink, isDark ? 0.28 : 0.2),
+          backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.98 : 1),
+          boxShadow: `0 2px 6px ${alpha(theme.palette.common.black, isDark ? 0.26 : 0.08)}`,
+          transform: 'translateY(-1px)',
+        }
+      : undefined,
+    '&:active': interactive
+      ? {
+          transform: 'translateY(0)',
+        }
+      : undefined,
   };
 };
 
@@ -382,14 +390,17 @@ const getInactiveSchemaCanvasSx = (theme) => ({
   overflow: 'hidden',
   contain: 'strict',
   contentVisibility: 'hidden',
-  backgroundColor: alpha(theme.palette.background.default, theme.palette.mode === 'dark' ? 0.72 : 0.58),
+  backgroundColor: alpha(
+    theme.palette.background.default,
+    theme.palette.mode === 'dark' ? 0.72 : 0.58,
+  ),
 });
 
 const getLayoutedElements = (nodes, edges, direction = 'LR', isMobile = false) => {
   const g = new Dagre.graphlib.Graph().setDefaultEdgeLabel(() => ({}));
-  g.setGraph({ 
-    rankdir: direction, 
-    nodesep: isMobile ? 16 : 24, 
+  g.setGraph({
+    rankdir: direction,
+    nodesep: isMobile ? 16 : 24,
     ranksep: isMobile ? 50 : 80,
   });
 
@@ -421,10 +432,13 @@ function SchemaFlowDiagramCanvas({ database, tables, columns }) {
   const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down(MOBILE_BREAKPOINT_QUERY));
   const [expandedTables, setExpandedTables] = useState(new Set());
-  const validTableIds = useMemo(() => new Set(tables.map((tableName) => `table-${tableName}`)), [tables]);
+  const validTableIds = useMemo(
+    () => new Set(tables.map((tableName) => `table-${tableName}`)),
+    [tables],
+  );
   const activeExpandedTables = useMemo(
     () => new Set([...expandedTables].filter((tableId) => validTableIds.has(tableId))),
-    [expandedTables, validTableIds]
+    [expandedTables, validTableIds],
   );
 
   const toggleTable = useCallback((tableId) => {
@@ -438,9 +452,12 @@ function SchemaFlowDiagramCanvas({ database, tables, columns }) {
       return next;
     });
   }, []);
-  const edgeStyle = useMemo(() => ({
-    ...getReactFlowEdgeStyle(theme, { isMobile, emphasis: 'subtle' }),
-  }), [isMobile, theme]);
+  const edgeStyle = useMemo(
+    () => ({
+      ...getReactFlowEdgeStyle(theme, { isMobile, emphasis: 'subtle' }),
+    }),
+    [isMobile, theme],
+  );
 
   const { initialNodes, initialEdges } = useMemo(() => {
     const nodes = [];
@@ -529,7 +546,12 @@ function SchemaFlowDiagramCanvas({ database, tables, columns }) {
       }
     });
 
-    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(nodes, edges, 'LR', isMobile);
+    const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+      nodes,
+      edges,
+      'LR',
+      isMobile,
+    );
     return { initialNodes: layoutedNodes, initialEdges: layoutedEdges };
   }, [database, tables, columns, activeExpandedTables, toggleTable, edgeStyle, isMobile, theme]);
 
@@ -557,7 +579,8 @@ function SchemaFlowDiagramCanvas({ database, tables, columns }) {
         contain: 'layout paint style',
         touchAction: 'pan-y',
         border: '1px solid',
-        borderColor: theme.palette.border?.subtle || alpha(theme.palette.text.primary, isDark ? 0.12 : 0.1),
+        borderColor:
+          theme.palette.border?.subtle || alpha(theme.palette.text.primary, isDark ? 0.12 : 0.1),
         backgroundColor: alpha(theme.palette.background.default, isDark ? 0.72 : 0.58),
       }}
     >
@@ -593,25 +616,17 @@ function SchemaFlowDiagramCanvas({ database, tables, columns }) {
   );
 }
 
-function SchemaFlowDiagram({
-  active = true,
-  database,
-  tables,
-  columns,
-}) {
+function SchemaFlowDiagram({ active = true, database, tables, columns }) {
   const theme = useTheme();
 
   if (!active) {
     return <Box aria-hidden sx={getInactiveSchemaCanvasSx(theme)} />;
   }
 
-  return (
-    <SchemaFlowDiagramCanvas
-      database={database}
-      tables={tables}
-      columns={columns}
-    />
-  );
+  return <SchemaFlowDiagramCanvas database={database} tables={tables} columns={columns} />;
 }
 
-export default memo(SchemaFlowDiagram, (prevProps, nextProps) => prevProps.active === nextProps.active);
+export default memo(
+  SchemaFlowDiagram,
+  (prevProps, nextProps) => prevProps.active === nextProps.active,
+);

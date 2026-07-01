@@ -3,10 +3,10 @@
  * @module ThemeContext
  */
 
-import { createContext, useContext, useMemo, useLayoutEffect, useRef } from 'react';
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
+import { createContext, useContext, useLayoutEffect, useMemo, useRef } from 'react';
+import { SettingsProvider, useSettings } from '@/contexts/SettingsContext';
 import { createDarkTheme, createLightTheme } from '@/theme/index';
-import { useSettings, SettingsProvider } from '@/contexts/SettingsContext';
 
 const ThemeContext = createContext(null);
 
@@ -22,18 +22,21 @@ export const useTheme = () => {
 function ThemeProviderInner({ children }) {
   const { settings, isDarkMode, updateSetting, updateSettings, resetSettings } = useSettings();
   const previousThemeRef = useRef(settings.theme);
-  
+
   const theme = useMemo(() => {
     return settings.theme === 'light' ? createLightTheme() : createDarkTheme();
   }, [settings.theme]);
-  
-  const value = useMemo(() => ({
-    settings,
-    updateSetting,
-    updateSettings,
-    resetSettings,
-    isDarkMode,
-  }), [settings, updateSetting, updateSettings, resetSettings, isDarkMode]);
+
+  const value = useMemo(
+    () => ({
+      settings,
+      updateSetting,
+      updateSettings,
+      resetSettings,
+      isDarkMode,
+    }),
+    [settings, updateSetting, updateSettings, resetSettings, isDarkMode],
+  );
 
   useLayoutEffect(() => {
     if (typeof window === 'undefined') return;
@@ -68,12 +71,10 @@ function ThemeProviderInner({ children }) {
       remove();
     };
   }, [settings.theme]);
-  
+
   return (
     <ThemeContext.Provider value={value}>
-      <MuiThemeProvider theme={theme}>
-        {children}
-      </MuiThemeProvider>
+      <MuiThemeProvider theme={theme}>{children}</MuiThemeProvider>
     </ThemeContext.Provider>
   );
 }

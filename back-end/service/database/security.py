@@ -3,7 +3,7 @@
 
 import re
 import logging
-from typing import List, Optional, Dict
+from typing import Dict
 from functools import lru_cache
 
 logger = logging.getLogger(__name__)
@@ -17,86 +17,6 @@ class DatabaseSecurity:
     _TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
     _DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
     _COLUMN_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]+$")
-
-    # Optimized keyword sets - READ-ONLY FOCUSED
-    ALLOWED_KEYWORDS = frozenset(
-        {
-            "SELECT",
-            "FROM",
-            "WHERE",
-            "ORDER",
-            "BY",
-            "GROUP",
-            "HAVING",
-            "LIMIT",
-            "OFFSET",
-            "JOIN",
-            "LEFT",
-            "RIGHT",
-            "INNER",
-            "OUTER",
-            "ON",
-            "AS",
-            "AND",
-            "OR",
-            "NOT",
-            "IN",
-            "LIKE",
-            "BETWEEN",
-            "IS",
-            "NULL",
-            "COUNT",
-            "SUM",
-            "AVG",
-            "MAX",
-            "MIN",
-            "DISTINCT",
-            "ASC",
-            "DESC",
-            "CASE",
-            "WHEN",
-            "THEN",
-            "ELSE",
-            "END",
-            "WITH",
-            "RECURSIVE",  # CTEs (Common Table Expressions)
-        }
-    )
-
-    # Expanded dangerous keywords to include all DML operations
-    DANGEROUS_KEYWORDS = frozenset(
-        {
-            "DROP",
-            "CREATE",
-            "ALTER",
-            "TRUNCATE",
-            "GRANT",
-            "REVOKE",
-            "EXEC",
-            "EXECUTE",
-            "UNION",
-            "SCRIPT",
-            "DECLARE",
-            "CALL",
-            "PROCEDURE",
-            "FUNCTION",
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-            "INTO",
-            "VALUES",
-            "SET",
-        }
-    )
-
-    # Query type detection patterns - Only SELECT and WITH(CTE) are allowed
-    _QUERY_TYPE_PATTERNS = {
-        "SELECT": re.compile(r"^\s*SELECT\b", re.IGNORECASE),
-        "WITH": re.compile(r"^\s*WITH\b", re.IGNORECASE),  # CTE - also a SELECT query
-        "INSERT": re.compile(r"^\s*INSERT\b", re.IGNORECASE),
-        "UPDATE": re.compile(r"^\s*UPDATE\b", re.IGNORECASE),
-        "DELETE": re.compile(r"^\s*DELETE\b", re.IGNORECASE),
-    }
 
     @staticmethod
     @lru_cache(maxsize=256)
@@ -138,95 +58,69 @@ class DatabaseSecurity:
 
     @staticmethod
     def analyze_sql_query(query: str) -> Dict:
-        """
-        Optimized SQL query analysis for security issues - READ-ONLY VERSION
-        """
+        """Parse and validate exactly one read-only query."""
         if not query:
             raise ValueError("Query cannot be empty")
 
-        query_stripped = query.strip()
-        query_upper = query_stripped.upper()
-
         analysis = {
-            "is_safe": True,
+            "is_safe": False,
             "warnings": [],
             "query_type": None,
             "tables_accessed": [],
         }
-        # Small helpers to keep cognitive complexity low
-        analysis["query_type"] = DatabaseSecurity._detect_query_type(query_stripped)
+        try:
+            import sqlglot
+            from sqlglot import expressions as exp
 
-        # Note: We no longer reject unknown query types
-        # Different databases have different syntax (EXPLAIN, SHOW, DESCRIBE, etc.)
-        # Instead, we rely on blacklisting dangerous keywords below
+            statements = [item for item in sqlglot.parse(query) if item is not None]
+            if len(statements) != 1:
+                analysis["warnings"].append("Exactly one SQL statement is required")
+                return analysis
 
-        # Dangerous keywords
-        dangerous_found = DatabaseSecurity._detect_dangerous_keywords(query_upper)
-        if dangerous_found:
-            analysis["is_safe"] = False
-            analysis["warnings"].extend(
-                [f"Dangerous keyword detected: {kw}" for kw in dangerous_found]
+            statement = statements[0]
+            allowed_roots = (exp.Select, exp.Union, exp.Intersect, exp.Except)
+            if not isinstance(statement, allowed_roots):
+                analysis["warnings"].append(
+                    "Only read-only SELECT/WITH queries are allowed, not "
+                    f"{type(statement).__name__}"
+                )
+                return analysis
+
+            blocked_types = tuple(
+                node_type
+                for node_type in (
+                    getattr(exp, name, None)
+                    for name in (
+                        "Insert", "Update", "Delete", "Drop", "Alter",
+                        "Create", "TruncateTable", "Command", "Copy",
+                        "Into", "Lock", "Merge", "Grant", "Revoke",
+                    )
+                )
+                if node_type is not None
             )
+            blocked_nodes = [
+                type(node).__name__
+                for node in statement.walk()
+                if isinstance(node, blocked_types)
+            ]
+            if blocked_nodes:
+                analysis["warnings"].append(
+                    "Blocked operation detected: "
+                    + ", ".join(sorted(set(blocked_nodes)))
+                )
+                return analysis
 
-        # Multiple statements
-        if DatabaseSecurity._has_multiple_statements(query):
-            analysis["is_safe"] = False
-            analysis["warnings"].append("Multiple SQL statements detected")
-
-        # Comments, file ops and load ops
-        comment_warnings, file_ops_blocked = (
-            DatabaseSecurity._detect_comments_and_file_ops(query, query_upper)
-        )
-        if comment_warnings:
-            analysis["warnings"].extend(comment_warnings)
-        if file_ops_blocked:
-            analysis["is_safe"] = False
+            analysis["query_type"] = (
+                "WITH" if statement.args.get("with_") else "SELECT"
+            )
+            analysis["tables_accessed"] = [
+                table.name for table in statement.find_all(exp.Table) if table.name
+            ]
+            analysis["is_safe"] = True
+        except Exception as exc:
+            analysis["warnings"].append(f"SQL could not be safely parsed: {exc}")
 
         return analysis
-
-    @staticmethod
-    def _detect_query_type(query_stripped: str) -> Optional[str]:
-        """Return detected query type or None."""
-        for query_type, pattern in DatabaseSecurity._QUERY_TYPE_PATTERNS.items():
-            if pattern.match(query_stripped):
-                return query_type
-        return None
-
-    @staticmethod
-    def _is_query_type_allowed(query_type: Optional[str]) -> bool:
-        """Only SELECT and WITH (CTE) are allowed."""
-        return query_type in ("SELECT", "WITH")
-
-    @staticmethod
-    def _detect_dangerous_keywords(query_upper: str):
-        """Return set of dangerous keywords found in the query."""
-        # Use regex to extract purely alphabetical words, bypassing any
-        # punctuation or comment evasion tactics like `DELETE/**/FROM`
-        query_words = set(re.findall(r'\b[A-Z]+\b', query_upper))
-        return query_words & DatabaseSecurity.DANGEROUS_KEYWORDS
-
-    @staticmethod
-    def _has_multiple_statements(query: str) -> bool:
-        semicolon_count = query.count(";")
-        return semicolon_count > 1 or (
-            semicolon_count == 1 and not query.rstrip().endswith(";")
-        )
-
-    @staticmethod
-    def _detect_comments_and_file_ops(
-        query: str, query_upper: str
-    ) -> tuple[List[str], bool]:
-        warnings = []
-        should_block = False
-        if "--" in query or "/*" in query:
-            warnings.append("SQL comments detected")
-        if "OUTFILE" in query_upper or "DUMPFILE" in query_upper:
-            warnings.append("File operations are not allowed")
-            should_block = True
-        if "LOAD_FILE" in query_upper or "LOAD DATA" in query_upper:
-            warnings.append("File loading operations are not allowed")
-            should_block = True
-        return warnings, should_block
 
     @staticmethod
     @lru_cache(maxsize=64)

@@ -154,126 +154,6 @@ class AIToolExecutor:
             return databases
 
     @staticmethod
-    def _get_database_schema(
-        user_id: str, database: Optional[str] = None, db_config: dict = None
-    ) -> Dict:
-        """Get schema (tables and columns) for a database."""
-        from service.database.context_sync import (
-            get_default_context_sync,
-        )
-
-        context_sync = get_default_context_sync()
-
-        # Get connection info
-        connection = context_sync.get_connection(user_id)
-        if not connection.get("connected"):
-            return {"error": "Not connected to any database"}
-
-        # Use current database if not specified
-        target_db = database or connection.get("database")
-
-        # Try to get from stored context first (with TTL check)
-        schema_context = context_sync.get_schema_context(user_id, target_db)
-        if schema_context:
-            tables = schema_context.get("tables", [])
-            return {
-                "database": target_db,
-                "tables": tables,
-                "columns": schema_context.get("columns", {}),
-                "table_count": len(tables),
-                "stored_at": schema_context.get("cached_at"),
-                "source": "context",
-            }
-
-        # If not stored or stale, fetch fresh (and store it)
-        return AIToolExecutor._fetch_and_store_schema(
-            user_id, target_db, connection.get("db_type"), db_config=db_config
-        )
-
-    @staticmethod
-    def _fetch_and_store_schema(
-        user_id: str, database: str, db_type: str, db_config: dict = None
-    ) -> Dict:
-        """
-        Fetch schema from database and store as AI context.
-
-        Optimized with batch column query instead of per-table queries.
-        Uses db_config directly when available for better reliability.
-        """
-        from service.database.context_sync import (
-            get_default_context_sync,
-        )
-
-        context_sync = get_default_context_sync()
-        from service.database.operations import DatabaseOperations
-
-        try:
-            tables = []
-            columns = {}
-
-            # Use db_config directly if available (more reliable in tool context)
-            if db_config:
-                try:
-                    tables = AIToolExecutor._fetch_tables_with_config(
-                        db_config, db_type, db_name=database
-                    )
-                    if tables:
-                        columns = AIToolExecutor._batch_fetch_columns(
-                            db_config, tables, db_type, db_name=database
-                        )
-                except Exception as e:
-                    logger.warning(f"Direct schema fetch failed: {e}")
-                    tables = []
-                    columns = {}
-
-            # Fallback to DatabaseOperations using db_config (required)
-            if not tables and db_config:
-                try:
-                    schema = db_config.get("schema", "public")
-                    tables = DatabaseOperations.get_tables(
-                        db_config, database, schema=schema
-                    )
-                    for table in tables:
-                        try:
-                            table_schema = DatabaseOperations.get_table_schema(
-                                db_config, table, database
-                            )
-                            # get_table_schema returns tuples: (name, type, nullable, default, key)
-                            columns[table] = [
-                                {
-                                    "name": col[0],
-                                    "is_primary_key": len(col) > 4 and col[4] == "PRI",
-                                }
-                                for col in table_schema
-                            ]
-                        except Exception as e:
-                            logger.warning(
-                                f"Could not get columns for table {table}: {e}"
-                            )
-                            columns[table] = []
-                except Exception as e:
-                    logger.warning(f"DatabaseOperations fallback also failed: {e}")
-                    return {"error": f"Could not fetch schema: {str(e)}"}
-            elif not tables and not db_config:
-                return {
-                    "error": "No database config available. Please re-connect to the database."
-                }
-
-            # Store schema as AI context
-            context_sync.store_schema_context(user_id, database, tables, columns)
-
-            return {
-                "database": database,
-                "tables": tables,
-                "columns": columns,
-                "table_count": len(tables),
-                "source": "fresh",
-            }
-        except Exception as e:
-            logger.exception(f"Error fetching schema for {database}")
-            return {"error": str(e)}
-
-    @staticmethod
     def _fetch_tables_with_config(
         db_config: dict, db_type: str, db_name: str = None
     ) -> List[str]:
@@ -384,94 +264,6 @@ class AIToolExecutor:
         return columns
 
     @staticmethod
-    def _get_table_columns(
-        user_id: str, table_name: str, db_config: dict = None
-    ) -> Dict:
-        """Get columns for a specific table."""
-        from service.database.context_sync import (
-            get_default_context_sync,
-        )
-
-        context_sync = get_default_context_sync()
-
-        if not table_name:
-            return {"error": "Table name is required"}
-
-        connection = context_sync.get_connection(user_id)
-        if not connection.get("connected"):
-            return {"error": "Not connected to any database"}
-
-        database = connection.get("database")
-        db_type = connection.get("db_type", "postgresql")
-
-        try:
-            # Try stored context first
-            schema_context = context_sync.get_schema_context(user_id, database)
-            if schema_context and table_name in schema_context.get("columns", {}):
-                return {
-                    "table": table_name,
-                    "columns": schema_context["columns"][table_name],
-                    "column_count": len(schema_context["columns"][table_name]),
-                    "source": "context",
-                }
-
-            # Fetch fresh using db_config (required in FastAPI)
-            if not db_config:
-                return {
-                    "error": "No database config available. Please re-connect to the database."
-                }
-
-            # Pass database from connection context (more reliable)
-            columns = AIToolExecutor._fetch_table_columns_with_config(
-                db_config, table_name, db_type, db_name=database
-            )
-
-            return {
-                "table": table_name,
-                "columns": columns,
-                "column_count": len(columns),
-                "source": "fresh",
-            }
-        except Exception as e:
-            return {"error": f"Could not get columns for table {table_name}: {str(e)}"}
-
-    @staticmethod
-    def _fetch_table_columns_with_config(
-        db_config: dict, table_name: str, db_type: str, db_name: str = None
-    ) -> List[Dict]:
-        """Fetch column details for a specific table using db_config (DBMS-agnostic)."""
-        from service.database.adapters import get_adapter
-
-        columns = []
-        adapter = get_adapter(db_type)
-        # Use explicit db_name if provided, else fall back to db_config
-        effective_db_name = db_name or db_config.get("database", "")
-        schema = db_config.get("schema", "public")
-
-        with get_tool_connection(db_config) as conn:
-            cursor = conn.cursor()
-
-            # Use adapter for DBMS-agnostic column details query
-            query, params = adapter.get_column_details_for_table(
-                effective_db_name, table_name, schema=schema
-            )
-            cursor.execute(query, params) if params else cursor.execute(query)
-
-            for row in cursor.fetchall():
-                columns.append(
-                    {
-                        "name": row[0],
-                        "type": row[1] if len(row) > 1 else "unknown",
-                        "nullable": (row[2] == "YES") if len(row) > 2 else True,
-                        "default": row[3] if len(row) > 3 else None,
-                    }
-                )
-
-            cursor.close()
-
-        return columns
-
-    @staticmethod
     def _execute_query(
         user_id: str, query: str, max_rows: int = 100, db_config: dict = None
     ) -> Dict:
@@ -488,31 +280,6 @@ class AIToolExecutor:
         connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database"}
-
-        # Safety check: Block write operations (database-agnostic blacklist approach)
-        import re
-
-        query_upper = query.strip().upper()
-        # Remove string literals to avoid false positives
-        cleaned = re.sub(r"'[^']*'", "", query_upper)
-        cleaned = re.sub(r'"[^"]*"', "", cleaned)
-
-        DANGEROUS_KEYWORDS = {
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-            "DROP",
-            "CREATE",
-            "ALTER",
-            "TRUNCATE",
-        }
-        words = set(re.findall(r"\b[A-Z_]+\b", cleaned))
-        dangerous_found = words & DANGEROUS_KEYWORDS
-
-        if dangerous_found:
-            return {
-                "error": f"Query contains blocked keywords: {', '.join(dangerous_found)}. Only read-only queries are allowed."
-            }
 
         try:
             # Execute query with db_config (required in FastAPI)
@@ -533,7 +300,10 @@ class AIToolExecutor:
             context_sync.add_query(user_id, query, database, row_count, status)
 
             if result.get("status") == "success":
-                total_rows = result.get("row_count", 0)
+                # fetchmany(max_rows + 1) proves truncation but cannot prove an
+                # exact database-wide total. Do not label the display count as
+                # a total when additional rows may exist.
+                total_rows = None if result.get("truncated") else result.get("row_count", 0)
                 result_data = result.get("result", [])
                 return {
                     "success": True,
@@ -586,6 +356,8 @@ class AIToolExecutor:
         try:
             start_time = time.time()
 
+            actual_max_rows = max_rows if max_rows else Config.MAX_QUERY_RESULTS
+
             with get_tool_connection(db_config) as conn:
                 cursor = conn.cursor()
 
@@ -599,7 +371,7 @@ class AIToolExecutor:
 
                 # Execute the query
                 cursor.execute(query)
-                rows = cursor.fetchall()
+                rows = cursor.fetchmany(actual_max_rows + 1)
 
                 end_time = time.time()
                 execution_time = round((end_time - start_time) * 1000, 2)
@@ -613,17 +385,17 @@ class AIToolExecutor:
                 cursor.close()
 
             # Process results outside connection context
-            actual_max_rows = max_rows if max_rows else Config.MAX_QUERY_RESULTS
-            row_count = len(rows)
-            truncated = row_count > actual_max_rows
+            fetched_count = len(rows)
+            truncated = fetched_count > actual_max_rows
             if truncated:
                 rows = rows[:actual_max_rows]
 
             # Convert rows to list of dicts
             result_data = AIToolExecutor._serialize_rows(rows, column_names)
+            row_count = len(result_data)
 
             logger.debug(
-                f"AI tool executed query: {row_count} rows in {execution_time}ms"
+                "AI tool executed query: %d rows in %.2fms", row_count, execution_time
             )
 
             return {

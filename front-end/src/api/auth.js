@@ -1,11 +1,11 @@
 /**
  * Auth API Module
- * 
+ *
  * Handles authentication-related API calls:
  * - Firebase configuration
  * - Session management
  * - Logout
- * 
+ *
  * @module api/auth
  */
 
@@ -14,7 +14,7 @@ import { AUTH } from '@/api/endpoints';
 
 /**
  * Fetch Firebase configuration from backend.
- * 
+ *
  * @returns {Promise<Object>} Firebase config object
  */
 export async function getFirebaseConfig() {
@@ -23,7 +23,7 @@ export async function getFirebaseConfig() {
 
 /**
  * Create a server session with Firebase ID token.
- * 
+ *
  * @param {Object|string} payload - Either the idToken string or full payload object
  * @param {string} payload.idToken - Firebase ID token
  * @param {Object} [payload.user] - Optional user data
@@ -36,7 +36,7 @@ export async function setSession(payload) {
 
 /**
  * Logout and destroy server session.
- * 
+ *
  * @returns {Promise<Object>} Logout response
  */
 export async function logout() {

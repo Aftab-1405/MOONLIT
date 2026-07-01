@@ -1,12 +1,11 @@
-import { useState } from 'react';
-import { Box, Typography, Collapse, useTheme, ButtonBase, Link } from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import { Box, ButtonBase, Collapse, Link, Typography, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import { useState } from 'react';
 import { MarkdownRenderer } from '@/features/chat';
+import { getDetailedResult } from '@/features/chat/ai-response-steps/stepUtils';
 import { TRANSITIONS } from '@/theme/index';
 import { normalizeCitationMarkdown } from '@/utils/toolResultFormatting';
-import { getInteractionColors } from '@/styles/shared';
-import { getDetailedResult } from '@/features/chat/ai-response-steps/stepUtils';
 
 const getStepTypeScale = (theme) => {
   const isDark = theme.palette.mode === 'dark';
@@ -61,10 +60,6 @@ const getStepTypeScale = (theme) => {
   };
 };
 
-// Shared neutral border color used throughout
-const borderColor = (theme) =>
-  alpha(theme.palette.text.secondary, theme.palette.mode === 'dark' ? 0.1 : 0.08);
-
 const toArray = (value) => (Array.isArray(value) ? value : []);
 
 const getColumnName = (column) => {
@@ -90,8 +85,10 @@ const resolveColumnsForTable = (columnsByTable, table) => {
 
   if (Array.isArray(columnsByTable)) {
     const normalizedTable = normalizeTableKey(table);
-    const matches = columnsByTable.filter((column) =>
-      normalizeTableKey(column?.table || column?.table_name || column?.tableName) === normalizedTable
+    const matches = columnsByTable.filter(
+      (column) =>
+        normalizeTableKey(column?.table || column?.table_name || column?.tableName) ===
+        normalizedTable,
     );
     return matches.length ? matches : null;
   }
@@ -101,7 +98,7 @@ const resolveColumnsForTable = (columnsByTable, table) => {
 
   const normalizedTable = normalizeTableKey(table);
   const matchingKey = Object.keys(columnsByTable).find(
-    (key) => normalizeTableKey(key) === normalizedTable
+    (key) => normalizeTableKey(key) === normalizedTable,
   );
 
   return matchingKey && Array.isArray(columnsByTable[matchingKey])
@@ -171,8 +168,8 @@ const EmptyResult = ({ children = 'No details returned.' }) => {
 
 const ColumnChip = ({ column }) => {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const type = getStepTypeScale(theme);
-  const interaction = getInteractionColors(theme);
   const name = getColumnName(column);
   const meta = getColumnMeta(column);
 
@@ -184,16 +181,14 @@ const ColumnChip = ({ column }) => {
         gap: 0.45,
         minWidth: 0,
         maxWidth: '100%',
-        px: 0.7,
-        py: 0.3,
-        borderRadius: '6px',
-        bgcolor: interaction.activeBackground,
-        border: '1px solid',
-        borderColor: interaction.border,
+        px: 0.8,
+        py: 0.35,
+        borderRadius: '4px',
+        border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.075 : 0.055)}`,
+        bgcolor: alpha(theme.palette.text.primary, isDark ? 0.05 : 0.03),
         transition: TRANSITIONS.default,
         '&:hover': {
-          bgcolor: interaction.activeHoverBackground,
-          borderColor: interaction.activeBorder,
+          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.05),
         },
       }}
     >
@@ -235,7 +230,7 @@ const ColumnList = ({ columns, limit }) => {
 
 const ToolMetaGrid = ({ items }) => {
   const visibleItems = items.filter(
-    (item) => item.value !== undefined && item.value !== null && item.value !== ''
+    (item) => item.value !== undefined && item.value !== null && item.value !== '',
   );
   if (visibleItems.length === 0) return null;
 
@@ -253,8 +248,8 @@ const ToolMetaGrid = ({ items }) => {
 const SchemaResultDetails = ({ result }) => {
   const [expandedTables, setExpandedTables] = useState(() => new Set());
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const type = getStepTypeScale(theme);
-  const interaction = getInteractionColors(theme);
   const tables = toArray(result.tables);
   const columnsByTable =
     result.columns && typeof result.columns === 'object' ? result.columns : null;
@@ -293,9 +288,9 @@ const SchemaResultDetails = ({ result }) => {
               <Box
                 key={table}
                 sx={{
-                  borderTop: '1px solid',
-                  borderColor: borderColor(theme),
-                  '&:first-of-type': { borderTop: 'none' },
+                  py: { xs: 0.5, sm: 0.6 },
+                  '&:first-of-type': { pt: 0 },
+                  '&:last-of-type': { pb: 0 },
                 }}
               >
                 <ButtonBase
@@ -312,7 +307,8 @@ const SchemaResultDetails = ({ result }) => {
                     transition: TRANSITIONS.default,
                     '&:hover': columns?.length
                       ? {
-                          bgcolor: interaction.hoverBackground,
+                          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.025),
+                          borderRadius: '8px',
                         }
                       : {},
                   }}
@@ -326,9 +322,7 @@ const SchemaResultDetails = ({ result }) => {
                       gap: 1.2,
                     }}
                   >
-                    <Typography
-                      sx={{ ...type.primaryMono, minWidth: 0, overflowWrap: 'anywhere' }}
-                    >
+                    <Typography sx={{ ...type.primaryMono, minWidth: 0, overflowWrap: 'anywhere' }}>
                       {table}
                     </Typography>
                     <Box
@@ -343,8 +337,8 @@ const SchemaResultDetails = ({ result }) => {
                       {columns?.length > 0 && (
                         <KeyboardArrowDownIcon
                           sx={{
-                            fontSize: 14,
-                            color: alpha(theme.palette.text.secondary, 0.35),
+                            fontSize: 15,
+                            color: alpha(theme.palette.text.secondary, isDark ? 0.68 : 0.58),
                             transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                             transition: TRANSITIONS.default,
                           }}
@@ -427,12 +421,9 @@ const ForeignKeysResultDetails = ({ result, args }) => {
                 gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto minmax(0, 1fr)' },
                 alignItems: 'center',
                 gap: { xs: 0.4, sm: 1 },
-                px: 0.5,
-                py: { xs: 0.65, sm: 0.8 },
-                borderTop: '1px solid',
-                borderColor: borderColor(theme),
+                px: 0.25,
+                py: { xs: 0.5, sm: 0.6 },
                 bgcolor: 'transparent',
-                '&:first-of-type': { borderTop: 'none' },
               }}
             >
               <Typography sx={{ ...type.primaryMono, overflowWrap: 'anywhere' }}>
@@ -480,12 +471,9 @@ const WebSearchResultDetails = ({ result, args }) => {
               <Box
                 key={`${item.url}-${index}`}
                 sx={{
-                  py: { xs: 0.85, sm: 1 },
+                  py: { xs: 0.85, sm: 1.1 },
                   px: 0,
-                  borderTop: '1px solid',
-                  borderColor: borderColor(theme),
                   bgcolor: 'transparent',
-                  '&:first-of-type': { borderTop: 'none' },
                 }}
               >
                 {/* Title link */}
@@ -502,8 +490,7 @@ const WebSearchResultDetails = ({ result, args }) => {
                     transition: TRANSITIONS.default,
                     '&:hover': {
                       color: theme.palette.text.primary,
-                      textDecoration: 'underline',
-                      textUnderlineOffset: '3px',
+                      textDecoration: 'none',
                     },
                   }}
                 >

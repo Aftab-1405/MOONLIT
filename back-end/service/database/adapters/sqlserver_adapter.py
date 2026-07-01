@@ -177,28 +177,6 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             logger.debug(f"SQL Server connection validation failed: {e}")
         return False
 
-    def format_column_info(self, raw_column: Any) -> Dict:
-        """Format SQL Server column information."""
-        if isinstance(raw_column, dict):
-            return {
-                "name": raw_column.get("COLUMN_NAME", ""),
-                "type": raw_column.get("DATA_TYPE", ""),
-                "nullable": raw_column.get("IS_NULLABLE", "NO") == "YES",
-                "key": "",
-                "default": raw_column.get("COLUMN_DEFAULT"),
-                "extra": "",
-            }
-        else:
-            # Tuple format: (name, type, nullable, default)
-            return {
-                "name": raw_column[0],
-                "type": raw_column[1],
-                "nullable": raw_column[2] == "YES",
-                "key": "",
-                "default": raw_column[3] if len(raw_column) > 3 else None,
-                "extra": "",
-            }
-
     # =========================================================================
     # Schema Caching Methods (for AI context)
     # =========================================================================
@@ -212,30 +190,6 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             ORDER BY TABLE_NAME
         """
         return query, (db_name,)
-
-    def get_columns_for_table_cache(
-        self, db_name: str, table_name: str, schema: str = "dbo"
-    ) -> tuple:
-        """Return SQL query and params to get column names for a table."""
-        query = """
-            SELECT COLUMN_NAME
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_CATALOG = %s AND TABLE_NAME = %s
-            ORDER BY ORDINAL_POSITION
-        """
-        return query, (db_name, table_name)
-
-    def get_column_details_for_table(
-        self, db_name: str, table_name: str, schema: str = "dbo"
-    ) -> tuple:
-        """Return SQL query and params to get full column details for a table."""
-        query = """
-            SELECT COLUMN_NAME, DATA_TYPE, IS_NULLABLE, COLUMN_DEFAULT
-            FROM INFORMATION_SCHEMA.COLUMNS
-            WHERE TABLE_CATALOG = %s AND TABLE_NAME = %s
-            ORDER BY ORDINAL_POSITION
-        """
-        return query, (db_name, table_name)
 
     def get_set_timeout_sql(self, timeout_seconds: int) -> Optional[str]:
         """Return SQL Server query timeout SQL."""
@@ -305,24 +259,6 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             JOIN sys.tables t ON i.object_id = t.object_id
             WHERE t.name = %s
             ORDER BY i.name, ic.key_ordinal
-        """
-        return query, (table_name,)
-
-    def get_constraints_query(
-        self, table_name: str, db_name: str = None, schema: str = "dbo"
-    ) -> tuple:
-        """Return SQL query and params to get constraints for a SQL Server table."""
-        query = """
-            SELECT 
-                tc.CONSTRAINT_NAME AS constraint_name,
-                tc.CONSTRAINT_TYPE AS constraint_type,
-                ccu.COLUMN_NAME AS column_name
-            FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc
-            JOIN INFORMATION_SCHEMA.CONSTRAINT_COLUMN_USAGE ccu
-                ON tc.CONSTRAINT_NAME = ccu.CONSTRAINT_NAME
-                AND tc.TABLE_CATALOG = ccu.TABLE_CATALOG
-            WHERE tc.TABLE_NAME = %s
-            ORDER BY tc.CONSTRAINT_TYPE, tc.CONSTRAINT_NAME
         """
         return query, (table_name,)
 

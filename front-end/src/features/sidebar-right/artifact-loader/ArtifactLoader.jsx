@@ -1,13 +1,23 @@
-import { Component, memo, useCallback, useMemo, useState } from 'react';
-import { Box } from '@mui/material';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
-import { getArtifactPanelChromeSx } from '@/features/styles/interfaceChrome';
+import { Box } from '@mui/material';
+import { Component, memo, useCallback, useMemo, useState } from 'react';
 import { ArtifactEmptyState } from '@/features/sidebar-right/artifact-loader/ArtifactLayout';
-import { UI_Z_INDEX } from '@/styles/shared';
-import SqlWorkspace from '@/features/sidebar-right/artifacts/sql-workspace';
-import ExecutionResultPanel from '@/features/sidebar-right/artifacts/execution-result';
 import DataVisualizationPanel from '@/features/sidebar-right/artifacts/data-visualization';
 import DiagramFlowRenderer from '@/features/sidebar-right/artifacts/diagram-flow';
+import SqlWorkspace from '@/features/sidebar-right/artifacts/sql-workspace';
+import { getAppSunkenSurfaceSx, getArtifactPanelChromeSx } from '@/features/styles/interfaceChrome';
+import { UI_Z_INDEX } from '@/styles/shared';
+
+const dataVisualizationRenderer = {
+  loader: DataVisualizationPanel,
+  getProps: ({ artifact, common }) => ({
+    data: artifact.props?.data,
+    title: artifact.title,
+    sourceQuery: artifact.props?.sourceQuery,
+    sourceType: artifact.props?.sourceType,
+    ...common,
+  }),
+};
 
 const artifactRegistry = {
   'sql-editor': {
@@ -20,26 +30,9 @@ const artifactRegistry = {
       currentDatabase: common.currentDatabase,
     }),
   },
-  results: {
-    loader: ExecutionResultPanel,
-    getProps: ({ artifact, common }) => ({
-      data: artifact.props?.data,
-      title: artifact.title,
-      sourceQuery: artifact.props?.sourceQuery,
-      sourceType: artifact.props?.sourceType,
-      ...common,
-    }),
-  },
-  visualization: {
-    loader: DataVisualizationPanel,
-    getProps: ({ artifact, common }) => ({
-      data: artifact.props?.data,
-      title: artifact.title,
-      sourceQuery: artifact.props?.sourceQuery,
-      sourceType: artifact.props?.sourceType,
-      ...common,
-    }),
-  },
+  visualization: dataVisualizationRenderer,
+  // Compatibility for persisted artifacts and older callers that still emit "results".
+  results: dataVisualizationRenderer,
   'react-flow': {
     loader: DiagramFlowRenderer,
     getProps: ({ artifact, common }) => ({
@@ -57,7 +50,8 @@ function getArtifactSignature(artifact) {
   }
   const props = artifact.props || {};
   if (artifact.type === 'react-flow') return `${artifact.type}-${props.code?.length || 0}`;
-  if (artifact.type === 'sql-editor') return `${artifact.type}-${props.initialQuery || ''}-${props.initialResults?.row_count || 0}`;
+  if (artifact.type === 'sql-editor')
+    return `${artifact.type}-${props.initialQuery || ''}-${props.initialResults?.row_count || 0}`;
   return `${artifact.type}-${props.data?.row_count || 0}-${props.data?.columns?.join('|') || ''}`;
 }
 
@@ -75,28 +69,30 @@ function CanvasHost({ open, panelWidth, fullscreen = false, isResizing = false, 
         height: '100%',
         overflow: 'hidden',
         boxSizing: 'border-box',
-        transition: isResizing || fullscreen
-          ? 'none'
-          : theme.transitions.create('width', {
-              easing: theme.transitions.easing.sharp,
-              duration: open
-                ? theme.transitions.duration.enteringScreen
-                : theme.transitions.duration.leavingScreen,
-            }),
+        transition:
+          isResizing || fullscreen
+            ? 'none'
+            : theme.transitions.create('width', {
+                easing: theme.transitions.easing.easeInOut,
+                duration: 240,
+              }),
+        willChange: fullscreen ? 'auto' : 'width',
         ...(open && !fullscreen ? getArtifactPanelChromeSx(theme) : {}),
-        ...(fullscreen ? {
-          position: 'absolute',
-          left: 0,
-          right: 0,
-          top: 0,
-          bottom: 0,
-          width: 'auto !important',
-          height: 'auto !important',
-          zIndex: UI_Z_INDEX.artifactFullscreen,
-          bgcolor: 'background.default',
-          borderLeft: 'none',
-          boxShadow: 'none',
-        } : {}),
+        ...(fullscreen
+          ? {
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              top: 0,
+              bottom: 0,
+              width: 'auto !important',
+              height: 'auto !important',
+              zIndex: UI_Z_INDEX.artifactFullscreen,
+              ...getAppSunkenSurfaceSx(theme),
+              borderLeft: 'none',
+              boxShadow: 'none',
+            }
+          : {}),
       })}
     >
       {children}
@@ -126,7 +122,9 @@ class ArtifactErrorBoundary extends Component {
         <ArtifactEmptyState
           icon={<ErrorOutlineRoundedIcon sx={{ fontSize: 44 }} />}
           title="Artifact failed to render"
-          message={this.state.error?.message || 'Try opening another artifact or rerun the request.'}
+          message={
+            this.state.error?.message || 'Try opening another artifact or rerun the request.'
+          }
         />
       );
     }
@@ -135,15 +133,15 @@ class ArtifactErrorBoundary extends Component {
   }
 }
 
-
-
 function UnknownArtifactFallback({ type }) {
   return (
     <Box sx={{ height: '100%', minHeight: 0 }}>
       <ArtifactEmptyState
         icon={<ErrorOutlineRoundedIcon sx={{ fontSize: 44 }} />}
         title="Unsupported artifact"
-        message={type ? `No renderer is registered for "${type}".` : 'No artifact renderer is registered.'}
+        message={
+          type ? `No renderer is registered for "${type}".` : 'No artifact renderer is registered.'
+        }
       />
     </Box>
   );
@@ -223,12 +221,15 @@ function ArtifactLoader({
     onClose?.();
   }, [onClose]);
 
-  const handleRequestOpenArtifact = useCallback((nextArtifact, options = {}) => {
-    onOpenArtifact?.(nextArtifact);
-    if (options.preserveFullscreen || isArtifactFullscreen) {
-      setIsArtifactFullscreen(true);
-    }
-  }, [isArtifactFullscreen, onOpenArtifact]);
+  const handleRequestOpenArtifact = useCallback(
+    (nextArtifact, options = {}) => {
+      onOpenArtifact?.(nextArtifact);
+      if (options.preserveFullscreen || isArtifactFullscreen) {
+        setIsArtifactFullscreen(true);
+      }
+    },
+    [isArtifactFullscreen, onOpenArtifact],
+  );
 
   return (
     <CanvasHost

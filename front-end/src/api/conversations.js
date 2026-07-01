@@ -11,8 +11,35 @@
  * @module api/conversations
  */
 
-import { get, del, patch, postRaw } from "@/api/client";
-import { CONVERSATIONS } from "@/api/endpoints";
+import { del, get, patch, postRaw } from '@/api/client';
+import { CONVERSATIONS } from '@/api/endpoints';
+
+const MAX_CONCURRENT_EXECUTION_READS = 4;
+const MAX_CACHED_EXECUTION_READS = 200;
+const executionResultRequests = new Map();
+const executionResultQueue = [];
+let activeExecutionReads = 0;
+
+function drainExecutionResultQueue() {
+  while (activeExecutionReads < MAX_CONCURRENT_EXECUTION_READS && executionResultQueue.length > 0) {
+    const { task, resolve, reject } = executionResultQueue.shift();
+    activeExecutionReads += 1;
+    Promise.resolve()
+      .then(task)
+      .then(resolve, reject)
+      .finally(() => {
+        activeExecutionReads -= 1;
+        drainExecutionResultQueue();
+      });
+  }
+}
+
+function scheduleExecutionResultRead(task) {
+  return new Promise((resolve, reject) => {
+    executionResultQueue.push({ task, resolve, reject });
+    drainExecutionResultQueue();
+  });
+}
 
 /**
  * Get all conversations for current user.
@@ -33,6 +60,32 @@ export async function getConversations(signal) {
  */
 export async function getConversation(id, signal) {
   return get(CONVERSATIONS.GET(id), { signal });
+}
+
+/**
+ * Get a specific execution result.
+ *
+ * @param {string} conversationId - Conversation ID
+ * @param {string} executionId - Execution ID
+ * @returns {Promise<{status: string, data: Object}>}
+ */
+export function getExecutionResult(conversationId, executionId) {
+  const cacheKey = `${conversationId}:${executionId}`;
+  const cached = executionResultRequests.get(cacheKey);
+  if (cached) return cached;
+
+  if (executionResultRequests.size >= MAX_CACHED_EXECUTION_READS) {
+    executionResultRequests.delete(executionResultRequests.keys().next().value);
+  }
+
+  const request = scheduleExecutionResultRead(() =>
+    get(CONVERSATIONS.GET_EXECUTION_RESULT(conversationId, executionId)),
+  ).catch((error) => {
+    executionResultRequests.delete(cacheKey);
+    throw error;
+  });
+  executionResultRequests.set(cacheKey, request);
+  return request;
 }
 
 /**
@@ -76,12 +129,12 @@ export async function sendMessage(
     prompt,
     conversationId = null,
     enableReasoning = true,
-    reasoningEffort = "medium",
-    responseStyle = "balanced",
+    reasoningEffort = 'medium',
+    responseStyle = 'balanced',
     maxRows = 1000,
     provider = null,
     model = null,
-    taskMode = "normal",
+    taskMode = 'normal',
   },
   signal,
 ) {
@@ -104,7 +157,7 @@ export async function sendMessage(
       // upstream proxy) negotiates gzip with the backend, it buffers the entire
       // compressed SSE stream before forwarding it — making all tokens arrive
       // simultaneously and killing the streaming effect.
-      headers: { "Accept-Encoding": "identity" },
+      headers: { 'Accept-Encoding': 'identity' },
     },
   );
 }
@@ -123,12 +176,12 @@ export async function resumeAgent(
     conversationId,
     resume,
     enableReasoning = true,
-    reasoningEffort = "medium",
-    responseStyle = "balanced",
+    reasoningEffort = 'medium',
+    responseStyle = 'balanced',
     maxRows = 1000,
     provider = null,
     model = null,
-    taskMode = "normal",
+    taskMode = 'normal',
   },
   signal,
 ) {
@@ -148,7 +201,7 @@ export async function resumeAgent(
     {
       signal,
       // Same reason as sendMessage — prevent proxy compression buffering.
-      headers: { "Accept-Encoding": "identity" },
+      headers: { 'Accept-Encoding': 'identity' },
     },
   );
 }

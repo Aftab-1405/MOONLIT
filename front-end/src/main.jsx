@@ -1,19 +1,19 @@
+import CssBaseline from '@mui/material/CssBaseline';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import CssBaseline from '@mui/material/CssBaseline';
 import { BrowserRouter } from 'react-router-dom';
-import { QueryClientProvider } from '@tanstack/react-query';
-import { ThemeProvider } from '@/contexts/ThemeContext';
-import { AuthProvider } from '@/contexts/AuthContext';
-import { DatabaseProvider } from '@/contexts/DatabaseContext';
-import { UserSettingsSync } from '@/contexts/UserSettingsSync';
+import App from '@/App';
 import { queryClient } from '@/api/queryClient';
 import { ErrorBoundary } from '@/components';
-import App from '@/App';
+import { AuthProvider } from '@/contexts/AuthContext';
+import { DatabaseProvider } from '@/contexts/DatabaseContext';
+import { ThemeProvider } from '@/contexts/ThemeContext';
+import { UserSettingsSync } from '@/contexts/UserSettingsSync';
 
 /**
  * Application Entry Point
- * 
+ *
  * Provider Hierarchy (outermost to innermost):
  * 1. StrictMode - Development checks
  * 2. BrowserRouter - Routing
@@ -21,7 +21,7 @@ import App from '@/App';
  * 4. ErrorBoundary - Catches unhandled errors
  * 5. AuthProvider - Firebase authentication
  * 6. DatabaseProvider - Database connection state
- * 
+ *
  * This order ensures:
  * - Theme is available everywhere (including error fallback UI)
  * - Errors are caught before they crash the entire app
@@ -45,5 +45,5 @@ createRoot(document.getElementById('root')).render(
         </ThemeProvider>
       </QueryClientProvider>
     </BrowserRouter>
-  </StrictMode>
+  </StrictMode>,
 );

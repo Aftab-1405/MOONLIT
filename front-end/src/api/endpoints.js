@@ -17,6 +17,8 @@ export const CONVERSATIONS = {
   DELETE: (id) => `/api/v1/delete_conversation/${id}`,
   SEND_MESSAGE: '/api/v1/pass_user_prompt_to_llm',
   RESUME_AGENT: '/api/v1/resume_agent',
+  GET_EXECUTION_RESULT: (conversationId, executionId) =>
+    `/api/v1/get_execution_result/${conversationId}/${executionId}`,
 };
 
 export const LLM = {

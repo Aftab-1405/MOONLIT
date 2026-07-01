@@ -1,8 +1,9 @@
 """Conversation feature protocols."""
 
-from typing import Any, AsyncGenerator, Protocol
+from typing import Any, AsyncGenerator, Protocol, runtime_checkable
 
 
+@runtime_checkable
 class ConversationMemoryCleaner(Protocol):
     """Port for deleting non-Firestore memory linked to a conversation."""
 
@@ -12,6 +13,7 @@ class ConversationMemoryCleaner(Protocol):
         """Delete external memory pointers for a conversation."""
 
 
+@runtime_checkable
 class ConversationSummaryMemoryWriter(Protocol):
     """Port for storing long-context memory summaries for a conversation."""
 
@@ -32,6 +34,7 @@ class ConversationSummaryMemoryWriter(Protocol):
         """Store an externally indexed summary block."""
 
 
+@runtime_checkable
 class ConversationAgentStreamer(Protocol):
     """Port for streaming agent events into a conversation."""
 
@@ -55,6 +58,7 @@ class ConversationAgentStreamer(Protocol):
         """Yield SSE events from the configured agent implementation."""
 
 
+@runtime_checkable
 class ConversationSummarizationContextProvider(Protocol):
     """Port for prompt/tool metadata needed when summarizing conversations."""
 

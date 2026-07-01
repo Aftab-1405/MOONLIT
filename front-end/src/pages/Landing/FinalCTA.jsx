@@ -1,7 +1,7 @@
-import { Box, Container, Stack, Typography, Button } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
-import { Section, REDUCED_MOTION_QUERY } from '@/pages/Landing/index';
+import { Box, Button, Container, Stack, Typography } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import { REDUCED_MOTION_QUERY, Section } from '@/pages/Landing/index';
 import { getMoonlitBrandGradients } from '@/theme/themeEffects';
 
 function FinalCTA({ onGetStarted }) {
@@ -33,12 +33,9 @@ function FinalCTA({ onGetStarted }) {
             </Box>
           </Typography>
 
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ maxWidth: 420, opacity: 0.7 }}
-          >
-            Join developers and analysts who've simplified their database workflows. Start free, no credit card required.
+          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 420, opacity: 0.7 }}>
+            Join developers and analysts who've simplified their database workflows. Start free, no
+            credit card required.
           </Typography>
 
           <Button
@@ -52,7 +49,10 @@ function FinalCTA({ onGetStarted }) {
               py: 1.75,
               borderRadius: 2,
               fontWeight: 600,
-              transition: theme.transitions.create(['background-color', 'border-color', 'color', 'transform'], { duration: 200 }),
+              transition: theme.transitions.create(
+                ['background-color', 'border-color', 'color', 'transform'],
+                { duration: 200 },
+              ),
               [REDUCED_MOTION_QUERY]: { transition: 'none' },
               '@media (hover: hover)': {
                 '&:hover': {

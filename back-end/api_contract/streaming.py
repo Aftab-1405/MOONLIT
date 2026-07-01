@@ -2,7 +2,7 @@
 
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, Field, TypeAdapter
+from pydantic import BaseModel, ConfigDict, Field, TypeAdapter
 
 from api_contract.common import ApiError
 
@@ -51,6 +51,52 @@ class DoneEvent(BaseModel):
     type: Literal["done"]
 
 
+class AgentStepLimitEvent(BaseModel):
+    type: Literal["agent_step_limit_reached"]
+    task_id: str
+    conversation_id: str
+    can_continue: bool
+    steps_used: int
+    task_mode: str
+    message: str
+
+
+class UsageMetricsEvent(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    type: Literal["usage_metrics"]
+    activeContextBudget: int | None = None
+    totalContextWindow: int | None = None
+    availableInputPayloadTokens: int | None = None
+    pressureTriggerTokens: int | None = None
+    modelContextWindow: int | None = None
+    reservedOutputTokens: int | None = None
+    safetyMarginTokens: int | None = None
+    systemPromptTokens: int | None = None
+    toolSchemaTokens: int | None = None
+    vampMemoryTokens: int | None = None
+    taskCheckpointTokens: int | None = None
+    hotHistoryBudget: int | None = None
+    tokenCountingMode: str | None = None
+    tokenCountingReason: str | None = None
+    inputPayloadTokens: int | None = None
+    contextPhase: str | None = None
+    summaryThresholdTokens: int | None = None
+    summaryCompleteTurns: int | None = None
+
+
+class WorkflowStatusEvent(BaseModel):
+    type: Literal["workflow_status"]
+    stage: str
+    status: Literal["running", "done", "failed"]
+    content: str
+
+
+class SkillsActivatedEvent(BaseModel):
+    type: Literal["skills_activated"]
+    skills: list[str]
+
+
 SseEvent = Annotated[
     Union[
         TokenEvent,
@@ -60,7 +106,11 @@ SseEvent = Annotated[
         UiActionEvent,
         InterruptEvent,
         StreamErrorEvent,
+        AgentStepLimitEvent,
         DoneEvent,
+        UsageMetricsEvent,
+        WorkflowStatusEvent,
+        SkillsActivatedEvent,
     ],
     Field(discriminator="type"),
 ]

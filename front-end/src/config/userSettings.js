@@ -64,9 +64,9 @@ export function mapServerSettingsToClient(serverPayload = {}) {
 
   const legacyPersistence = source.connectionPersistenceMinutes;
   if (
-    patch.connectionPersistence === undefined
-    && legacyPersistence !== undefined
-    && legacyPersistence !== null
+    patch.connectionPersistence === undefined &&
+    legacyPersistence !== undefined &&
+    legacyPersistence !== null
   ) {
     const minutes = Number(legacyPersistence);
     if (!Number.isNaN(minutes)) {

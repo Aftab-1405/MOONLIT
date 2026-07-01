@@ -39,7 +39,6 @@ class ConnectionManager:
         self._global_lock = threading.Lock()
         self._cleanup_interval = 300  # 5 minutes
         self._pool_idle_timeout = 600  # 10 minutes
-        self._thread_local = threading.local()
 
         # Start cleanup thread
         self._start_cleanup_thread()
@@ -263,26 +262,6 @@ class ConnectionManager:
 
         return False
 
-    def close_all_pools(self):
-        """
-        Close all connection pools. Use with caution!
-        """
-        with self._global_lock:
-            pool_keys = list(self._pools.keys())
-            for pool_key in pool_keys:
-                try:
-                    adapter = self._adapters[pool_key]
-                    adapter.close_pool(self._pools[pool_key])
-                    logger.info(f"Closed pool {pool_key[:8]}")
-                except Exception as e:
-                    logger.error(f"Error closing pool {pool_key[:8]}: {e}")
-
-            self._pools.clear()
-            self._adapters.clear()
-            self._pool_locks.clear()
-            self._pool_last_used.clear()
-            logger.info("All connection pools closed")
-
     def _cleanup_idle_pools(self):
         """
         Remove connection pools that haven't been used for a while.
@@ -326,27 +305,6 @@ class ConnectionManager:
         cleanup_thread.start()
         logger.info("Pool cleanup thread started")
 
-    def get_pool_stats(self) -> Dict[str, dict]:
-        """
-        Get statistics about all connection pools.
-
-        Returns:
-            Dict with pool keys and their stats
-        """
-        stats = {}
-        with self._global_lock:
-            for pool_key, pool in self._pools.items():
-                try:
-                    stats[pool_key[:8]] = {
-                        "pool_size": pool.pool_size,
-                        "last_used_seconds_ago": int(
-                            time.time() - self._pool_last_used.get(pool_key, 0)
-                        ),
-                    }
-                except Exception as e:
-                    logger.error(f"Error getting stats for pool {pool_key[:8]}: {e}")
-
-        return stats
 
 
 @lru_cache(maxsize=1)

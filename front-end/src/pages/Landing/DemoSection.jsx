@@ -1,6 +1,6 @@
 import { Box, Container, Typography } from '@mui/material';
-import { useTheme, alpha } from '@mui/material/styles';
-import { Section, REDUCED_MOTION_QUERY, HOVER_CAPABLE_QUERY } from '@/pages/Landing/index';
+import { alpha, useTheme } from '@mui/material/styles';
+import { HOVER_CAPABLE_QUERY, REDUCED_MOTION_QUERY, Section } from '@/pages/Landing/index';
 import { UI_LAYOUT } from '@/styles/shared';
 import { getMoonlitBrandGradients } from '@/theme/themeEffects';
 
@@ -10,10 +10,7 @@ function DemoSection() {
   const brandGradients = getMoonlitBrandGradients(theme);
 
   return (
-    <Section
-      id="demo-section"
-      sx={{ py: { xs: 4, md: 6 } }}
-    >
+    <Section id="demo-section" sx={{ py: { xs: 4, md: 6 } }}>
       <Container maxWidth="lg">
         <Box textAlign="center" mb={4}>
           <Typography

@@ -1,6 +1,6 @@
-import { memo } from 'react';
 import { Popover } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
+import { memo } from 'react';
 import {
   getPopoverMenuItemSx,
   getPopoverMenuListSx,
@@ -39,6 +39,7 @@ const AppPopover = memo(function AppPopover({
   transformOrigin = { vertical: 'bottom', horizontal: 'left' },
   width,
   paperSx,
+  slotProps = {},
   children,
   ...rest
 }) {
@@ -52,8 +53,12 @@ const AppPopover = memo(function AppPopover({
       onClose={onClose}
       anchorOrigin={anchorOrigin}
       transformOrigin={transformOrigin}
+      marginThreshold={12}
       slotProps={{
+        ...slotProps,
         paper: {
+          elevation: 0,
+          ...slotProps.paper,
           sx: {
             ...getPopoverPaperSx(theme, isDark),
             p: UI_POPOVER.paperPadding,
@@ -83,7 +88,9 @@ const AppPopover = memo(function AppPopover({
                   ? { xs: `min(${width}px, calc(100vw - 24px))`, sm: width }
                   : width,
             }),
+            isolation: 'isolate',
             ...paperSx,
+            ...slotProps.paper?.sx,
           },
         },
       }}

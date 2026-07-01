@@ -35,9 +35,8 @@ export const getPreferenceRootSx = () => ({
   },
 });
 
-export const getPreferencePaperSx = (theme, left, width) => (
-  getPreferencePanelPaperSx(theme, left, width)
-);
+export const getPreferencePaperSx = (theme, left, width) =>
+  getPreferencePanelPaperSx(theme, left, width);
 
 export { getPreferenceSectionSurfaceSx };
 
@@ -134,18 +133,22 @@ export const getPreferenceControlSx = (theme, { minWidth = 132 } = {}) => {
   };
 };
 
-export const getPreferenceToggleGroupSx = (theme) => (
-  getSegmentedToggleGroupSx(theme, { itemMinHeight: 32, itemRadius: INTERFACE_RADIUS.row })
-);
+export const getPreferenceToggleGroupSx = (theme) =>
+  getSegmentedToggleGroupSx(theme, { itemMinHeight: 32, itemRadius: INTERFACE_RADIUS.row });
 
 export const getPreferenceButtonSx = (theme, { tone = 'neutral' } = {}) => {
   const interactionTone = tone === 'danger' ? 'error' : tone;
-  const color = interactionTone === 'neutral'
-    ? theme.palette.text.primary
-    : theme.palette[interactionTone]?.main || theme.palette.text.primary;
+  const color =
+    interactionTone === 'neutral'
+      ? theme.palette.text.primary
+      : theme.palette[interactionTone]?.main || theme.palette.text.primary;
 
   return {
-    ...getInteractiveControlSx(theme, { tone: interactionTone, size: PREFERENCE_LAYOUT.controlHeight, radius: '8px' }),
+    ...getInteractiveControlSx(theme, {
+      tone: interactionTone,
+      size: PREFERENCE_LAYOUT.controlHeight,
+      radius: '8px',
+    }),
     minHeight: PREFERENCE_LAYOUT.controlHeight,
     px: 1.5,
     textTransform: 'none',

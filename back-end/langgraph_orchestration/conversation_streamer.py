@@ -2,7 +2,6 @@
 
 from typing import AsyncGenerator
 
-from api_contract.conversations_protocols import ConversationAgentStreamer
 from langgraph_orchestration.stream_conversation import stream_conversation
 
 

@@ -12,7 +12,6 @@ from pydantic import BaseModel, Field
 from config import get_config
 from dependencies import (
     clear_session_state,
-    get_current_user,
     get_current_user_optional,
     get_session_data,
     replace_session_data_for_cookie,

@@ -12,23 +12,18 @@
  *   onQueryExecute {fn}       fallback run handler (used if onRunQuery absent)
  *   onRunQuery     {fn}       primary run handler (tied to the Run button in StatusBar)
  */
-import { useMemo, memo } from "react";
-import { Box, Typography } from "@mui/material";
-import { useTheme, alpha, keyframes } from "@mui/material/styles";
-import CodeMirror from "@uiw/react-codemirror";
-import { sql } from "@codemirror/lang-sql";
-import { EditorView, keymap } from "@codemirror/view";
-import { Prec } from "@codemirror/state";
-import {
-  getCodeMirrorTheme,
-  getCodeMirrorHighlighting,
-} from "@/theme/themeCodeMirror";
-import { getScrollbarStyles } from "@/styles/shared";
 
-const toastSlideUp = keyframes`
-  from { opacity: 0; transform: translateX(-50%) translateY(10px); }
-  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
-`;
+import { StandardSQL, sql } from '@codemirror/lang-sql';
+import { Prec } from '@codemirror/state';
+import { EditorView, keymap, placeholder } from '@codemirror/view';
+import { Box } from '@mui/material';
+import { alpha, useTheme } from '@mui/material/styles';
+import CodeMirror from '@uiw/react-codemirror';
+import { AnimatePresence, motion } from 'framer-motion'; // eslint-disable-line no-unused-vars
+import { memo, useMemo } from 'react';
+import Notification from '@/components/ui/toast';
+import { getScrollbarStyles } from '@/styles/shared';
+import { getCodeMirrorHighlighting, getCodeMirrorTheme } from '@/theme/themeCodeMirror';
 
 function SqlEditorSurface({
   query,
@@ -36,28 +31,30 @@ function SqlEditorSurface({
   onQueryChange,
   onQueryExecute,
   onRunQuery,
+  onClearError,
 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
+  const isDark = theme.palette.mode === 'dark';
 
   // Resolve the run handler from props. CodeMirror efficiently reconfigures
   // extensions when this reference changes, so no ref/effect indirection needed.
   const runQuery = onRunQuery ?? onQueryExecute;
 
   const codeMirrorTheme = useMemo(
-    () => getCodeMirrorTheme(theme.palette.mode, false),
+    () => getCodeMirrorTheme(theme.palette.mode, true),
     [theme.palette.mode],
   );
 
   const extensions = useMemo(
     () => [
-      sql(),
+      sql({ dialect: StandardSQL, upperCaseKeywords: true }),
       EditorView.lineWrapping,
+      placeholder('Write a SQL query…'),
       // Ctrl+Enter / Cmd+Enter → same action as clicking the Run button
       Prec.high(
         keymap.of([
           {
-            key: "Mod-Enter",
+            key: 'Mod-Enter',
             run: () => {
               runQuery?.();
               return true;
@@ -77,11 +74,11 @@ function SqlEditorSurface({
       sx={{
         flex: 1,
         minHeight: 0,
-        display: "flex",
-        flexDirection: "column",
-        position: "relative",
-        overflow: "hidden",
-        bgcolor: "background.default",
+        display: 'flex',
+        flexDirection: 'column',
+        position: 'relative',
+        bgcolor: 'background.default',
+        borderRadius: '0 0 12px 12px',
       }}
     >
       {/* Editor */}
@@ -89,16 +86,37 @@ function SqlEditorSurface({
         sx={{
           flex: 1,
           minHeight: 0,
-          overflow: "hidden",
-          "& .cm-editor": { height: "100%" },
-          "& .cm-scroller": scrollbarSx,
+          overflow: 'hidden',
+          '& .cm-editor': {
+            height: '100%',
+            backgroundColor: 'transparent',
+          },
+          '& .cm-scroller': {
+            ...scrollbarSx,
+            fontFeatureSettings: '"liga" 0, "calt" 0',
+          },
+          '& .cm-content': {
+            minHeight: '100%',
+          },
+          '& .cm-gutters': {
+            borderRight: '0 !important',
+            boxShadow: 'none',
+            backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.018 : 0.014),
+          },
+          '& .cm-placeholder': {
+            color: theme.palette.text.disabled,
+            fontStyle: 'normal',
+          },
+          '& .cm-activeLine, & .cm-activeLineGutter': {
+            backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.055 : 0.035),
+          },
         }}
       >
         <CodeMirror
           value={query}
           height="100%"
           style={{
-            height: "100%",
+            height: '100%',
             fontSize: theme.typography.uiCode.fontSizePx,
             fontFamily: theme.typography.fontFamilyMono,
           }}
@@ -129,50 +147,42 @@ function SqlEditorSurface({
         />
       </Box>
 
-      {/* Error toast */}
-      {error && (
-        <Box
-          role="alert"
-          sx={{
-            position: "absolute",
-            bottom: 24,
-            left: "50%",
-            zIndex: 10,
-            display: "inline-flex",
-            alignItems: "center",
-            gap: 1,
-            px: 2,
-            py: 1,
-            maxWidth: "calc(100% - 48px)",
-            borderRadius: "10px",
-            border: "1px solid",
-            borderColor: alpha(theme.palette.error.main, isDark ? 0.35 : 0.25),
-            backgroundColor: isDark
-              ? alpha(theme.palette.background.paper, 0.95)
-              : alpha(theme.palette.background.paper, 0.98),
-            backdropFilter: "blur(12px)",
-            WebkitBackdropFilter: "blur(12px)",
-            boxShadow: isDark
-              ? `0 8px 28px ${alpha(theme.palette.common.black, 0.5)}, 0 0 0 1px ${alpha(theme.palette.error.main, 0.15)}`
-              : `0 8px 24px ${alpha(theme.palette.common.black, 0.11)}, 0 0 0 1px ${alpha(theme.palette.error.main, 0.1)}`,
-            animation: `${toastSlideUp} 0.22s cubic-bezier(0.22, 1, 0.36, 1) both`,
-          }}
-        >
-          <Typography
-            variant="body2"
-            color="error.main"
-            sx={{
-              ...theme.typography.uiMenuItemSm,
-              fontWeight: 500,
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
+      {/* Error alert — auto-dismissed via parent after 5 s */}
+      <AnimatePresence>
+        {error && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            style={{
+              position: 'absolute',
+              bottom: 18,
+              left: 0,
+              right: 0,
+              display: 'flex',
+              justifyContent: 'center',
+              pointerEvents: 'none',
+              zIndex: 10,
+              padding: '0 16px',
             }}
           >
-            {error}
-          </Typography>
-        </Box>
-      )}
+            <div style={{ pointerEvents: 'auto', width: '100%', maxWidth: '420px' }}>
+              <Notification
+                type="error"
+                title={
+                  error.startsWith('Query blocked:') ? 'Query blocked' : 'Query Execution Error'
+                }
+                message={
+                  error.startsWith('Query blocked:')
+                    ? error.replace('Query blocked:', '').trim()
+                    : error
+                }
+                onClose={onClearError}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </Box>
   );
 }
@@ -183,7 +193,8 @@ function areEditorPropsEqual(prev, next) {
     prev.error === next.error &&
     prev.onQueryChange === next.onQueryChange &&
     prev.onQueryExecute === next.onQueryExecute &&
-    prev.onRunQuery === next.onRunQuery
+    prev.onRunQuery === next.onRunQuery &&
+    prev.onClearError === next.onClearError
   );
 }
 

@@ -1,5 +1,6 @@
 """FastAPI application entry point"""
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -48,13 +49,12 @@ limiter = Limiter(
 )
 
 # Redis client for sessions (initialized in lifespan)
-redis_client: redis.Redis | None = None
+from service.redis_service import get_redis_client, set_redis_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifecycle management."""
-    global redis_client
 
     logger.info(f"🚀 Starting application in {AppConfig.APP_ENV.upper()} mode")
     logger.info(f"   Debug: {AppConfig.DEBUG}, Testing: {AppConfig.TESTING}")
@@ -100,7 +100,8 @@ async def lifespan(app: FastAPI):
             redis_url = redis_url.replace("redis://", "rediss://", 1)
 
         checkpoint_redis_url = redis_url
-        redis_client = redis.from_url(redis_url, decode_responses=True)
+        client = redis.from_url(redis_url, decode_responses=True)
+        set_redis_client(client)
         logger.info("✅ Redis application state storage enabled (Upstash)")
     else:
         logger.warning(
@@ -114,20 +115,56 @@ async def lifespan(app: FastAPI):
     )
 
     # Initialize per-user quota service (needs Redis)
-    app.state.user_quota = create_user_quota_service(redis_client, AppConfig)
+    app.state.user_quota = create_user_quota_service(get_redis_client(), AppConfig)
     logger.info(
         f"User quota: {AppConfig.USER_QUOTA_PER_MINUTE}/min, "
         f"enabled={AppConfig.USER_QUOTA_ENABLED}"
     )
+
+    # Eagerly pre-compute static budgets and tool schemas
+    from llm_provider.token_budget import eagerly_initialize_static_budgets
+    logger.info("Initializing static token budgets...")
+    eagerly_initialize_static_budgets()
+    from llm_provider.model_factory import prewarm_chat_models
+    logger.info("Prewarming Bedrock model clients...")
+    await asyncio.to_thread(prewarm_chat_models)
+
+    vamp_stop = asyncio.Event()
+    vamp_task = None
+    if AppConfig.VAMP_MEMORY_ENABLED:
+        from vamp_memory.maintenance import run_vamp_maintenance
+        from vamp_memory.vamp_memory_service import get_vamp_memory_service
+
+        try:
+            # Warm and validate Qdrant before traffic arrives. Network work is
+            # still asynchronous and a temporary outage remains recoverable.
+            await get_vamp_memory_service().vector_store.ensure_ready()
+        except Exception as exc:
+            logger.warning("VAMP vector store was not ready at startup: %s", exc)
+
+        vamp_task = asyncio.create_task(
+            run_vamp_maintenance(
+                vamp_stop, AppConfig.VAMP_MAINTENANCE_INTERVAL_SECONDS
+            ),
+            name="vamp-maintenance",
+        )
 
     logger.info("✅ Application initialized successfully")
 
     yield
 
     # Shutdown
+    if vamp_task is not None:
+        vamp_stop.set()
+        vamp_task.cancel()
+        try:
+            await vamp_task
+        except asyncio.CancelledError:
+            pass
     await shutdown_checkpointer()
-    if redis_client:
-        await redis_client.close()
+    client = get_redis_client()
+    if client:
+        await client.close()
         logger.info("Redis connection closed")
 
 
@@ -329,9 +366,7 @@ def _register_error_handlers(app: FastAPI):
         )
 
 
-def get_redis_client() -> redis.Redis | None:
-    """Get the Redis client instance."""
-    return redis_client
+
 
 
 # Application instance

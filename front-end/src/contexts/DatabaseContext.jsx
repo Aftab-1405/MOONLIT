@@ -1,10 +1,10 @@
 /**
  * DatabaseContext - Centralized State Management for Database Connections
- * 
+ *
  * This context eliminates prop drilling for database-related state.
  * Instead of passing 10+ props through component hierarchy, components
  * can use the `useDatabaseConnection` hook to access and modify DB state.
- * 
+ *
  * STATE MANAGED:
  * - isConnected: Whether a database connection is active
  * - currentDatabase: Name of the currently selected database
@@ -13,40 +13,40 @@
  * - availableDatabases: List of databases available on the server
  * - isLoading: Whether a connection operation is in progress
  * - error: Any connection error message
- * 
+ *
  * ACTIONS:
  * - connect: Establish database connection
  * - disconnect: Close database connection
  * - switchDatabase: Change to a different database on same server
  * - setError: Set connection error
  * - clearError: Clear connection error
- * 
+ *
  * WHY useReducer INSTEAD OF useState:
  * - All related state updates happen atomically (1 dispatch = 1 render)
  * - Actions are logged for debugging
  * - State transitions are predictable and testable
  * - Easier to add new state without prop drilling
- * 
+ *
  * @module DatabaseContext
  */
 
-import { createContext, useContext, useReducer, useCallback, useEffect, useMemo } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import logger from '@/utils/logger';
-import { useAuth } from '@/contexts/AuthContext';
-import { queryKeys } from '@/api/queryClient';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
 import {
-  getDbStatus,
   disconnectDb,
-  switchDatabase as switchDatabaseApi,
+  getDbStatus,
+  getSchemas as getSchemasApi,
+  getTableSchema as getTableSchemaApi,
+  getTables,
   selectDatabase,
   selectSchema as selectSchemaApi,
   sessionActive,
-  getSchemas as getSchemasApi,
-  getTables,
-  getTableSchema as getTableSchemaApi,
+  switchDatabase as switchDatabaseApi,
 } from '@/api';
+import { queryKeys } from '@/api/queryClient';
+import { useAuth } from '@/contexts/AuthContext';
 import { getSelectedDatabase } from '@/utils/databaseResponse';
+import logger from '@/utils/logger';
 
 const SESSION_INSTANCE_KEY = 'moonlit-session-instance-id';
 
@@ -54,7 +54,9 @@ function getSessionInstanceId() {
   try {
     let id = sessionStorage.getItem(SESSION_INSTANCE_KEY);
     if (!id) {
-      id = crypto.randomUUID ? crypto.randomUUID() : `sid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+      id = crypto.randomUUID
+        ? crypto.randomUUID()
+        : `sid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
       sessionStorage.setItem(SESSION_INSTANCE_KEY, id);
     }
     return id;
@@ -195,7 +197,9 @@ function getDatabaseList(connectionData = {}) {
 }
 
 function getSchemaList(connectionData = {}) {
-  return connectionData.db_type?.toLowerCase() === 'postgresql' ? (connectionData.schemas ?? []) : [];
+  return connectionData.db_type?.toLowerCase() === 'postgresql'
+    ? (connectionData.schemas ?? [])
+    : [];
 }
 
 function getCurrentSchema(connectionData = {}) {
@@ -206,10 +210,10 @@ function getCurrentSchema(connectionData = {}) {
 /**
  * Hook to access database connection state and actions.
  * Must be used within a DatabaseProvider.
- * 
+ *
  * @example
  * const { isConnected, currentDatabase, connect, disconnect } = useDatabaseConnection();
- * 
+ *
  * @returns {Object} Database state and actions
  */
 // eslint-disable-next-line react-refresh/only-export-components -- Hook export alongside Provider is valid React pattern
@@ -224,7 +228,7 @@ export function useDatabaseConnection() {
 /**
  * Provides database connection state to the component tree.
  * Wrap your app with this provider to enable useDatabaseConnection hook.
- * 
+ *
  * @example
  * <DatabaseProvider>
  *   <App />
@@ -235,62 +239,74 @@ export function DatabaseProvider({ children }) {
   const { isAuthenticated } = useAuth();
   const queryClient = useQueryClient();
 
-  const invalidateSchemaTables = useCallback((database) => {
-    if (database) {
-      queryClient.removeQueries({ queryKey: queryKeys.dbSchemas(database) });
-      queryClient.removeQueries({ queryKey: queryKeys.dbTables(database) });
-      queryClient.removeQueries({ queryKey: ['db', 'tableSchema', database] });
-      return;
-    }
+  const invalidateSchemaTables = useCallback(
+    (database) => {
+      if (database) {
+        queryClient.removeQueries({ queryKey: queryKeys.dbSchemas(database) });
+        queryClient.removeQueries({ queryKey: queryKeys.dbTables(database) });
+        queryClient.removeQueries({ queryKey: ['db', 'tableSchema', database] });
+        return;
+      }
 
-    queryClient.removeQueries({ queryKey: ['db'] });
-  }, [queryClient]);
+      queryClient.removeQueries({ queryKey: ['db'] });
+    },
+    [queryClient],
+  );
 
-  const fetchSchemas = useCallback(async ({ database, force = false } = {}) => {
-    const queryKey = queryKeys.dbSchemas(database);
-    if (force) {
-      await queryClient.invalidateQueries({ queryKey });
-    }
+  const fetchSchemas = useCallback(
+    async ({ database, force = false } = {}) => {
+      const queryKey = queryKeys.dbSchemas(database);
+      if (force) {
+        await queryClient.invalidateQueries({ queryKey });
+      }
 
-    return queryClient.fetchQuery({
-      queryKey,
-      queryFn: getSchemasApi,
-      staleTime: 5 * 60 * 1000,
-    });
-  }, [queryClient]);
+      return queryClient.fetchQuery({
+        queryKey,
+        queryFn: getSchemasApi,
+        staleTime: 5 * 60 * 1000,
+      });
+    },
+    [queryClient],
+  );
 
-  const fetchSchemaTables = useCallback(async ({ database, force = false } = {}) => {
-    const queryKey = queryKeys.dbTables(database);
-    if (force) {
-      await queryClient.invalidateQueries({ queryKey });
-    }
+  const fetchSchemaTables = useCallback(
+    async ({ database, force = false } = {}) => {
+      const queryKey = queryKeys.dbTables(database);
+      if (force) {
+        await queryClient.invalidateQueries({ queryKey });
+      }
 
-    return queryClient.fetchQuery({
-      queryKey,
-      queryFn: getTables,
-      staleTime: 5 * 60 * 1000,
-    });
-  }, [queryClient]);
+      return queryClient.fetchQuery({
+        queryKey,
+        queryFn: getTables,
+        staleTime: 5 * 60 * 1000,
+      });
+    },
+    [queryClient],
+  );
 
-  const fetchTableSchema = useCallback(async ({ database, tableName, force = false } = {}) => {
-    if (!tableName) {
-      return {
-        status: 'error',
-        message: 'Table name is required',
-      };
-    }
+  const fetchTableSchema = useCallback(
+    async ({ database, tableName, force = false } = {}) => {
+      if (!tableName) {
+        return {
+          status: 'error',
+          message: 'Table name is required',
+        };
+      }
 
-    const queryKey = queryKeys.dbTableSchema(database, tableName);
-    if (force) {
-      await queryClient.invalidateQueries({ queryKey });
-    }
+      const queryKey = queryKeys.dbTableSchema(database, tableName);
+      if (force) {
+        await queryClient.invalidateQueries({ queryKey });
+      }
 
-    return queryClient.fetchQuery({
-      queryKey,
-      queryFn: () => getTableSchemaApi(tableName),
-      staleTime: 5 * 60 * 1000,
-    });
-  }, [queryClient]);
+      return queryClient.fetchQuery({
+        queryKey,
+        queryFn: () => getTableSchemaApi(tableName),
+        staleTime: 5 * 60 * 1000,
+      });
+    },
+    [queryClient],
+  );
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -315,42 +331,45 @@ export function DatabaseProvider({ children }) {
     checkDbStatus();
   }, [isAuthenticated, queryClient]);
 
-  const connect = useCallback((connectionData) => {
-    // Use centralized helper so all backend response shapes are supported.
-    const database = getSelectedDatabase(connectionData);
-    invalidateSchemaTables(database);
-    queryClient.setQueryData(queryKeys.dbStatus, {
-      status: 'success',
-      data: {
-        connected: true,
-        db_type: connectionData.db_type,
-        current_database: database,
-        is_remote: connectionData.is_remote ?? false,
-        databases: getDatabaseList(connectionData),
-        schemas: getSchemaList(connectionData),
-        current_schema: getCurrentSchema(connectionData),
-      },
-    });
-    queryClient.setQueryData(queryKeys.dbDatabases, {
-      status: 'success',
-      data: {
-        databases: getDatabaseList(connectionData),
-        db_type: connectionData.db_type,
-        is_remote: connectionData.is_remote ?? false,
-      },
-    });
-    dispatch({
-      type: ActionTypes.CONNECT_SUCCESS,
-      payload: {
-        database,
-        dbType: connectionData.db_type,
-        isRemote: connectionData.is_remote ?? false,
-        databases: getDatabaseList(connectionData),
-        schemas: getSchemaList(connectionData),
-        currentSchema: getCurrentSchema(connectionData),
-      },
-    });
-  }, [invalidateSchemaTables, queryClient]);
+  const connect = useCallback(
+    (connectionData) => {
+      // Use centralized helper so all backend response shapes are supported.
+      const database = getSelectedDatabase(connectionData);
+      invalidateSchemaTables(database);
+      queryClient.setQueryData(queryKeys.dbStatus, {
+        status: 'success',
+        data: {
+          connected: true,
+          db_type: connectionData.db_type,
+          current_database: database,
+          is_remote: connectionData.is_remote ?? false,
+          databases: getDatabaseList(connectionData),
+          schemas: getSchemaList(connectionData),
+          current_schema: getCurrentSchema(connectionData),
+        },
+      });
+      queryClient.setQueryData(queryKeys.dbDatabases, {
+        status: 'success',
+        data: {
+          databases: getDatabaseList(connectionData),
+          db_type: connectionData.db_type,
+          is_remote: connectionData.is_remote ?? false,
+        },
+      });
+      dispatch({
+        type: ActionTypes.CONNECT_SUCCESS,
+        payload: {
+          database,
+          dbType: connectionData.db_type,
+          isRemote: connectionData.is_remote ?? false,
+          databases: getDatabaseList(connectionData),
+          schemas: getSchemaList(connectionData),
+          currentSchema: getCurrentSchema(connectionData),
+        },
+      });
+    },
+    [invalidateSchemaTables, queryClient],
+  );
 
   const disconnect = useCallback(async () => {
     try {
@@ -364,7 +383,7 @@ export function DatabaseProvider({ children }) {
       queryClient.removeQueries({ queryKey: ['db'] });
       dispatch({
         type: ActionTypes.DISCONNECT,
-        payload: { error: 'Failed to disconnect' }
+        payload: { error: 'Failed to disconnect' },
       });
     }
   }, [invalidateSchemaTables, queryClient]);
@@ -375,77 +394,91 @@ export function DatabaseProvider({ children }) {
     dispatch({ type: ActionTypes.DISCONNECT, payload: {} });
   }, [invalidateSchemaTables, queryClient]);
 
-  const switchDatabase = useCallback(async (dbName) => {
-    if (dbName === state.currentDatabase) return { success: true };
+  const switchDatabase = useCallback(
+    async (dbName) => {
+      if (dbName === state.currentDatabase) return { success: true };
 
-    try {
-      const response = state.isRemote
-        ? await switchDatabaseApi(dbName)
-        : await selectDatabase(dbName);
+      try {
+        const response = state.isRemote
+          ? await switchDatabaseApi(dbName)
+          : await selectDatabase(dbName);
 
-      if (response.status === 'success') {
-        // Use centralized helper to resolve DB name from switch response.
-        const resolvedDb = getSelectedDatabase(response.data) || dbName;
-        invalidateSchemaTables(resolvedDb);
-        queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
-        queryClient.invalidateQueries({ queryKey: queryKeys.dbDatabases });
-        dispatch({
-          type: ActionTypes.SWITCH_DATABASE,
-          payload: {
-            database: resolvedDb,
-            schemas: getSchemaList(response.data),
-            currentSchema: getCurrentSchema(response.data),
-          }
-        });
-        return { success: true };
-      } else {
+        if (response.status === 'success') {
+          // Use centralized helper to resolve DB name from switch response.
+          const resolvedDb = getSelectedDatabase(response.data) || dbName;
+          invalidateSchemaTables(resolvedDb);
+          queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
+          queryClient.invalidateQueries({ queryKey: queryKeys.dbDatabases });
+          dispatch({
+            type: ActionTypes.SWITCH_DATABASE,
+            payload: {
+              database: resolvedDb,
+              schemas: getSchemaList(response.data),
+              currentSchema: getCurrentSchema(response.data),
+            },
+          });
+          return { success: true };
+        } else {
+          dispatch({
+            type: ActionTypes.SET_ERROR,
+            payload: { error: response.message || 'Switch failed' },
+          });
+          return { success: false, error: response.message };
+        }
+      } catch {
         dispatch({
           type: ActionTypes.SET_ERROR,
-          payload: { error: response.message || 'Switch failed' }
+          payload: { error: 'Failed to switch database' },
+        });
+        return { success: false, error: 'Failed to switch database' };
+      }
+    },
+    [invalidateSchemaTables, queryClient, state.currentDatabase, state.isRemote],
+  );
+
+  const selectSchema = useCallback(
+    async (schemaName) => {
+      if (schemaName === state.currentSchema) return { success: true };
+
+      try {
+        const response = await selectSchemaApi(schemaName);
+
+        if (response.status === 'success') {
+          invalidateSchemaTables(state.currentDatabase);
+          queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
+          dispatch({
+            type: ActionTypes.SELECT_SCHEMA,
+            payload: {
+              schemas: response.data.schemas?.length
+                ? response.data.schemas
+                : state.availableSchemas,
+              currentSchema: response.data.current_schema || response.data.schema || schemaName,
+            },
+          });
+          return { success: true };
+        }
+
+        dispatch({
+          type: ActionTypes.SET_ERROR,
+          payload: { error: response.message || 'Schema switch failed' },
         });
         return { success: false, error: response.message };
-      }
-    } catch {
-      dispatch({
-        type: ActionTypes.SET_ERROR,
-        payload: { error: 'Failed to switch database' }
-      });
-      return { success: false, error: 'Failed to switch database' };
-    }
-  }, [invalidateSchemaTables, queryClient, state.currentDatabase, state.isRemote]);
-
-  const selectSchema = useCallback(async (schemaName) => {
-    if (schemaName === state.currentSchema) return { success: true };
-
-    try {
-      const response = await selectSchemaApi(schemaName);
-
-      if (response.status === 'success') {
-        invalidateSchemaTables(state.currentDatabase);
-        queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
+      } catch {
         dispatch({
-          type: ActionTypes.SELECT_SCHEMA,
-          payload: {
-            schemas: response.data.schemas?.length ? response.data.schemas : state.availableSchemas,
-            currentSchema: response.data.current_schema || response.data.schema || schemaName,
-          },
+          type: ActionTypes.SET_ERROR,
+          payload: { error: 'Failed to switch schema' },
         });
-        return { success: true };
+        return { success: false, error: 'Failed to switch schema' };
       }
-
-      dispatch({
-        type: ActionTypes.SET_ERROR,
-        payload: { error: response.message || 'Schema switch failed' }
-      });
-      return { success: false, error: response.message };
-    } catch {
-      dispatch({
-        type: ActionTypes.SET_ERROR,
-        payload: { error: 'Failed to switch schema' }
-      });
-      return { success: false, error: 'Failed to switch schema' };
-    }
-  }, [invalidateSchemaTables, queryClient, state.availableSchemas, state.currentDatabase, state.currentSchema]);
+    },
+    [
+      invalidateSchemaTables,
+      queryClient,
+      state.availableSchemas,
+      state.currentDatabase,
+      state.currentSchema,
+    ],
+  );
 
   const refreshStatus = useCallback(async () => {
     try {
@@ -470,39 +503,38 @@ export function DatabaseProvider({ children }) {
     dispatch({ type: ActionTypes.CLEAR_ERROR });
   }, []);
 
-  const value = useMemo(() => ({
-    ...state,
-    connect,
-    disconnect,
-    resetConnectionState,
-    switchDatabase,
-    selectSchema,
-    refreshStatus,
-    setError,
-    clearError,
-    fetchSchemas,
-    fetchSchemaTables,
-    fetchTableSchema,
-    invalidateSchemaTables,
-  }), [
-    state,
-    connect,
-    disconnect,
-    resetConnectionState,
-    switchDatabase,
-    selectSchema,
-    refreshStatus,
-    setError,
-    clearError,
-    fetchSchemas,
-    fetchSchemaTables,
-    fetchTableSchema,
-    invalidateSchemaTables,
-  ]);
-
-  return (
-    <DatabaseContext.Provider value={value}>
-      {children}
-    </DatabaseContext.Provider>
+  const value = useMemo(
+    () => ({
+      ...state,
+      connect,
+      disconnect,
+      resetConnectionState,
+      switchDatabase,
+      selectSchema,
+      refreshStatus,
+      setError,
+      clearError,
+      fetchSchemas,
+      fetchSchemaTables,
+      fetchTableSchema,
+      invalidateSchemaTables,
+    }),
+    [
+      state,
+      connect,
+      disconnect,
+      resetConnectionState,
+      switchDatabase,
+      selectSchema,
+      refreshStatus,
+      setError,
+      clearError,
+      fetchSchemas,
+      fetchSchemaTables,
+      fetchTableSchema,
+      invalidateSchemaTables,
+    ],
   );
+
+  return <DatabaseContext.Provider value={value}>{children}</DatabaseContext.Provider>;
 }

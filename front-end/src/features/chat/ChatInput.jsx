@@ -1,37 +1,33 @@
-import { useState, useCallback, useMemo, memo } from "react";
+import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
+import SendRoundedIcon from '@mui/icons-material/SendRounded';
+import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import {
   Box,
-  TextField,
-  IconButton,
   Button,
+  IconButton,
+  LinearProgress,
+  Skeleton,
+  TextField,
   Tooltip,
   Typography,
-  Skeleton,
   useMediaQuery,
-} from "@mui/material";
-import { alpha, keyframes, useTheme } from "@mui/material/styles";
-import SendRoundedIcon from "@mui/icons-material/SendRounded";
-import StopRoundedIcon from "@mui/icons-material/StopRounded";
-
-import CheckRoundedIcon from "@mui/icons-material/CheckRounded";
-import KeyboardArrowDownRoundedIcon from "@mui/icons-material/KeyboardArrowDownRounded";
-import { AppPopover } from "@/components";
-import CodeEditorIcon from "@/components/icons/CodeEditorIcon";
-import DatabaseIcon from "@/components/icons/DatabaseIcon";
-import SchemaIcon from "@/components/icons/SchemaIcon";
-import { useDatabaseConnection } from "@/contexts/DatabaseContext";
-import { HOVER_CAPABLE_QUERY } from "@/styles/mediaQueries";
-import logger from "@/utils/logger";
-import {
-  getComposerHoverShadow,
-  getComposerSurfaceSx,
-} from "@/features/styles/interfaceChrome";
+} from '@mui/material';
+import { alpha, keyframes, useTheme } from '@mui/material/styles';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { AppPopover } from '@/components';
+import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
+import DatabaseIcon from '@/components/icons/DatabaseIcon';
+import SchemaIcon from '@/components/icons/SchemaIcon';
+import { getComposerHoverShadow, getComposerSurfaceSx } from '@/features/styles/interfaceChrome';
+import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import {
   getInteractionColors,
   getPopoverSectionLabelSx,
   getSelectableMenuItemSx,
   UI_LAYOUT,
-} from "@/styles/shared";
+} from '@/styles/shared';
+import logger from '@/utils/logger';
 
 const softReveal = keyframes`
   from {
@@ -54,7 +50,7 @@ const ContextProgressRing = ({ total, budget, theme }) => {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - ratio * circumference;
 
-  let color = theme.palette.success.main;
+  let color = theme.palette.primary.main;
   if (ratio > 0.9) {
     color = theme.palette.error.main;
   } else if (ratio > 0.75) {
@@ -68,10 +64,10 @@ const ContextProgressRing = ({ total, budget, theme }) => {
       height={size}
       viewBox={`0 0 ${size} ${size}`}
       sx={{
-        transform: "rotate(-90deg)",
-        transformOrigin: "center",
+        transform: 'rotate(-90deg)',
+        transformOrigin: 'center',
         flexShrink: 0,
-        display: "block",
+        display: 'block',
       }}
     >
       <circle
@@ -93,12 +89,107 @@ const ContextProgressRing = ({ total, budget, theme }) => {
         strokeDashoffset={strokeDashoffset}
         strokeLinecap="round"
         style={{
-          transition: "stroke-dashoffset 0.35s ease-in-out",
+          transition: 'stroke-dashoffset 0.35s ease-in-out',
         }}
       />
     </Box>
   );
 };
+
+const toFiniteNumber = (value) => {
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+};
+
+const percentOf = (used, budget) => {
+  const numericUsed = toFiniteNumber(used);
+  const numericBudget = toFiniteNumber(budget);
+  if (numericUsed == null || numericBudget == null || numericBudget <= 0) {
+    return null;
+  }
+  return Math.min(100, Math.max(0, (numericUsed / numericBudget) * 100));
+};
+
+const TruncatedLabel = ({ children, sx = {} }) => (
+  <Box
+    component="span"
+    sx={{
+      minWidth: 0,
+      overflow: 'hidden',
+      textOverflow: 'ellipsis',
+      whiteSpace: 'nowrap',
+      ...sx,
+    }}
+  >
+    {children}
+  </Box>
+);
+
+const ContextUsageBar = ({ label, value, color }) => (
+  <Box>
+    <Box
+      sx={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        mb: 0.5,
+        alignItems: 'center',
+        gap: 2,
+      }}
+    >
+      <Typography variant="caption" sx={{ fontWeight: 550 }}>
+        {label}
+      </Typography>
+      <Typography variant="caption" sx={{ opacity: 0.78 }}>
+        {Math.round(value)}%
+      </Typography>
+    </Box>
+    <LinearProgress
+      variant="determinate"
+      value={value}
+      color={color}
+      sx={{
+        height: 6,
+        borderRadius: 3,
+        bgcolor: 'background.default',
+      }}
+    />
+  </Box>
+);
+
+const getUsageColor = (value) => {
+  if (value > 90) return 'error';
+  if (value > 75) return 'warning';
+  return 'primary';
+};
+
+const ContextUsageTooltip = ({ contextUsage, selectedModel }) => (
+  <Box sx={{ width: 252, p: 0.5 }}>
+    <Typography variant="body2" sx={{ fontWeight: 650, color: 'inherit', mb: 0.5 }}>
+      {selectedModel || 'Select model'}
+    </Typography>
+    <Box sx={{ display: 'grid', gap: 1.25, mt: 1.5, mb: 1 }}>
+      <ContextUsageBar
+        label={contextUsage.contextPhase === 'pre_summary' ? 'Summary Trigger' : 'Active Context'}
+        value={contextUsage.activePercent}
+        color={getUsageColor(contextUsage.activePercent)}
+      />
+      {contextUsage.modelPercent != null && (
+        <ContextUsageBar
+          label="Model Capacity"
+          value={contextUsage.modelPercent}
+          color={getUsageColor(contextUsage.modelPercent)}
+        />
+      )}
+    </Box>
+    <Typography
+      variant="caption"
+      display="block"
+      sx={{ color: 'text.secondary', mt: 1, fontSize: '10px', lineHeight: 1.25 }}
+    >
+      Background context manages these budgets to prevent memory crashes.
+    </Typography>
+  </Box>
+);
 
 function ChatInput({
   onSend,
@@ -109,50 +200,41 @@ function ChatInput({
   dbType = null,
   currentDatabase = null,
   availableDatabases = [],
+  availableSchemas = [],
+  currentSchema = null,
+  onSchemaChange,
   onDatabaseSwitch,
   onOpenSqlEditor,
-  selectedProvider = "",
-  selectedModel = "",
+  selectedProvider = '',
+  selectedModel = '',
   providerOptions = [],
   llmOptionsLoading = false,
   onSelectLlm,
   usageMetrics = null,
   children,
 }) {
-  const [message, setMessage] = useState("");
-  const [isFocused, setIsFocused] = useState(false);
+  const [message, setMessage] = useState('');
   const theme = useTheme();
-  const isCompactMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [schemaAnchor, setSchemaAnchor] = useState(null);
   const [dbAnchor, setDbAnchor] = useState(null);
   const [llmAnchor, setLlmAnchor] = useState(null);
-  const {
-    availableSchemas = [],
-    currentSchema = null,
-    selectSchema,
-  } = useDatabaseConnection();
 
-  const isPostgreSQL = useMemo(
-    () => dbType?.toLowerCase() === "postgresql",
-    [dbType],
-  );
+  const isPostgreSQL = useMemo(() => dbType?.toLowerCase() === 'postgresql', [dbType]);
 
   const connectionMetadataReady = useMemo(
     () => Boolean(isConnected && currentDatabase && dbType),
     [isConnected, currentDatabase, dbType],
   );
   const connectionChipKey = useMemo(
-    () => `${dbType || "unknown"}:${currentDatabase || ""}`,
+    () => `${dbType || 'unknown'}:${currentDatabase || ''}`,
     [dbType, currentDatabase],
   );
   const showSchemaSelector = useMemo(
     () => connectionMetadataReady && isPostgreSQL && Boolean(currentSchema),
     [connectionMetadataReady, isPostgreSQL, currentSchema],
   );
-  const showDatabaseSelector = useMemo(
-    () => connectionMetadataReady,
-    [connectionMetadataReady],
-  );
+  const showDatabaseSelector = useMemo(() => connectionMetadataReady, [connectionMetadataReady]);
   const canSwitchDatabase = useMemo(
     () => availableDatabases.length > 1,
     [availableDatabases.length],
@@ -160,64 +242,61 @@ function ChatInput({
 
   const hasText = useMemo(() => message.trim().length > 0, [message]);
 
-  const neutralInteraction = useMemo(
-    () => getInteractionColors(theme),
-    [theme],
-  );
+  const neutralInteraction = useMemo(() => getInteractionColors(theme), [theme]);
   const toolbarActionButtonStyles = useMemo(
     () => ({
       height: 30,
       minHeight: 30,
       minWidth: 32,
-      maxWidth: { xs: "min(42vw, 152px)", sm: 208 },
+      maxWidth: { xs: 'min(42vw, 152px)', sm: 208 },
       flexShrink: 0,
-      borderRadius: "8px",
+      borderRadius: '8px',
       px: { xs: 1, sm: 1.25 },
       py: 0,
       gap: 0.5,
-      justifyContent: "flex-start",
+      justifyContent: 'flex-start',
       borderColor: neutralInteraction.border,
-      color: "text.secondary",
-      backgroundColor: "transparent",
+      color: 'text.secondary',
+      backgroundColor: 'transparent',
       ...theme.typography.uiBodySm,
       lineHeight: 1,
       transition: theme.transitions.create(
-        ["background-color", "border-color", "color", "transform"],
+        ['background-color', 'border-color', 'color', 'transform'],
         {
           duration: theme.transitions.duration.shorter,
         },
       ),
-      "& .MuiButton-startIcon": {
+      '& .MuiButton-startIcon': {
         m: 0,
         mr: 0.5,
         color: alpha(theme.palette.text.primary, 0.45),
         flexShrink: 0,
-        "& > *:nth-of-type(1)": {
+        '& > *:nth-of-type(1)': {
           fontSize: 16,
         },
       },
-      "& .MuiButton-endIcon": {
+      '& .MuiButton-endIcon': {
         m: 0,
         ml: 0.25,
-        color: "inherit",
+        color: 'inherit',
         flexShrink: 0,
         opacity: 0.75,
-        "& > *:nth-of-type(1)": {
+        '& > *:nth-of-type(1)': {
           fontSize: 12,
         },
       },
-      "& .MuiButton-iconSizeSmall": {
-        "& > *:nth-of-type(1)": {
+      '& .MuiButton-iconSizeSmall': {
+        '& > *:nth-of-type(1)': {
           fontSize: 16,
         },
       },
-      "&:active": { transform: "translateY(1px)" },
+      '&:active': { transform: 'translateY(1px)' },
       [HOVER_CAPABLE_QUERY]: {
-        "&:hover": {
+        '&:hover': {
           borderColor: neutralInteraction.hoverBorder,
           backgroundColor: neutralInteraction.hoverBackground,
-          color: "text.primary",
-          "& .MuiButton-startIcon": {
+          color: 'text.primary',
+          '& .MuiButton-startIcon': {
             color: alpha(theme.palette.text.primary, 0.65),
           },
         },
@@ -225,27 +304,100 @@ function ChatInput({
       '&[aria-expanded="true"]': {
         borderColor: neutralInteraction.activeBorder,
         backgroundColor: neutralInteraction.activeBackground,
-        color: "text.primary",
+        color: 'text.primary',
       },
-      "&.Mui-disabled": {
-        opacity: 0.42,
-        borderColor: "transparent",
-        color: "text.secondary",
-        backgroundColor: "transparent",
+      '&.Mui-disabled': {
+        opacity: 0.68,
+        borderColor: 'transparent',
+        color: 'text.secondary',
+        backgroundColor: 'transparent',
       },
     }),
     [neutralInteraction, theme],
   );
 
-  const errorInteraction = useMemo(
-    () => getInteractionColors(theme, { tone: "error" }),
+  const errorInteraction = useMemo(() => getInteractionColors(theme, { tone: 'error' }), [theme]);
+  const inputSx = useMemo(
+    () => ({
+      '& .MuiInputBase-root': { p: 0 },
+      '& .MuiInputBase-input': {
+        py: 0.1,
+        ...theme.typography.uiInput,
+        lineHeight: 1.55,
+        '&::placeholder': {
+          color: 'text.secondary',
+          opacity: 0.72,
+        },
+      },
+    }),
     [theme],
+  );
+  const toolbarScrollSx = useMemo(
+    () => ({
+      display: 'flex',
+      alignItems: 'center',
+      gap: 0.5,
+      minWidth: 0,
+      flex: 1,
+      overflowX: 'auto',
+      overflowY: 'hidden',
+      scrollbarWidth: 'none',
+      '&::-webkit-scrollbar': { display: 'none' },
+    }),
+    [],
+  );
+  const sendActionSx = useMemo(
+    () => ({
+      width: 36,
+      height: 36,
+      flexShrink: 0,
+      borderRadius: '9px',
+      color: isStreaming
+        ? theme.palette.error.main
+        : hasText
+          ? theme.palette.primary.contrastText
+          : alpha(theme.palette.text.primary, 0.28),
+      backgroundColor: isStreaming
+        ? errorInteraction.activeBackground
+        : hasText
+          ? theme.palette.primary.main
+          : alpha(theme.palette.text.primary, 0.05),
+      border: '1px solid',
+      borderColor: isStreaming
+        ? alpha(theme.palette.error.main, 0.2)
+        : hasText
+          ? 'transparent'
+          : alpha(theme.palette.text.primary, 0.07),
+      boxShadow: 'none',
+      transition: theme.transitions.create(
+        ['transform', 'background-color', 'color', 'box-shadow', 'border-color'],
+        { duration: theme.transitions.duration.shorter },
+      ),
+      [HOVER_CAPABLE_QUERY]: {
+        '&:hover': {
+          transform: 'none',
+          backgroundColor: isStreaming
+            ? errorInteraction.activeHoverBackground
+            : hasText
+              ? theme.palette.primary.dark
+              : alpha(theme.palette.text.primary, 0.08),
+          boxShadow: 'none',
+        },
+      },
+      '&:active': { transform: 'translateY(0) scale(0.97)' },
+      '&.Mui-disabled': {
+        backgroundColor: alpha(theme.palette.text.primary, 0.04),
+        borderColor: alpha(theme.palette.text.primary, 0.06),
+        color: alpha(theme.palette.text.primary, 0.2),
+      },
+    }),
+    [errorInteraction, hasText, isStreaming, theme],
   );
   const connectedControlSx = useMemo(
     () => ({
       borderColor: neutralInteraction.border,
       [HOVER_CAPABLE_QUERY]: {
-        "&:hover": {
+        '&:hover': {
           borderColor: neutralInteraction.hoverBorder,
           backgroundColor: neutralInteraction.hoverBackground,
         },
@@ -253,30 +405,20 @@ function ChatInput({
     }),
     [neutralInteraction],
   );
-  const composerSurfaceSx = useMemo(
-    () => getComposerSurfaceSx(theme, { isFocused }),
-    [theme, isFocused],
-  );
+  const composerSurfaceSx = useMemo(() => getComposerSurfaceSx(theme), [theme]);
   const inputPlaceholder = isStreaming
-    ? "Please wait for response to finish..."
+    ? 'Please wait for response to finish...'
     : isConnected
-      ? "Ask about your database or anything else..."
-      : "How can I help you today?";
+      ? 'Ask about your database or anything else...'
+      : 'How can I help you today?';
 
   const selectedProviderOption = useMemo(() => {
-    return (
-      providerOptions.find((provider) => provider.name === selectedProvider) ||
-      null
-    );
+    return providerOptions.find((provider) => provider.name === selectedProvider) || null;
   }, [providerOptions, selectedProvider]);
-  const activeProviderLabel =
-    selectedProviderOption?.label || selectedProvider || "";
+  const activeProviderLabel = selectedProviderOption?.label || selectedProvider || '';
   const llmSections = useMemo(() => {
     return providerOptions
-      .filter(
-        (provider) =>
-          Array.isArray(provider.models) && provider.models.length > 0,
-      )
+      .filter((provider) => Array.isArray(provider.models) && provider.models.length > 0)
       .map((provider) => ({
         name: provider.name,
         label: provider.label || provider.name,
@@ -286,17 +428,33 @@ function ChatInput({
   const hasLlmOptions = llmSections.length > 0;
   const contextUsage = useMemo(() => {
     if (!usageMetrics) return null;
-    const activeUsed =
-      usageMetrics.inputPayloadTokens ?? usageMetrics.totalTokens;
-    const activeBudget =
-      usageMetrics.pressureTriggerTokens ?? usageMetrics.activeContextBudget;
-    const modelWindow =
-      usageMetrics.modelContextWindow ?? usageMetrics.totalContextWindow;
-    if (activeUsed == null || activeBudget == null) return null;
+    const activeUsed = usageMetrics.inputPayloadTokens ?? usageMetrics.totalTokens;
+    const rawActiveBudget =
+      usageMetrics.contextPhase === 'pre_summary'
+        ? (usageMetrics.summaryThresholdTokens ??
+          usageMetrics.pressureTriggerTokens ??
+          usageMetrics.activeContextBudget)
+        : (usageMetrics.pressureTriggerTokens ?? usageMetrics.activeContextBudget);
+    const modelWindow = usageMetrics.modelContextWindow ?? usageMetrics.totalContextWindow;
+    const totalUsed =
+      activeUsed +
+      (usageMetrics.systemPromptTokens || 0) +
+      (usageMetrics.toolSchemaTokens || 0) +
+      (usageMetrics.vampMemoryTokens || 0) +
+      (usageMetrics.taskCheckpointTokens || 0);
+
+    const activePercent = percentOf(activeUsed, rawActiveBudget);
+    const modelPercent = percentOf(totalUsed, modelWindow);
+    if (activePercent == null) return null;
     return {
       activeUsed,
-      activeBudget,
+      totalUsed,
+      activeBudget: rawActiveBudget,
       modelWindow,
+      activePercent,
+      modelPercent,
+      indicatorUsed: activeUsed,
+      indicatorBudget: rawActiveBudget,
       tokenCountingMode: usageMetrics.tokenCountingMode,
       contextPhase: usageMetrics.contextPhase,
       summaryThresholdTokens: usageMetrics.summaryThresholdTokens,
@@ -312,12 +470,12 @@ function ChatInput({
       setSchemaAnchor(null);
       if (schema === currentSchema) return;
 
-      const result = await selectSchema?.(schema);
+      const result = await onSchemaChange?.(schema);
       if (result && !result.success) {
-        logger.error("Failed to select schema:", result.error);
+        logger.error('Failed to select schema:', result.error);
       }
     },
-    [currentSchema, selectSchema],
+    [currentSchema, onSchemaChange],
   );
 
   const handleDatabaseChange = useCallback(
@@ -334,7 +492,7 @@ function ChatInput({
       e?.preventDefault();
       if (message.trim() && !disabled && !isStreaming) {
         onSend(message.trim());
-        setMessage("");
+        setMessage('');
       }
     },
     [message, disabled, isStreaming, onSend],
@@ -342,7 +500,7 @@ function ChatInput({
 
   const handleKeyDown = useCallback(
     (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
+      if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
@@ -354,23 +512,9 @@ function ChatInput({
     setMessage(e.target.value);
   }, []);
 
-  const handleFocus = useCallback(() => {
-    setIsFocused(true);
-  }, []);
-
-  const handleBlur = useCallback(() => {
-    setIsFocused(false);
-  }, []);
-
   const handleOpenDbMenu = useCallback((e) => setDbAnchor(e.currentTarget), []);
-  const handleOpenSchemaMenu = useCallback(
-    (e) => setSchemaAnchor(e.currentTarget),
-    [],
-  );
-  const handleOpenLlmPopover = useCallback(
-    (e) => setLlmAnchor(e.currentTarget),
-    [],
-  );
+  const handleOpenSchemaMenu = useCallback((e) => setSchemaAnchor(e.currentTarget), []);
+  const handleOpenLlmPopover = useCallback((e) => setLlmAnchor(e.currentTarget), []);
 
   const handleOpenSqlEditorClick = useCallback(() => {
     onOpenSqlEditor?.();
@@ -392,9 +536,7 @@ function ChatInput({
     const items = Array.from(
       event.currentTarget
         .closest('[role="menu"]')
-        ?.querySelectorAll(
-          '[role="menuitemradio"]:not([aria-disabled="true"])',
-        ) || [],
+        ?.querySelectorAll('[role="menuitemradio"]:not([aria-disabled="true"])') || [],
     );
     const currentIndex = items.indexOf(event.currentTarget);
     const focusItem = (index) => {
@@ -402,26 +544,26 @@ function ChatInput({
     };
 
     switch (event.key) {
-      case "Enter":
-      case " ":
+      case 'Enter':
+      case ' ':
         event.preventDefault();
         onSelect();
         break;
-      case "ArrowDown":
-      case "ArrowRight":
+      case 'ArrowDown':
+      case 'ArrowRight':
         event.preventDefault();
         focusItem((currentIndex + 1) % items.length);
         break;
-      case "ArrowUp":
-      case "ArrowLeft":
+      case 'ArrowUp':
+      case 'ArrowLeft':
         event.preventDefault();
         focusItem((currentIndex - 1 + items.length) % items.length);
         break;
-      case "Home":
+      case 'Home':
         event.preventDefault();
         focusItem(0);
         break;
-      case "End":
+      case 'End':
         event.preventDefault();
         focusItem(items.length - 1);
         break;
@@ -436,8 +578,8 @@ function ChatInput({
       onSubmit={handleSubmit}
       sx={{
         px: { xs: 0.5, sm: 0.75 },
-        pb: { xs: "max(env(safe-area-inset-bottom), 8px)", sm: 0.75 },
-        position: "relative",
+        pb: { xs: 'max(env(safe-area-inset-bottom), 8px)', sm: 0.75 },
+        position: 'relative',
         zIndex: 2,
       }}
     >
@@ -445,18 +587,16 @@ function ChatInput({
         anchorEl={dbAnchor}
         open={Boolean(dbAnchor)}
         onClose={handleCloseDbMenu}
-        anchorOrigin={{ vertical: "top", horizontal: "left" }}
-        transformOrigin={{ vertical: "bottom", horizontal: "left" }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         width={220}
         paperSx={{ mt: -1 }}
       >
-        <Typography sx={getPopoverSectionLabelSx(theme)}>
-          Switch Database
-        </Typography>
+        <Typography sx={getPopoverSectionLabelSx(theme)}>Switch Database</Typography>
         <Box
           role="menu"
           aria-label="Switch database"
-          sx={{ maxHeight: 280, overflowY: "auto", mt: 0.5 }}
+          sx={{ maxHeight: 280, overflowY: 'auto', mt: 0.5 }}
         >
           {availableDatabases.map((db) => {
             const isActive = db === currentDatabase;
@@ -468,29 +608,29 @@ function ChatInput({
                 tabIndex={0}
                 key={db}
                 onClick={() => handleDatabaseChange(db)}
-                onKeyDown={(event) =>
-                  handleMenuItemKeyDown(event, () => handleDatabaseChange(db))
-                }
-                sx={getSelectableMenuItemSx(theme, { isActive })}
+                onKeyDown={(event) => handleMenuItemKeyDown(event, () => handleDatabaseChange(db))}
+                sx={getSelectableMenuItemSx(theme, { isActive, columns: '16px minmax(0, 1fr)' })}
               >
+                {isActive ? (
+                  <CheckCircleOutlineRoundedIcon
+                    sx={{
+                      fontSize: 16,
+                      color: 'primary.main',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <Box sx={{ width: 16, height: 16 }} />
+                )}
                 <Typography
                   sx={{
                     ...theme.typography.uiNavItem,
-                    color: "text.primary",
+                    color: 'text.primary',
                     fontWeight: isActive ? 500 : 400,
                   }}
                 >
                   {db}
                 </Typography>
-                {isActive && (
-                  <CheckRoundedIcon
-                    sx={{
-                      fontSize: 14,
-                      color: "text.secondary",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
               </Box>
             );
           })}
@@ -500,18 +640,16 @@ function ChatInput({
         anchorEl={schemaAnchor}
         open={Boolean(schemaAnchor)}
         onClose={handleCloseSchemaMenu}
-        anchorOrigin={{ vertical: "top", horizontal: "left" }}
-        transformOrigin={{ vertical: "bottom", horizontal: "left" }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         width={200}
         paperSx={{ mt: -1 }}
       >
-        <Typography sx={getPopoverSectionLabelSx(theme)}>
-          PostgreSQL Schema
-        </Typography>
+        <Typography sx={getPopoverSectionLabelSx(theme)}>PostgreSQL Schema</Typography>
         <Box
           role="menu"
           aria-label="Select PostgreSQL schema"
-          sx={{ maxHeight: 260, overflowY: "auto", mt: 0.5 }}
+          sx={{ maxHeight: 260, overflowY: 'auto', mt: 0.5 }}
         >
           {availableSchemas.map((schema) => {
             const isActive = schema === currentSchema;
@@ -526,26 +664,28 @@ function ChatInput({
                 onKeyDown={(event) =>
                   handleMenuItemKeyDown(event, () => handleSchemaChange(schema))
                 }
-                sx={getSelectableMenuItemSx(theme, { isActive })}
+                sx={getSelectableMenuItemSx(theme, { isActive, columns: '16px minmax(0, 1fr)' })}
               >
+                {isActive ? (
+                  <CheckCircleOutlineRoundedIcon
+                    sx={{
+                      fontSize: 16,
+                      color: 'primary.main',
+                      flexShrink: 0,
+                    }}
+                  />
+                ) : (
+                  <Box sx={{ width: 16, height: 16 }} />
+                )}
                 <Typography
                   sx={{
                     ...theme.typography.uiNavItem,
-                    color: "text.primary",
+                    color: 'text.primary',
                     fontWeight: isActive ? 500 : 400,
                   }}
                 >
                   {schema}
                 </Typography>
-                {isActive && (
-                  <CheckRoundedIcon
-                    sx={{
-                      fontSize: 14,
-                      color: "text.secondary",
-                      flexShrink: 0,
-                    }}
-                  />
-                )}
               </Box>
             );
           })}
@@ -555,26 +695,17 @@ function ChatInput({
         anchorEl={llmAnchor}
         open={Boolean(llmAnchor)}
         onClose={handleCloseLlmPopover}
-        anchorOrigin={{ vertical: "top", horizontal: "right" }}
-        transformOrigin={{ vertical: "bottom", horizontal: "right" }}
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         width={288}
         paperSx={{ mt: -1 }}
       >
         {/* Model list */}
-        <Box
-          role="menu"
-          aria-label="Select model"
-          sx={{ maxHeight: 280, overflowY: "auto" }}
-        >
+        <Box role="menu" aria-label="Select model" sx={{ maxHeight: 280, overflowY: 'auto' }}>
           {llmOptionsLoading ? (
-            <Box sx={{ display: "grid", gap: 0.5 }}>
+            <Box sx={{ display: 'grid', gap: 0.5 }}>
               {[0, 1, 2].map((i) => (
-                <Skeleton
-                  key={i}
-                  variant="rounded"
-                  height={44}
-                  sx={{ borderRadius: "8px" }}
-                />
+                <Skeleton key={i} variant="rounded" height={44} sx={{ borderRadius: '8px' }} />
               ))}
             </Box>
           ) : hasLlmOptions ? (
@@ -583,7 +714,7 @@ function ChatInput({
                 {sectionIndex > 0 && (
                   <Box
                     sx={{
-                      height: "0.5px",
+                      height: '0.5px',
                       backgroundColor: alpha(theme.palette.text.primary, 0.07),
                       my: 0.75,
                       mx: 0.5,
@@ -594,9 +725,7 @@ function ChatInput({
                   {section.label}
                 </Typography>
                 {section.models.map((model) => {
-                  const isActive =
-                    section.name === selectedProvider &&
-                    model === selectedModel;
+                  const isActive = section.name === selectedProvider && model === selectedModel;
                   return (
                     <Box
                       component="div"
@@ -606,32 +735,35 @@ function ChatInput({
                       key={`${section.name}-${model}`}
                       onClick={() => handleLlmSelection(section.name, model)}
                       onKeyDown={(event) =>
-                        handleMenuItemKeyDown(event, () =>
-                          handleLlmSelection(section.name, model),
-                        )
+                        handleMenuItemKeyDown(event, () => handleLlmSelection(section.name, model))
                       }
-                      sx={getSelectableMenuItemSx(theme, { isActive })}
+                      sx={getSelectableMenuItemSx(theme, {
+                        isActive,
+                        columns: '16px minmax(0, 1fr)',
+                      })}
                     >
-                      <Box>
+                      {isActive ? (
+                        <CheckCircleOutlineRoundedIcon
+                          sx={{
+                            fontSize: 16,
+                            color: 'primary.main',
+                            flexShrink: 0,
+                          }}
+                        />
+                      ) : (
+                        <Box sx={{ width: 16, height: 16 }} />
+                      )}
+                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                         <Typography
                           sx={{
                             ...theme.typography.uiNavItem,
-                            color: "text.primary",
+                            color: 'text.primary',
                             fontWeight: isActive ? 500 : 400,
                           }}
                         >
                           {model}
                         </Typography>
                       </Box>
-                      {isActive && (
-                        <CheckRoundedIcon
-                          sx={{
-                            fontSize: 14,
-                            color: "text.secondary",
-                            flexShrink: 0,
-                          }}
-                        />
-                      )}
                     </Box>
                   );
                 })}
@@ -643,7 +775,7 @@ function ChatInput({
                 sx={{
                   ...theme.typography.uiNavItem,
                   fontWeight: 500,
-                  color: "text.primary",
+                  color: 'text.primary',
                 }}
               >
                 No models available
@@ -651,7 +783,7 @@ function ChatInput({
               <Typography
                 sx={{
                   ...theme.typography.uiNavShortcut,
-                  color: "text.secondary",
+                  color: 'text.secondary',
                   mt: 0.25,
                 }}
               >
@@ -664,32 +796,26 @@ function ChatInput({
       <Box
         sx={{
           maxWidth: UI_LAYOUT.chatInputMaxWidth,
-          mx: "auto",
-          position: "relative",
+          mx: 'auto',
+          position: 'relative',
           ...composerSurfaceSx,
           opacity: isStreaming ? 0.72 : 1,
-          transition: theme.transitions.create(
-            ["opacity", "box-shadow", "border-color", "transform"],
-            {
-              duration: theme.transitions.duration.shorter,
-            },
-          ),
+          transition: theme.transitions.create(['opacity', 'box-shadow', 'border-color'], {
+            duration: theme.transitions.duration.shorter,
+          }),
           [HOVER_CAPABLE_QUERY]: {
-            "&:hover": {
-              boxShadow: getComposerHoverShadow(theme, { isFocused }),
+            '&:hover': {
+              boxShadow: getComposerHoverShadow(theme),
             },
           },
-          cursor: isStreaming ? "wait" : "text",
-          "@media (prefers-reduced-motion: no-preference)": {
-            transform: isFocused ? "translateY(-1px)" : "translateY(0)",
-          },
+          cursor: isStreaming ? 'wait' : 'text',
         }}
       >
         <Box
           sx={{
             p: { xs: 1.25, sm: 1.5 },
-            display: "flex",
-            flexDirection: "column",
+            display: 'flex',
+            flexDirection: 'column',
             gap: { xs: 1.1, sm: 1.25 },
           }}
         >
@@ -702,8 +828,6 @@ function ChatInput({
             value={message}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
             disabled={disabled || isStreaming}
             variant="standard"
             InputProps={{
@@ -712,55 +836,32 @@ function ChatInput({
                 lineHeight: 1.55,
                 py: 0,
                 px: 0,
-                color: "text.primary",
-                alignItems: "flex-start",
+                color: 'text.primary',
+                alignItems: 'flex-start',
               },
             }}
-            inputProps={{ "data-ui-target": "chat_input" }}
-            sx={{
-              "& .MuiInputBase-root": { p: 0 },
-              "& .MuiInputBase-input": {
-                py: 0.1,
-                ...theme.typography.uiInput,
-                lineHeight: 1.55,
-                "&::placeholder": {
-                  color: "text.secondary",
-                  opacity: 0.62,
-                },
-              },
-            }}
+            inputProps={{ 'data-ui-target': 'chat_input' }}
+            sx={inputSx}
           />
 
           <Box
             sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
               gap: 0.75,
             }}
           >
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 0.5,
-                minWidth: 0,
-                flex: 1,
-                overflowX: "auto",
-                overflowY: "hidden",
-                scrollbarWidth: "none",
-                "&::-webkit-scrollbar": { display: "none" },
-              }}
-            >
+            <Box sx={toolbarScrollSx}>
               {showDatabaseSelector && (
                 <Box
                   key={`database-${connectionChipKey}`}
                   sx={{
-                    display: "inline-flex",
+                    display: 'inline-flex',
                     flexShrink: 0,
                     animation: `${softReveal} 180ms ease-out both`,
-                    "@media (prefers-reduced-motion: reduce)": {
-                      animation: "none",
+                    '@media (prefers-reduced-motion: reduce)': {
+                      animation: 'none',
                     },
                   }}
                 >
@@ -776,32 +877,20 @@ function ChatInput({
                         variant="outlined"
                         size="small"
                         startIcon={<DatabaseIcon />}
-                        onClick={
-                          canSwitchDatabase ? handleOpenDbMenu : undefined
-                        }
+                        onClick={canSwitchDatabase ? handleOpenDbMenu : undefined}
                         disabled={!canSwitchDatabase}
                         sx={{
                           ...toolbarActionButtonStyles,
                           ...connectedControlSx,
-                          "&.Mui-disabled": {
+                          '&.Mui-disabled': {
                             opacity: 1,
                             borderColor: neutralInteraction.border,
-                            color: "text.secondary",
-                            backgroundColor: "transparent",
+                            color: 'text.secondary',
+                            backgroundColor: 'transparent',
                           },
                         }}
                       >
-                        <Box
-                          component="span"
-                          sx={{
-                            minWidth: 0,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {currentDatabase}
-                        </Box>
+                        <TruncatedLabel>{currentDatabase}</TruncatedLabel>
                       </Button>
                     </span>
                   </Tooltip>
@@ -811,12 +900,12 @@ function ChatInput({
                 <Box
                   key={`schema-${connectionChipKey}`}
                   sx={{
-                    display: "inline-flex",
+                    display: 'inline-flex',
                     flexShrink: 0,
                     animation: `${softReveal} 180ms ease-out both`,
-                    animationDelay: "35ms",
-                    "@media (prefers-reduced-motion: reduce)": {
-                      animation: "none",
+                    animationDelay: '35ms',
+                    '@media (prefers-reduced-motion: reduce)': {
+                      animation: 'none',
                     },
                   }}
                 >
@@ -831,17 +920,7 @@ function ChatInput({
                         ...connectedControlSx,
                       }}
                     >
-                      <Box
-                        component="span"
-                        sx={{
-                          minWidth: 0,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {currentSchema}
-                      </Box>
+                      <TruncatedLabel>{currentSchema}</TruncatedLabel>
                     </Button>
                   </Tooltip>
                 </Box>
@@ -857,25 +936,20 @@ function ChatInput({
                       ...toolbarActionButtonStyles,
                       maxWidth: { xs: 40, sm: 128 },
                       px: { xs: 0, sm: 1.25 },
-                      justifyContent: "center",
-                      "& .MuiButton-startIcon": {
-                        ...toolbarActionButtonStyles["& .MuiButton-startIcon"],
+                      justifyContent: 'center',
+                      '& .MuiButton-startIcon': {
+                        ...toolbarActionButtonStyles['& .MuiButton-startIcon'],
                         mr: { xs: 0, sm: 0.5 },
                       },
                     }}
                   >
-                    <Box
-                      component="span"
+                    <TruncatedLabel
                       sx={{
-                        display: { xs: "none", sm: "inline" },
-                        minWidth: 0,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        display: { xs: 'none', sm: 'inline' },
                       }}
                     >
                       SQL Editor
-                    </Box>
+                    </TruncatedLabel>
                   </Button>
                 </Tooltip>
               )}
@@ -883,8 +957,8 @@ function ChatInput({
 
             <Box
               sx={{
-                display: "flex",
-                alignItems: "center",
+                display: 'flex',
+                alignItems: 'center',
                 gap: 0.5,
                 flexShrink: 0,
               }}
@@ -892,111 +966,14 @@ function ChatInput({
               <Tooltip
                 title={
                   contextUsage ? (
-                    <Box sx={{ p: 0.5 }}>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: "inherit", mb: 0.5 }}
-                      >
-                        {selectedModel || "Select model"}
-                      </Typography>
-                      {activeProviderLabel && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.8, mb: 0.5 }}
-                        >
-                          Provider: {activeProviderLabel}
-                        </Typography>
-                      )}
-                      {contextUsage.tokenCountingMode === "estimated" && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.8, mb: 0.5 }}
-                        >
-                          Token usage: conservative estimate
-                        </Typography>
-                      )}
-                      {contextUsage.contextPhase === "pre_summary" && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.8, mb: 0.5 }}
-                        >
-                          Context pressure: summarizing unsummarized tail
-                        </Typography>
-                      )}
-                      <Typography
-                        variant="caption"
-                        display="block"
-                        sx={{ opacity: 0.8 }}
-                      >
-                        {contextUsage.contextPhase === "pre_summary"
-                          ? "Summary pressure"
-                          : "Active context"}
-                        : {contextUsage.activeUsed.toLocaleString()} /{" "}
-                        {contextUsage.activeBudget.toLocaleString()} (
-                        {Math.round(
-                          (contextUsage.activeUsed /
-                            contextUsage.activeBudget) *
-                            100,
-                        )}
-                        %)
-                      </Typography>
-                      {contextUsage.summaryThresholdTokens != null && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.65 }}
-                        >
-                          Summary trigger:{" "}
-                          {contextUsage.summaryThresholdTokens.toLocaleString()}{" "}
-                          tokens
-                        </Typography>
-                      )}
-                      {contextUsage.modelWindow != null && (
-                        <Typography
-                          variant="caption"
-                          display="block"
-                          sx={{ opacity: 0.8 }}
-                        >
-                          Model window:{" "}
-                          {contextUsage.activeUsed.toLocaleString()} /{" "}
-                          {contextUsage.modelWindow.toLocaleString()} (
-                          {Math.round(
-                            (contextUsage.activeUsed /
-                              contextUsage.modelWindow) *
-                              100,
-                          )}
-                          %)
-                        </Typography>
-                      )}
-                      {usageMetrics.systemPromptTokens != null &&
-                        usageMetrics.toolSchemaTokens != null && (
-                          <Typography
-                            variant="caption"
-                            display="block"
-                            sx={{ opacity: 0.65, mt: 0.5 }}
-                          >
-                            Static: SI{" "}
-                            {usageMetrics.systemPromptTokens.toLocaleString()} ·
-                            tools{" "}
-                            {usageMetrics.toolSchemaTokens.toLocaleString()}
-                          </Typography>
-                        )}
-                      <Typography
-                        variant="caption"
-                        display="block"
-                        sx={{ opacity: 0.5, mt: 0.5, fontSize: "10px" }}
-                      >
-                        (Older history dynamically trimmed to stay within
-                        budget)
-                      </Typography>
-                    </Box>
+                    <ContextUsageTooltip
+                      contextUsage={contextUsage}
+                      selectedModel={selectedModel}
+                    />
                   ) : activeProviderLabel ? (
-                    `${selectedModel || "Select model"} - ${activeProviderLabel}`
+                    `${selectedModel || 'Select model'} - ${activeProviderLabel}`
                   ) : (
-                    "Select model"
+                    'Select model'
                   )
                 }
               >
@@ -1011,8 +988,8 @@ function ChatInput({
                     startIcon={
                       contextUsage ? (
                         <ContextProgressRing
-                          total={contextUsage.activeUsed}
-                          budget={contextUsage.activeBudget}
+                          total={contextUsage.indicatorUsed}
+                          budget={contextUsage.indicatorBudget}
                           theme={theme}
                         />
                       ) : undefined
@@ -1020,10 +997,8 @@ function ChatInput({
                     endIcon={
                       <KeyboardArrowDownRoundedIcon
                         sx={{
-                          transform: llmAnchor
-                            ? "rotate(180deg)"
-                            : "rotate(0deg)",
-                          transition: theme.transitions.create("transform", {
+                          transform: llmAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
+                          transition: theme.transitions.create('transform', {
                             duration: 150,
                           }),
                         }}
@@ -1035,96 +1010,35 @@ function ChatInput({
                       flexShrink: 0,
                     }}
                   >
-                    <Box
-                      component="span"
+                    <TruncatedLabel
                       sx={{
-                        overflow: "hidden",
-                        whiteSpace: "nowrap",
-                        textOverflow: "ellipsis",
                         flex: 1,
-                        textAlign: "left",
+                        textAlign: 'left',
                       }}
                     >
-                      {selectedModel ||
-                        (llmOptionsLoading ? "Loading..." : "Choose model")}
-                    </Box>
+                      {selectedModel || (llmOptionsLoading ? 'Loading...' : 'Choose model')}
+                    </TruncatedLabel>
                   </Button>
                 </span>
               </Tooltip>
 
               <Tooltip
                 title={
-                  isStreaming
-                    ? "Stop generating"
-                    : hasText
-                      ? "Send message"
-                      : "Type a message"
+                  isStreaming ? 'Stop generating' : hasText ? 'Send message' : 'Type a message'
                 }
               >
                 <span>
                   <IconButton
-                    type={isStreaming ? "button" : "submit"}
+                    type={isStreaming ? 'button' : 'submit'}
                     onClick={isStreaming ? handleStopClick : undefined}
                     disabled={!isStreaming && (!hasText || disabled)}
-                    aria-label={
-                      isStreaming ? "Stop generating response" : "Send message"
-                    }
-                    sx={{
-                      width: 36,
-                      height: 36,
-                      flexShrink: 0,
-                      borderRadius: "9px",
-                      color: isStreaming
-                        ? theme.palette.error.main
-                        : hasText
-                          ? theme.palette.primary.contrastText
-                          : alpha(theme.palette.text.primary, 0.28),
-                      backgroundColor: isStreaming
-                        ? errorInteraction.activeBackground
-                        : hasText
-                          ? theme.palette.primary.main
-                          : alpha(theme.palette.text.primary, 0.05),
-                      backgroundImage: "none",
-                      border: "1px solid",
-                      borderColor: isStreaming
-                        ? alpha(theme.palette.error.main, 0.2)
-                        : hasText
-                          ? "transparent"
-                          : alpha(theme.palette.text.primary, 0.07),
-                      boxShadow:
-                        !isStreaming && hasText
-                          ? `0 5px 14px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.28 : 0.16)}`
-                          : "none",
-                      transition:
-                        "transform 120ms ease, background-color 120ms ease, color 120ms ease, box-shadow 120ms ease, border-color 120ms ease",
-                      "&:hover": {
-                        transform:
-                          !isStreaming && hasText ? "translateY(-1px)" : "none",
-                        backgroundColor: isStreaming
-                          ? errorInteraction.activeHoverBackground
-                          : hasText
-                            ? theme.palette.primary.dark
-                            : alpha(theme.palette.text.primary, 0.08),
-                        boxShadow:
-                          !isStreaming && hasText
-                            ? `0 7px 18px ${alpha(theme.palette.common.black, theme.palette.mode === "dark" ? 0.32 : 0.2)}`
-                            : "none",
-                      },
-                      "&:active": { transform: "translateY(0) scale(0.97)" },
-                      "&.Mui-disabled": {
-                        backgroundColor: alpha(
-                          theme.palette.text.primary,
-                          0.04,
-                        ),
-                        borderColor: alpha(theme.palette.text.primary, 0.06),
-                        color: alpha(theme.palette.text.primary, 0.2),
-                      },
-                    }}
+                    aria-label={isStreaming ? 'Stop generating response' : 'Send message'}
+                    sx={sendActionSx}
                   >
                     {isStreaming ? (
                       <StopRoundedIcon sx={{ fontSize: 14 }} />
                     ) : (
-                      <SendRoundedIcon sx={{ fontSize: 14, ml: "1px" }} />
+                      <SendRoundedIcon sx={{ fontSize: 14, ml: '1px' }} />
                     )}
                   </IconButton>
                 </span>
@@ -1153,21 +1067,19 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.onOpenSqlEditor !== nextProps.onOpenSqlEditor) return false;
   if (prevProps.onDatabaseSwitch !== nextProps.onDatabaseSwitch) return false;
   if (prevProps.onSelectLlm !== nextProps.onSelectLlm) return false;
+  if (prevProps.onSchemaChange !== nextProps.onSchemaChange) return false;
+  if (prevProps.currentSchema !== nextProps.currentSchema) return false;
   if (prevProps.usageMetrics !== nextProps.usageMetrics) return false;
   if (prevProps.children !== nextProps.children) return false;
-  if (
-    prevProps.availableDatabases?.length !==
-    nextProps.availableDatabases?.length
-  )
-    return false;
+  if (prevProps.availableDatabases?.length !== nextProps.availableDatabases?.length) return false;
   // Compare actual database identifiers, not just count, so a rename still
   // triggers a re-render even when the number of databases is unchanged.
   const prevDbKey = prevProps.availableDatabases
     ?.map((db) => db?.name || db?.database || db?.id || String(db))
-    .join("\x1f");
+    .join('\x1f');
   const nextDbKey = nextProps.availableDatabases
     ?.map((db) => db?.name || db?.database || db?.id || String(db))
-    .join("\x1f");
+    .join('\x1f');
   if (prevDbKey !== nextDbKey) return false;
   return true;
 }

@@ -36,38 +36,46 @@ class ToolExecutor:
         return validated.model_dump()
 
     @staticmethod
-    def summarize_for_ui(tool_name: str, result: Dict[str, Any]) -> str:
+    def summarize(
+        tool_name: str,
+        result: Dict[str, Any],
+        *,
+        include_query_preview: bool = False,
+    ) -> tuple[Dict[str, Any], str]:
         """
-        Create a structured summary of the tool result for the UI stream.
-
-        Includes full data for frontend rendering.
+        Create structured summaries of the tool result.
+        Returns:
+            tuple: (ui_result_dict, llm_summary_json_string)
         """
-        structured = structure_tool_result(tool_name, result)
-        return json.dumps(structured)
+        ui_structured = structure_tool_result(tool_name, result)
+        llm_structured = dict(ui_structured)
 
-    @staticmethod
-    def summarize_for_llm(tool_name: str, result: Dict[str, Any]) -> str:
-        """
-        Create a token-efficient summary for LLM context.
-
-        For execute_query, excludes the full 'data' field — LLM only sees 'preview'.
-        This prevents token limit issues with large query results.
-        """
-        structured = structure_tool_result(tool_name, result)
-
-        # Remove full data field for execute_query - LLM only needs preview.
-        # Add explicit anti-hallucination guardrails because preview rows may be partial.
+        # Full rows stay in the UI payload. A bounded preview is necessary for
+        # the model to interpret aggregates and plan multi-step analysis.
         if tool_name == "execute_query":
-            if "data" in structured:
-                del structured["data"]
-            structured["llm_guardrails"] = {
-                "preview_only_context": bool(
-                    structured.get("preview_is_partial", False)
-                ),
-                "do_not_fabricate_unseen_rows": True,
-                "when_user_requests_full_results": (
-                    "Tell the user complete data is available in SQL editor results pane/canvas."
-                ),
-            }
+            llm_structured.pop("data", None)
+            if not include_query_preview:
+                llm_structured.pop("preview", None)
+            policy = (
+                "<required_query_result_response_policy>\n"
+                "The full available query result is already visible in chat as an interactive Material React Table. "
+                "Use the preview as bounded evidence for analysis, interpretation, and deciding whether a focused "
+                "follow-up query is needed. Unless the user explicitly requested an assistant-authored table, "
+                "summarize findings in prose instead of repeating rows. A preview never proves unseen rows or a "
+                "complete result. If the user requested a manual table, disclose that it contains preview rows only.\n"
+                "</required_query_result_response_policy>"
+            )
+            evidence_tag = (
+                "<query_result_preview_json>\n"
+                + json.dumps(llm_structured)
+                + "\n</query_result_preview_json>"
+            )
+            if not include_query_preview:
+                evidence_tag = (
+                    "<query_result_metadata_json>\n"
+                    + json.dumps(llm_structured)
+                    + "\n</query_result_metadata_json>"
+                )
+            return ui_structured, policy + "\n" + evidence_tag
 
-        return json.dumps(structured)
+        return ui_structured, json.dumps(llm_structured)

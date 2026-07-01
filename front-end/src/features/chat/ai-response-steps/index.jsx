@@ -1,62 +1,56 @@
-import { useState, useMemo, useCallback, memo } from "react";
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import { Box, ButtonBase, Collapse, Typography, useMediaQuery, useTheme } from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import { memo, useCallback, useMemo, useState } from 'react';
 import {
-  Box,
-  Typography,
-  Collapse,
-  useTheme,
-  ButtonBase,
-  useMediaQuery,
-} from "@mui/material";
-import { alpha } from "@mui/material/styles";
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown";
-import { TRANSITIONS } from "@/theme/index";
-import {
+  DoneIndicator,
+  SkillStep,
   ThinkingStep,
   ToolStep,
-  DoneIndicator,
-} from "@/features/chat/ai-response-steps/StepTimelineItems";
+} from '@/features/chat/ai-response-steps/StepTimelineItems';
 import {
-  TIMELINE_LINE_X,
-  slideIn,
-  shimmer,
-} from "@/features/chat/ai-response-steps/timelineShared";
-import {
-  normalizeSteps,
+  areAllStepsComplete,
   buildStepsSummary,
   getCurrentStepIndex,
-  areAllStepsComplete,
-} from "@/features/chat/ai-response-steps/stepUtils";
+  isAnyStepActive,
+  normalizeSteps,
+} from '@/features/chat/ai-response-steps/stepUtils';
+import {
+  shimmer,
+  slideIn,
+  TIMELINE_LINE_X,
+} from '@/features/chat/ai-response-steps/timelineShared';
+import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
+import { TRANSITIONS } from '@/theme/index';
 
-export const StepsAccordion = memo(function StepsAccordion({
-  steps,
-  isStreaming,
-}) {
+export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming }) {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
-  const isCompactMobile = useMediaQuery(theme.breakpoints.down("sm"));
-  const isDark = theme.palette.mode === "dark";
+  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isDark = theme.palette.mode === 'dark';
 
+  // Skill items are filtered out upstream (MessageList renders them directly).
+  // normalizedSteps here will only ever contain thinking + tool steps.
   const normalizedSteps = useMemo(() => normalizeSteps(steps), [steps]);
-  const summaryText = useMemo(
-    () => buildStepsSummary(normalizedSteps),
-    [normalizedSteps],
-  );
-  const currentStepIndex = useMemo(
-    () => getCurrentStepIndex(normalizedSteps),
-    [normalizedSteps],
-  );
+  const summaryText = useMemo(() => buildStepsSummary(normalizedSteps), [normalizedSteps]);
+  const currentStepIndex = useMemo(() => getCurrentStepIndex(normalizedSteps), [normalizedSteps]);
   const isAllComplete = useMemo(
     () => areAllStepsComplete(normalizedSteps, isStreaming),
     [normalizedSteps, isStreaming],
   );
-  // Shimmer runs for the entire duration the response is streaming — not just
-  // while a step is active. This keeps the accordion header visually alive while
-  // tool steps finish and the text body continues to stream in below.
-  const isLive = isStreaming;
+  // Shimmer is "live" when the outer turn is streaming AND this accordion
+  // still has active work (a running tool or an incomplete thinking step).
+  // This ensures a completed workflow step (e.g. summarization) stops
+  // shimmering the moment it finishes — even if the LLM is still generating
+  // text below it. Tying isLive purely to isStreaming caused the header to
+  // keep shimmering with "Conversation context summarized." while the LLM
+  // continued, creating a false "in-progress" signal.
+  const hasActiveStep = useMemo(() => isAnyStepActive(normalizedSteps), [normalizedSteps]);
+  const isLive = isStreaming && hasActiveStep;
+
   const isSingleWorkflowStep =
-    normalizedSteps.length === 1 &&
-    normalizedSteps[0].id?.startsWith("workflow-");
-  const isExpandable = !isSingleWorkflowStep;
+    normalizedSteps.length === 1 && normalizedSteps[0].id?.startsWith('workflow-');
+  const isExpandable = normalizedSteps.length > 0 && !isSingleWorkflowStep;
 
   const handleToggle = useCallback(() => {
     if (isExpandable) {
@@ -66,27 +60,20 @@ export const StepsAccordion = memo(function StepsAccordion({
 
   if (normalizedSteps.length === 0) return null;
 
-  const summaryColor = alpha(
-    theme.palette.text.secondary,
-    isDark ? 0.65 : 0.55,
-  );
-  const summaryHighlight = alpha(
-    theme.palette.text.primary,
-    isDark ? 0.92 : 0.82,
-  );
+  const summaryColor = alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.55);
+  const summaryHighlight = alpha(theme.palette.text.primary, isDark ? 0.92 : 0.82);
 
   return (
     <Box
       sx={{
-        width: "100%",
-        textAlign: "left",
+        width: '100%',
+        textAlign: 'left',
         mb: 1.5,
         // Unified entry spec — matches timeline items and text blocks.
         animation: `${slideIn} 0.22s ease-out both`,
-        "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+        '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
       }}
     >
-      {/* Toggle row */}
       <ButtonBase
         onClick={isExpandable ? handleToggle : undefined}
         disabled={!isExpandable}
@@ -94,46 +81,47 @@ export const StepsAccordion = memo(function StepsAccordion({
         aria-label={
           isExpandable
             ? expanded
-              ? "Collapse reasoning steps"
-              : "Expand reasoning steps"
+              ? 'Collapse reasoning steps'
+              : 'Expand reasoning steps'
             : undefined
         }
         sx={{
-          width: "100%",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
           gap: { xs: 0.75, sm: 1 },
           px: 0,
-          py: { xs: 0.3, sm: 0.4 },
+          py: { xs: 0.35, sm: 0.45 },
           minHeight: 32,
           minWidth: 0,
-          borderRadius: 0,
-          bgcolor: "transparent",
-          textAlign: "left",
-          cursor: isExpandable ? "pointer" : "default",
+          borderRadius: isExpandable ? '6px' : 0,
+          bgcolor: 'transparent',
+          textAlign: 'left',
+          cursor: isExpandable ? 'pointer' : 'default',
           transition: TRANSITIONS.default,
           ...(isExpandable && {
-            "&:hover .summary-text": {
-              color: alpha(theme.palette.text.primary, isDark ? 0.88 : 0.78),
+            [HOVER_CAPABLE_QUERY]: {
+              '&:hover .summary-text': {
+                color: theme.palette.text.primary,
+              },
+              '&:hover .summary-arrow': {
+                color: theme.palette.text.primary,
+              },
             },
-            "&:hover .summary-arrow": {
-              color: alpha(theme.palette.text.secondary, 0.65),
+            '&:focus-visible': {
+              outline: `2px solid ${alpha(theme.palette.text.primary, isDark ? 0.16 : 0.11)}`,
+              outlineOffset: '2px',
             },
           }),
-          "&:focus-visible": {
-            outline: `1.5px solid ${alpha(theme.palette.primary.main, 0.45)}`,
-            outlineOffset: "2px",
-            borderRadius: "4px",
-          },
         }}
         disableRipple
       >
         <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.875,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.5,
             flex: 1,
             minWidth: 0,
           }}
@@ -147,24 +135,24 @@ export const StepsAccordion = memo(function StepsAccordion({
               fontWeight: 500,
               flex: 1,
               minWidth: 0,
-              textAlign: "left",
-              whiteSpace: "normal",
-              overflowWrap: "anywhere",
+              textAlign: 'left',
+              whiteSpace: 'normal',
+              overflowWrap: 'anywhere',
               lineHeight: 1.4,
-              transition: "color 140ms ease",
+              transition: 'color 140ms ease',
               ...(isLive && {
                 backgroundImage: `linear-gradient(90deg, ${summaryColor} 0%, ${summaryColor} 36%, ${summaryHighlight} 50%, ${summaryColor} 64%, ${summaryColor} 100%)`,
-                backgroundSize: "220% 100%",
-                backgroundClip: "text",
-                WebkitBackgroundClip: "text",
-                WebkitTextFillColor: "transparent",
-                color: "transparent",
+                backgroundSize: '220% 100%',
+                backgroundClip: 'text',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                color: 'transparent',
                 animation: `${shimmer} 2.8s linear infinite`,
-                "@media (prefers-reduced-motion: reduce)": {
-                  backgroundImage: "none",
-                  WebkitTextFillColor: "currentColor",
+                '@media (prefers-reduced-motion: reduce)': {
+                  backgroundImage: 'none',
+                  WebkitTextFillColor: 'currentColor',
                   color: summaryColor,
-                  animation: "none",
+                  animation: 'none',
                 },
               }),
             }}
@@ -175,26 +163,30 @@ export const StepsAccordion = memo(function StepsAccordion({
 
         <Box
           sx={{
-            display: "flex",
-            alignItems: "center",
+            display: 'flex',
+            alignItems: 'center',
             gap: 0.5,
             flexShrink: 0,
           }}
         >
           {isExpandable && (
             <>
-              {/* Step count */}
               <Typography
                 sx={{
-                  color: alpha(
-                    theme.palette.text.secondary,
-                    isDark ? 0.45 : 0.38,
-                  ),
-                  fontSize: "11px",
+                  color: alpha(theme.palette.text.secondary, isDark ? 0.62 : 0.54),
+                  fontSize: '11px',
                   fontWeight: 500,
                   lineHeight: 1,
                   fontFamily: theme.typography.fontFamilyMono,
-                  fontVariantNumeric: "tabular-nums",
+                  fontVariantNumeric: 'tabular-nums',
+                  minWidth: 18,
+                  height: 18,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '6px',
+                  border: '1px solid',
+                  borderColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
                 }}
               >
                 {normalizedSteps.length}
@@ -205,13 +197,9 @@ export const StepsAccordion = memo(function StepsAccordion({
                 sx={{
                   fontSize: { xs: 15, sm: 16 },
                   flexShrink: 0,
-                  color: alpha(
-                    theme.palette.text.secondary,
-                    isDark ? 0.38 : 0.32,
-                  ),
-                  transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-                  transition:
-                    "transform 140ms cubic-bezier(0.4, 0, 0.2, 1), color 140ms",
+                  color: alpha(theme.palette.text.secondary, isDark ? 0.68 : 0.58),
+                  transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 140ms cubic-bezier(0.4, 0, 0.2, 1), color 140ms',
                 }}
               />
             </>
@@ -225,24 +213,22 @@ export const StepsAccordion = memo(function StepsAccordion({
           <Box
             sx={{
               pt: 0.5,
-              position: "relative",
-              "&::before": {
+              position: 'relative',
+              '&::before': {
                 content: '""',
-                position: "absolute",
+                position: 'absolute',
                 left: TIMELINE_LINE_X,
-                top: 8,
-                bottom: 8,
-                width: "1px",
-                backgroundColor: alpha(
-                  theme.palette.text.primary,
-                  isDark ? 0.14 : 0.1,
-                ),
+                transform: 'translateX(-50%)',
+                top: 16,
+                bottom: 16,
+                width: '1.5px',
+                backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.05),
               },
             }}
           >
             {normalizedSteps.map((step, idx) => {
               const animDelay = Math.min(idx * 25, 100);
-              if (step.type === "thinking") {
+              if (step.type === 'thinking') {
                 return (
                   <ThinkingStep
                     key={step.id}
@@ -253,7 +239,7 @@ export const StepsAccordion = memo(function StepsAccordion({
                   />
                 );
               }
-              if (step.type === "tool") {
+              if (step.type === 'tool') {
                 return (
                   <ToolStep
                     key={step.id}
@@ -269,6 +255,16 @@ export const StepsAccordion = memo(function StepsAccordion({
                   />
                 );
               }
+              if (step.type === 'skill') {
+                return (
+                  <SkillStep
+                    key={step.id}
+                    skills={step.skills}
+                    isStreaming={isStreaming}
+                    animDelay={animDelay}
+                  />
+                );
+              }
               return null;
             })}
             {isAllComplete && <DoneIndicator />}
@@ -279,4 +275,4 @@ export const StepsAccordion = memo(function StepsAccordion({
   );
 });
 
-StepsAccordion.displayName = "StepsAccordion";
+StepsAccordion.displayName = 'StepsAccordion';

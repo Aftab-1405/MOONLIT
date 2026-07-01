@@ -72,7 +72,7 @@ def _build_context_metrics_payload(context: dict) -> dict:
                         now = (
                             datetime.now(cache_time.tzinfo)
                             if cache_time.tzinfo
-                            else datetime.now()
+                            else datetime.now(timezone.utc)
                         )
                         age_seconds = (now - cache_time).total_seconds()
                         ttl_remaining = max(

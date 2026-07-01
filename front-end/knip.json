@@ -1,1 +1,8 @@
-{}
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignoreIssues": {
+    "src/test/setup.js": ["files"],
+    "src/utils/databaseResponse.js": ["exports"]
+  },
+  "ignore": ["dist/**"]
+}

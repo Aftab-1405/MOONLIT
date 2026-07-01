@@ -1,10 +1,10 @@
 /**
  * Logger Utility
- * 
+ *
  * Provides conditional logging that only outputs in development mode.
  * Replaces direct console.* calls throughout the codebase to prevent
  * console pollution in production.
- * 
+ *
  * @module utils/logger
  */
 

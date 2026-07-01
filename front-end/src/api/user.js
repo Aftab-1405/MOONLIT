@@ -1,10 +1,10 @@
 /**
  * User API Module
- * 
+ *
  * Handles user-specific API calls:
  * - User context (database schemas, etc.)
  * - User settings
- * 
+ *
  * @module api/user
  */
 
@@ -13,7 +13,7 @@ import { USER } from '@/api/endpoints';
 
 /**
  * Get user's database context (schemas, tables, columns).
- * 
+ *
  * @returns {Promise<{status: string, schemas?: Array}>}
  */
 export async function getContext() {

@@ -1,23 +1,16 @@
-import { useState, useCallback, memo, useId } from 'react';
-import {
-  Button,
-  Typography,
-  Box,
-  Zoom,
-  useTheme,
-  useMediaQuery,
-} from '@mui/material';
-import { alpha } from '@mui/material/styles';
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import DialogShell from '@/components/common/DialogShell';
+import { Box, Button, Typography, useMediaQuery, useTheme, Zoom } from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import { memo, useCallback, useId, useState } from 'react';
 import ButtonLoadingSpinner from '@/components/common/ButtonLoadingSpinner';
+import DialogShell from '@/components/common/DialogShell';
 import {
-  getInteractiveControlSx,
   getInsetPanelSx,
+  getInteractiveControlSx,
   getScrollbarStyles,
   UI_Z_INDEX,
 } from '@/styles/shared';
@@ -45,14 +38,15 @@ const INTENT_CONFIG = {
   },
 };
 
-const ACTION_BUTTON_HEIGHT = 34;
+const ACTION_BUTTON_HEIGHT = 38;
+const DEFAULT_DESCRIPTION = 'Are you sure you want to proceed?';
 
 function getIntentConfig(intent) {
   return INTENT_CONFIG[intent] || INTENT_CONFIG.default;
 }
 
 function getPaperMaxWidth(maxWidth) {
-  if (maxWidth === 'xs') return 400;
+  if (maxWidth === 'xs') return 420;
   if (maxWidth === 'sm') return 560;
   if (maxWidth === 'md') return 720;
   return undefined;
@@ -66,9 +60,10 @@ function getDetailsSx(theme, variant, isDarkMode) {
       backgroundOpacity: isDarkMode ? 0.12 : 0.04,
       borderRadius: '10px',
     }),
-    borderColor: variant === 'danger'
-      ? alpha(theme.palette.error.main, isDarkMode ? 0.36 : 0.24)
-      : alpha(theme.palette.text.primary, isDarkMode ? 0.12 : 0.1),
+    borderColor:
+      variant === 'danger'
+        ? alpha(theme.palette.error.main, isDarkMode ? 0.36 : 0.24)
+        : alpha(theme.palette.text.primary, isDarkMode ? 0.12 : 0.1),
     maxHeight: variant === 'code' ? 220 : 180,
     overflow: 'auto',
     color: intentColor,
@@ -98,7 +93,8 @@ function ConfirmDialog({
   onClose,
   onConfirm,
   title = 'Confirm action',
-  description = 'Are you sure you want to proceed?',
+  description,
+  message,
   children = null,
   confirmText = 'Confirm',
   cancelText = 'Cancel',
@@ -128,6 +124,8 @@ function ConfirmDialog({
   const titleId = useId();
   const descriptionId = useId();
   const [internalLoading, setInternalLoading] = useState(false);
+  const resolvedDescription =
+    description !== undefined ? description : message !== undefined ? message : DEFAULT_DESCRIPTION;
 
   const intentConfig = getIntentConfig(intent);
   const accentColor = theme.palette[intentConfig.color]?.main || theme.palette.primary.main;
@@ -159,10 +157,13 @@ function ConfirmDialog({
     }
   }, [closeOnConfirm, isActionDisabled, isControlledLoading, onClose, onConfirm]);
 
-  const handleClose = useCallback((event, reason) => {
-    if (isCloseDisabled) return;
-    onClose?.(event, reason);
-  }, [isCloseDisabled, onClose]);
+  const handleClose = useCallback(
+    (event, reason) => {
+      if (isCloseDisabled) return;
+      onClose?.(event, reason);
+    },
+    [isCloseDisabled, onClose],
+  );
 
   return (
     <DialogShell
@@ -176,7 +177,7 @@ function ConfirmDialog({
       TransitionComponent={Zoom}
       transitionDuration={{ enter: 200, exit: 140 }}
       ariaLabelledBy={title ? titleId : undefined}
-      ariaDescribedBy={description ? descriptionId : undefined}
+      ariaDescribedBy={resolvedDescription ? descriptionId : undefined}
       rootSx={{ zIndex: UI_Z_INDEX.confirmModal, ...rootSx }}
       paperSx={{
         width: 'calc(100% - 32px)',
@@ -184,16 +185,11 @@ function ConfirmDialog({
         height: 'auto',
         minHeight: 0,
         maxHeight: 'calc(100vh - 32px)',
-        borderRadius: '16px',
-        border: `1px solid ${alpha(theme.palette.text.primary, isDarkMode ? 0.12 : 0.08)}`,
-        boxShadow: isDarkMode
-          ? `0 18px 48px ${alpha(theme.palette.common.black, 0.42)}`
-          : `0 18px 48px ${alpha(theme.palette.common.black, 0.14)}`,
         m: 2,
         ...paperSx,
       }}
       bodySx={{ flexDirection: 'column', minHeight: 0 }}
-      footer={(
+      footer={
         <>
           <Button
             {...restSecondaryActionProps}
@@ -207,12 +203,12 @@ function ConfirmDialog({
               minWidth: { xs: '100%', sm: 72 },
               minHeight: ACTION_BUTTON_HEIGHT,
               height: ACTION_BUTTON_HEIGHT,
-              borderRadius: '8px',
+              borderRadius: '10px',
               px: 1.25,
               py: 0,
               ...theme.typography.uiNavItem,
               fontWeight: 500,
-              ...getInteractiveControlSx(theme, { size: ACTION_BUTTON_HEIGHT, radius: '8px' }),
+              ...getInteractiveControlSx(theme, { size: ACTION_BUTTON_HEIGHT, radius: '10px' }),
               ...secondaryActionSx,
             }}
           >
@@ -231,13 +227,15 @@ function ConfirmDialog({
               minWidth: { xs: '100%', sm: 78 },
               minHeight: ACTION_BUTTON_HEIGHT,
               height: ACTION_BUTTON_HEIGHT,
-              borderRadius: '8px',
-              px: 1.25,
+              borderRadius: '10px',
+              px: 1.5,
               py: 0,
               ...theme.typography.uiNavItem,
-              fontWeight: 500,
-              boxShadow: 'none',
-              '&:hover': { boxShadow: 'none' },
+              fontWeight: 600,
+              boxShadow: `0 5px 14px ${alpha(accentColor, isDarkMode ? 0.16 : 0.14)}`,
+              '&:hover': {
+                boxShadow: `0 7px 18px ${alpha(accentColor, isDarkMode ? 0.2 : 0.18)}`,
+              },
               '& .MuiButton-startIcon': {
                 ml: 0,
                 mr: 0.75,
@@ -248,7 +246,7 @@ function ConfirmDialog({
             {isLoading ? loadingText : confirmText}
           </Button>
         </>
-      )}
+      }
       footerSx={{
         px: { xs: 2, sm: 3 },
         pt: 0,
@@ -270,30 +268,31 @@ function ConfirmDialog({
           pb: 0,
           display: 'flex',
           flexDirection: 'column',
-          gap: 1.75,
+          gap: 2,
           minHeight: 0,
           overflow: 'auto',
           ...getScrollbarStyles(theme),
           ...contentSx,
         }}
       >
-        <Box sx={{ display: 'flex', gap: 1.5, minWidth: 0 }}>
+        <Box sx={{ display: 'flex', gap: 1.75, minWidth: 0 }}>
           {showIcon ? (
             <Box
               aria-hidden="true"
               sx={{
-                width: 38,
-                height: 38,
-                borderRadius: '10px',
+                width: 42,
+                height: 42,
+                borderRadius: '12px',
                 display: 'grid',
                 placeItems: 'center',
                 flexShrink: 0,
                 color: accentColor,
-                backgroundColor: alpha(accentColor, isDarkMode ? 0.16 : 0.1),
-                border: `1px solid ${alpha(accentColor, isDarkMode ? 0.28 : 0.18)}`,
+                backgroundColor: alpha(accentColor, isDarkMode ? 0.14 : 0.08),
+                border: `1px solid ${alpha(accentColor, isDarkMode ? 0.26 : 0.16)}`,
+                boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, isDarkMode ? 0.08 : 0.7)}`,
               }}
             >
-              {icon || <IconComponent sx={{ fontSize: 21 }} />}
+              {icon || <IconComponent sx={{ fontSize: 22 }} />}
             </Box>
           ) : null}
           <Box sx={{ minWidth: 0, pt: showIcon ? 0.15 : 0 }}>
@@ -304,15 +303,16 @@ function ConfirmDialog({
                 sx={{
                   color: 'text.primary',
                   fontWeight: 650,
-                  fontSize: '1.05rem',
+                  fontSize: '1.075rem',
                   lineHeight: 1.25,
+                  letterSpacing: '-0.015em',
                   overflowWrap: 'anywhere',
                 }}
               >
                 {title}
               </Typography>
             ) : null}
-            {description ? (
+            {resolvedDescription ? (
               <Typography
                 id={descriptionId}
                 sx={{
@@ -323,7 +323,7 @@ function ConfirmDialog({
                   overflowWrap: 'anywhere',
                 }}
               >
-                {description}
+                {resolvedDescription}
               </Typography>
             ) : null}
           </Box>
@@ -338,9 +338,7 @@ function ConfirmDialog({
                 {detailsLabel}
               </Typography>
             ) : null}
-            <Box sx={getDetailsSx(theme, detailsVariant, isDarkMode)}>
-              {details}
-            </Box>
+            <Box sx={getDetailsSx(theme, detailsVariant, isDarkMode)}>{details}</Box>
           </Box>
         ) : null}
       </Box>

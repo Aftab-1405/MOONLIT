@@ -28,8 +28,7 @@ _memory_state: dict[str, tuple[dict, float]] = {}
 
 async def get_redis():
     """Get Redis client from application state."""
-    from main import get_redis_client
-
+    from service.redis_service import get_redis_client
     return get_redis_client()
 
 
@@ -182,7 +181,6 @@ async def get_current_user(request: Request) -> dict:
         try:
             user = await run_in_threadpool(verify_session_cookie_value, session_cookie)
             request.state.user = user
-            request.state.session_state_key = _state_key_from_cookie(request)
             logger.debug(f"Firebase session auth for user: {user.get('uid')}")
             return user
         except Exception as e:

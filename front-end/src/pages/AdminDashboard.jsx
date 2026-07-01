@@ -1,51 +1,51 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Box,
-  Button,
   CircularProgress,
   Container,
-  Divider,
   Fade,
   IconButton,
   LinearProgress,
-  Stack,
   Tooltip,
   Typography,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
-import ApiOutlinedIcon from '@mui/icons-material/ApiOutlined';
-import AutoGraphOutlinedIcon from '@mui/icons-material/AutoGraphOutlined';
-import BoltOutlinedIcon from '@mui/icons-material/BoltOutlined';
-import CachedOutlinedIcon from '@mui/icons-material/CachedOutlined';
-import CheckCircleOutlineOutlinedIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
-import DeleteSweepOutlinedIcon from '@mui/icons-material/DeleteSweepOutlined';
-import ErrorOutlineOutlinedIcon from '@mui/icons-material/ErrorOutlineOutlined';
-import MemoryOutlinedIcon from '@mui/icons-material/MemoryOutlined';
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined';
-import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
-import TimerOutlinedIcon from '@mui/icons-material/TimerOutlined';
+import {
+  Activity,
+  BarChart3,
+  Check,
+  Database,
+  RefreshCw,
+  Save,
+  Server,
+  Timer,
+  Trash2,
+  TriangleAlert,
+  UserRound,
+  Zap,
+} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { USER } from '@/api/endpoints';
 import { getContextMetrics } from '@/api/user';
 import { useAuth } from '@/contexts/AuthContext';
 import logger from '@/utils/logger';
 
-const SYSTEM_FONT_MONO = '"JetBrains Mono", "Fira Code", Monaco, Consolas, monospace';
-const SYSTEM_FONT_SANS = 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+const FONT_MONO = '"JetBrains Mono", "Fira Code", Monaco, Consolas, monospace';
+const FONT_SANS =
+  'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
-const ADMIN_COLORS = {
-  ink: '#f7f3ea',
-  muted: '#a59f93',
-  panel: '#121211',
-  panelRaised: '#181715',
-  line: '#34322d',
-  blueprint: '#7ca7ff',
-  ledger: '#a8d77b',
-  amber: '#e0ad58',
-  danger: '#ff8f8f',
-  steel: '#b9c1cc',
+const SPACE = { 1: 4, 2: 8, 3: 12, 4: 16, 6: 24, 8: 32 };
+
+const LABEL_SX = {
+  color: 'text.secondary',
+  fontFamily: FONT_SANS,
+  fontSize: 11,
+  fontWeight: 600,
+  letterSpacing: '0.08em',
+  lineHeight: 1.35,
+  textTransform: 'uppercase',
 };
+
+const ICON_PROPS = { size: 18, strokeWidth: 1.75, 'aria-hidden': true };
 
 const formatNumber = (value) => new Intl.NumberFormat('en-US').format(value || 0);
 
@@ -68,7 +68,7 @@ function getStatusTone(apiHealth) {
   if (apiHealth.checking) {
     return {
       label: 'Checking',
-      color: ADMIN_COLORS.amber,
+      color: 'warning.main',
       copy: 'Verifying backend availability',
     };
   }
@@ -76,246 +76,127 @@ function getStatusTone(apiHealth) {
   if (apiHealth.online) {
     return {
       label: 'Online',
-      color: ADMIN_COLORS.ledger,
-      copy: `Backend responding in ${formatLatency(apiHealth.latency)}`,
+      color: 'primary.main',
+      copy: 'Backend responding normally',
     };
   }
 
   return {
     label: 'Offline',
-    color: ADMIN_COLORS.danger,
+    color: 'warning.main',
     copy: 'Backend connection is unavailable',
   };
 }
 
-function Surface({ children, sx }) {
+function Card({ children, sx = {}, component = 'section', ...props }) {
   return (
     <Box
+      component={component}
       sx={{
         borderRadius: '8px',
-        border: `1px solid ${alpha(ADMIN_COLORS.line, 0.82)}`,
-        background: `linear-gradient(145deg, ${alpha(ADMIN_COLORS.panelRaised, 0.98)}, ${alpha(ADMIN_COLORS.panel, 0.98)})`,
-        boxShadow: `0 24px 70px ${alpha('#000', 0.38)}`,
-        overflow: 'hidden',
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
+        boxShadow: (theme) =>
+          theme.palette.mode === 'dark'
+            ? '0 1px 2px rgba(0, 0, 0, 0.35)'
+            : '0 1px 3px rgba(0, 0, 0, 0.05)',
+        p: `${SPACE[6]}px`,
         ...sx,
       }}
+      {...props}
     >
       {children}
     </Box>
   );
 }
 
-function SectionLabel({ eyebrow, title, action }) {
+function CardHeader({ label, title, icon: Icon }) {
   return (
     <Box
       sx={{
         display: 'flex',
-        alignItems: { xs: 'flex-start', sm: 'center' },
+        alignItems: 'flex-start',
         justifyContent: 'space-between',
-        gap: 2,
-        mb: 1.75,
+        gap: `${SPACE[4]}px`,
+        mb: `${SPACE[6]}px`,
       }}
     >
       <Box sx={{ minWidth: 0 }}>
+        <Typography sx={LABEL_SX}>{label}</Typography>
         <Typography
           sx={{
-            color: ADMIN_COLORS.muted,
-            fontFamily: SYSTEM_FONT_MONO,
-            fontSize: 11,
-            fontWeight: 700,
-            letterSpacing: 1.2,
-            textTransform: 'uppercase',
-          }}
-        >
-          {eyebrow}
-        </Typography>
-        <Typography
-          sx={{
-            mt: 0.35,
-            color: ADMIN_COLORS.ink,
-            fontFamily: SYSTEM_FONT_SANS,
-            fontSize: { xs: 19, sm: 22 },
-            fontWeight: 750,
-            lineHeight: 1.15,
+            mt: `${SPACE[1]}px`,
+            color: 'text.primary',
+            fontFamily: FONT_SANS,
+            fontSize: 16,
+            fontWeight: 600,
+            lineHeight: 1.3,
           }}
         >
           {title}
         </Typography>
       </Box>
-      {action}
+      {Icon && (
+        <Box sx={{ color: 'text.secondary', lineHeight: 0 }}>
+          <Icon {...ICON_PROPS} />
+        </Box>
+      )}
     </Box>
   );
 }
 
-function StatusChip({ label, color }) {
+function MetricRow({ icon, label, value, detail, tone = 'neutral' }) {
+  const Icon = icon;
+  const color =
+    tone === 'good' ? 'primary.main' : tone === 'warning' ? 'warning.main' : 'text.primary';
+
   return (
     <Box
       sx={{
-        display: 'inline-flex',
-        alignItems: 'center',
-        gap: 0.9,
-        minHeight: 34,
-        px: 1.25,
-        borderRadius: '999px',
-        border: `1px solid ${alpha(color, 0.34)}`,
-        bgcolor: alpha(color, 0.08),
-        color,
-        fontFamily: SYSTEM_FONT_MONO,
-        fontSize: 11,
-        fontWeight: 800,
-        letterSpacing: 0.7,
-        textTransform: 'uppercase',
-        whiteSpace: 'nowrap',
-      }}
-    >
-      <Box
-        sx={{
-          width: 7,
-          height: 7,
-          borderRadius: '50%',
-          bgcolor: color,
-          boxShadow: `0 0 18px ${alpha(color, 0.75)}`,
-        }}
-      />
-      {label}
-    </Box>
-  );
-}
-
-function MetricTile({ icon, label, value, detail, color }) {
-  const Icon = icon;
-
-  return (
-    <Surface
-      sx={{
-        p: { xs: 2, sm: 2.25 },
-        minHeight: 150,
         display: 'grid',
-        alignContent: 'space-between',
-        position: 'relative',
-        transition: 'transform 180ms ease, border-color 180ms ease, background 180ms ease',
-        '&::before': {
-          content: '""',
-          position: 'absolute',
-          inset: '0 auto 0 0',
-          width: 3,
-          bgcolor: color,
-          opacity: 0.86,
-        },
-        '&:hover': {
-          transform: 'translateY(-2px)',
-          borderColor: alpha(color, 0.52),
-          background: `linear-gradient(145deg, ${alpha(color, 0.08)}, ${alpha(ADMIN_COLORS.panel, 0.98)})`,
-        },
+        gridTemplateColumns: '32px minmax(0, 1fr) auto',
+        alignItems: 'center',
+        gap: `${SPACE[3]}px`,
+        py: `${SPACE[3]}px`,
+        minHeight: 64,
       }}
     >
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 1.5 }}>
+      <Box sx={{ color: 'text.secondary', lineHeight: 0 }}>
+        <Icon {...ICON_PROPS} />
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
         <Typography
           sx={{
-            maxWidth: '13ch',
-            color: ADMIN_COLORS.muted,
-            fontFamily: SYSTEM_FONT_MONO,
-            fontSize: 11,
-            fontWeight: 800,
-            letterSpacing: 0.6,
+            color: 'text.primary',
+            fontFamily: FONT_SANS,
+            fontSize: 13,
+            fontWeight: 500,
             lineHeight: 1.35,
-            textTransform: 'uppercase',
           }}
         >
           {label}
         </Typography>
-        <Box
-          sx={{
-            width: 38,
-            height: 38,
-            display: 'grid',
-            placeItems: 'center',
-            borderRadius: '8px',
-            border: `1px solid ${alpha(color, 0.25)}`,
-            bgcolor: alpha(color, 0.08),
-            color,
-            flexShrink: 0,
-          }}
-        >
-          <Icon sx={{ fontSize: 20 }} />
-        </Box>
-      </Box>
-
-      <Box sx={{ minWidth: 0 }}>
         <Typography
           sx={{
-            color,
-            fontFamily: SYSTEM_FONT_MONO,
-            fontSize: { xs: 30, sm: 34 },
-            fontWeight: 850,
-            letterSpacing: 0,
-            lineHeight: 1,
-            overflowWrap: 'anywhere',
-          }}
-        >
-          {value}
-        </Typography>
-        <Typography
-          sx={{
-            mt: 0.9,
-            color: alpha(ADMIN_COLORS.ink, 0.62),
-            fontFamily: SYSTEM_FONT_SANS,
-            fontSize: 13,
-            lineHeight: 1.35,
+            mt: `${SPACE[1]}px`,
+            color: 'text.secondary',
+            fontFamily: FONT_SANS,
+            fontSize: 12,
+            lineHeight: 1.3,
           }}
         >
           {detail}
         </Typography>
       </Box>
-    </Surface>
-  );
-}
-
-function SignalRow({ icon, label, value, color }) {
-  const Icon = icon;
-
-  return (
-    <Box
-      sx={{
-        display: 'grid',
-        gridTemplateColumns: '34px minmax(0, 1fr) auto',
-        alignItems: 'center',
-        gap: 1.25,
-        minHeight: 54,
-      }}
-    >
-      <Box
+      <Typography
         sx={{
-          width: 34,
-          height: 34,
-          borderRadius: '8px',
-          display: 'grid',
-          placeItems: 'center',
           color,
-          bgcolor: alpha(color, 0.08),
-          border: `1px solid ${alpha(color, 0.2)}`,
-        }}
-      >
-        <Icon sx={{ fontSize: 18 }} />
-      </Box>
-      <Typography
-        sx={{
-          color: ADMIN_COLORS.muted,
-          fontFamily: SYSTEM_FONT_SANS,
-          fontSize: 13,
-          lineHeight: 1.3,
-        }}
-      >
-        {label}
-      </Typography>
-      <Typography
-        sx={{
-          color: ADMIN_COLORS.ink,
-          fontFamily: SYSTEM_FONT_MONO,
-          fontSize: 13,
-          fontWeight: 800,
+          fontFamily: FONT_MONO,
+          fontSize: 15,
+          fontWeight: 600,
           textAlign: 'right',
-          whiteSpace: 'nowrap',
+          overflowWrap: 'anywhere',
         }}
       >
         {value}
@@ -324,143 +205,171 @@ function SignalRow({ icon, label, value, color }) {
   );
 }
 
-function CacheAperture({ hitRate, hits, misses }) {
+function HitRateCard({ hitRate, hits, misses }) {
   const missedRate = Math.max(0, 100 - hitRate);
 
   return (
-    <Surface
-      sx={{
-        p: { xs: 2.25, sm: 3 },
-        minHeight: '100%',
-      }}
-    >
-      <SectionLabel eyebrow="Cache aperture" title="Context reuse quality" />
-
+    <Card sx={{ height: '100%', minHeight: 300 }}>
+      <CardHeader label="Cache efficiency" title="Context reuse" icon={BarChart3} />
+      <Typography
+        aria-label={`Cache hit rate ${hitRate}%`}
+        sx={{
+          color: 'text.primary',
+          fontFamily: FONT_MONO,
+          fontSize: 48,
+          fontWeight: 700,
+          lineHeight: 1,
+        }}
+      >
+        {hitRate}
+        <Box
+          component="span"
+          sx={{ ml: `${SPACE[1]}px`, color: 'text.secondary', fontSize: 20, fontWeight: 500 }}
+        >
+          %
+        </Box>
+      </Typography>
+      <Typography sx={{ ...LABEL_SX, mt: `${SPACE[2]}px` }}>Hit rate</Typography>
+      <LinearProgress
+        variant="determinate"
+        value={hitRate}
+        sx={{
+          mt: `${SPACE[6]}px`,
+          height: 6,
+          borderRadius: '999px',
+          bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08),
+          '& .MuiLinearProgress-bar': { borderRadius: '999px', bgcolor: 'primary.main' },
+        }}
+      />
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: { xs: '1fr', sm: '220px minmax(0, 1fr)', md: '1fr' },
-          alignItems: 'center',
-          gap: { xs: 3, sm: 4, md: 3 },
+          gridTemplateColumns: '1fr 1fr',
+          gap: `${SPACE[4]}px`,
+          mt: `${SPACE[6]}px`,
         }}
       >
-        <Box
-          aria-label={`Cache hit rate ${hitRate}%`}
-          sx={{
-            mx: 'auto',
-            width: { xs: 210, sm: 220 },
-            maxWidth: '100%',
-            aspectRatio: '1 / 1',
-            borderRadius: '50%',
-            position: 'relative',
-            display: 'grid',
-            placeItems: 'center',
-            background: `
-              conic-gradient(${ADMIN_COLORS.ledger} ${hitRate * 3.6}deg, ${alpha(ADMIN_COLORS.danger, 0.52)} 0deg),
-              radial-gradient(circle, ${ADMIN_COLORS.panel} 57%, transparent 58%)
-            `,
-            boxShadow: `inset 0 0 0 1px ${alpha(ADMIN_COLORS.ink, 0.1)}, 0 22px 55px ${alpha('#000', 0.34)}`,
-            '&::before': {
-              content: '""',
-              position: 'absolute',
-              inset: 13,
-              borderRadius: '50%',
-              border: `1px dashed ${alpha(ADMIN_COLORS.ink, 0.18)}`,
-            },
-            '&::after': {
-              content: '""',
-              position: 'absolute',
-              inset: '28%',
-              borderRadius: '50%',
-              border: `1px solid ${alpha(ADMIN_COLORS.blueprint, 0.22)}`,
-              boxShadow: `0 0 0 34px ${alpha('#000', 0.18)}`,
-            },
-          }}
-        >
-          <Box
+        <Box>
+          <Typography sx={LABEL_SX}>Cache hits</Typography>
+          <Typography
             sx={{
-              position: 'relative',
-              zIndex: 1,
-              width: '58%',
-              aspectRatio: '1 / 1',
-              borderRadius: '50%',
-              display: 'grid',
-              placeItems: 'center',
-              textAlign: 'center',
-              bgcolor: alpha('#090908', 0.92),
-              border: `1px solid ${alpha(ADMIN_COLORS.ink, 0.1)}`,
+              mt: `${SPACE[1]}px`,
+              color: 'primary.main',
+              fontFamily: FONT_MONO,
+              fontSize: 16,
+              fontWeight: 600,
             }}
           >
-            <Typography
-              sx={{
-                color: ADMIN_COLORS.ink,
-                fontFamily: SYSTEM_FONT_MONO,
-                fontSize: { xs: 42, sm: 46 },
-                fontWeight: 900,
-                lineHeight: 0.95,
-              }}
-            >
-              {hitRate}
-              <Box component="span" sx={{ color: ADMIN_COLORS.muted, fontSize: 18 }}>
-                %
-              </Box>
-            </Typography>
-            <Typography
-              sx={{
-                mt: -1,
-                color: ADMIN_COLORS.muted,
-                fontFamily: SYSTEM_FONT_MONO,
-                fontSize: 10,
-                fontWeight: 800,
-                letterSpacing: 1,
-                textTransform: 'uppercase',
-              }}
-            >
-              hit rate
-            </Typography>
-          </Box>
+            {formatNumber(hits)}
+          </Typography>
         </Box>
-
-        <Stack spacing={1.8}>
-          <SignalRow
-            icon={CheckCircleOutlineOutlinedIcon}
-            label="Resolved from cache"
-            value={formatNumber(hits)}
-            color={ADMIN_COLORS.ledger}
-          />
-          <SignalRow
-            icon={ErrorOutlineOutlinedIcon}
-            label="Compiled from source"
-            value={formatNumber(misses)}
-            color={ADMIN_COLORS.danger}
-          />
-          <Divider sx={{ borderColor: alpha(ADMIN_COLORS.ink, 0.08) }} />
-          <Box>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', gap: 2, mb: 0.8 }}>
-              <Typography sx={{ color: ADMIN_COLORS.muted, fontFamily: SYSTEM_FONT_SANS, fontSize: 13 }}>
-                Miss pressure
-              </Typography>
-              <Typography sx={{ color: ADMIN_COLORS.ink, fontFamily: SYSTEM_FONT_MONO, fontSize: 13, fontWeight: 800 }}>
-                {missedRate}%
-              </Typography>
-            </Box>
-            <LinearProgress
-              variant="determinate"
-              value={missedRate}
-              sx={{
-                height: 8,
-                borderRadius: '999px',
-                bgcolor: alpha(ADMIN_COLORS.ink, 0.08),
-                '& .MuiLinearProgress-bar': {
-                  borderRadius: '999px',
-                  bgcolor: missedRate > 30 ? ADMIN_COLORS.amber : ADMIN_COLORS.blueprint,
-                },
-              }}
-            />
-          </Box>
-        </Stack>
+        <Box>
+          <Typography sx={LABEL_SX}>Miss pressure</Typography>
+          <Typography
+            sx={{
+              mt: `${SPACE[1]}px`,
+              color: missedRate > 30 ? 'warning.main' : 'text.primary',
+              fontFamily: FONT_MONO,
+              fontSize: 16,
+              fontWeight: 600,
+            }}
+          >
+            {formatNumber(misses)} · {missedRate}%
+          </Typography>
+        </Box>
       </Box>
-    </Surface>
+    </Card>
+  );
+}
+
+function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
+  return (
+    <Card
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: '40px minmax(0, 1fr) auto',
+        alignItems: 'center',
+        gap: `${SPACE[4]}px`,
+        p: `${SPACE[4]}px`,
+      }}
+    >
+      <Box
+        sx={{
+          width: 40,
+          height: 40,
+          display: 'grid',
+          placeItems: 'center',
+          borderRadius: '8px',
+          bgcolor: (theme) => {
+            const [key] = statusTone.color.split('.');
+            return alpha(theme.palette[key].main, 0.1);
+          },
+          color: statusTone.color,
+        }}
+      >
+        <Server {...ICON_PROPS} />
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: `${SPACE[2]}px` }}>
+          <Box
+            sx={{
+              width: 7,
+              height: 7,
+              flex: '0 0 auto',
+              borderRadius: '50%',
+              bgcolor: statusTone.color,
+            }}
+          />
+          <Typography sx={{ ...LABEL_SX, color: statusTone.color }}>
+            API relay · {statusTone.label}
+          </Typography>
+        </Box>
+        <Typography
+          sx={{
+            mt: `${SPACE[1]}px`,
+            color: 'text.primary',
+            fontFamily: FONT_MONO,
+            fontSize: 14,
+            fontWeight: 600,
+          }}
+        >
+          {formatLatency(apiHealth.latency)}
+        </Typography>
+        <Typography
+          sx={{ mt: `${SPACE[1]}px`, color: 'text.secondary', fontFamily: FONT_SANS, fontSize: 12 }}
+        >
+          {statusTone.copy}
+        </Typography>
+      </Box>
+      <Tooltip title="Check API relay">
+        <span>
+          <IconButton
+            aria-label="Check API relay"
+            onClick={onRefresh}
+            disabled={refreshing}
+            sx={{
+              width: 36,
+              height: 36,
+              borderRadius: '8px',
+              color: 'text.secondary',
+              '&:hover': {
+                bgcolor: (theme) => alpha(theme.palette.text.primary, 0.06),
+                color: 'text.primary',
+              },
+              '&.Mui-focusVisible': {
+                boxShadow: (theme) => `0 0 0 3px ${alpha(theme.palette.primary.main, 0.25)}`,
+              },
+            }}
+          >
+            {refreshing ? (
+              <CircularProgress size={16} sx={{ color: 'text.primary' }} />
+            ) : (
+              <RefreshCw {...ICON_PROPS} />
+            )}
+          </IconButton>
+        </span>
+      </Tooltip>
+    </Card>
   );
 }
 
@@ -538,7 +447,7 @@ function AdminDashboard() {
         setMetricsError(
           err.status
             ? `Initial metrics request failed with HTTP ${err.status}.`
-            : 'Initial metrics request failed. Live telemetry will continue if Firestore is available.'
+            : 'Initial metrics request failed. Live telemetry will continue if Firestore is available.',
         );
       })
       .finally(() => {
@@ -595,8 +504,8 @@ function AdminDashboard() {
     const connectedDatabase = metrics?.config?.connected_database;
     const activeTableCount = metrics?.config?.active_table_count || 0;
     const remainingTables = connectedDatabase
-      ? metrics?.config?.remaining_tables ?? 1000
-      : metrics?.config?.schema_context_max_tables ?? 1000;
+      ? (metrics?.config?.remaining_tables ?? 1000)
+      : (metrics?.config?.schema_context_max_tables ?? 1000);
 
     return {
       hitRate,
@@ -615,62 +524,65 @@ function AdminDashboard() {
 
   const statusTone = useMemo(() => getStatusTone(apiHealth), [apiHealth]);
 
-  const summaryCards = useMemo(() => [
-    {
-      label: 'Cache TTL',
-      value: dashboardData.ttlLabel,
-      detail: ttlRemaining !== null ? 'Context cache countdown' : 'No active cache window',
-      icon: TimerOutlinedIcon,
-      color: ADMIN_COLORS.blueprint,
-    },
-    {
-      label: 'Table Budget',
-      value: formatNumber(dashboardData.remainingTables),
-      detail: dashboardData.connectedDatabase
-        ? `${dashboardData.activeTableCount} active in ${dashboardData.connectedDatabase}`
-        : 'Waiting for database context',
-      icon: StorageOutlinedIcon,
-      color: ADMIN_COLORS.steel,
-    },
-    {
-      label: 'Metrics Feed',
-      value: dashboardData.metricsEnabled ? 'Live' : 'Quiet',
-      detail: 'Realtime context instrumentation',
-      icon: AutoGraphOutlinedIcon,
-      color: dashboardData.metricsEnabled ? ADMIN_COLORS.ledger : ADMIN_COLORS.amber,
-    },
-  ], [dashboardData, ttlRemaining]);
+  const configurationStats = useMemo(
+    () => [
+      {
+        label: 'Cache TTL',
+        value: dashboardData.ttlLabel,
+        detail: ttlRemaining !== null ? 'Context cache countdown' : 'No active cache window',
+        icon: Timer,
+      },
+      {
+        label: 'Table Budget',
+        value: formatNumber(dashboardData.remainingTables),
+        detail: dashboardData.connectedDatabase
+          ? `${dashboardData.activeTableCount} active in ${dashboardData.connectedDatabase}`
+          : 'Waiting for database context',
+        icon: Database,
+      },
+      {
+        label: 'Metrics Feed',
+        value: dashboardData.metricsEnabled ? 'Live' : 'Quiet',
+        detail: 'Realtime context instrumentation',
+        icon: Activity,
+        tone: dashboardData.metricsEnabled ? 'good' : 'warning',
+      },
+    ],
+    [dashboardData, ttlRemaining],
+  );
 
-  const operationStats = useMemo(() => [
-    {
-      label: 'Cache Hits',
-      value: formatNumber(dashboardData.hits),
-      detail: 'Served without recompilation',
-      icon: CheckCircleOutlineOutlinedIcon,
-      color: ADMIN_COLORS.ledger,
-    },
-    {
-      label: 'Cache Misses',
-      value: formatNumber(dashboardData.misses),
-      detail: 'Required fresh context assembly',
-      icon: ErrorOutlineOutlinedIcon,
-      color: ADMIN_COLORS.danger,
-    },
-    {
-      label: 'Writes',
-      value: formatNumber(dashboardData.stores),
-      detail: 'Stored context snapshots',
-      icon: SaveOutlinedIcon,
-      color: ADMIN_COLORS.blueprint,
-    },
-    {
-      label: 'Clears',
-      value: formatNumber(dashboardData.clears),
-      detail: 'Cache invalidation events',
-      icon: DeleteSweepOutlinedIcon,
-      color: ADMIN_COLORS.amber,
-    },
-  ], [dashboardData]);
+  const operationStats = useMemo(
+    () => [
+      {
+        label: 'Cache Hits',
+        value: formatNumber(dashboardData.hits),
+        detail: 'Served without recompilation',
+        icon: Check,
+        tone: 'good',
+      },
+      {
+        label: 'Cache Misses',
+        value: formatNumber(dashboardData.misses),
+        detail: 'Required fresh context assembly',
+        icon: TriangleAlert,
+        tone: 'warning',
+      },
+      {
+        label: 'Writes',
+        value: formatNumber(dashboardData.stores),
+        detail: 'Stored context snapshots',
+        icon: Save,
+      },
+      {
+        label: 'Clears',
+        value: formatNumber(dashboardData.clears),
+        detail: 'Cache invalidation events',
+        icon: Trash2,
+        tone: dashboardData.clears > 0 ? 'warning' : 'neutral',
+      },
+    ],
+    [dashboardData],
+  );
 
   return (
     <Box
@@ -678,181 +590,130 @@ function AdminDashboard() {
         width: '100%',
         height: '100%',
         overflowY: 'auto',
-        color: ADMIN_COLORS.ink,
-        bgcolor: '#0c0c0b',
-        backgroundImage: `
-          linear-gradient(${alpha(ADMIN_COLORS.ink, 0.035)} 1px, transparent 1px),
-          linear-gradient(90deg, ${alpha(ADMIN_COLORS.ink, 0.025)} 1px, transparent 1px)
-        `,
-        backgroundSize: '48px 48px',
-        fontFamily: SYSTEM_FONT_SANS,
+        color: 'text.primary',
+        bgcolor: 'background.default',
+        fontFamily: FONT_SANS,
       }}
     >
       <Container
         maxWidth="xl"
         sx={{
           minHeight: '100%',
-          py: { xs: 2.25, sm: 3, lg: 4.5 },
-          px: { xs: 1.5, sm: 3 },
+          py: { xs: `${SPACE[6]}px`, lg: `${SPACE[8]}px` },
+          px: { xs: `${SPACE[4]}px`, sm: `${SPACE[6]}px` },
         }}
       >
-        <Fade in timeout={420}>
+        <Fade in timeout={320}>
           <Box>
             <Box
               sx={{
                 display: 'grid',
-                gridTemplateColumns: { xs: '1fr', lg: 'minmax(0, 1fr) auto' },
-                gap: { xs: 2.5, lg: 4 },
-                alignItems: 'end',
-                pb: { xs: 2.5, md: 3.25 },
-                mb: { xs: 2.5, md: 3.5 },
-                borderBottom: `1px solid ${alpha(ADMIN_COLORS.ink, 0.1)}`,
+                gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
+                gap: `${SPACE[6]}px`,
+                alignItems: 'center',
+                pb: `${SPACE[8]}px`,
+                mb: `${SPACE[6]}px`,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
               }}
             >
-              <Box sx={{ minWidth: 0 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap', mb: 1.5 }}>
-                  <StatusChip label={statusTone.label} color={statusTone.color} />
-                  <Typography
-                    sx={{
-                      color: ADMIN_COLORS.muted,
-                      fontFamily: SYSTEM_FONT_MONO,
-                      fontSize: 12,
-                      fontWeight: 700,
-                      letterSpacing: 0.7,
-                      textTransform: 'uppercase',
-                    }}
-                  >
-                    {statusTone.copy}
-                  </Typography>
-                </Box>
-
+              <Box sx={{ minWidth: 0, gridColumn: { xs: '1 / -1', lg: 'span 8' } }}>
+                <Typography sx={LABEL_SX}>Moonlit runtime</Typography>
                 <Typography
                   component="h1"
                   sx={{
-                    color: ADMIN_COLORS.ink,
-                    fontFamily: SYSTEM_FONT_SANS,
-                    fontSize: { xs: 38, sm: 56, lg: 70 },
-                    fontWeight: 820,
-                    letterSpacing: 0,
-                    lineHeight: { xs: 0.98, sm: 0.94 },
-                    maxWidth: 880,
+                    mt: `${SPACE[2]}px`,
+                    color: 'text.primary',
+                    fontFamily: FONT_SANS,
+                    fontSize: { xs: 26, sm: 32 },
+                    fontWeight: 650,
+                    letterSpacing: '-0.025em',
+                    lineHeight: 1.15,
                   }}
                 >
-                  Admin command surface
+                  Operations overview
                 </Typography>
                 <Typography
                   sx={{
-                    mt: { xs: 1.4, sm: 1.8 },
+                    mt: `${SPACE[2]}px`,
                     maxWidth: 660,
-                    color: alpha(ADMIN_COLORS.ink, 0.68),
-                    fontFamily: SYSTEM_FONT_SANS,
-                    fontSize: { xs: 15, sm: 17 },
-                    lineHeight: 1.55,
+                    color: 'text.secondary',
+                    fontFamily: FONT_SANS,
+                    fontSize: 14,
+                    lineHeight: 1.5,
                   }}
                 >
-                  Live context-cache telemetry for the Moonlit agent runtime, shaped for quick operational reads.
+                  Live context-cache telemetry and runtime health.
                 </Typography>
               </Box>
-
-              <Surface
-                sx={{
-                  width: { xs: '100%', lg: 358 },
-                  p: 2,
-                  display: 'grid',
-                  gridTemplateColumns: '42px minmax(0, 1fr) auto',
-                  alignItems: 'center',
-                  gap: 1.5,
-                }}
-              >
-                <Box
-                  sx={{
-                    width: 42,
-                    height: 42,
-                    borderRadius: '8px',
-                    display: 'grid',
-                    placeItems: 'center',
-                    bgcolor: alpha(statusTone.color, 0.1),
-                    border: `1px solid ${alpha(statusTone.color, 0.28)}`,
-                    color: statusTone.color,
-                  }}
-                >
-                  <ApiOutlinedIcon sx={{ fontSize: 22 }} />
-                </Box>
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography sx={{ color: ADMIN_COLORS.ink, fontFamily: SYSTEM_FONT_MONO, fontSize: 13, fontWeight: 850 }}>
-                    API relay
-                  </Typography>
-                  <Typography sx={{ color: ADMIN_COLORS.muted, fontFamily: SYSTEM_FONT_SANS, fontSize: 13 }}>
-                    {formatLatency(apiHealth.latency)}
-                  </Typography>
-                </Box>
-                <Tooltip title="Check API relay">
-                  <span>
-                    <IconButton
-                      aria-label="Check API relay"
-                      onClick={() => checkApiHealth()}
-                      disabled={refreshing}
-                      sx={{
-                        width: 38,
-                        height: 38,
-                        borderRadius: '8px',
-                        color: ADMIN_COLORS.ink,
-                        border: `1px solid ${alpha(ADMIN_COLORS.ink, 0.12)}`,
-                        '&:hover': {
-                          bgcolor: alpha(ADMIN_COLORS.ink, 0.08),
-                        },
-                        '&.Mui-focusVisible': {
-                          boxShadow: `0 0 0 4px ${alpha(ADMIN_COLORS.blueprint, 0.22)}`,
-                        },
-                      }}
-                    >
-                      {refreshing ? <CircularProgress size={17} sx={{ color: ADMIN_COLORS.ink }} /> : <RefreshRoundedIcon sx={{ fontSize: 19 }} />}
-                    </IconButton>
-                  </span>
-                </Tooltip>
-              </Surface>
+              <Box sx={{ gridColumn: { xs: '1 / -1', lg: 'span 4' } }}>
+                <ApiStatusCard
+                  statusTone={statusTone}
+                  apiHealth={apiHealth}
+                  refreshing={refreshing}
+                  onRefresh={() => checkApiHealth()}
+                />
+              </Box>
             </Box>
 
             {!apiHealth.checking && !apiHealth.online && (
-              <Surface
+              <Card
+                role="alert"
                 sx={{
-                  mb: 3,
-                  p: { xs: 1.75, sm: 2 },
+                  mb: `${SPACE[6]}px`,
+                  p: `${SPACE[4]}px`,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1.5,
-                  borderColor: alpha(ADMIN_COLORS.danger, 0.38),
-                  background: `linear-gradient(135deg, ${alpha(ADMIN_COLORS.danger, 0.12)}, ${alpha(ADMIN_COLORS.panel, 0.98)})`,
+                  gap: `${SPACE[3]}px`,
+                  borderColor: (theme) => alpha(theme.palette.warning.main, 0.45),
                 }}
               >
-                <ErrorOutlineOutlinedIcon sx={{ color: ADMIN_COLORS.danger, fontSize: 22 }} />
-                <Typography sx={{ color: ADMIN_COLORS.ink, fontFamily: SYSTEM_FONT_SANS, fontSize: 14, lineHeight: 1.45 }}>
+                <Box sx={{ color: 'warning.main', lineHeight: 0 }}>
+                  <TriangleAlert {...ICON_PROPS} />
+                </Box>
+                <Typography
+                  sx={{
+                    color: 'text.primary',
+                    fontFamily: FONT_SANS,
+                    fontSize: 13,
+                    lineHeight: 1.45,
+                  }}
+                >
                   Backend connection is offline. Metrics will resume when the API relay responds.
                 </Typography>
-              </Surface>
+              </Card>
             )}
 
             {metricsError && apiHealth.online && (
-              <Surface
+              <Card
+                role="alert"
                 sx={{
-                  mb: 3,
-                  p: { xs: 1.75, sm: 2 },
+                  mb: `${SPACE[6]}px`,
+                  p: `${SPACE[4]}px`,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 1.5,
-                  borderColor: alpha(ADMIN_COLORS.amber, 0.38),
-                  background: `linear-gradient(135deg, ${alpha(ADMIN_COLORS.amber, 0.12)}, ${alpha(ADMIN_COLORS.panel, 0.98)})`,
+                  gap: `${SPACE[3]}px`,
+                  borderColor: (theme) => alpha(theme.palette.warning.main, 0.45),
                 }}
               >
-                <ErrorOutlineOutlinedIcon sx={{ color: ADMIN_COLORS.amber, fontSize: 22 }} />
-                <Typography sx={{ color: ADMIN_COLORS.ink, fontFamily: SYSTEM_FONT_SANS, fontSize: 14, lineHeight: 1.45 }}>
+                <Box sx={{ color: 'warning.main', lineHeight: 0 }}>
+                  <TriangleAlert {...ICON_PROPS} />
+                </Box>
+                <Typography
+                  sx={{
+                    color: 'text.primary',
+                    fontFamily: FONT_SANS,
+                    fontSize: 13,
+                    lineHeight: 1.45,
+                  }}
+                >
                   {metricsError}
                 </Typography>
-              </Surface>
+              </Card>
             )}
 
             {loading ? (
-              <Surface
+              <Card
                 sx={{
                   minHeight: 420,
                   display: 'grid',
@@ -860,121 +721,109 @@ function AdminDashboard() {
                 }}
               >
                 <Box sx={{ textAlign: 'center' }}>
-                  <CircularProgress size={48} thickness={3.5} sx={{ color: ADMIN_COLORS.blueprint }} />
-                  <Typography
-                    sx={{
-                      mt: 2,
-                      color: ADMIN_COLORS.muted,
-                      fontFamily: SYSTEM_FONT_MONO,
-                      fontSize: 12,
-                      fontWeight: 800,
-                      letterSpacing: 1,
-                      textTransform: 'uppercase',
-                    }}
-                  >
+                  <CircularProgress size={32} thickness={3.5} sx={{ color: 'primary.main' }} />
+                  <Typography sx={{ ...LABEL_SX, mt: `${SPACE[4]}px` }}>
                     Reading runtime telemetry
                   </Typography>
                 </Box>
-              </Surface>
+              </Card>
             ) : (
               <Box
                 sx={{
                   display: 'grid',
-                  gridTemplateColumns: { xs: '1fr', lg: 'minmax(320px, 0.9fr) minmax(0, 1.35fr)' },
-                  gap: { xs: 2.25, md: 3 },
+                  gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
+                  gap: `${SPACE[6]}px`,
+                  '& > *': { minWidth: 0 },
                 }}
               >
-                <Box sx={{ display: 'grid', gap: { xs: 2.25, md: 3 }, alignContent: 'start' }}>
-                  <CacheAperture
+                <Box sx={{ gridColumn: { xs: '1 / -1', md: 'span 6', lg: 'span 4' } }}>
+                  <HitRateCard
                     hitRate={dashboardData.hitRate}
                     hits={dashboardData.hits}
                     misses={dashboardData.misses}
                   />
-
-                  <Surface sx={{ p: { xs: 2.25, sm: 3 } }}>
-                    <SectionLabel eyebrow="Runtime summary" title="Current operating limits" />
-                    <Stack divider={<Divider sx={{ borderColor: alpha(ADMIN_COLORS.ink, 0.08) }} />}>
-                      <SignalRow
-                        icon={BoltOutlinedIcon}
-                        label="Total context requests"
-                        value={formatNumber(dashboardData.totalQueries)}
-                        color={ADMIN_COLORS.blueprint}
-                      />
-                      <SignalRow
-                        icon={MemoryOutlinedIcon}
-                        label="Metrics capture"
-                        value={dashboardData.metricsEnabled ? 'Enabled' : 'Disabled'}
-                        color={dashboardData.metricsEnabled ? ADMIN_COLORS.ledger : ADMIN_COLORS.amber}
-                      />
-                      <SignalRow
-                        icon={AdminPanelSettingsOutlinedIcon}
-                        label="Signed-in operator"
-                        value={user?.email || 'Active'}
-                        color={ADMIN_COLORS.steel}
-                      />
-                    </Stack>
-                  </Surface>
                 </Box>
-
-                <Box sx={{ display: 'grid', gap: { xs: 2.25, md: 3 }, alignContent: 'start' }}>
-                  <Box>
-                    <SectionLabel
-                      eyebrow="Configuration"
-                      title="Foundation signals"
-                      action={
-                        <Button
-                          size="small"
-                          variant="outlined"
-                          startIcon={<CachedOutlinedIcon />}
-                          onClick={() => checkApiHealth()}
-                          disabled={refreshing}
-                          sx={{
-                            display: { xs: 'none', sm: 'inline-flex' },
-                            minHeight: 36,
-                            borderRadius: '8px',
-                            color: ADMIN_COLORS.ink,
-                            borderColor: alpha(ADMIN_COLORS.ink, 0.16),
-                            fontFamily: SYSTEM_FONT_SANS,
-                            fontWeight: 750,
-                            textTransform: 'none',
-                            '&:hover': {
-                              borderColor: alpha(ADMIN_COLORS.blueprint, 0.5),
-                              bgcolor: alpha(ADMIN_COLORS.blueprint, 0.08),
-                            },
-                          }}
-                        >
-                          Check relay
-                        </Button>
-                      }
+                <Box sx={{ gridColumn: { xs: '1 / -1', md: 'span 6', lg: 'span 4' } }}>
+                  <Card sx={{ height: '100%', minHeight: 300 }}>
+                    <CardHeader
+                      label="Runtime summary"
+                      title="Current operating limits"
+                      icon={Zap}
                     />
                     <Box
                       sx={{
-                        display: 'grid',
-                        gridTemplateColumns: { xs: '1fr', sm: 'repeat(3, minmax(0, 1fr))' },
-                        gap: 1.5,
+                        '& > *:not(:last-child)': {
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                        },
                       }}
                     >
-                      {summaryCards.map((card) => (
-                        <MetricTile key={card.label} {...card} />
-                      ))}
+                      <MetricRow
+                        icon={Zap}
+                        label="Total context requests"
+                        detail="Hits and misses combined"
+                        value={formatNumber(dashboardData.totalQueries)}
+                      />
+                      <MetricRow
+                        icon={Activity}
+                        label="Metrics capture"
+                        detail="Runtime instrumentation"
+                        value={dashboardData.metricsEnabled ? 'Enabled' : 'Disabled'}
+                        tone={dashboardData.metricsEnabled ? 'good' : 'warning'}
+                      />
+                      <MetricRow
+                        icon={UserRound}
+                        label="Signed-in operator"
+                        detail="Current admin session"
+                        value={user?.email || 'Active'}
+                      />
                     </Box>
-                  </Box>
-
-                  <Box>
-                    <SectionLabel eyebrow="Operations" title="Cache movement" />
+                  </Card>
+                </Box>
+                <Box sx={{ gridColumn: { xs: '1 / -1', md: 'span 6', lg: 'span 4' } }}>
+                  <Card sx={{ height: '100%', minHeight: 300 }}>
+                    <CardHeader label="Configuration" title="Foundation signals" icon={Database} />
                     <Box
                       sx={{
-                        display: 'grid',
-                        gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' },
-                        gap: 1.5,
+                        '& > *:not(:last-child)': {
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                        },
                       }}
                     >
-                      {operationStats.map((stat) => (
-                        <MetricTile key={stat.label} {...stat} />
+                      {configurationStats.map((stat) => (
+                        <MetricRow key={stat.label} {...stat} />
                       ))}
                     </Box>
-                  </Box>
+                  </Card>
                 </Box>
+                <Card sx={{ gridColumn: '1 / -1' }}>
+                  <CardHeader label="Operations" title="Cache movement" icon={Activity} />
+                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
+                    {operationStats.map((stat, index) => (
+                      <Box
+                        key={stat.label}
+                        sx={{
+                          gridColumn: { xs: 'span 12', sm: 'span 6', lg: 'span 3' },
+                          px: { xs: 0, sm: `${SPACE[4]}px` },
+                          borderLeft: {
+                            sm: index % 2 === 0 ? 'none' : '1px solid',
+                            lg: index === 0 ? 'none' : '1px solid',
+                          },
+                          borderLeftColor: 'divider',
+                          borderTop: {
+                            xs: index === 0 ? 'none' : '1px solid',
+                            sm: index < 2 ? 'none' : '1px solid',
+                            lg: 'none',
+                          },
+                          borderTopColor: 'divider',
+                        }}
+                      >
+                        <MetricRow {...stat} />
+                      </Box>
+                    ))}
+                  </Box>
+                </Card>
               </Box>
             )}
           </Box>

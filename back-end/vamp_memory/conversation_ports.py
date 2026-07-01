@@ -4,7 +4,7 @@ from api_contract.conversations_protocols import (
     ConversationMemoryCleaner,
     ConversationSummaryMemoryWriter,
 )
-from vamp_memory.vamp_memory_service import VampMemoryService
+from vamp_memory.vamp_memory_service import get_vamp_memory_service
 
 
 class VampConversationMemoryCleaner:
@@ -13,7 +13,7 @@ class VampConversationMemoryCleaner:
     async def delete_conversation_pointers(
         self, conversation_id: str, user_id: str
     ) -> None:
-        await VampMemoryService().delete_conversation_pointers(conversation_id, user_id)
+        await get_vamp_memory_service().delete_conversation_pointers(conversation_id, user_id)
 
 
 class VampConversationSummaryMemoryWriter:
@@ -33,7 +33,7 @@ class VampConversationSummaryMemoryWriter:
         covers_message_ids: list | None = None,
         created_from_unsummarized_tail: bool = True,
     ) -> dict:
-        return await VampMemoryService().store_summary_block(
+        return await get_vamp_memory_service().store_summary_block(
             conversation_id,
             user_id,
             text=text,

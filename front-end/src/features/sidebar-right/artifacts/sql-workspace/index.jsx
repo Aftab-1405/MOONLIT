@@ -1,6 +1,6 @@
 /**
  * SqlWorkspace - Production SQL Editor Workspace
- * 
+ *
  * A professional SQL IDE-like interface with:
  * - Schema sidebar with database explorer
  * - Multi-tab query editor with Monaco
@@ -8,14 +8,13 @@
  * - Resizable panels and clean workspace layout
  */
 
-import { useState, useCallback, useMemo, memo, useEffect, useRef } from 'react';
 import { Box, Collapse } from '@mui/material';
-import logger from '@/utils/logger';
-import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArtifactShell } from '@/features/sidebar-right/artifact-loader';
-import SchemaSidebar from '@/features/sidebar-right/artifacts/sql-workspace/SchemaSidebar';
 import QueryWorkspace from '@/features/sidebar-right/artifacts/sql-workspace/QueryWorkspace';
+import SchemaSidebar from '@/features/sidebar-right/artifacts/sql-workspace/SchemaSidebar';
 import StatusBar from '@/features/sidebar-right/artifacts/sql-workspace/StatusBar';
+import logger from '@/utils/logger';
 
 const SCHEMA_PANEL_MOTION = {
   duration: 220,
@@ -26,7 +25,7 @@ let cachedTabs = null;
 let cachedActiveTabId = null;
 
 function SqlWorkspace({
-  title,
+  _title,
   initialQuery = '',
   initialResults = null,
   isConnected = false,
@@ -44,6 +43,7 @@ function SqlWorkspace({
   // Panel state
   const [schemaSidebarOpen, setSchemaSidebarOpen] = useState(true);
   const [schemaSidebarWidth, setSchemaSidebarWidth] = useState(260);
+  const errorDismissRef = useRef(null);
 
   // Query state
   const [activeTabId, setActiveTabId] = useState(() => cachedActiveTabId || 'query-1');
@@ -102,7 +102,7 @@ function SqlWorkspace({
 
   const activeTab = useMemo(
     () => tabs.find((t) => t.id === activeTabId) || tabs[0],
-    [tabs, activeTabId]
+    [tabs, activeTabId],
   );
 
   // Tab management
@@ -122,59 +122,63 @@ function SqlWorkspace({
     setActiveTabId(newId);
   }, []);
 
-  const handleCloseTab = useCallback((tabId) => {
-    setTabs((prev) => {
-      const filtered = prev.filter((t) => t.id !== tabId);
-      if (filtered.length === 0) {
-        return [
-          {
-            id: 'query-1',
-            title: 'Query 1',
-            query: '',
-            isDirty: false,
-            results: null,
-            error: null,
-          },
-        ];
-      }
-      return filtered;
-    });
-    setActiveTabId((prev) => {
-      if (prev === tabId) {
-        const idx = tabs.findIndex((t) => t.id === tabId);
-        const nextTab = tabs[idx + 1] || tabs[idx - 1] || tabs[0];
-        return nextTab?.id || 'query-1';
-      }
-      return prev;
-    });
-  }, [tabs]);
-
-  const handleUpdateTab = useCallback((tabId, updates) => {
-    setTabs((prev) =>
-      prev.map((t) => (t.id === tabId ? { ...t, ...updates } : t))
-    );
-  }, []);
-
-  // Query execution
-  const handleQueryChange = useCallback(
-    (value) => {
-      handleUpdateTab(activeTabId, { query: value, isDirty: true });
+  const handleCloseTab = useCallback(
+    (tabId) => {
+      setTabs((prev) => {
+        const filtered = prev.filter((t) => t.id !== tabId);
+        if (filtered.length === 0) {
+          return [
+            {
+              id: 'query-1',
+              title: 'Query 1',
+              query: '',
+              isDirty: false,
+              results: null,
+              error: null,
+            },
+          ];
+        }
+        return filtered;
+      });
+      setActiveTabId((prev) => {
+        if (prev === tabId) {
+          const idx = tabs.findIndex((t) => t.id === tabId);
+          const nextTab = tabs[idx + 1] || tabs[idx - 1] || tabs[0];
+          return nextTab?.id || 'query-1';
+        }
+        return prev;
+      });
     },
-    [activeTabId, handleUpdateTab]
+    [tabs],
   );
 
+  const handleUpdateTab = useCallback((tabId, updates) => {
+    setTabs((prev) => prev.map((t) => (t.id === tabId ? { ...t, ...updates } : t)));
+  }, []);
+
+  const handleClearError = useCallback(() => {
+    if (errorDismissRef.current) clearTimeout(errorDismissRef.current);
+    handleUpdateTab(activeTabId, { error: null });
+  }, [activeTabId, handleUpdateTab]);
+
+  const handleQueryChange = useCallback(
+    (value) => {
+      handleUpdateTab(activeTabId, { query: value, isDirty: true, error: null });
+    },
+    [activeTabId, handleUpdateTab],
+  );
   const handleQueryExecute = useCallback(
     (results, error) => {
       handleUpdateTab(activeTabId, { results, error, isDirty: false });
-      
+
       if (results) {
         if (onOpenArtifact) {
-          // Open results as artifact in canvas (consistent with message list behavior)
-          // Include source query so user can navigate back to editor
+          // Open results in the Perspective workspace. It defaults to Datagrid and
+          // lets the user switch to visual analysis without another artifact hop.
           onOpenArtifact({
-            type: 'results',
+            type: 'visualization',
             title: 'Query Results',
-            props: { 
+            props: {
               data: results,
               sourceQuery: activeTab?.query,
               sourceType: 'sql-editor',
@@ -188,9 +192,22 @@ function SqlWorkspace({
 
       if (error) {
         logger.error('Query execution error:', error);
+        // Auto-dismiss the inline error alert after 5 s
+        if (errorDismissRef.current) clearTimeout(errorDismissRef.current);
+        errorDismissRef.current = setTimeout(() => {
+          handleClearError();
+        }, 5000);
       }
     },
-    [activeTabId, activeTab?.query, handleUpdateTab, onOpenArtifact]
+    [activeTabId, activeTab?.query, handleUpdateTab, onOpenArtifact, handleClearError],
+  );
+
+  // Cleanup timer on unmount
+  useEffect(
+    () => () => {
+      if (errorDismissRef.current) clearTimeout(errorDismissRef.current);
+    },
+    [],
   );
 
   // Ref that StatusBar fills with its handleRunQuery so Monaco Ctrl+Enter
@@ -204,29 +221,38 @@ function SqlWorkspace({
   }, []);
 
   // Panel resizing
-  const handleSidebarResizeStart = useCallback((e) => {
-    setResizingSidebar(true);
-    setResizeStartX(e.clientX);
-    setResizeStartWidth(schemaSidebarWidth);
-  }, [schemaSidebarWidth]);
+  const handleSidebarResizeStart = useCallback(
+    (e) => {
+      setResizingSidebar(true);
+      setResizeStartX(e.clientX);
+      setResizeStartWidth(schemaSidebarWidth);
+    },
+    [schemaSidebarWidth],
+  );
 
-  const handleSidebarResize = useCallback((e) => {
-    if (!resizingSidebar) return;
-    e.preventDefault();
-    const deltaX = e.clientX - resizeStartX;
-    const newWidth = Math.max(200, Math.min(500, resizeStartWidth + deltaX));
-    setSchemaSidebarWidth(newWidth);
-  }, [resizingSidebar, resizeStartX, resizeStartWidth]);
+  const handleSidebarResize = useCallback(
+    (e) => {
+      if (!resizingSidebar) return;
+      e.preventDefault();
+      const deltaX = e.clientX - resizeStartX;
+      const newWidth = Math.max(200, Math.min(500, resizeStartWidth + deltaX));
+      setSchemaSidebarWidth(newWidth);
+    },
+    [resizingSidebar, resizeStartX, resizeStartWidth],
+  );
 
   const handleMouseUp = useCallback(() => {
     setResizingSidebar(false);
   }, []);
 
-  const handleMouseMove = useCallback((e) => {
-    if (resizingSidebar) {
-      handleSidebarResize(e);
-    }
-  }, [resizingSidebar, handleSidebarResize]);
+  const handleMouseMove = useCallback(
+    (e) => {
+      if (resizingSidebar) {
+        handleSidebarResize(e);
+      }
+    },
+    [resizingSidebar, handleSidebarResize],
+  );
 
   // Workspace layout
   const workspaceStyles = useMemo(
@@ -235,10 +261,10 @@ function SqlWorkspace({
       height: '100%',
       minHeight: 0,
       overflow: 'hidden',
-      bgcolor: 'background.default',
       contain: 'layout paint style',
+      gap: 0.75,
     }),
-    []
+    [],
   );
 
   const workspaceContent = (
@@ -251,6 +277,9 @@ function SqlWorkspace({
         minHeight: 0,
         overflow: 'hidden',
         bgcolor: 'background.default',
+        p: 0.75,
+        pb: 0.25,
+        gap: 0.25,
         cursor: resizingSidebar ? 'col-resize' : 'default',
         userSelect: resizingSidebar ? 'none' : 'auto',
       }}
@@ -287,7 +316,6 @@ function SqlWorkspace({
         >
           <SchemaSidebar
             width={schemaSidebarWidth}
-            open={schemaSidebarOpen}
             isConnected={isConnected}
             currentDatabase={currentDatabase}
             onClose={() => setSchemaSidebarOpen(false)}
@@ -311,6 +339,7 @@ function SqlWorkspace({
           onRunQuery={handleRunQueryViaRef}
           onToggleSidebar={() => setSchemaSidebarOpen((v) => !v)}
           schemaSidebarOpen={schemaSidebarOpen}
+          onClearError={handleClearError}
         />
       </Box>
 
@@ -337,8 +366,7 @@ function SqlWorkspace({
       }}
     >
       <ArtifactShell
-        title={title || 'SQL Editor'}
-        icon={<CodeEditorIcon sx={{ width: 20, height: 20 }} />}
+        title="EDITOR"
         chrome={chrome}
         onClose={onClose}
         onRequestClose={onRequestClose}

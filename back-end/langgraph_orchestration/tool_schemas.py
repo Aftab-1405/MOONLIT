@@ -12,13 +12,12 @@ Benefits:
 - Better error messages when validation fails
 """
 
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 SUPPORTED_UI_ACTIONS = {
     "open_sql_editor",
-    "write_sql_editor_query",
     "open_database_modal",
     "open_settings_modal",
     "navigate_new_chat",
@@ -33,10 +32,7 @@ SUPPORTED_SETTINGS_SECTIONS = {"appearance", "ai", "database", "context"}
 
 class BaseToolArgs(BaseModel):
     """Base class for all tool arguments."""
-
-    rationale: str = Field(
-        ..., description="A natural, friendly sentence explaining what the AI is doing"
-    )
+    pass
 
 
 class GetConnectionStatusArgs(BaseToolArgs):
@@ -51,20 +47,6 @@ class GetDatabaseListArgs(BaseToolArgs):
     pass  # Only requires rationale
 
 
-class GetDatabaseSchemaArgs(BaseToolArgs):
-    """Arguments for get_database_schema tool."""
-
-    database: Optional[str] = Field(
-        None, description="Database name. If not provided, uses current database."
-    )
-
-
-class GetTableColumnsArgs(BaseToolArgs):
-    """Arguments for get_table_columns tool."""
-
-    table_name: str = Field(..., description="Name of the table to get columns for.")
-
-
 class ExecuteQueryArgs(BaseToolArgs):
     """Arguments for execute_query tool."""
 
@@ -72,7 +54,6 @@ class ExecuteQueryArgs(BaseToolArgs):
     max_rows: Optional[int] = Field(
         100, description="Maximum number of rows to return (capped at 1000).", ge=1, le=1000
     )
-
     @field_validator("max_rows", mode="before")
     @classmethod
     def cap_max_rows(cls, v: Any) -> Any:
@@ -83,45 +64,12 @@ class ExecuteQueryArgs(BaseToolArgs):
     @field_validator("query")
     @classmethod
     def validate_query_is_read_only(cls, v: str) -> str:
-        """
-        Ensure query is read-only by blocking mutation keywords.
+        from service.database.security import DatabaseSecurity
 
-        This is database-agnostic - works with PostgreSQL, MySQL, SQL Server, Oracle, SQLite.
-        Instead of whitelisting SELECT/WITH, we blacklist dangerous operations.
-        """
-        normalized = v.strip().upper()
-
-        # Remove string literals to avoid false positives (e.g., "INSERT" as data)
-        # Simple approach: replace quoted strings with empty
-        import re
-
-        cleaned = re.sub(r"'[^']*'", "", normalized)  # Remove single-quoted strings
-        cleaned = re.sub(r'"[^"]*"', "", cleaned)  # Remove double-quoted strings
-
-        # Dangerous keywords that indicate write operations
-        DANGEROUS_KEYWORDS = {
-            "INSERT",
-            "UPDATE",
-            "DELETE",
-            "DROP",
-            "CREATE",
-            "ALTER",
-            "TRUNCATE",
-            "GRANT",
-            "REVOKE",
-            "EXEC",
-            "EXECUTE",
-        }
-
-        # Check for dangerous keywords as whole words
-        words = set(re.findall(r"\b[A-Z_]+\b", cleaned))
-        dangerous_found = words & DANGEROUS_KEYWORDS
-
-        if dangerous_found:
-            raise ValueError(
-                f"Query contains blocked keywords: {', '.join(dangerous_found)}. "
-                "Only read-only queries are allowed."
-            )
+        analysis = DatabaseSecurity.analyze_sql_query(v)
+        if not analysis["is_safe"]:
+            reason = "; ".join(analysis["warnings"]) or "query is not read-only"
+            raise ValueError(reason)
 
         return v
 
@@ -132,13 +80,12 @@ class GetTableIndexesArgs(BaseToolArgs):
     table_name: str = Field(..., description="Name of the table to get indexes for.")
 
 
-class GetForeignKeysArgs(BaseToolArgs):
-    """Arguments for get_foreign_keys tool."""
+class AnalyzeQueryResultArgs(BaseToolArgs):
+    """Arguments for deterministic analysis of a persisted query result."""
 
-    table_name: Optional[str] = Field(
-        None,
-        description="Optional table name. If not provided, returns all FK relationships.",
-    )
+    execution_id: str = Field(..., min_length=1)
+    operation: Literal["profile", "data_quality", "correlation"]
+    columns: Optional[List[str]] = Field(default=None, max_length=50)
 
 
 class GetSchemaOverviewArgs(BaseToolArgs):
@@ -162,20 +109,6 @@ class OpenSqlEditorArgs(BaseToolArgs):
             return None
         query = v.strip()
         return query or None
-
-
-class WriteSqlEditorQueryArgs(BaseToolArgs):
-    """Arguments for write_sql_editor_query tool."""
-
-    query: str = Field(..., min_length=1, description="Complete SQL query to write into the editor.")
-
-    @field_validator("query")
-    @classmethod
-    def validate_query_not_blank(cls, v: str) -> str:
-        query = v.strip()
-        if not query:
-            raise ValueError("query must not be blank")
-        return query
 
 
 class OpenDatabaseModalArgs(BaseToolArgs):
@@ -229,14 +162,11 @@ class NavigateNewChatArgs(BaseToolArgs):
 TOOL_ARG_SCHEMAS = {
     "get_connection_status": GetConnectionStatusArgs,
     "get_database_list": GetDatabaseListArgs,
-    "get_database_schema": GetDatabaseSchemaArgs,
-    "get_table_columns": GetTableColumnsArgs,
     "execute_query": ExecuteQueryArgs,
     "get_table_indexes": GetTableIndexesArgs,
-    "get_foreign_keys": GetForeignKeysArgs,
+    "analyze_query_result": AnalyzeQueryResultArgs,
     "get_schema_overview": GetSchemaOverviewArgs,
     "open_sql_editor": OpenSqlEditorArgs,
-    "write_sql_editor_query": WriteSqlEditorQueryArgs,
     "open_database_modal": OpenDatabaseModalArgs,
     "open_settings_modal": OpenSettingsModalArgs,
     "navigate_new_chat": NavigateNewChatArgs,
@@ -273,48 +203,31 @@ class ConnectionStatusResult(ToolResultBase):
 class DatabaseListResult(ToolResultBase):
     """Structured result for database list."""
 
-    databases: List[str] = []
+    databases: List[str] = Field(default_factory=list)
     current_database: Optional[str] = None
     count: int = 0
-
-
-class SchemaResult(ToolResultBase):
-    """Structured result for database schema."""
-
-    database: Optional[str] = None
-    table_count: int = 0
-    tables: List[str] = Field(default_factory=list)
-    columns: Dict[str, List[Any]] = Field(default_factory=dict)
-    source: Optional[str] = None
-
-
-class TableColumnsResult(ToolResultBase):
-    """Structured result for table columns."""
-
-    table: Optional[str] = None
-    column_count: int = 0
-    columns: List[Any] = Field(default_factory=list)
-    source: Optional[str] = None
 
 
 class QueryResult(ToolResultBase):
     """Structured result for query execution.
 
-    Full data is included for UI streaming (SQL editor/results panel).
+    Full data is included for the inline chat result table.
     LLM context should consume preview-only summaries to control token usage.
     """
 
-    data: List[Dict[str, Any]] = []  # Full rows for UI/canvas rendering
+    data: List[Dict[str, Any]] = Field(default_factory=list)
     row_count: int = 0  # Actual rows returned (after truncation)
-    total_rows: int = 0  # Total rows in DB before truncation
+    total_rows: Optional[int] = None  # Exact total only when known
     column_count: int = 0
-    columns: List[str] = []
+    columns: List[str] = Field(default_factory=list)
     truncated: bool = False
-    preview: List[Dict[str, Any]] = []  # First 5 rows for LLM context (token-efficient)
+    preview: List[Dict[str, Any]] = Field(default_factory=list)
     preview_row_count: int = 0
     preview_is_partial: bool = False
-    full_result_location: str = "SQL editor results pane/canvas"
+    full_result_location: str = "inline interactive chat table"
     preview_note: Optional[str] = None
+    execution_id: Optional[str] = None
+    conversation_id: Optional[str] = None
 
 
 class TableIndexesResult(ToolResultBase):
@@ -322,15 +235,7 @@ class TableIndexesResult(ToolResultBase):
 
     table: Optional[str] = None
     count: int = 0
-    indexes: List[Dict[str, Any]] = []
-
-
-class ForeignKeysResult(ToolResultBase):
-    """Structured result for foreign key relationships."""
-
-    table: Optional[str] = None
-    count: int = 0
-    foreign_keys: List[Dict[str, Any]] = []
+    indexes: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class SchemaOverviewResult(ToolResultBase):
@@ -415,36 +320,19 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
                 count=len(dbs),
             ).model_dump()
 
-        elif tool_name == "get_database_schema":
-            tables = raw_result.get("tables", [])
-            return SchemaResult(
-                database=raw_result.get("database"),
-                table_count=len(tables),
-                tables=tables,
-                columns=raw_result.get("columns", {}),
-                source=raw_result.get("source"),
-            ).model_dump()
-
-        elif tool_name == "get_table_columns":
-            cols = raw_result.get("columns", [])
-            return TableColumnsResult(
-                table=raw_result.get("table"),
-                column_count=len(cols),
-                columns=cols,
-                source=raw_result.get("source"),
-            ).model_dump()
-
         elif tool_name == "execute_query":
             # Include full data for UI panels, plus preview for token-efficient context.
             data = raw_result.get("data", [])
             columns = raw_result.get("columns", [])
             row_count = raw_result.get("row_count", len(data))
             total_rows = raw_result.get("total_rows", row_count)
-            preview_rows = data[:5]
+            preview_rows = data[:20]
             preview_row_count = len(preview_rows)
-            preview_is_partial = max(row_count, total_rows) > preview_row_count
+            preview_is_partial = bool(raw_result.get("truncated")) or (
+                row_count > preview_row_count
+            ) or (total_rows is not None and total_rows > preview_row_count)
             preview_note = (
-                "Preview only. Complete query results are available in the SQL editor results pane/canvas."
+                "Preview only. The full available query result is visible in the inline interactive chat table."
                 if preview_is_partial
                 else None
             )
@@ -456,23 +344,19 @@ def structure_tool_result(tool_name: str, raw_result: Dict[str, Any]) -> Dict[st
                 column_count=len(columns),
                 columns=columns,
                 truncated=raw_result.get("truncated", False),
-                preview=preview_rows,  # 5 rows for LLM context summary
+                preview=preview_rows,
                 preview_row_count=preview_row_count,
                 preview_is_partial=preview_is_partial,
-                full_result_location="SQL editor results pane/canvas",
+                full_result_location="inline interactive chat table",
                 preview_note=preview_note,
+                execution_id=raw_result.get("execution_id"),
+                conversation_id=raw_result.get("conversation_id"),
             ).model_dump()
 
         elif tool_name == "get_table_indexes":
             indexes = raw_result.get("indexes", [])
             return TableIndexesResult(
                 table=raw_result.get("table"), count=len(indexes), indexes=indexes
-            ).model_dump()
-
-        elif tool_name == "get_foreign_keys":
-            fks = raw_result.get("foreign_keys", [])
-            return ForeignKeysResult(
-                table=raw_result.get("table"), count=len(fks), foreign_keys=fks
             ).model_dump()
 
         elif tool_name == "get_schema_overview":
