@@ -64,8 +64,14 @@ def verify_session_cookie_value(session_cookie: str) -> dict:
     return _user_from_decoded_session(decoded)
 
 
-def verify_csrf(request: Request) -> None:
-    """Validate the double-submit CSRF token for cookie-authenticated writes."""
+def verify_csrf_token(request: Request) -> None:
+    """
+    Validate the double-submit CSRF token for all state-mutating requests (POST, PUT, PATCH, DELETE).
+    
+    Compares the CSRF token stored in the client's cookie with the token sent in the 
+    request headers. If they are missing or do not match, a 403 Forbidden exception is raised
+    to protect endpoints against Cross-Site Request Forgery attacks.
+    """
     cookie_token = request.cookies.get(Config.CSRF_COOKIE_NAME)
     header_token = request.headers.get(Config.CSRF_HEADER_NAME)
 

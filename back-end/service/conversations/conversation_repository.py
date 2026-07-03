@@ -231,7 +231,7 @@ class ConversationRepository:
             user_id: The user ID
 
         Returns:
-            List of conversation summaries (id, timestamp, title, preview)
+            List of conversation summaries (id, timestamp, title)
         """
         from service.firestore.firestore_service import FirestoreService
         from google.cloud.firestore_v1 import FieldFilter
@@ -242,7 +242,7 @@ class ConversationRepository:
             conversations = (
                 db.collection(ConversationRepository.COLLECTION_NAME)
                 .where(filter=FieldFilter("user_id", "==", user_id))
-                .select(["timestamp", "title", "preview"])
+                .select(["timestamp", "title"])
                 .get(retry=retry, timeout=timeout)
             )
 
@@ -250,13 +250,11 @@ class ConversationRepository:
             for conv in conversations:
                 conv_data = conv.to_dict()
                 title = conv_data.get("title") or "Conversation"
-                preview = conv_data.get("preview") or "Open to view messages..."
                 conversation_list.append(
                     {
                         "id": conv.id,
                         "timestamp": conv_data.get("timestamp"),
                         "title": title,
-                        "preview": preview,
                     }
                 )
 

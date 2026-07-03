@@ -1,5 +1,7 @@
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import { Box } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { motion } from 'framer-motion';
 import { Component, memo, useCallback, useMemo, useState } from 'react';
 import { ArtifactEmptyState } from '@/features/sidebar-right/artifact-loader/ArtifactLayout';
 import DataVisualizationPanel from '@/features/sidebar-right/artifacts/data-visualization';
@@ -56,46 +58,57 @@ function getArtifactSignature(artifact) {
 }
 
 function CanvasHost({ open, panelWidth, fullscreen = false, isResizing = false, children }) {
+  const theme = useTheme();
+  const targetWidth = open ? (fullscreen ? '100%' : panelWidth) : 0;
+
   return (
     <Box
-      component="aside"
-      sx={(theme) => ({
+      sx={{
         display: 'flex',
         flexDirection: 'column',
         flexShrink: 0,
         minWidth: 0,
         minHeight: 0,
-        width: fullscreen ? 'auto' : open ? panelWidth : 0,
         height: '100%',
-        overflow: 'hidden',
         boxSizing: 'border-box',
-        transition:
-          isResizing || fullscreen
-            ? 'none'
-            : theme.transitions.create('width', {
-                easing: theme.transitions.easing.easeInOut,
-                duration: 240,
-              }),
-        willChange: fullscreen ? 'auto' : 'width',
-        ...(open && !fullscreen ? getArtifactPanelChromeSx(theme) : {}),
-        ...(fullscreen
-          ? {
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: 'auto !important',
-              height: 'auto !important',
-              zIndex: UI_Z_INDEX.artifactFullscreen,
-              ...getAppSunkenSurfaceSx(theme),
-              borderLeft: 'none',
-              boxShadow: 'none',
-            }
-          : {}),
-      })}
+        width: open ? panelWidth : 0,
+      }}
     >
-      {children}
+      <motion.div
+        animate={{
+          left: fullscreen ? 0 : 'auto',
+          right: 0,
+          width: targetWidth,
+        }}
+        transition={isResizing ? { duration: 0 } : { type: 'spring', stiffness: 320, damping: 32 }}
+        style={{
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden',
+          boxSizing: 'border-box',
+          zIndex: fullscreen ? UI_Z_INDEX.artifactFullscreen : 1,
+        }}
+      >
+        <Box
+          component="aside"
+          sx={{
+            width: '100%',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxSizing: 'border-box',
+            ...(fullscreen ? getAppSunkenSurfaceSx(theme) : getArtifactPanelChromeSx(theme)),
+            borderLeft: fullscreen ? 'none' : undefined,
+            boxShadow: fullscreen ? 'none' : undefined,
+          }}
+        >
+          {children}
+        </Box>
+      </motion.div>
     </Box>
   );
 }
@@ -160,6 +173,7 @@ function ArtifactRenderer({
   onExitFullscreen,
   onToggleFullscreen,
   workspaceContainerRef,
+  onNotify,
 }) {
   if (!artifact) return null;
 
@@ -182,6 +196,7 @@ function ArtifactRenderer({
       workspaceContainerRef,
       isDbConnected,
       currentDatabase,
+      onNotify,
     },
   });
 
@@ -199,6 +214,7 @@ function ArtifactLoader({
   currentDatabase = null,
   isResizing = false,
   workspaceContainerRef,
+  onNotify,
 }) {
   const [isArtifactFullscreen, setIsArtifactFullscreen] = useState(false);
   const artifactSignature = useMemo(() => getArtifactSignature(artifact), [artifact]);
@@ -263,6 +279,7 @@ function ArtifactLoader({
             onExitFullscreen={handleExitFullscreen}
             onToggleFullscreen={handleToggleFullscreen}
             workspaceContainerRef={workspaceContainerRef}
+            onNotify={onNotify}
           />
         </ArtifactErrorBoundary>
       </Box>

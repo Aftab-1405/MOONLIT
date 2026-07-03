@@ -33,9 +33,9 @@ export const UI_Z_INDEX = Object.freeze({
   mainContentBase: 1,
   mainContentControl: 3,
   artifactStickyHeader: 2,
-  artifactFullscreen: 1250,   // above drawer (1200), BELOW MUI modal (1300)
-  mainContentModal: 1320,     // our custom modals — above MUI modal
-  confirmModal: 1400,         // highest priority — confirm/destructive dialogs
+  artifactFullscreen: 1250, // above drawer (1200), BELOW MUI modal (1300)
+  mainContentModal: 1320, // our custom modals — above MUI modal
+  confirmModal: 1400, // highest priority — confirm/destructive dialogs
 });
 
 export const UI_POPOVER = Object.freeze({

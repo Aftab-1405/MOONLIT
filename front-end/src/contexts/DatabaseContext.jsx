@@ -34,7 +34,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
 import {
   disconnectDb,
-  getDbStatus,
   getSchemas as getSchemasApi,
   getTableSchema as getTableSchemaApi,
   getTables,
@@ -42,6 +41,7 @@ import {
   selectSchema as selectSchemaApi,
   sessionActive,
   switchDatabase as switchDatabaseApi,
+  syncConnectionState,
 } from '@/api';
 import { queryKeys } from '@/api/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -315,11 +315,13 @@ export function DatabaseProvider({ children }) {
       try {
         const sessionInstanceId = getSessionInstanceId();
         if (sessionInstanceId) {
-          await sessionActive(sessionInstanceId);
+          sessionActive(sessionInstanceId).catch((err) => {
+            logger.warn('Failed to report active session:', err);
+          });
         }
         const response = await queryClient.fetchQuery({
           queryKey: queryKeys.dbStatus,
-          queryFn: getDbStatus,
+          queryFn: syncConnectionState,
           staleTime: 30 * 1000,
         });
         dispatch({ type: ActionTypes.SYNC_STATUS, payload: response.data });
@@ -485,7 +487,7 @@ export function DatabaseProvider({ children }) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
       const response = await queryClient.fetchQuery({
         queryKey: queryKeys.dbStatus,
-        queryFn: getDbStatus,
+        queryFn: syncConnectionState,
         staleTime: 30 * 1000,
       });
       queryClient.setQueryData(queryKeys.dbStatus, response);

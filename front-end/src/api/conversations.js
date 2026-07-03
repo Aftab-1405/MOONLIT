@@ -47,7 +47,7 @@ function scheduleExecutionResultRead(task) {
  * @param {AbortSignal} [signal] - Optional abort signal for cancellation
  * @returns {Promise<{status: string, conversations: Array}>}
  */
-export async function getConversations(signal) {
+export async function getAllUserConversations(signal) {
   return get(CONVERSATIONS.LIST, { signal });
 }
 

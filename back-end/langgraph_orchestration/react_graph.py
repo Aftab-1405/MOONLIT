@@ -16,9 +16,10 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.prebuilt import create_react_agent
 
 
-def format_previous_user_turn(content: str) -> str:
+def format_previous_user_turn(content: str, turn_index: int | None = None) -> str:
     """Mark a restored user message as history without changing its message role."""
-    return f"<previous_user_turn>\n{escape(content or '')}\n</previous_user_turn>"
+    attr = f' turn="{turn_index}"' if turn_index is not None else ""
+    return f"<previous_user_turn{attr}>\n{escape(content or '')}\n</previous_user_turn>"
 
 
 def format_current_user_request(content: str) -> str:
@@ -31,8 +32,10 @@ def format_previous_assistant_turn(
     *,
     tool_trace: str = "",
     tool_calls: str = "",
+    turn_index: int | None = None,
 ) -> str:
     """Mark a restored assistant response and its summarized prior tool activity."""
+    attr = f' turn="{turn_index}"' if turn_index is not None else ""
     sections = []
     if content.strip():
         sections.append(
@@ -55,7 +58,7 @@ def format_previous_assistant_turn(
 
     if not sections:
         sections.append("<assistant_response>Prior response used tools.</assistant_response>")
-    return "<previous_assistant_turn>\n" + "\n".join(sections) + "\n</previous_assistant_turn>"
+    return f"<previous_assistant_turn{attr}>\n" + "\n".join(sections) + "\n</previous_assistant_turn>"
 
 
 def _reference_context(
@@ -94,6 +97,60 @@ def format_ongoing_task_checkpoint(content: str) -> str:
         "Compressed progress, decisions, and pending work from the current "
         "unfinished task.",
         content,
+    )
+
+
+def _build_context_map(
+    *,
+    has_vamp: bool,
+    has_checkpoint: bool,
+    hot_turns: int,
+) -> str:
+    """
+    Build a dynamic per-turn inventory of every context layer the model is
+    about to receive, so it can orient itself before reading any content.
+
+    Industry-standard ordering (primacy → recency):
+      1. system_instructions        — stable rules & identity          (primacy)
+      2. context_map                — this index
+      3. retrieved_long_term_memory — VAMP semantic bullets            (background)
+      4. conversation_history       — recent exact turns               (recent evidence)
+      5. ongoing_task_checkpoint    — compressed current-task state    (freshest continuity)
+      6. current_user_request       — the prompt to answer NOW         (recency / target)
+    """
+    layers = [
+        "1. <system_instructions>  — stable rules, identity, and context glossary.",
+        "2. <context_map>          — this index (you are reading it now).",
+    ]
+    n = 3
+    if has_vamp:
+        layers.append(
+            f"{n}. <retrieved_long_term_memory> — semantically matched facts from older "
+            "turns; possibly stale. Use as background hints, verify with tools."
+        )
+        n += 1
+    if hot_turns > 0:
+        layers.append(
+            f"{n}. conversation_history — {hot_turns} recent turn(s) as "
+            "<previous_user_turn turn=N> / <previous_assistant_turn turn=N> messages."
+        )
+        n += 1
+    if has_checkpoint:
+        layers.append(
+            f"{n}. <ongoing_task_checkpoint> — LLM-compressed progress of the current "
+            "unfinished task; injected immediately before the current request."
+        )
+        n += 1
+    layers.append(
+        f"{n}. <current_user_request> — the prompt to answer right now "
+        "(final HumanMessage)."
+    )
+    body = "\n".join(layers)
+    return (
+        "<context_map>\n"
+        "The following context layers are present in this turn, in order:\n"
+        f"{body}\n"
+        "</context_map>"
     )
 
 
@@ -142,8 +199,18 @@ def prepare_model_messages(
     task_checkpoint_summary: str = "",
     model_id: str | None = None,
 ) -> list:
-    """Build one model request without applying history limits to the system prompt."""
-    from langchain_core.messages import SystemMessage
+    """
+    Assemble the final ordered message list for one model invocation.
+
+    Industry-standard ordering (primacy → recency):
+      SystemMessage  system_instructions      — rules & glossary     (primacy)
+      SystemMessage  context_map              — dynamic turn index
+      SystemMessage  retrieved_long_term_memory — VAMP bullets       (background)
+      Human/AI       conversation_history     — hot recent turns     (recent evidence)
+      SystemMessage  ongoing_task_checkpoint  — task continuity      (freshest context)
+      HumanMessage   current_user_request     — target prompt        (recency)
+    """
+    from langchain_core.messages import HumanMessage, SystemMessage
 
     from llm_provider.token_budget import truncate_messages_to_budget
 
@@ -153,19 +220,50 @@ def prepare_model_messages(
         active_context_budget,
         model_id=model_id,
     )
-    prefix = [SystemMessage(content=system_prompt)]
 
-    if historical_context:
+    # Count hot turns for the context map (each HumanMessage = one turn boundary)
+    hot_turns = sum(
+        1 for m in kept_messages if isinstance(m, HumanMessage)
+    )
+    # The final HumanMessage is the current request, not a "previous" turn
+    hot_turns = max(0, hot_turns - 1)
+
+    has_vamp = bool(historical_context)
+    has_checkpoint = bool(task_checkpoint_summary)
+
+    # --- Prefix: stable context (primacy position) ---
+    prefix = [
+        SystemMessage(content=system_prompt),
+        SystemMessage(
+            content=_build_context_map(
+                has_vamp=has_vamp,
+                has_checkpoint=has_checkpoint,
+                hot_turns=hot_turns,
+            )
+        ),
+    ]
+
+    if has_vamp:
         prefix.append(
             SystemMessage(content=format_retrieved_long_term_memory(historical_context))
         )
 
-    if task_checkpoint_summary:
-        prefix.append(
-            SystemMessage(content=format_ongoing_task_checkpoint(task_checkpoint_summary))
+    # --- Hot history + checkpoint injection (recency position) ---
+    # Split kept_messages: everything up to (but not including) the final
+    # HumanMessage (current_user_request) so the checkpoint can be placed
+    # immediately before it — maximising recency bias for task continuity.
+    if has_checkpoint and kept_messages:
+        *history_msgs, current_request_msg = kept_messages
+        arranged = (
+            prefix
+            + history_msgs
+            + [SystemMessage(content=format_ongoing_task_checkpoint(task_checkpoint_summary))]
+            + [current_request_msg]
         )
+    else:
+        arranged = prefix + kept_messages
 
-    return prefix + kept_messages
+    return arranged
 
 
 def build_react_agent(

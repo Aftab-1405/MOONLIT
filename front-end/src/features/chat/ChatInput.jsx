@@ -381,6 +381,11 @@ function ChatInput({
             : hasText
               ? theme.palette.primary.dark
               : alpha(theme.palette.text.primary, 0.08),
+          color: isStreaming
+            ? theme.palette.error.main
+            : hasText
+              ? theme.palette.primary.contrastText
+              : alpha(theme.palette.text.primary, 0.45),
           boxShadow: 'none',
         },
       },

@@ -24,10 +24,9 @@ import {
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { memo, useMemo } from 'react';
-import { ConfirmDialog } from '@/components';
+import { CodeViewer, ConfirmDialog } from '@/components';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import RecentChatIcon from '@/components/icons/RecentChatIcon';
-import { CodeViewer } from '@/components';
 import { useUserDBContext } from '@/hooks/useUserDBContext';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { getUtilityIconButtonSx } from '@/styles/shared';
@@ -352,28 +351,28 @@ function UserDBContextManagerForAI() {
         {/* Clear all — semantic danger action, only shown when there's data */}
         {((activeView === 'schemas' && schemas.length > 0) ||
           (activeView === 'queries' && queries.length > 0)) && (
-            <Button
-              size="small"
-              onClick={() => openDeleteDialog(activeView === 'schemas' ? 'all-schemas' : 'queries')}
-              sx={{
-                ...theme.typography.uiNavItem,
-                textTransform: 'none',
-                fontWeight: 500,
-                px: 1.5,
-                height: 32,
-                borderRadius: '8px',
-                minWidth: 0,
-                color: 'text.secondary',
-                transition: theme.transitions.create(['color', 'background-color']),
-                '&:hover': {
-                  color: 'error.main',
-                  backgroundColor: alpha(theme.palette.error.main, 0.1),
-                },
-              }}
-            >
-              Clear all
-            </Button>
-          )}
+          <Button
+            size="small"
+            onClick={() => openDeleteDialog(activeView === 'schemas' ? 'all-schemas' : 'queries')}
+            sx={{
+              ...theme.typography.uiNavItem,
+              textTransform: 'none',
+              fontWeight: 500,
+              px: 1.5,
+              height: 32,
+              borderRadius: '8px',
+              minWidth: 0,
+              color: 'text.secondary',
+              transition: theme.transitions.create(['color', 'background-color']),
+              '&:hover': {
+                color: 'error.main',
+                backgroundColor: alpha(theme.palette.error.main, 0.1),
+              },
+            }}
+          >
+            Clear all
+          </Button>
+        )}
       </Box>
       {activeView === 'schemas' &&
         (schemas.length === 0 ? (
@@ -498,8 +497,8 @@ function UserDBContextManagerForAI() {
                             >
                               {Array.isArray(columns)
                                 ? columns
-                                  .map((c) => (typeof c === 'object' ? c.name : c))
-                                  .join(', ')
+                                    .map((c) => (typeof c === 'object' ? c.name : c))
+                                    .join(', ')
                                 : 'No columns'}
                             </Typography>
                           </Box>
@@ -618,8 +617,8 @@ function UserDBContextManagerForAI() {
                           Math.max(
                             80,
                             ((query.query || '').split('\n').length || 1) *
-                            (isCompactMobile ? 18 : 20) +
-                            28,
+                              (isCompactMobile ? 18 : 20) +
+                              28,
                           ),
                           isCompactMobile ? 180 : 200,
                         ),

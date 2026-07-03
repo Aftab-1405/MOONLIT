@@ -29,7 +29,7 @@ from api_contract.conversations import (
 from api_contract.streaming import STREAMING_RESPONSES
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["conversation"])
+router = APIRouter(tags=["Moonlit Conversation End Points"])
 
 _TRANSIENT_FIRESTORE_ERRORS = (
     DeadlineExceeded,
@@ -40,6 +40,15 @@ _TRANSIENT_FIRESTORE_ERRORS = (
 
 
 def _firestore_unavailable_response(exc: Exception) -> HTTPException:
+    """
+    Log and build a 503 service unavailable response when Firestore operations fail.
+
+    Args:
+        exc: The underlying exception from Firestore/Google API client.
+
+    Returns:
+        A FastAPI HTTPException indicating temporary database unavailability with retry headers.
+    """
     logger.warning("Firestore temporarily unavailable: %s", exc)
     return HTTPException(
         status_code=503,
@@ -50,21 +59,35 @@ def _firestore_unavailable_response(exc: Exception) -> HTTPException:
         headers={"Retry-After": "2"},
     )
 
-# Conversation endpoints intentionally keep legacy flat response dictionaries.
-# The frontend conversation hooks consume top-level keys such as `conversation`
-# and `conversations`, unlike newer ApiSuccess(data=...) routes.
-
 
 def _build_provider_options() -> tuple[list[dict], str]:
+    """
+    Fetch LLM provider options and the default provider configured for the server.
+
+    Returns:
+        A tuple containing:
+            - list[dict]: A list of provider configurations (supported models, details).
+            - str: The default provider name (e.g., 'gemini', 'openai').
+    """
     return LLMOptionsService.build_provider_options()
 
 
 async def _stream_with_heartbeats(source, *, interval_seconds: float = 15.0):
-    """Forward an SSE source while keeping idle proxies from closing it.
+    """
+    Forward an SSE source while sending periodic heartbeats to prevent idle connection closures.
 
     Model calls, database queries, embeddings, and checkpoint compaction can be
-    silent for longer than common proxy idle limits. A producer task allows us
-    to send SSE comments without cancelling the underlying async generator.
+    silent for longer than common proxy idle limits (e.g., Load Balancers, Cloudflare).
+    A separate producer task consumes the source generator, putting events onto a queue
+    so we can yield `: heartbeat\\n\\n` comments without interrupting or cancelling
+    the underlying agent execution.
+
+    Args:
+        source: The asynchronous generator yielding SSE lines.
+        interval_seconds: Max seconds to wait before yielding a heartbeat comment.
+
+    Yields:
+        SSE events from the source generator, or heartbeat comments.
     """
     queue: asyncio.Queue = asyncio.Queue()
     finished = object()
@@ -110,6 +133,28 @@ async def _handle_agent_stream(
     model: Optional[str],
     stream_generator_kwargs: dict,
 ):
+    """
+    Validate limits, acquire rate-limiting locks, and return a streaming SSE response for the agent.
+
+    This function performs authentication validation, checks user query quotas,
+    acquires the provider rate-limiting lock, constructs the streaming generator,
+    and returns a StreamingResponse.
+
+    Args:
+        request: The active FastAPI Request.
+        user_id: Unique identifier for the current user.
+        conversation_id: Unique ID of the conversation.
+        provider: LLM Provider name (e.g., 'gemini', 'openai').
+        model: Optional specific LLM model ID.
+        stream_generator_kwargs: Additional parameters passed to the streaming generator.
+
+    Returns:
+        A StreamingResponse yielding Server-Sent Events (SSE).
+
+    Raises:
+        HTTPException: For invalid provider (400), database permission errors (403),
+                     user rate-limits (429), or internal errors (500).
+    """
     supported = LLMOptionsService.supported_providers()
     if provider not in supported:
         raise HTTPException(
@@ -206,7 +251,21 @@ async def chat(
     user: dict = Depends(get_current_user),
     db_config: Optional[dict] = Depends(get_db_config),
 ):
-    """Handle user input and stream AI response."""
+    """
+    Handle incoming user prompts and stream the agentic/LLM response as SSE.
+
+    This endpoint starts or continues a chat conversation. It sets up agent execution kwargs,
+    checks rate limits/quotas, and delegates to the internal stream handler.
+
+    Args:
+        request: The active FastAPI Request object.
+        data: The ChatRequest payload containing the prompt, model config, and options.
+        user: The authenticated user dict containing claims (e.g. UID).
+        db_config: Optional target database connection configs.
+
+    Returns:
+        A StreamingResponse yielding SSE tokens/events.
+    """
     provider = data.provider or Config.LLM_PROVIDER
     conversation_id = ConversationService.create_or_get_conversation_id(
         data.conversation_id
@@ -251,7 +310,21 @@ async def resume_agent(
     user: dict = Depends(get_current_user),
     db_config: Optional[dict] = Depends(get_db_config),
 ):
-    """Resume a LangGraph conversation paused by a human-in-the-loop interrupt."""
+    """
+    Resume an active LangGraph conversation paused by a human-in-the-loop interrupt.
+
+    Used to signal approval/feedback to the agent's workflow when execution pauses
+    and requires verification.
+
+    Args:
+        request: The active FastAPI Request object.
+        data: The AgentResumeRequest containing conversation ID and resume parameters.
+        user: The authenticated user dict.
+        db_config: Optional database connection configs.
+
+    Returns:
+        A StreamingResponse resuming the agent execution.
+    """
     user_id = user.get("uid") if isinstance(user, dict) else user
     provider = data.provider or Config.LLM_PROVIDER
     
@@ -278,7 +351,15 @@ async def resume_agent(
 
 @router.get("/llm/options")
 async def get_llm_options(user: dict = Depends(get_current_user)):
-    """Return available provider/model options for the current deployment."""
+    """
+    Retrieve available provider/model options and defaults for the current deployment.
+
+    Args:
+        user: The authenticated user dict.
+
+    Returns:
+        A dict containing default provider, default model, and the list of all supported providers.
+    """
     _ = user  # keep route authenticated and avoid unused arg linting
 
     provider_options, default_provider = _build_provider_options()
@@ -292,19 +373,113 @@ async def get_llm_options(user: dict = Depends(get_current_user)):
         else LLMOptionsService.default_model(default_provider)
     )
 
+    # This logic is used to determine if the reasoning is supported for the specfic model or not
+    # using the model_capability function from the llm_provider.model_capabilities module.
+    from llm_provider.model_capabilities import model_capability
+    capabilities = {}
+    for provider in provider_options:
+        for model in provider.get("models", []):
+            reasoning_type = model_capability(model, "reasoning_type", "none")
+            capabilities[model] = {
+                "supports_reasoning": reasoning_type == "openai_effort"
+            }
+
     return {
         "status": "success",
         "default_provider": default_provider,
         "default_model": default_model,
         "providers": provider_options,
+        "capabilities": capabilities,
     }
+
+
+def _sanitize_messages(messages: list) -> list:
+    """
+    Process and sanitize the message history list for a conversation.
+    
+    This function performs two main tasks:
+    1. Deserializes the stringified 'args' and 'result' fields of timeline
+       items (which are stored as JSON strings in Firestore) back into native
+       Python dictionaries/lists. This prevents double-serialization backslashes
+       in the final API response.
+    2. Strips massive, redundant result datasets ('data' and 'preview' arrays) 
+       from 'execute_query' tool steps. The frontend doesn't need these in the 
+       timeline payload since it fetches them asynchronously from the 
+       get_execution_result endpoint.
+       
+    Args:
+        messages: A list of raw message dictionaries from database storage.
+        
+    Returns:
+        A list of sanitized message dictionaries with unescaped nested objects.
+    """
+    import json
+    sanitized = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            sanitized.append(msg)
+            continue
+        msg_copy = dict(msg)
+        timeline = msg_copy.get("timeline")
+        if timeline and isinstance(timeline, list):
+            new_timeline = []
+            for item in timeline:
+                if not isinstance(item, dict):
+                    new_timeline.append(item)
+                    continue
+                item_copy = dict(item)
+                
+                # Parse args to dict if they are stored as JSON string
+                args_val = item_copy.get("args")
+                if isinstance(args_val, str):
+                    try:
+                        item_copy["args"] = json.loads(args_val)
+                    except Exception:
+                        pass
+                
+                # Parse result to dict if stored as JSON string
+                res_val = item_copy.get("result")
+                if isinstance(res_val, str):
+                    try:
+                        res_val = json.loads(res_val)
+                    except Exception:
+                        pass
+                
+                # Strip large query arrays from execute_query results
+                if item_copy.get("type") == "tool" and item_copy.get("name") == "execute_query":
+                    if isinstance(res_val, dict):
+                        res_val = dict(res_val)
+                        res_val.pop("data", None)
+                        res_val.pop("preview", None)
+                
+                item_copy["result"] = res_val
+                new_timeline.append(item_copy)
+            msg_copy["timeline"] = new_timeline
+        sanitized.append(msg_copy)
+    return sanitized
 
 
 @router.get("/get_conversation/{conversation_id}")
 async def get_conversation(
     conversation_id: str, user: dict = Depends(get_current_user)
 ):
-    """Get messages for a conversation (user must own it)."""
+    """
+    Get message history and status for a specific conversation.
+
+    Verifies user ownership before returning metadata, settings, and the list
+    of messages (which are sanitized to remove massive SQL arrays and clean up backslashes).
+
+    Args:
+        conversation_id: The unique ID of the conversation.
+        user: The authenticated user dict containing the UID.
+
+    Returns:
+        A dict containing a success status and the conversation details.
+
+    Raises:
+        HTTPException: 404 if conversation is not found, 403 for permission errors,
+                     503 if Firestore is temporarily unavailable, or 500 for general failures.
+    """
     try:
         user_id = user.get("uid") if isinstance(user, dict) else user
         conv_data = await run_in_threadpool(
@@ -312,7 +487,16 @@ async def get_conversation(
         )
         if conv_data:
             # Keep this flat response shape; frontend conversation loaders read `conversation` directly.
-            return {"status": "success", "conversation": conv_data}
+            raw_messages = conv_data.get("messages") or []
+            sanitized_conv = {
+                "id": conversation_id,
+                "title": conv_data.get("title") or "Conversation",
+                "timestamp": conv_data.get("timestamp"),
+                "messages": _sanitize_messages(raw_messages),
+                "task_mode": conv_data.get("task_mode") or "normal",
+                "task_status": conv_data.get("task_status") or "",
+            }
+            return {"status": "success", "conversation": sanitized_conv}
         raise HTTPException(status_code=404, detail="Conversation not found")
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
@@ -329,7 +513,24 @@ async def get_conversation(
 async def fetch_execution_result(
     conversation_id: str, execution_id: str, user: dict = Depends(get_current_user)
 ):
-    """Get a specific execution result from the subcollection."""
+    """
+    Get full query execution results (columns and rows) for an inline table.
+
+    Verifies conversation ownership and retrieves cached query outputs from
+    the execution_results subcollection.
+
+    Args:
+        conversation_id: The unique ID of the conversation.
+        execution_id: The ID of the query execution.
+        user: The authenticated user dict containing the UID.
+
+    Returns:
+        A dict with a success status and the execution details containing column header and row data.
+
+    Raises:
+        HTTPException: 404 if conversation or result is not found, 403 if permission is denied,
+                     503 if Firestore is unavailable, or 500 for general failures.
+    """
     try:
         user_id = user.get("uid") if isinstance(user, dict) else user
         
@@ -351,7 +552,14 @@ async def fetch_execution_result(
         if not result_data:
             raise HTTPException(status_code=404, detail="Execution result not found")
             
-        return {"status": "success", "data": result_data}
+        sanitized_result = {
+            "columns": result_data.get("columns") or [],
+            "data": result_data.get("data") or [],
+            "row_count": result_data.get("row_count") or 0,
+            "total_rows": result_data.get("total_rows") or 0,
+            "truncated": result_data.get("truncated") or False,
+        }
+        return {"status": "success", "data": sanitized_result}
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except _TRANSIENT_FIRESTORE_ERRORS as e:
@@ -363,9 +571,17 @@ async def fetch_execution_result(
         raise HTTPException(status_code=500, detail="An internal error occurred.")
 
 
-@router.get("/get_conversations")
-async def get_conversations(user: dict = Depends(get_current_user)):
-    """Get all conversations for logged-in user."""
+@router.get("/get_all_user_conversations")
+async def get_all_user_conversations(user: dict = Depends(get_current_user)):
+    """
+    Retrieve all conversation metadata (id, title, timestamp) for the authenticated user.
+
+    Args:
+        user: The authenticated user dict.
+
+    Returns:
+        A dict containing success status and list of conversations.
+    """
     user_id = user.get("uid") if isinstance(user, dict) else user
     conversations = await run_in_threadpool(
         ConversationService.get_user_conversations, user_id
@@ -378,7 +594,20 @@ async def get_conversations(user: dict = Depends(get_current_user)):
 async def delete_conversation(
     conversation_id: str, user: dict = Depends(get_current_user)
 ):
-    """Delete a conversation."""
+    """
+    Delete a conversation and all its associated messages.
+
+    Args:
+        conversation_id: The unique ID of the conversation to delete.
+        user: The authenticated user dict.
+
+    Returns:
+        A success status dict.
+
+    Raises:
+        HTTPException: 403 if permission is denied, 404 if conversation is missing,
+                     or 500 for general failures.
+    """
     try:
         user_id = user.get("uid") if isinstance(user, dict) else user
         await run_in_threadpool(
@@ -400,7 +629,21 @@ async def rename_conversation(
     data: RenameConversationRequest,
     user: dict = Depends(get_current_user),
 ):
-    """Rename a conversation."""
+    """
+    Rename a conversation with a new custom title.
+
+    Args:
+        conversation_id: The unique ID of the conversation to rename.
+        data: The RenameConversationRequest containing the new title.
+        user: The authenticated user dict.
+
+    Returns:
+        A dict containing the success status and the updated title.
+
+    Raises:
+        HTTPException: 403 if permission is denied, 404 if conversation is missing,
+                     or 500 for general failures.
+    """
     try:
         user_id = user.get("uid") if isinstance(user, dict) else user
         title = await run_in_threadpool(

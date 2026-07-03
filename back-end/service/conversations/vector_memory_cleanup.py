@@ -1,4 +1,7 @@
-"""Conversation memory cleanup adapters."""
+"""
+Vector Memory Cleanup Adapter - Deletes Qdrant vector embeddings associated with a conversation
+upon its deletion, ensuring security, privacy, and prevention of orphaned memory.
+"""
 
 import asyncio
 import threading
@@ -10,7 +13,10 @@ from api_contract.runtime_ports import get_conversation_memory_cleaner
 def run_memory_cleanup_sync(
     cleaner: ConversationMemoryCleaner, conversation_id: str, user_id: str
 ) -> None:
-    """Run an async memory-cleanup port from synchronous application code."""
+    """
+    Run the asynchronous vector memory cleanup (Qdrant collection/document deletion)
+    from a synchronous application block by spawning a worker thread with its own event loop.
+    """
     error_wrapper: list[BaseException] = []
 
     def _delete_pointers():
@@ -28,5 +34,5 @@ def run_memory_cleanup_sync(
 
 
 def get_default_memory_cleaner() -> ConversationMemoryCleaner:
-    """Return the configured conversation memory cleaner."""
+    """Return the configured conversation vector memory cleaner (Qdrant connection wrapper)."""
     return get_conversation_memory_cleaner()

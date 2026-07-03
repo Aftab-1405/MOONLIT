@@ -1,14 +1,13 @@
 import { Box } from '@mui/material';
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { PageLoader } from '@/components';
 import AdminRoute from '@/guards/AdminRoute';
 import ProtectedRoute from '@/guards/ProtectedRoute';
-
-const Landing = lazy(() => import('@/pages/Landing'));
-const Auth = lazy(() => import('@/pages/Auth'));
-const Chat = lazy(() => import('@/pages/Chat'));
-const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
+import AdminDashboard from '@/pages/AdminDashboard';
+import Auth from '@/pages/Auth';
+import Chat from '@/pages/Chat';
+import Landing from '@/pages/Landing';
 
 function App() {
   return (

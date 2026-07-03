@@ -122,7 +122,6 @@ def get_conversations(user_id):
                             if len(conv_data["messages"][0]["content"]) > 40
                             else ""
                         ),
-                        "preview": conv_data["messages"][0]["content"][:50] + "...",
                     }
                 )
         conversation_list.sort(key=lambda x: x["timestamp"], reverse=True)

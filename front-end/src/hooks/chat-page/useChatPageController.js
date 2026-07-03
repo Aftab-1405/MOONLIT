@@ -174,7 +174,7 @@ export function useChatPageController() {
       handleOpenCanvasArtifact({
         type: 'visualization',
         title: 'Query results',
-        props: { data, sourceQuery, sourceType: 'sql-editor' },
+        props: { data, sourceQuery, sourceType: 'chat-code-block' },
       });
     },
     [handleOpenCanvasArtifact],

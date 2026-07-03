@@ -6,7 +6,7 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import { Box, Button, Snackbar, Typography } from '@mui/material';
+import { Box, Button, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
@@ -31,12 +31,12 @@ function DataVisualizationPanel({
   sourceType,
   currentDatabase,
   workspaceContainerRef,
+  onNotify,
 }) {
   const theme = useTheme();
   const dashboardRef = useRef(null);
   const [viewerReady, setViewerReady] = useState(false);
   const [selection, setSelection] = useState(null);
-  const [notice, setNotice] = useState('');
   const columns = useMemo(() => data?.columns || [], [data?.columns]);
   const rows = useMemo(() => data?.rows || [], [data?.rows]);
   const memoizedData = useMemo(() => ({ columns, rows }), [columns, rows]);
@@ -66,14 +66,18 @@ function DataVisualizationPanel({
     );
   }, [data, isFullscreen, requestOpenArtifact, sourceQuery]);
 
-  const runDashboardAction = useCallback(async (action, successMessage, ...args) => {
-    try {
-      await dashboardRef.current?.[action]?.(...args);
-      setNotice(successMessage);
-    } catch (actionError) {
-      setNotice(actionError?.message || 'The analysis action could not be completed.');
-    }
-  }, []);
+  const runDashboardAction = useCallback(
+    async (action, successMessage, ...args) => {
+      try {
+        await dashboardRef.current?.[action]?.(...args);
+        onNotify?.(successMessage, 'success');
+      } catch (actionError) {
+        const errMsg = actionError?.message || 'The analysis action could not be completed.';
+        onNotify?.(errMsg, 'error');
+      }
+    },
+    [onNotify],
+  );
 
   const applySelectionFilter = useCallback(async () => {
     if (!selection?.config) return;
@@ -82,8 +86,9 @@ function DataVisualizationPanel({
 
   const copySelection = useCallback(async () => {
     const copied = await copyToClipboard(JSON.stringify(selection?.row || {}, null, 2));
-    setNotice(copied ? 'Selected row copied.' : 'Selected row could not be copied.');
-  }, [selection]);
+    const msg = copied ? 'Selected row copied.' : 'Selected row could not be copied.';
+    onNotify?.(msg, copied ? 'success' : 'error');
+  }, [onNotify, selection]);
 
   if (!rows.length) {
     return (
@@ -234,12 +239,6 @@ function DataVisualizationPanel({
           />
         </Box>
       </ArtifactShell>
-      <Snackbar
-        open={Boolean(notice)}
-        autoHideDuration={2600}
-        onClose={() => setNotice('')}
-        message={notice}
-      />
     </Box>
   );
 }

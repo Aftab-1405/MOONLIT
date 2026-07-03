@@ -3,9 +3,9 @@ import { alpha } from '@mui/material/styles';
 import { memo, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { CodeViewer } from '@/components';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { TRANSITIONS } from '@/theme/themeEffects';
-import { CodeViewer } from '@/components';
 
 // Languages rendered as interactive canvas artifacts — never shown as code blocks.
 const CANVAS_LANGUAGES = new Set(['diagram-flow']);

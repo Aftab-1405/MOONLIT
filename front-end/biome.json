@@ -3,11 +3,11 @@
   "files": {
     "includes": [
       "**",
-      "!**/dist/**",
-      "!**/node_modules/**",
-      "!**/test-results/**",
-      "!**/coverage/**",
-      "!**/build/**"
+      "!**/dist",
+      "!**/node_modules",
+      "!**/test-results",
+      "!**/coverage",
+      "!**/build"
     ]
   },
   "formatter": {

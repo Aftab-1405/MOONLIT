@@ -33,7 +33,7 @@ from api_contract.database_schemas import (
 from api_contract.query_schemas import QueryResultData, RunSqlQueryData
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["database"])
+router = APIRouter(tags=["Database Operations End Points"])
 
 
 def _raise_service_error(result: dict, status_code: int = 400) -> None:
@@ -313,19 +313,25 @@ async def disconnect_db(
 
 
 @router.get(
-    "/db_status",
+    "/sync_connection_state",
     response_model=ApiSuccess[DatabaseStatusData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def db_status(db_config: Optional[dict] = Depends(get_db_config)):
-    """Get current database connection status.
+async def sync_connection_state(db_config: Optional[dict] = Depends(get_db_config)):
+    """Synchronize the active database connection state with the consumer.
 
-    Returns all state needed by frontend DatabaseContext:
-    - connected: boolean connection status
-    - current_database: currently selected database name
+    This endpoint is used primarily by the frontend React application to restore, 
+    hydrate, and synchronize its local state (e.g. green badges, active tables, 
+    and sidebar schema explorers) on page reload or fresh tab visits.
+
+    Returns all state needed by the client-side DatabaseContext:
+    - connected: boolean indicating if there is an active session connection
+    - current_database: name of the currently selected database
     - db_type: database type (mysql, postgresql, sqlserver, oracle)
     - is_remote: whether using connection string
     - databases: list of available databases for switching
+    - schemas: list of available schemas (for Postgres)
+    - current_schema: name of the active schema
     """
     if not db_config:
         return ApiSuccess(

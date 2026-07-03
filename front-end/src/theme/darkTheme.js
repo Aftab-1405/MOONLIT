@@ -258,8 +258,6 @@ const getIconButtonColorStyles = (main) => ({
 const components = {
   MuiCssBaseline: {
     styleOverrides: {
-
-
       '*, *::before, *::after': { boxSizing: 'border-box' },
 
       '*': {

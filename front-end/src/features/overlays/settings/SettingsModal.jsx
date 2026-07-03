@@ -18,6 +18,7 @@ import {
 } from '@mui/material';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { memo, useEffect, useMemo, useState } from 'react';
+import { queryClient, queryKeys } from '@/api/queryClient';
 import { DialogShell } from '@/components';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
@@ -50,6 +51,12 @@ const SECTIONS = [
 function SettingsModal({ open, onClose, initialSection = null }) {
   const { settings, updateSetting, resetSettings } = useAppTheme();
   const [activeSection, setActiveSection] = useState('appearance');
+
+  const llmOptions = queryClient.getQueryData(queryKeys.llmOptions) || {};
+  const currentModel = settings.llmModel;
+  const supportsReasoning = currentModel
+    ? (llmOptions.capabilities?.[currentModel]?.supports_reasoning ?? false)
+    : false;
 
   useEffect(() => {
     if (open && initialSection) {
@@ -154,15 +161,20 @@ function SettingsModal({ open, onClose, initialSection = null }) {
 
                 <PreferenceRow
                   label="Reasoning Effort"
-                  description="Token budget for models that support reasoning"
+                  description={
+                    supportsReasoning
+                      ? 'Token budget for models that support reasoning'
+                      : 'Not supported by the currently selected model'
+                  }
                   htmlFor="setting-reasoning-effort"
                 >
-                  <FormControl size="small" sx={controlSx}>
+                  <FormControl size="small" sx={controlSx} disabled={!supportsReasoning}>
                     <Select
                       id="setting-reasoning-effort"
                       value={settings.reasoningEffort ?? 'medium'}
                       onChange={(e) => updateSetting('reasoningEffort', e.target.value)}
                       MenuProps={selectMenuProps}
+                      disabled={!supportsReasoning}
                     >
                       <MenuItem value="low">Low (1,024 Tokens)</MenuItem>
                       <MenuItem value="medium">Medium (5,000 Tokens)</MenuItem>

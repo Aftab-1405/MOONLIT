@@ -1,6 +1,7 @@
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import { Avatar, Box, Collapse, Drawer, Tooltip, Typography, useMediaQuery } from '@mui/material';
+import { Avatar, Box, Collapse, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
+import { motion } from 'framer-motion';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import MindmapIcon from '@/components/icons/MindmapIcon';
@@ -8,6 +9,7 @@ import NewChatIcon from '@/components/icons/NewChatIcon';
 import RecentChatIcon from '@/components/icons/RecentChatIcon';
 import SearchIcon from '@/components/icons/SearchIcon';
 import SidebarPanelIcon from '@/components/icons/SidebarPanelIcon';
+import { Drawer as CustomDrawer, DrawerContent, DrawerOverlay } from '@/components/ui/Drawer';
 import SidebarOverlays from '@/features/sidebar-left/components/SidebarOverlays';
 import {
   ConversationItem,
@@ -148,6 +150,7 @@ function Sidebar({
   // Close popovers when sidebar closes
   useEffect(() => {
     if ((isMobile && !mobileOpen) || (!isMobile && !open)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDbPopoverAnchor(null);
       setHistoryPopoverAnchor(null);
       setSearchPopoverAnchor(null);
@@ -701,18 +704,18 @@ function Sidebar({
   if (isMobile) {
     return (
       <>
-        <Drawer
-          variant="temporary"
+        <CustomDrawer
           open={mobileOpen}
-          onClose={onMobileClose}
-          SlideProps={{ mountOnEnter: true, unmountOnExit: true }}
-          PaperProps={{
-            'aria-label': 'Sidebar',
-            sx: mobileDrawerPaperStyles,
+          onOpenChange={(val) => {
+            if (!val) onMobileClose?.();
           }}
+          side="left"
         >
-          {mobileContent}
-        </Drawer>
+          <DrawerOverlay />
+          <DrawerContent sx={mobileDrawerPaperStyles} showCloseButton={false}>
+            {mobileContent}
+          </DrawerContent>
+        </CustomDrawer>
         <SidebarOverlays {...overlayProps} />
       </>
     );
@@ -720,27 +723,22 @@ function Sidebar({
 
   return (
     <>
-      <Collapse
-        orientation="horizontal"
-        in={open}
-        collapsedSize={52}
-        timeout={220}
-        easing="cubic-bezier(0.22, 1, 0.36, 1)"
-        sx={{
+      <motion.div
+        animate={{ width: open ? 260 : 52 }}
+        transition={{ type: 'spring', stiffness: 320, damping: 32 }}
+        style={{
           flexShrink: 0,
           height: '100vh',
           position: 'sticky',
           top: 0,
           zIndex: 2,
-          '& .MuiCollapse-wrapper, & .MuiCollapse-wrapperInner': {
-            height: '100%',
-          },
+          overflow: 'hidden',
         }}
       >
         <Box component="nav" aria-label="Sidebar" sx={desktopNavSx}>
           {desktopContent}
         </Box>
-      </Collapse>
+      </motion.div>
       <SidebarOverlays {...overlayProps} />
     </>
   );

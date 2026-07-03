@@ -1,0 +1,485 @@
+"""
+Conversation Streaming Service - Handles real-time AI response streaming, SSE parsing, and Firestore serialization.
+"""
+
+import asyncio
+import json
+import logging
+import uuid
+from datetime import datetime, timezone
+from typing import AsyncGenerator, Optional
+
+from fastapi.concurrency import run_in_threadpool
+
+logger = logging.getLogger(__name__)
+
+
+def _build_tool_trace_summary(timeline: list[dict]) -> str | None:
+    tools = [item for item in timeline if item.get("type") == "tool"]
+    if not tools:
+        return None
+    summary_parts = []
+    for t in tools:
+        name = t.get("name", "unknown")
+        status = t.get("status", "unknown")
+        summary_parts.append(f"{name} ({status})")
+    return "Tool activity: " + ", ".join(summary_parts)
+
+
+def _parse_sse_event(sse_line: str) -> Optional[dict]:
+    """Extract the JSON dict from a ``data: {…}\\n\\n`` SSE line."""
+    line = sse_line.strip()
+    if not line.startswith("data: "):
+        return None
+    payload = line[6:].strip()
+    if not payload or payload == "[DONE]":
+        return {"type": "done"}
+    try:
+        return json.loads(payload)
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+def _make_sse_error(message: str) -> str:
+    """Build a single SSE error event string."""
+    return f"data: {json.dumps({'type': 'error', 'message': message})}\n\n"
+
+
+def _classify_error(raw: str) -> str:
+    lower = raw.lower()
+    if "rate_limit" in lower or "quota" in lower or "429" in lower:
+        return "API rate limit exceeded. Please wait a moment and try again."
+    if "authentication" in lower or "401" in lower:
+        return "Authentication error. Please check API keys."
+    return "AI service error. Please try again."
+
+
+class ConversationStreamingService:
+    """Handles the streaming generation lifecycle and event serialization."""
+
+    @staticmethod
+    async def create_streaming_generator(
+        conversation_id: str,
+        prompt: str | None,
+        user_id: str,
+        db_config: dict = None,
+        enable_reasoning: bool = True,
+        reasoning_effort: str = "medium",
+        response_style: str = "balanced",
+        max_rows: int = None,
+        api_key: str = None,
+        provider: str | None = None,
+        model: str | None = None,
+        resume: dict | None = None,
+        task_mode: str = "normal",
+    ) -> AsyncGenerator[str, None]:
+        """
+        Consume SSE events from the LangGraph agent, pass them through
+        to the client, and persist the completed message to Firestore.
+
+        Yields:
+            SSE ``data: {…}\\n\\n`` strings.
+        """
+        from service.conversations.agent_streaming import (
+            get_default_agent_streamer,
+        )
+        from service.conversations.conversation_repository import (
+            ConversationRepository,
+        )
+
+        prompt_stored = False
+        response_stored = False
+        current_turn_id = None
+        current_turn_index = None
+        # Ordered timeline mirrors the frontend's eventTimeline exactly.
+        ordered_timeline: list[dict] = []
+        was_aborted = False
+        # has_fatal_error: True only when an unrecoverable error occurred BEFORE
+        # any content was produced (e.g. PermissionError, startup failure).
+        has_fatal_error = False
+        last_usage_metrics = None
+
+        try:
+            # Load conversation history for the checkpointer
+            conv_data = await run_in_threadpool(
+                ConversationRepository.get, conversation_id
+            )
+            if conv_data and conv_data.get("user_id") != user_id:
+                raise PermissionError("User does not own this conversation")
+
+            if resume is not None and conv_data and conv_data.get("messages"):
+                last_msg = conv_data["messages"][-1]
+                current_turn_id = last_msg.get("turn_id")
+                current_turn_index = last_msg.get("turn_index")
+
+            def ensure_turn_metadata() -> tuple[str, int]:
+                nonlocal current_turn_id, current_turn_index
+                if current_turn_id is None:
+                    current_turn_id = str(uuid.uuid4())
+                if current_turn_index is None:
+                    existing_messages = (
+                        conv_data.get("messages", []) if conv_data else []
+                    )
+                    max_turn_index = -1
+                    for msg in existing_messages:
+                        ti = msg.get("turn_index")
+                        if ti is not None:
+                          try:
+                              max_turn_index = max(max_turn_index, int(ti))
+                          except (ValueError, TypeError):
+                              pass
+                    current_turn_index = max_turn_index + 1
+                return current_turn_id, current_turn_index
+
+            async def store_prompt_once() -> None:
+                nonlocal prompt_stored
+                if not prompt or prompt_stored:
+                    return
+                turn_id, turn_index = ensure_turn_metadata()
+                await run_in_threadpool(
+                    ConversationRepository.store_message,
+                    conversation_id,
+                    "user",
+                    prompt,
+                    user_id,
+                    turn_id=turn_id,
+                    turn_index=turn_index,
+                    message_role="user",
+                    is_final_assistant_response=False,
+                )
+                prompt_stored = True
+
+            # Establish the conversation and persist the user turn before
+            # orchestration touches task/checkpoint state.
+            await store_prompt_once()
+
+            # Persist task_mode to Firestore conversation
+            if prompt_stored or conv_data:
+                task_mode_stored = (conv_data.get("task_mode", "normal") if conv_data else None) or task_mode or "normal"
+                if (
+                    resume is not None
+                    and task_mode == "normal"
+                    and task_mode_stored != "normal"
+                ):
+                    task_mode = task_mode_stored
+                try:
+                    from service.firestore.firestore_service import FirestoreService
+
+                    db = FirestoreService.get_db()
+                    await run_in_threadpool(
+                        db.collection("conversations").document(conversation_id).update,
+                        {"task_mode": task_mode},
+                    )
+                except Exception as e:
+                    logger.warning("Failed to save task_mode in Firestore: %s", e)
+
+            # Stream from the LangGraph agent
+            agent_streamer = get_default_agent_streamer()
+            async for sse_line in agent_streamer.stream(
+                conversation_id,
+                prompt,
+                user_id,
+                db_config=db_config,
+                response_style=response_style,
+                max_rows=max_rows,
+                api_key=api_key,
+                provider=provider or "bedrock",
+                model=model,
+                enable_reasoning=enable_reasoning,
+                reasoning_effort=reasoning_effort,
+                resume=resume,
+                task_mode=task_mode,
+            ):
+                # Parse the SSE data line to track content/tools for persistence
+                event = _parse_sse_event(sse_line)
+                if event is None:
+                    yield sse_line
+                    continue
+
+                event_type = event.get("type")
+
+                # Core user prompt storage trigger
+                if (
+                    prompt
+                    and not prompt_stored
+                    and event_type
+                    in (
+                        "token",
+                        "tool_start",
+                        "thinking_token",
+                        "agent_interrupt",
+                        "workflow_status",
+                        "skills_activated",
+                    )
+                ):
+                    await store_prompt_once()
+
+                if event_type == "token":
+                    await store_prompt_once()
+                    chunk = event.get("content", "")
+                    if chunk:
+                        if ordered_timeline and ordered_timeline[-1]["type"] == "text":
+                            ordered_timeline[-1]["content"] += chunk
+                        else:
+                            ordered_timeline.append({"type": "text", "content": chunk})
+
+                elif event_type == "tool_start":
+                    await store_prompt_once()
+                    # Mark any open thinking blocks as complete
+                    for item in ordered_timeline:
+                        if item["type"] == "thinking":
+                            item["is_complete"] = True
+                    ordered_timeline.append(
+                        {
+                            "type": "tool",
+                            "name": event.get("name", ""),
+                            "status": "running",
+                            "args": json.dumps(event.get("args", {}), default=str),
+                            "result": "null",
+                        }
+                    )
+
+                elif event_type == "tool_end":
+                    name = event.get("name", "")
+                    for item in reversed(ordered_timeline):
+                        if (
+                            item["type"] == "tool"
+                            and item["name"] == name
+                            and item["status"] == "running"
+                        ):
+                            item["status"] = "done"
+                            item["args"] = json.dumps(
+                                event.get("args", {}), default=str
+                            )
+                            res_val = event.get("result") or {}
+                            if name == "execute_query" and isinstance(res_val, dict):
+                                # Strip large query rows and preview arrays
+                                res_val = dict(res_val)
+                                res_val.pop("data", None)
+                                res_val.pop("preview", None)
+                            item["result"] = json.dumps(
+                                res_val, default=str
+                            )
+                            break
+
+                elif event_type == "thinking_token":
+                    await store_prompt_once()
+                    chunk = event.get("content", "")
+                    if chunk:
+                        if (
+                            ordered_timeline
+                            and ordered_timeline[-1]["type"] == "thinking"
+                        ):
+                            ordered_timeline[-1]["content"] += chunk
+                        else:
+                            ordered_timeline.append(
+                                {
+                                    "type": "thinking",
+                                    "content": chunk,
+                                    "is_complete": False,
+                                }
+                            )
+
+                elif event_type == "workflow_status":
+                    await store_prompt_once()
+                    stage = event.get("stage", "status")
+                    status_val = event.get("status")
+                    content = event.get("content", "Preparing context...")
+                    step_id = f"workflow-{stage}"
+
+                    existing_item = None
+                    for item in ordered_timeline:
+                        if item.get("type") == "thinking" and item.get("id") == step_id:
+                            existing_item = item
+                            break
+
+                    if existing_item:
+                        existing_item["content"] = content
+                        existing_item["is_complete"] = status_val == "done"
+                    else:
+                        ordered_timeline.append(
+                            {
+                                "type": "thinking",
+                                "id": step_id,
+                                "content": content,
+                                "is_complete": (status_val == "done"),
+                            }
+                        )
+
+                elif event_type == "skills_activated":
+                    await store_prompt_once()
+                    skills = event.get("skills", [])
+                    if skills:
+                        existing_item = None
+                        for item in ordered_timeline:
+                            if item.get("type") == "skill":
+                                existing_item = item
+                                break
+                        if existing_item:
+                            existing_skills = existing_item.get("skills", [])
+                            existing_item["skills"] = list(
+                                dict.fromkeys([*existing_skills, *skills])
+                            )
+                        else:
+                            ordered_timeline.append(
+                                {
+                                    "type": "skill",
+                                    "skills": skills,
+                                    "id": f"skill-{len(ordered_timeline)}",
+                                }
+                            )
+
+                elif event_type == "error":
+                    logger.warning(
+                        "Agent emitted error event for conversation %s",
+                        conversation_id,
+                    )
+                    error_message = event.get("message") or event.get("content")
+                    if error_message:
+                        ordered_timeline.append(
+                            {
+                                "type": "text",
+                                "content": f"Error: {error_message}",
+                            }
+                        )
+
+                elif event_type == "usage_metrics":
+                    last_usage_metrics = {
+                        "inputTokens": event.get("inputTokens"),
+                        "outputTokens": event.get("outputTokens"),
+                        "totalTokens": event.get("totalTokens"),
+                        "activeContextBudget": event.get("activeContextBudget"),
+                        "totalContextWindow": event.get("totalContextWindow"),
+                        "inputPayloadTokens": event.get("inputPayloadTokens"),
+                        "availableInputPayloadTokens": event.get("availableInputPayloadTokens"),
+                        "pressureTriggerTokens": event.get("pressureTriggerTokens"),
+                        "modelContextWindow": event.get("modelContextWindow"),
+                        "reservedOutputTokens": event.get("reservedOutputTokens"),
+                        "safetyMarginTokens": event.get("safetyMarginTokens"),
+                        "systemPromptTokens": event.get("systemPromptTokens"),
+                        "toolSchemaTokens": event.get("toolSchemaTokens"),
+                        "vampMemoryTokens": event.get("vampMemoryTokens"),
+                        "taskCheckpointTokens": event.get("taskCheckpointTokens"),
+                        "hotHistoryBudget": event.get("hotHistoryBudget"),
+                        "tokenCountingMode": event.get("tokenCountingMode"),
+                        "tokenCountingReason": event.get("tokenCountingReason"),
+                        "contextPhase": event.get("contextPhase"),
+                        "summaryThresholdTokens": event.get("summaryThresholdTokens"),
+                        "summaryCompleteTurns": event.get("summaryCompleteTurns"),
+                    }
+
+                elif event_type == "agent_interrupt" and prompt and not prompt_stored:
+                    await store_prompt_once()
+
+                yield sse_line
+
+        except asyncio.CancelledError:
+            was_aborted = True
+            logger.info("Stream cancelled for conversation %s", conversation_id)
+            raise
+
+        except GeneratorExit:
+            was_aborted = True
+            logger.info(f"Stream aborted for conversation {conversation_id}")
+
+        except PermissionError:
+            has_fatal_error = True
+            yield _make_sse_error(
+                "You don't have permission to access this conversation."
+            )
+
+        except Exception as err:
+            if not ordered_timeline and not prompt_stored:
+                has_fatal_error = True
+            logger.error(f"Streaming error: {err}", exc_info=True)
+            yield _make_sse_error(_classify_error(str(err)))
+
+        finally:
+            should_store_response = (
+                (prompt_stored or resume is not None)
+                and not response_stored
+                and not has_fatal_error
+            )
+            if should_store_response:
+                # Mark all open thinking blocks complete before persisting
+                for item in ordered_timeline:
+                    if item["type"] == "thinking":
+                        item["is_complete"] = True
+                if was_aborted:
+                    for item in ordered_timeline:
+                        if item["type"] == "text":
+                            item["content"] = item["content"].rstrip()
+                    ordered_timeline.append(
+                        {"type": "text", "content": "\n\n_(Response stopped by user)_"}
+                    )
+
+                # Derive flat content for Firestore storage
+                response_text = "".join(
+                    item["content"]
+                    for item in ordered_timeline
+                    if item["type"] == "text"
+                ).strip()
+                tools_used = [
+                    item for item in ordered_timeline if item["type"] == "tool"
+                ]
+
+                if not response_text and tools_used:
+                    response_text = "(Used tools to gather information)"
+
+                ensure_turn_metadata()
+                tool_trace_summary = _build_tool_trace_summary(ordered_timeline)
+
+                try:
+                    await run_in_threadpool(
+                        ConversationRepository.store_message,
+                        conversation_id,
+                        "ai",
+                        response_text,
+                        user_id,
+                        tools=None,
+                        thinking=None,
+                        timeline=ordered_timeline if ordered_timeline else None,
+                        append=(resume is not None),
+                        usage=last_usage_metrics,
+                        turn_id=current_turn_id,
+                        turn_index=current_turn_index,
+                        message_role="assistant",
+                        is_final_assistant_response=(not was_aborted),
+                        tool_trace_summary=tool_trace_summary,
+                    )
+                    response_stored = True
+                    status = "partial (aborted)" if was_aborted else "complete"
+                    logger.info(
+                        "Stored AI response (%s): %d chars, %d timeline items for conversation %s",
+                        status,
+                        len(response_text),
+                        len(ordered_timeline),
+                        conversation_id,
+                    )
+                except Exception as store_err:
+                    logger.error(
+                        "Failed to store AI response for conversation %s: %s",
+                        conversation_id,
+                        store_err,
+                        exc_info=True,
+                    )
+            elif has_fatal_error:
+                logger.info(
+                    "Skipped storing response due to fatal error for conversation %s",
+                    conversation_id,
+                )
+
+    @staticmethod
+    def get_streaming_headers(conversation_id: str) -> dict:
+        return {
+            "X-Conversation-Id": conversation_id,
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",
+            "Content-Encoding": "identity",
+            "Connection": "keep-alive",
+        }
+
+    @staticmethod
+    def check_quota_error(error_message: str) -> bool:
+        lower = error_message.lower()
+        return "quota" in lower or "429" in lower or "rate" in lower

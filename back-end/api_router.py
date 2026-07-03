@@ -9,13 +9,13 @@ from controller.context_controller import router as context_router
 from controller.quota_controller import router as quota_router
 
 # Combined router that aggregates all domain routers
-combined_router = APIRouter(tags=["api"])
+combined_router = APIRouter()
 
 # =============================================================================
 # HEALTH CHECK ROUTES (kept here as they're minimal)
 # =============================================================================
 
-@combined_router.get("/")
+@combined_router.get("/", tags=["General"])
 async def landing():
     """API health check."""
     return {"status": "success", "message": "API is running"}

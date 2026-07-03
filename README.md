@@ -321,10 +321,10 @@ DB_POOL_WORKER_BASIS=32          # Basis for DB pool sizing; capped by DEFAULT_D
 ### Authentication
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/set_session` | Verify Firebase ID token and create session |
-| GET | `/check_session` | Verify active session |
-| POST | `/logout` | Clear session |
-| GET | `/firebase-config` | Serve Firebase web client config |
+| POST | `/set_authenticated_user_session` | Verify Firebase ID token and create session |
+| GET | `/check_authenticated_user_session` | Verify active session |
+| POST | `/logout_authenticated_user_session` | Clear session |
+| GET | `/firebase-config-and-csrf-token` | Serve Firebase web client config and generate CSRF token |
 
 ### Database
 | Method | Endpoint | Description |
@@ -339,10 +339,11 @@ DB_POOL_WORKER_BASIS=32          # Basis for DB pool sizing; capped by DEFAULT_D
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/api/v1/pass_user_prompt_to_llm` | Send a message to the agent (streaming SSE) |
-| GET | `/api/v1/get_conversations` | Get all conversations for current user |
+| GET | `/api/v1/get_all_user_conversations` | Get all conversations for current user |
 | GET | `/api/v1/get_conversation/{id}` | Get a specific conversation |
-| POST | `/api/v1/new_conversation` | Create a new conversation |
 | DELETE | `/api/v1/delete_conversation/{id}` | Delete a conversation |
+| PATCH | `/api/v1/rename_conversation/{id}` | Rename a conversation |
+| POST | `/api/v1/resume_agent` | Resume a paused conversation turn |
 
 ### Queries & Quota
 | Method | Endpoint | Description |

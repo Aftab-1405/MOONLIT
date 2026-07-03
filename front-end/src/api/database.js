@@ -15,11 +15,11 @@ import { get, post } from '@/api/client';
 import { DATABASE } from '@/api/endpoints';
 
 /**
- * Get current database connection status.
+ * Synchronize frontend state with the active database connection.
  *
  * @returns {Promise<{status: 'success', data: Object, message?: string}>}
  */
-export async function getStatus() {
+export async function syncConnectionState() {
   return get(DATABASE.STATUS);
 }
 

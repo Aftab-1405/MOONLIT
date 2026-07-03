@@ -33,6 +33,6 @@ export function getCodeMirrorTheme(mode, transparent = false) {
  *
  * @param {'light'|'dark'} mode
  */
-export function getCodeMirrorHighlighting(mode) {
+export function getCodeMirrorHighlighting(_mode) {
   return [];
 }

@@ -86,15 +86,15 @@ export const createTypography = (H) => ({
   },
 
   // Body scale
-  uiBodyLg:    { fontSize: { xs: '1rem', md: '1.125rem' }, lineHeight: 1.7 },
-  uiBodyMd:    { fontSize: { xs: '0.82rem', sm: '0.9rem' }, lineHeight: 1.65, letterSpacing: 0 },
-  uiBodySm:    { fontSize: { xs: '0.8rem', sm: '0.875rem' }, lineHeight: 1.55, letterSpacing: 0 },
+  uiBodyLg: { fontSize: { xs: '1rem', md: '1.125rem' }, lineHeight: 1.7 },
+  uiBodyMd: { fontSize: { xs: '0.82rem', sm: '0.9rem' }, lineHeight: 1.65, letterSpacing: 0 },
+  uiBodySm: { fontSize: { xs: '0.8rem', sm: '0.875rem' }, lineHeight: 1.55, letterSpacing: 0 },
   uiBodyTable: { fontSize: { xs: '0.78rem', sm: '0.875rem' }, lineHeight: 1.55, letterSpacing: 0 },
 
   // Caption scale
-  uiCaptionMd:  { fontSize: { xs: '0.75rem', sm: '0.8125rem' }, lineHeight: 1.45, letterSpacing: 0 },
-  uiCaptionSm:  { fontSize: { xs: '0.72rem', sm: '0.8rem' }, lineHeight: 1.45, letterSpacing: 0 },
-  uiCaptionXs:  { fontSize: { xs: '0.68rem', sm: '0.75rem' }, lineHeight: 1.4, letterSpacing: 0 },
+  uiCaptionMd: { fontSize: { xs: '0.75rem', sm: '0.8125rem' }, lineHeight: 1.45, letterSpacing: 0 },
+  uiCaptionSm: { fontSize: { xs: '0.72rem', sm: '0.8rem' }, lineHeight: 1.45, letterSpacing: 0 },
+  uiCaptionXs: { fontSize: { xs: '0.68rem', sm: '0.75rem' }, lineHeight: 1.4, letterSpacing: 0 },
   uiCaption2xs: { fontSize: { xs: '0.65rem', sm: '0.7rem' }, lineHeight: 1.4, letterSpacing: 0 },
 
   // Mono / code
@@ -106,8 +106,8 @@ export const createTypography = (H) => ({
     letterSpacing: 0,
     textTransform: 'none',
   },
-  uiCodeBlock:   { fontSize: '0.85rem', lineHeight: 1.5 },
-  uiCode:        { fontSizePx: 13 },
+  uiCodeBlock: { fontSize: '0.85rem', lineHeight: 1.5 },
+  uiCode: { fontSizePx: 13 },
   uiCodeCompact: { fontSizePx: 12 },
 
   // Heading / display
@@ -146,13 +146,13 @@ export const createTypography = (H) => ({
 
   // Card
   uiCardTitle: { fontSize: '1.1rem', lineHeight: 1.35 },
-  uiCardBody:  { fontSize: '0.9rem', lineHeight: 1.7 },
+  uiCardBody: { fontSize: '0.9rem', lineHeight: 1.7 },
 
   // UI controls
-  uiInput:     { fontSize: { xs: '1rem', sm: '0.95rem' } },
-  uiButtonSm:  { fontSize: '0.75rem', fontWeight: 600, letterSpacing: 0 },
-  uiMenuItemSm:{ fontSize: '0.8125rem', lineHeight: 1.5 },
-  uiStepNumber:{ fontSize: '0.85rem', lineHeight: 1.1, letterSpacing: 0 },
+  uiInput: { fontSize: { xs: '1rem', sm: '0.95rem' } },
+  uiButtonSm: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: 0 },
+  uiMenuItemSm: { fontSize: '0.8125rem', lineHeight: 1.5 },
+  uiStepNumber: { fontSize: '0.85rem', lineHeight: 1.1, letterSpacing: 0 },
 
   // Sidebar
   uiNavItem: { fontSize: '0.875rem', lineHeight: 1.3, letterSpacing: 0 },
@@ -166,8 +166,8 @@ export const createTypography = (H) => ({
   },
 
   // Schema viewer
-  uiSchemaDbLabel:     { fontSize: { xs: '0.9rem', sm: '0.8rem' }, lineHeight: 1.3 },
-  uiSchemaTableLabel:  { fontSize: { xs: '0.85rem', sm: '0.75rem' }, lineHeight: 1.3 },
+  uiSchemaDbLabel: { fontSize: { xs: '0.9rem', sm: '0.8rem' }, lineHeight: 1.3 },
+  uiSchemaTableLabel: { fontSize: { xs: '0.85rem', sm: '0.75rem' }, lineHeight: 1.3 },
   uiSchemaColumnLabel: { fontSize: { xs: '0.75rem', sm: '0.7rem' }, lineHeight: 1.3 },
-  uiSchemaColumnType:  { fontSize: { xs: '0.65rem', sm: '0.6rem' }, lineHeight: 1.2 },
+  uiSchemaColumnType: { fontSize: { xs: '0.65rem', sm: '0.6rem' }, lineHeight: 1.2 },
 });

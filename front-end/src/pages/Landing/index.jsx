@@ -54,7 +54,6 @@ export const Section = ({ children, sx = {}, id, fullHeight = true, tinted = fal
   );
 };
 
-
 const LANDING_KEYFRAMES = (
   <GlobalStyles
     styles={{
@@ -76,15 +75,26 @@ const LANDING_KEYFRAMES = (
 
 export default function Landing() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
     document.title = 'Moonlit - AI Database Assistant';
+    // Preload large page chunks in the background to ensure instantaneous navigation transitions
+    const preloadChunks = () => {
+      import('@/pages/Chat').catch(() => {});
+      import('@/pages/Auth').catch(() => {});
+    };
+    const timer = setTimeout(preloadChunks, 1000);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleGetStarted = useCallback(() => {
-    navigate(isAuthenticated ? '/chat' : '/auth');
-  }, [navigate, isAuthenticated]);
+    if (loading) {
+      navigate('/chat');
+    } else {
+      navigate(isAuthenticated ? '/chat' : '/auth');
+    }
+  }, [navigate, isAuthenticated, loading]);
 
   return (
     <>

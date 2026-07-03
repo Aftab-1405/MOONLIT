@@ -9,7 +9,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { deleteConversation, getConversation, getConversations, renameConversation } from '@/api';
+import {
+  deleteConversation,
+  getAllUserConversations,
+  getConversation,
+  renameConversation,
+} from '@/api';
 import { queryClient, queryKeys } from '@/api/queryClient';
 import { normalizeConversationMessage } from '@/utils/chatMessages';
 import logger from '@/utils/logger';
@@ -47,7 +52,7 @@ export function useConversations() {
     try {
       const data = await queryClient.fetchQuery({
         queryKey: queryKeys.conversations,
-        queryFn: ({ signal: querySignal }) => getConversations(signal ?? querySignal),
+        queryFn: ({ signal: querySignal }) => getAllUserConversations(signal ?? querySignal),
         staleTime: 15 * 1000,
       });
       if (data.status === 'success') {
@@ -58,7 +63,6 @@ export function useConversations() {
             if (prev[i]?.id !== nextConversations[i]?.id) return nextConversations;
             if (prev[i]?.title !== nextConversations[i]?.title) return nextConversations;
             if (prev[i]?.timestamp !== nextConversations[i]?.timestamp) return nextConversations;
-            if (prev[i]?.preview !== nextConversations[i]?.preview) return nextConversations;
           }
           return prev;
         });

@@ -25,7 +25,7 @@ from api_contract.database_schemas import (
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["schema"])
+router = APIRouter(tags=["Database Operations End Points"])
 
 
 def _raise_service_error(result: dict) -> None:

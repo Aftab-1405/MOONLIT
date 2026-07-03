@@ -701,7 +701,13 @@ function DiagramFlowRenderer({
   const [stableCode, setStableCode] = useState(code);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [viewportReadySignature, setViewportReadySignature] = useState('');
+  const [hasRenderedOnce, setHasRenderedOnce] = useState(false);
   const isReceiving = stableCode !== code;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset rendered once state when stableCode changes
+  useEffect(() => {
+    setHasRenderedOnce(false);
+  }, [stableCode]);
 
   useEffect(() => {
     if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current);
@@ -780,6 +786,12 @@ function DiagramFlowRenderer({
 
   const viewportSignature = `${isFullscreen ? 'full' : 'inline'}-${viewportSize.width}x${viewportSize.height}-${nodes.length}-${edges.length}-${stableCode.length}-${flowReadyToken}`;
   const viewportReady = viewportReadySignature === viewportSignature;
+
+  useEffect(() => {
+    if (viewportReady) {
+      setHasRenderedOnce(true);
+    }
+  }, [viewportReady]);
 
   useEffect(() => {
     if (isReceiving || parseResult.error || nodes.length === 0) return undefined;
@@ -982,7 +994,7 @@ function DiagramFlowRenderer({
               ...getReactFlowCanvasSx(theme),
               zIndex: 0,
               isolation: 'isolate',
-              opacity: viewportReady ? 1 : 0,
+              opacity: hasRenderedOnce || viewportReady ? 1 : 0,
               transition: 'none',
             }}
           >

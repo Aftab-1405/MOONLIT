@@ -68,17 +68,17 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
             maxWidth: UI_LAYOUT.chatInputMaxWidth,
             mx: 'auto',
             position: 'relative',
-            zIndex: 1,
+            zIndex: 3, // Must be > ChatInput's zIndex (2) so the prompt paints on top
           }}
         >
           <Box
             sx={{
               position: 'relative',
-              zIndex: 1,
+              zIndex: 3,
               mx: { xs: 1, sm: 0 },
               mb: -3.5, // Slide behind composer
               display: 'flex',
-              flexDirection: { xs: 'column', sm: 'row' },
+              flexDirection: { xs: 'column-reverse', sm: 'row' },
               alignItems: { xs: 'flex-start', sm: 'center' },
               justifyContent: 'space-between',
               gap: { xs: 1.5, sm: 2 },
@@ -124,7 +124,7 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                 alignItems: 'center',
                 gap: 1.5,
                 flexShrink: 0,
-                alignSelf: { xs: 'flex-end', sm: 'center' },
+                alignSelf: { xs: 'flex-start', sm: 'center' },
               }}
             >
               <Button
@@ -396,6 +396,7 @@ function MainInterface() {
     handleDbConnect,
     handleDbModalSelectDatabase,
     notifications,
+    showSnackbar,
     removeToast,
     settingsOpen,
     handleCloseSettings,
@@ -610,6 +611,7 @@ function MainInterface() {
               panelWidth={workspaceCanvasWidth}
               isResizing={isResizingCanvas}
               workspaceContainerRef={workspaceContainerRef}
+              onNotify={showSnackbar}
             />
           </Box>
         )}
@@ -625,6 +627,7 @@ function MainInterface() {
               currentDatabase={currentDatabase}
               fullscreen
               workspaceContainerRef={workspaceContainerRef}
+              onNotify={showSnackbar}
             />
           </Box>
         </Slide>

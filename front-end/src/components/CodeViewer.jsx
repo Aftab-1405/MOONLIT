@@ -4,13 +4,13 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Box, IconButton, Tooltip, Typography, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
+import { CodeToTokenTransformStream } from '@shikijs/stream';
+import { ShikiStreamRenderer } from '@shikijs/stream/react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ButtonLoadingSpinner } from '@/components';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { copyToClipboard } from '@/utils/clipboard';
 import { getShikiHighlighter } from '@/utils/shiki';
-import { CodeToTokenTransformStream } from '@shikijs/stream';
-import { ShikiStreamRenderer } from '@shikijs/stream/react';
 
 const SQL_LANGUAGES = new Set([
   'sql',
@@ -151,7 +151,7 @@ function CodeViewer({
       if (!active) return;
       try {
         const html = highlighter.codeToHtml(code, {
-          lang: isSQL ? 'sql' : (detectedLanguage || 'text'),
+          lang: isSQL ? 'sql' : detectedLanguage || 'text',
           theme: shikiTheme,
         });
         if (active) {
@@ -169,9 +169,9 @@ function CodeViewer({
     return () => {
       active = false;
     };
-  }, [code, detectedLanguage, isSQL, isStreaming]);
+  }, [code, detectedLanguage, isSQL, isStreaming, shikiTheme]);
 
-  // 2. Streaming highlighting effect (when isStreaming is true)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: streaming highlighter is initialized once; updates are fed by a separate effect
   useEffect(() => {
     if (!isStreaming) {
       setTokensStream(null);
@@ -201,7 +201,7 @@ function CodeViewer({
       try {
         const transformer = new CodeToTokenTransformStream({
           highlighter,
-          lang: isSQL ? 'sql' : (detectedLanguage || 'text'),
+          lang: isSQL ? 'sql' : detectedLanguage || 'text',
           theme: shikiTheme,
           allowRecalls: true,
         });
@@ -252,7 +252,8 @@ function CodeViewer({
 
   // Layout styling definitions
   const containerBg = 'transparent';
-  const containerBorder = transparent || simple ? 'transparent' : alpha(theme.palette.text.primary, 0.1);
+  const containerBorder =
+    transparent || simple ? 'transparent' : alpha(theme.palette.text.primary, 0.1);
 
   // Static or Simple rendering
   if (simple) {
@@ -296,6 +297,7 @@ function CodeViewer({
             {loading ? (
               code
             ) : (
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki generates safe HTML representation of code
               <span dangerouslySetInnerHTML={{ __html: innerHtml }} />
             )}
           </code>
@@ -423,6 +425,7 @@ function CodeViewer({
             ) : loading ? (
               code
             ) : (
+              // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki generates safe HTML representation of code
               <span dangerouslySetInnerHTML={{ __html: innerHtml }} />
             )}
           </code>

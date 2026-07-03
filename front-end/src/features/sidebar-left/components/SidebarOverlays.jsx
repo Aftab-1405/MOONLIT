@@ -260,8 +260,8 @@ function SidebarOverlays({
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const searchedConversations = normalizedSearchQuery
     ? conversations.filter((conv) =>
-      (conv.title || 'New Conversation').toLowerCase().includes(normalizedSearchQuery),
-    )
+        (conv.title || 'New Conversation').toLowerCase().includes(normalizedSearchQuery),
+      )
     : conversations;
 
   return (

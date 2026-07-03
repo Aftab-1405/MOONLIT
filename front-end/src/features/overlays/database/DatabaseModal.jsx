@@ -224,10 +224,10 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
                 : 'transparent',
               '&:hover': !loading
                 ? {
-                  backgroundColor: isSelected
-                    ? alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09)
-                    : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
-                }
+                    backgroundColor: isSelected
+                      ? alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09)
+                      : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
+                  }
                 : undefined,
               '&:focus-visible': {
                 outline: `2px solid ${theme.palette.primary.main}`,

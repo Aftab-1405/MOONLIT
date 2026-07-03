@@ -233,21 +233,12 @@ const UserMessage = memo(function UserMessage({ message }) {
   );
 });
 
-function parseJSON(value) {
-  if (!value || value === 'null') return null;
-  try {
-    return typeof value === 'string' ? JSON.parse(value) : value;
-  } catch {
-    return null;
-  }
-}
-
 function getQueryExecutionMeta(step, fallbackConversationId = null) {
   if (step?.name !== 'execute_query' || step?.status !== 'done' || !step?.result) {
     return null;
   }
 
-  const parsedResult = parseJSON(step.result);
+  const parsedResult = step.result;
   const result = parsedResult && typeof parsedResult === 'object' ? parsedResult : {};
   const nestedResult =
     result.data && typeof result.data === 'object' && !Array.isArray(result.data)
@@ -515,10 +506,22 @@ const AIMessage = memo(function AIMessage({
   const displaySteps = useMemo(() => (Array.isArray(steps) ? steps : []), [steps]);
   // Simple filter — no pre-stripping needed since MarkdownRenderer suppresses
   // canvas blocks itself.
-  const displayTimeline = useMemo(
-    () => (Array.isArray(timeline) ? timeline.filter((item) => item?.type) : []),
-    [timeline],
-  );
+  const displayTimeline = useMemo(() => {
+    if (!Array.isArray(timeline)) return [];
+    return timeline.filter((item) => {
+      if (!item?.type) return false;
+      // Hide bypassed context summarization and checkpointing messages from the UI
+      if (
+        (item.type === 'thinking' &&
+          (item.content === 'Context summarization bypassed.' ||
+            (item.id === 'workflow-summarizing_context' && item.content?.includes('bypassed')))) ||
+        item.id === 'workflow-checkpointing_task'
+      ) {
+        return false;
+      }
+      return true;
+    });
+  }, [timeline]);
   const hasTimeline = displayTimeline.length > 0;
   const showThinkingSpinner = useMemo(
     () =>

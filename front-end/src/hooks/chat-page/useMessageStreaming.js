@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef } from 'react';
 import { resumeAgent, sendMessage } from '@/api';
+import { queryClient, queryKeys } from '@/api/queryClient';
 import {
   createAssistantMessage,
   createMessageId,
@@ -283,6 +284,14 @@ export function useMessageStreaming({
           }
 
           case 'workflow_status': {
+            // Hide bypassed summarization step and checkpointing steps from the UI
+            if (
+              event.stage === 'checkpointing_task' ||
+              event.content === 'Context summarization bypassed.' ||
+              (event.stage === 'summarizing_context' && event.content?.includes('bypassed'))
+            ) {
+              break;
+            }
             const stepId = `workflow-${event.stage || 'status'}`;
             const existing = eventTimeline.find((item) => item.id === stepId);
             const content = event.content || 'Preparing context...';
@@ -430,12 +439,17 @@ export function useMessageStreaming({
         }),
       ]);
 
-      const enableReasoning = settings.enableReasoning ?? true;
+      const provider = overrides?.provider ?? settings.llmProvider ?? null;
+      const model = overrides?.model ?? settings.llmModel ?? null;
+
+      const llmOptions = queryClient.getQueryData(queryKeys.llmOptions) || {};
+      const supportsReasoning = model
+        ? (llmOptions.capabilities?.[model]?.supports_reasoning ?? false)
+        : false;
+      const enableReasoning = (settings.enableReasoning ?? true) && supportsReasoning;
       const reasoningEffort = settings.reasoningEffort ?? 'medium';
       const responseStyle = settings.responseStyle ?? 'balanced';
       const maxRows = settings.maxRows ?? 1000;
-      const provider = overrides?.provider ?? settings.llmProvider ?? null;
-      const model = overrides?.model ?? settings.llmModel ?? null;
 
       abortControllerRef.current?.abort();
       abortControllerRef.current = new AbortController();
@@ -539,12 +553,17 @@ export function useMessageStreaming({
         ];
       });
 
-      const enableReasoning = settings.enableReasoning ?? true;
+      const provider = overrides?.provider ?? settings.llmProvider ?? null;
+      const model = overrides?.model ?? settings.llmModel ?? null;
+
+      const llmOptions = queryClient.getQueryData(queryKeys.llmOptions) || {};
+      const supportsReasoning = model
+        ? (llmOptions.capabilities?.[model]?.supports_reasoning ?? false)
+        : false;
+      const enableReasoning = (settings.enableReasoning ?? true) && supportsReasoning;
       const reasoningEffort = settings.reasoningEffort ?? 'medium';
       const responseStyle = settings.responseStyle ?? 'balanced';
       const maxRows = settings.maxRows ?? 1000;
-      const provider = overrides?.provider ?? settings.llmProvider ?? null;
-      const model = overrides?.model ?? settings.llmModel ?? null;
 
       abortControllerRef.current?.abort();
       abortControllerRef.current = new AbortController();

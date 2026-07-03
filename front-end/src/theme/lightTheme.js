@@ -260,7 +260,6 @@ const components = {
     styleOverrides: {
       // Inject animation keyframes globally
 
-
       '*, *::before, *::after': { boxSizing: 'border-box' },
 
       '*': {

@@ -1,14 +1,5 @@
 import { TOOL_ACTIONS } from '@/config/toolActions';
 
-function parseJSON(value) {
-  if (!value || value === 'null' || value === '{}') return null;
-  try {
-    return typeof value === 'string' ? JSON.parse(value) : value;
-  } catch {
-    return null;
-  }
-}
-
 function formatToolName(name = '') {
   return name.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -132,8 +123,8 @@ export function normalizeSteps(steps) {
       }
 
       if (step.type === 'tool') {
-        const parsedArgs = parseJSON(step.args);
-        const parsedResult = parseJSON(step.result);
+        const parsedArgs = step.args;
+        const parsedResult = step.result;
         const isRunning = step.status === 'running';
         const config = TOOL_ACTIONS[step.name];
         return {

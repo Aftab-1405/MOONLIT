@@ -170,6 +170,33 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """Application factory pattern."""
+    openapi_tags = [
+        {
+            "name": "Authentication & Authorization",
+            "description": "Endpoints to manage user session handshake, cookie validation, CSRF tokens, and logout operations.",
+        },
+        {
+            "name": "Moonlit Conversation End Points",
+            "description": "API routes for human-agent conversational chats, option fetches, message retrieval, and history management.",
+        },
+        {
+            "name": "Database Operations End Points",
+            "description": "API routes for establishing database connections, selecting schemas/tables, and executing SQL queries.",
+        },
+        {
+            "name": "User Context & Settings",
+            "description": "API routes for schema cache refreshing, settings persistence, and session active heartbeats.",
+        },
+        {
+            "name": "User Quota",
+            "description": "API routes for fetching rate-limiting and quota status metrics.",
+        },
+        {
+            "name": "General",
+            "description": "System-level health checking and status routes.",
+        }
+    ]
+
     app = FastAPI(
         title=AppConfig.APP_TITLE,
         description=AppConfig.APP_DESCRIPTION,
@@ -178,6 +205,7 @@ def create_app() -> FastAPI:
         docs_url="/docs" if AppConfig.DEBUG else None,
         redoc_url="/redoc" if AppConfig.DEBUG else None,
         openapi_url="/openapi.json" if AppConfig.DEBUG else None,
+        openapi_tags=openapi_tags,
     )
 
     # Configure CORS
@@ -242,9 +270,9 @@ def create_app() -> FastAPI:
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             if request.url.path not in AppConfig.CSRF_EXEMPT_PATHS:
                 try:
-                    from dependencies import verify_csrf
+                    from dependencies import verify_csrf_token
 
-                    verify_csrf(request)
+                    verify_csrf_token(request)
                 except HTTPException as exc:
                     return JSONResponse(
                         status_code=exc.status_code,
@@ -364,9 +392,6 @@ def _register_error_handlers(app: FastAPI):
             error="INTERNAL_SERVER_ERROR",
             message="Internal server error",
         )
-
-
-
 
 
 # Application instance

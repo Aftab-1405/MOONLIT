@@ -125,18 +125,22 @@ async def check_and_perform_compaction(
         if dropped_messages:
             lines = []
             for msg in dropped_messages:
-                if msg.type == "human":
-                    lines.append(f"USER: {msg.content}")
-                elif msg.type == "ai":
-                    content = msg.content
-                    if content:
-                        lines.append(f"AI: {content}")
-                    if getattr(msg, "tool_calls", None):
-                        for tc in msg.tool_calls:
-                            lines.append(f"Tool '{tc.get('name')}' called.")
-                elif msg.type == "tool":
+                msg_type = msg.get("type") if isinstance(msg, dict) else getattr(msg, "type", "")
+                msg_content = msg.get("content") if isinstance(msg, dict) else getattr(msg, "content", "")
+                if msg_type == "human":
+                    lines.append(f"USER: {msg_content}")
+                elif msg_type == "ai":
+                    if msg_content:
+                        lines.append(f"AI: {msg_content}")
+                    t_calls = msg.get("tool_calls", []) if isinstance(msg, dict) else getattr(msg, "tool_calls", [])
+                    if t_calls:
+                        for tc in t_calls:
+                            tc_name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", "")
+                            lines.append(f"Tool '{tc_name}' called.")
+                elif msg_type == "tool":
+                    msg_name = msg.get("name") if isinstance(msg, dict) else getattr(msg, "name", "")
                     lines.append(
-                        f"Tool Result ({msg.name}): {str(msg.content)[:200]}..."
+                        f"Tool Result ({msg_name}): {str(msg_content)[:200]}..."
                     )
 
             if lines:
@@ -194,9 +198,9 @@ async def check_and_perform_compaction(
                     )
 
                 remove_updates = [
-                    RemoveMessage(id=msg.id)
+                    RemoveMessage(id=(msg.get("id") if isinstance(msg, dict) else getattr(msg, "id", None)))
                     for msg in dropped_messages
-                    if getattr(msg, "id", None)
+                    if (msg.get("id") if isinstance(msg, dict) else getattr(msg, "id", None))
                 ]
                 if remove_updates:
                     await agent.aupdate_state(config, {"messages": remove_updates})
@@ -283,8 +287,16 @@ async def _stream_graph_with_continuations(
     current_input = graph_input
 
     while True:
+        current_step = 0
+        try:
+            state = await agent.aget_state(config)
+            if state and getattr(state, "metadata", None):
+                current_step = int(state.metadata.get("step", 0))
+        except Exception as e:
+            logger.debug("Could not determine current step from state metadata: %s", e)
+
         current_limit = min(segment_step_limit, total_step_budget - consumed_steps)
-        config["recursion_limit"] = current_limit
+        config["recursion_limit"] = current_step + current_limit
         try:
             async for part in agent.astream(
                 current_input,
@@ -321,7 +333,18 @@ async def _stream_graph_with_continuations(
             # Resume the exact pending LangGraph task. Adding a HumanMessage at
             # this point can place user input between an AI tool call and its
             # ToolMessage, corrupting provider message ordering.
-            current_input = None
+            state = await agent.aget_state(config)
+            if state and not state.next:
+                from langgraph.types import Command
+                msgs = state.values.get("messages", [])
+                last_msg = msgs[-1] if msgs else None
+                t_calls = last_msg.get("tool_calls") if isinstance(last_msg, dict) else getattr(last_msg, "tool_calls", None)
+                if t_calls:
+                    current_input = Command(goto="tools")
+                else:
+                    current_input = Command(goto="agent")
+            else:
+                current_input = None
 
 async def stream_conversation(
     conversation_id: str,
@@ -522,6 +545,22 @@ async def stream_conversation(
             "recursion_limit": segment_step_limit,
         }
 
+        try:
+            tup = await checkpointer.aget_tuple({"configurable": {"thread_id": namespaced_thread_id}})
+            if tup and tup.checkpoint:
+                for m in tup.checkpoint.get("channel_values", {}).get("messages", []):
+                    t_calls = m.get("tool_calls", []) if isinstance(m, dict) else getattr(m, "tool_calls", [])
+                    if t_calls:
+                        for tc in t_calls:
+                            tc_name = tc.get("name") if isinstance(tc, dict) else getattr(tc, "name", "")
+                            if tc_name in ("read_skill", "load_skill"):
+                                tc_args = tc.get("args", {}) if isinstance(tc, dict) else getattr(tc, "args", {})
+                                s_name = tc_args.get("skill_name") if isinstance(tc_args, dict) else getattr(tc_args, "skill_name", None)
+                                if s_name and s_name not in config["configurable"]["activated_skills"]:
+                                    config["configurable"]["activated_skills"].append(s_name)
+        except Exception as e:
+            logger.debug("Could not restore activated_skills from checkpoint: %s", e)
+
         graph_input = None
         if resume is not None:
             if is_continue_task:
@@ -529,11 +568,36 @@ async def stream_conversation(
                 # message can split an AI tool call from its required tool
                 # result and make Bedrock reject the checkpoint history.
                 if await _has_checkpoint(checkpointer, namespaced_thread_id):
-                    graph_input = None
-                    logger.info(
-                        "continue_task: resuming pending checkpoint for thread %s",
-                        namespaced_thread_id,
-                    )
+                    state = await agent.aget_state(config)
+                    if state and not state.next:
+                        msgs = state.values.get("messages", [])
+                        last_msg = msgs[-1] if msgs else None
+                        t_calls = last_msg.get("tool_calls") if isinstance(last_msg, dict) else getattr(last_msg, "tool_calls", None)
+                        if t_calls:
+                            goto_node = "tools"
+                            graph_input = Command(goto=goto_node)
+                        else:
+                            goto_node = "agent"
+                            nudge_msg = HumanMessage(
+                                content=(
+                                    "[System Note: You are resuming an ongoing, interrupted analysis from your durable checkpoint. "
+                                    "Your previously activated skills and schema context are preserved in memory. "
+                                    "DO NOT call read_skill, load_skill, or get_schema_overview again if you already called them. "
+                                    "Pick up IMMEDIATELY with your next planned tool call or analysis step without repeating yourself.]"
+                                )
+                            )
+                            graph_input = Command(goto=goto_node, update={"messages": [nudge_msg]})
+                        logger.info(
+                            "continue_task: resuming from empty next state via Command(goto='%s') for thread %s",
+                            goto_node,
+                            namespaced_thread_id,
+                        )
+                    else:
+                        graph_input = None
+                        logger.info(
+                            "continue_task: resuming pending checkpoint for thread %s",
+                            namespaced_thread_id,
+                        )
                 else:
                     # A process restart can remove development's in-memory
                     # checkpoint. Reconstruct from durable Firestore history
@@ -546,7 +610,7 @@ async def stream_conversation(
                         + [
                             HumanMessage(
                                 content=format_current_user_request(
-                                    "Continue the unfinished task from the durable task checkpoint."
+                                    "Continue the unfinished task from the durable task checkpoint. Do not reload skills or schema already checked in the conversation history above."
                                 )
                             )
                         ]
@@ -583,6 +647,14 @@ async def stream_conversation(
                             summaryThresholdTokens=summary_pressure["threshold_tokens"],
                             summaryCompleteTurns=summary_pressure["complete_turn_count"],
                         )
+                    )
+                    yield sse_encode(
+                        {
+                            "type": "workflow_status",
+                            "stage": "summarizing_context",
+                            "status": "running",
+                            "content": "Compacting conversation context...",
+                        }
                     )
                     summary_result = await summarizer.check_and_summarize(
                         conversation_id,
@@ -671,6 +743,14 @@ async def stream_conversation(
                             summary_result.get("reason"),
                             summary_result.get("tail_tokens"),
                             summary_result.get("threshold_tokens"),
+                        )
+                        yield sse_encode(
+                            {
+                                "type": "workflow_status",
+                                "stage": "summarizing_context",
+                                "status": "done",
+                                "content": "Context summarization bypassed.",
+                            }
                         )
             except Exception as sum_err:
                 logger.warning("Pre-call summarization failed: %s", sum_err)
@@ -928,13 +1008,17 @@ async def _load_firestore_history(
         selected_messages = [recent_messages[idx] for idx in selected_msg_indices]
 
         lc_messages = []
+        turn_index = 0
         for msg in selected_messages:
             sender = msg.get("sender", "user")
             content = msg.get("content", "")
-            
+
             if sender == "user":
+                turn_index += 1
                 lc_messages.append(
-                    HumanMessage(content=format_previous_user_turn(content or ""))
+                    HumanMessage(
+                        content=format_previous_user_turn(content or "", turn_index=turn_index)
+                    )
                 )
             elif sender == "ai":
                 tool_trace = msg.get("tool_trace_summary")
@@ -948,6 +1032,7 @@ async def _load_firestore_history(
                             content,
                             tool_trace=str(tool_trace or ""),
                             tool_calls=serialized_tool_calls,
+                            turn_index=turn_index,
                         )
                     )
                 )

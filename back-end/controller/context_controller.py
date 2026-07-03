@@ -26,7 +26,7 @@ from api_contract.context import (
 from service.user_settings.user_settings_service import UserSettingsService
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["context"])
+router = APIRouter(tags=["User Context & Settings"])
 
 
 def _user_id(user: dict) -> str:

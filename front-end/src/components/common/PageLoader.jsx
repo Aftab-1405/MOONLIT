@@ -1,8 +1,6 @@
 import { Box, keyframes, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 
-import { getMoonlitGradient } from '@/theme/index';
-
 const breathe = keyframes`
   0%, 100% { opacity: 0.58; }
   50%       { opacity: 1; }
@@ -16,6 +14,11 @@ const horizonSweep = keyframes`
   20%  { opacity: 1; }
   80%  { opacity: 1; }
   100% { transform: translateX(230%); opacity: 0; }
+`;
+const gradientFlow = keyframes`
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
 `;
 
 function PageLoader() {
@@ -53,15 +56,18 @@ function PageLoader() {
         <Typography
           sx={{
             ...theme.typography.uiLoaderWordmark,
-            background: getMoonlitGradient(theme),
+            backgroundImage: `linear-gradient(to right, #ffaa40, #9c40ff, #ff5a8c, #ffaa40)`,
+            backgroundSize: '300% 100%',
             backgroundClip: 'text',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             filter: `drop-shadow(0 0 20px ${glowColor})`,
             letterSpacing: '-0.025em',
-            animation: `${breathe} 2.4s ease-in-out infinite`,
+            animation: `${breathe} 2.4s ease-in-out infinite, ${gradientFlow} 6s linear infinite`,
             '@media (prefers-reduced-motion: reduce)': {
               animation: 'none',
+              backgroundImage: 'none',
+              WebkitTextFillColor: 'currentColor',
               opacity: 1,
             },
           }}

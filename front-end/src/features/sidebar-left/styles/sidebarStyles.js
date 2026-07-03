@@ -16,7 +16,7 @@ const ROW_HEIGHT = 36; // px — single consistent row height for all items
 const focusRing = (theme) =>
   `0 0 0 3px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.16 : 0.1)}`;
 
-export function getSidebarRailTooltipSlotProps(theme) {
+export function getSidebarRailTooltipSlotProps(_theme) {
   return {
     popper: {
       modifiers: [

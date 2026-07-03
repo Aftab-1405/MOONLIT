@@ -27,7 +27,6 @@
     "@perspective-dev/viewer": "^4.5.1",
     "@perspective-dev/viewer-charts": "^4.5.1",
     "@perspective-dev/viewer-datagrid": "^4.5.1",
-    "@react-three/fiber": "^9.6.1",
     "@shikijs/stream": "^4.3.0",
     "@tanstack/react-query": "^5.101.0",
     "@uiw/codemirror-theme-dracula": "^4.25.10",
