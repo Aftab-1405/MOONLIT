@@ -10,9 +10,7 @@ from vamp_memory.vamp_memory_service import get_vamp_memory_service
 class VampConversationMemoryCleaner:
     """Conversation memory cleaner backed by VAMP memory."""
 
-    async def delete_conversation_pointers(
-        self, conversation_id: str, user_id: str
-    ) -> None:
+    async def delete_conversation_pointers(self, conversation_id: str, user_id: str) -> None:
         await get_vamp_memory_service().delete_conversation_pointers(conversation_id, user_id)
 
 

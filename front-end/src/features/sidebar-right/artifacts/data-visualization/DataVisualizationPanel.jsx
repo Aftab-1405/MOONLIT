@@ -13,6 +13,7 @@ import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
 import { ArtifactEmptyState, ArtifactShell } from '@/features/sidebar-right/artifact-loader';
 import PerspectiveDashboard from '@/features/sidebar-right/artifacts/data-visualization/PerspectiveDashboard';
 import { createAnalysisStorageKey } from '@/features/sidebar-right/artifacts/data-visualization/perspectiveAnalysis';
+import { getSecondaryActionButtonSx } from '@/styles/shared';
 import { copyToClipboard } from '@/utils/clipboard';
 
 function DataVisualizationPanel({
@@ -190,13 +191,21 @@ function DataVisualizationPanel({
               {selection.config ? (
                 <Button
                   size="small"
+                  variant="outlined"
                   startIcon={<FilterAltRoundedIcon />}
                   onClick={applySelectionFilter}
+                  sx={getSecondaryActionButtonSx(theme)}
                 >
                   Filter to selection
                 </Button>
               ) : null}
-              <Button size="small" startIcon={<ContentCopyRoundedIcon />} onClick={copySelection}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<ContentCopyRoundedIcon />}
+                onClick={copySelection}
+                sx={getSecondaryActionButtonSx(theme)}
+              >
                 Copy row
               </Button>
             </Box>

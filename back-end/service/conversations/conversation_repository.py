@@ -4,10 +4,30 @@ Conversation Repository
 Encapsulates Firestore data access for conversation documents.
 Collection: conversations/{conversation_id}
 
-Messages are stored as structured fields only:
-- ``content``: assistant or user text (no embedded markers)
-- ``thinking``: optional reasoning text (from SSE / API)
-- ``tools``: optional structured tool call list
+Document schema
+---------------
+
+Each conversation document has the shape::
+
+    {
+        "user_id":   "<owner uid>",
+        "timestamp": Datetime,
+        "title":     "<preview title>",
+        "preview":   "<short preview>",
+        "messages":  [ { sender, content, timestamp, ... }, ... ],
+        "task_mode": str | None,
+        "task_status": str | None,
+    }
+
+Transactional writes
+--------------------
+
+``store_message`` performs a read-check-create-append sequence. Two
+concurrent calls for the same brand-new ``conversation_id`` used to both see
+"not exists", both call ``set()``, and the second would overwrite the first
+— silently losing messages (FIX [H14]). The sequence is now wrapped in a
+Firestore transaction so concurrent calls serialize on the document and the
+first writer's messages survive a concurrent second writer.
 """
 
 import logging
@@ -36,8 +56,9 @@ def _is_transient_firestore_error(exc: Exception) -> bool:
 
 
 def _interactive_firestore_policy():
-    from config import get_config
     from google.api_core.retry import Retry
+
+    from config import get_config
 
     timeout = max(
         2.0,
@@ -82,9 +103,7 @@ def _get_conversation_via_rest(
         params = [("mask.fieldPaths", path) for path in (field_paths or [])]
         response = session.get(url, params=params or None, timeout=timeout)
     except RequestException as exc:
-        raise exceptions.DeadlineExceeded(
-            "Firestore REST fallback timed out"
-        ) from exc
+        raise exceptions.DeadlineExceeded("Firestore REST fallback timed out") from exc
     finally:
         session.close()
 
@@ -93,13 +112,9 @@ def _get_conversation_via_rest(
     if response.status_code == 429:
         raise exceptions.ResourceExhausted("Firestore REST quota exhausted")
     if response.status_code in (502, 503, 504):
-        raise exceptions.ServiceUnavailable(
-            f"Firestore REST unavailable ({response.status_code})"
-        )
+        raise exceptions.ServiceUnavailable(f"Firestore REST unavailable ({response.status_code})")
     if not response.ok:
-        raise exceptions.GoogleAPICallError(
-            f"Firestore REST read failed ({response.status_code})"
-        )
+        raise exceptions.GoogleAPICallError(f"Firestore REST read failed ({response.status_code})")
 
     document = Document()
     ParseDict(response.json(), document._pb)
@@ -114,7 +129,14 @@ class ConversationRepository:
     @staticmethod
     def get(conversation_id: str) -> Optional[Dict]:
         """
-        Get conversation by ID.
+        Get a conversation document by ID.
+
+        Reads use an interactive-read retry policy with a short deadline so a
+        slow Firestore doesn't tie up the request thread indefinitely. If the
+        gRPC read fails transiently and the REST-read fallback is enabled in
+        config, the call is retried once over the non-streaming REST endpoint
+        (some Firestore backends stop responding on the streaming gRPC channel
+        while the REST API still works).
 
         Args:
             conversation_id: The conversation ID
@@ -131,10 +153,7 @@ class ConversationRepository:
         retry, timeout = _interactive_firestore_policy()
         config = get_config()
 
-        if (
-            config.FIRESTORE_REST_READ_FALLBACK_ENABLED
-            and _REST_READ_FALLBACK_ACTIVE
-        ):
+        if config.FIRESTORE_REST_READ_FALLBACK_ENABLED and _REST_READ_FALLBACK_ACTIVE:
             return _get_conversation_via_rest(db, conversation_id, timeout)
 
         try:
@@ -147,10 +166,7 @@ class ConversationRepository:
                 return doc.to_dict()
             return None
         except Exception as exc:
-            if not (
-                config.FIRESTORE_REST_READ_FALLBACK_ENABLED
-                and _is_transient_firestore_error(exc)
-            ):
+            if not (config.FIRESTORE_REST_READ_FALLBACK_ENABLED and _is_transient_firestore_error(exc)):
                 logger.error("Error retrieving conversation %s: %s", conversation_id, exc)
                 raise
 
@@ -233,8 +249,9 @@ class ConversationRepository:
         Returns:
             List of conversation summaries (id, timestamp, title)
         """
-        from service.firestore.firestore_service import FirestoreService
         from google.cloud.firestore_v1 import FieldFilter
+
+        from service.firestore.firestore_service import FirestoreService
 
         try:
             db = FirestoreService.get_db()
@@ -258,7 +275,10 @@ class ConversationRepository:
                     }
                 )
 
-            conversation_list.sort(key=lambda x: x["timestamp"] if x["timestamp"] else datetime.min, reverse=True)
+            conversation_list.sort(
+                key=lambda x: x["timestamp"] if x["timestamp"] else datetime.min,
+                reverse=True,
+            )
             return conversation_list
         except Exception as e:
             logger.error(f"Error retrieving conversations for user {user_id}: {e}")
@@ -285,9 +305,7 @@ class ConversationRepository:
 
         try:
             db = FirestoreService.get_db()
-            conversation_ref = db.collection(
-                ConversationRepository.COLLECTION_NAME
-            ).document(conversation_id)
+            conversation_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(conversation_id)
             conversation = conversation_ref.get()
 
             if not conversation.exists:
@@ -326,9 +344,14 @@ class ConversationRepository:
         tool_trace_summary: Optional[str] = None,
     ) -> None:
         """
-        Store a message in a conversation.
+        Store a message in a conversation, creating the conversation document if needed.
 
-        Creates the conversation document if it doesn't exist.
+        The entire read-check-create-append sequence runs inside a Firestore
+        transaction (FIX [H14]) so two concurrent ``store_message`` calls for
+        the same brand-new ``conversation_id`` cannot race and overwrite each
+        other's first message. The transaction serializes writers on the
+        document via Firestore's optimistic-concurrency check; the loser
+        retries the read-then-write automatically.
 
         Args:
             conversation_id: The conversation ID
@@ -345,37 +368,64 @@ class ConversationRepository:
             is_final_assistant_response: whether it is the final assistant response
             tool_trace_summary: optional tool execution summary
         """
-        from service.firestore.firestore_service import FirestoreService
         from firebase_admin import firestore
 
-        try:
-            db = FirestoreService.get_db()
-            conversation_ref = db.collection(
-                ConversationRepository.COLLECTION_NAME
-            ).document(conversation_id)
+        from service.firestore.firestore_service import FirestoreService
 
-            existing_doc = conversation_ref.get()
-            if existing_doc.exists:
-                conv_data = existing_doc.to_dict()
+        db = FirestoreService.get_db()
+        conversation_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(conversation_id)
+
+        @firestore.transactional
+        def _store_in_txn(
+            txn,
+            ref,
+            *,
+            sender: str,
+            message: str,
+            user_id: str,
+            tools: Optional[List[Dict]],
+            thinking: Optional[str],
+            timeline: Optional[List[Dict]],
+            append: bool,
+            usage: Optional[Dict],
+            turn_id: Optional[str],
+            turn_index: Optional[int],
+            message_role: Optional[str],
+            is_final_assistant_response: Optional[bool],
+            tool_trace_summary: Optional[str],
+        ) -> None:
+            snap = ref.get(transaction=txn)
+            if snap.exists:
+                conv_data = snap.to_dict() or {}
                 if conv_data.get("user_id") != user_id:
                     raise PermissionError("User does not own this conversation")
             else:
+                # Brand-new conversation. The transaction's optimistic lock
+                # guarantees only one writer creates the document; concurrent
+                # writers retry and see the freshly-created snapshot, so the
+                # append branch (below) handles their message correctly.
                 content_str = (message or "").strip()
                 preview = content_str[:50] + "..." if len(content_str) > 50 else content_str
                 title = content_str[:40] + ("..." if len(content_str) > 40 else "")
-                conversation_ref.set(
+                txn.set(
+                    ref,
                     {
                         "user_id": user_id,
                         "timestamp": datetime.now(timezone.utc),
                         "messages": [],
                         "title": title,
                         "preview": preview,
-                    }
+                    },
                 )
-                conv_data = {"user_id": user_id, "messages": [], "title": title, "preview": preview}
+                conv_data = {
+                    "user_id": user_id,
+                    "messages": [],
+                    "title": title,
+                    "preview": preview,
+                }
 
             # If append is requested, modify the last message in-place if sender matches
-            if append and existing_doc.exists and conv_data.get("messages"):
+            if append and snap.exists and conv_data.get("messages"):
                 messages_list = conv_data["messages"]
                 last_message = messages_list[-1]
                 if last_message.get("sender") == sender:
@@ -409,7 +459,7 @@ class ConversationRepository:
                     if timeline:
                         orig_tl = last_message.get("timeline", [])
                         last_message["timeline"] = orig_tl + timeline
-                        
+
                     # Update usage if provided
                     if usage:
                         last_message["usage"] = usage
@@ -426,8 +476,7 @@ class ConversationRepository:
                     if tool_trace_summary is not None:
                         last_message["tool_trace_summary"] = tool_trace_summary
 
-                    conversation_ref.update({"messages": messages_list})
-                    logger.debug(f"Conversation {conversation_id} updated successfully by appending to last {sender} message")
+                    txn.update(ref, {"messages": messages_list})
                     return
 
             content = (message or "").strip()
@@ -446,7 +495,7 @@ class ConversationRepository:
 
             if timeline:
                 message_data["timeline"] = timeline
-                
+
             if usage:
                 message_data["usage"] = usage
 
@@ -461,18 +510,45 @@ class ConversationRepository:
             if tool_trace_summary is not None:
                 message_data["tool_trace_summary"] = tool_trace_summary
 
-            conversation_ref.update({"messages": firestore.ArrayUnion([message_data])})
-            logger.debug(f"Conversation {conversation_id} updated successfully")
-        except Exception as e:
-            logger.error(
-                f"Error storing message in conversation {conversation_id}: {e}"
+            txn.update(ref, {"messages": firestore.ArrayUnion([message_data])})
+
+        try:
+            transaction = db.transaction()
+            _store_in_txn(
+                transaction,
+                conversation_ref,
+                sender=sender,
+                message=message,
+                user_id=user_id,
+                tools=tools,
+                thinking=thinking,
+                timeline=timeline,
+                append=append,
+                usage=usage,
+                turn_id=turn_id,
+                turn_index=turn_index,
+                message_role=message_role,
+                is_final_assistant_response=is_final_assistant_response,
+                tool_trace_summary=tool_trace_summary,
             )
+            logger.debug(f"Conversation {conversation_id} updated successfully")
+        except PermissionError:
+            raise
+        except Exception as e:
+            logger.error(f"Error storing message in conversation {conversation_id}: {e}")
             raise
 
     @staticmethod
     def delete(conversation_id: str, user_id: str) -> bool:
         """
-        Delete a conversation. Verifies user ownership.
+        Delete a conversation and its subcollections (summary blocks, execution results).
+
+        Verifies user ownership before deleting. Best-effort cleans up the
+        ``summary_blocks`` and ``execution_results`` subcollections (including
+        their ``payload_chunks`` / ``chunks`` grandchild docs) before removing
+        the conversation document itself. Subcollection cleanup failures are
+        logged but do NOT abort the conversation delete — orphaned chunk docs
+        are reclaimed by a periodic janitor job.
 
         Args:
             conversation_id: The conversation ID
@@ -489,9 +565,7 @@ class ConversationRepository:
 
         try:
             db = FirestoreService.get_db()
-            conversation_ref = db.collection(
-                ConversationRepository.COLLECTION_NAME
-            ).document(conversation_id)
+            conversation_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(conversation_id)
             conversation = conversation_ref.get()
 
             if not conversation.exists:
@@ -509,15 +583,16 @@ class ConversationRepository:
                     for chunk_doc in doc.reference.collection("payload_chunks").get():
                         chunk_doc.reference.delete()
                     doc.reference.delete()
-                logger.debug("Deleted Firestore summary blocks for conversation %s", conversation_id)
+                logger.debug(
+                    "Deleted Firestore summary blocks for conversation %s",
+                    conversation_id,
+                )
             except Exception as blocks_err:
                 logger.warning("Failed to clean up Firestore summary blocks: %s", blocks_err)
 
             # 2. Delete persisted query results and any chunk documents.
             try:
-                execution_results_ref = conversation_ref.collection(
-                    "execution_results"
-                )
+                execution_results_ref = conversation_ref.collection("execution_results")
                 for execution_doc in execution_results_ref.get():
                     for chunk_doc in execution_doc.reference.collection("chunks").get():
                         chunk_doc.reference.delete()
@@ -543,9 +618,7 @@ class ConversationRepository:
             raise
 
     @staticmethod
-    def create_memory_cleanup_retry(
-        conversation_id: str, user_id: str, cleanup_error: Exception
-    ) -> None:
+    def create_memory_cleanup_retry(conversation_id: str, user_id: str, cleanup_error: Exception) -> None:
         """Create a Firestore retry record for failed external memory cleanup."""
         from service.firestore.firestore_service import FirestoreService
 
@@ -580,12 +653,14 @@ class ConversationRepository:
         attempt pointer deletion, and update/delete records accordingly.
         Returns the number of successfully cleaned up conversations.
         """
-        from service.firestore.firestore_service import FirestoreService
-        from google.api_core.retry import Retry
-        from google.cloud.firestore_v1 import FieldFilter
-        from config import get_config
         import asyncio
         import threading
+
+        from google.api_core.retry import Retry
+        from google.cloud.firestore_v1 import FieldFilter
+
+        from config import get_config
+        from service.firestore.firestore_service import FirestoreService
 
         db = FirestoreService.get_db()
         timeout = max(
@@ -622,11 +697,15 @@ class ConversationRepository:
 
                 def _delete():
                     try:
-                        asyncio.run(
-                            memory_cleaner.delete_conversation_pointers(
-                                conversation_id, user_id
-                            )
-                        )
+                        # FIX [M29]: This worker thread's `asyncio.run` creates
+                        # a fresh event loop. The underlying
+                        # `QdrantVectorMemoryStore.ensure_ready` creates its
+                        # `asyncio.Lock` lazily inside the running loop, so
+                        # this is safe even when startup `ensure_ready` failed
+                        # (which would have bound the old eager lock to the
+                        # main loop and raised `RuntimeError: bound to a
+                        # different event loop` here).
+                        asyncio.run(memory_cleaner.delete_conversation_pointers(conversation_id, user_id))
                     except BaseException as exc:
                         cleanup_errors.append(exc)
 
@@ -637,16 +716,27 @@ class ConversationRepository:
                     raise cleanup_errors[0]
                 doc.reference.delete()
                 success_count += 1
-                logger.info("Successfully retired cleanup for conversation %s on attempt %s", conversation_id, attempts + 1)
+                logger.info(
+                    "Successfully retired cleanup for conversation %s on attempt %s",
+                    conversation_id,
+                    attempts + 1,
+                )
             except Exception as e:
                 attempts += 1
                 status = "failed" if attempts >= 5 else "pending"
-                doc.reference.update({
-                    "attempts": attempts,
-                    "status": status,
-                    "last_error": str(e),
-                    "updated_at": datetime.now(timezone.utc)
-                })
-                logger.warning("Retry cleanup attempt %s failed for conversation %s: %s", attempts, conversation_id, e)
+                doc.reference.update(
+                    {
+                        "attempts": attempts,
+                        "status": status,
+                        "last_error": str(e),
+                        "updated_at": datetime.now(timezone.utc),
+                    }
+                )
+                logger.warning(
+                    "Retry cleanup attempt %s failed for conversation %s: %s",
+                    attempts,
+                    conversation_id,
+                    e,
+                )
 
         return success_count

@@ -1,9 +1,9 @@
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import MenuBookRoundedIcon from '@mui/icons-material/MenuBookRounded';
+import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { Box, ButtonBase, Collapse, Link, Typography, useTheme } from '@mui/material';
 import { alpha, keyframes } from '@mui/material/styles';
 import { memo, useMemo, useState } from 'react';
@@ -20,6 +20,26 @@ import {
 } from '@/features/chat/ai-response-steps/timelineShared';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { TRANSITIONS } from '@/theme/index';
+import { BRAND } from '@/theme/tokens';
+
+/**
+ * AI reasoning-step timeline primitives.
+ *
+ * Each step type renders as a vertical-timeline row with a node icon on the
+ * left (anchored to the timeline line) and content on the right.
+ *
+ * Step types & their semantic iconography:
+ *   - ThinkingStep   → AccessTimeRounded (clock) — "AI is thinking/working"
+ *   - SkillStep      → AutoAwesomeRounded (sparkles) — "skill activated"
+ *   - ToolStep (running)    → AutorenewRounded (spinning) — "tool executing"
+ *   - ToolStep (done)       → CheckRounded (filled check) — "tool succeeded"
+ *   - ToolStep (error)      → CancelRounded (filled x) — "tool failed"
+ *   - DoneIndicator         → CheckRounded — "workflow complete"
+ *
+ * The thinking/skill icons are outline style (in-progress states). The
+ * done/error icons are filled (terminal states) — filled reads as "this is
+ * finished", outline reads as provisional.
+ */
 
 const spin = keyframes`
   from { transform: translate(-50%, -50%) rotate(0deg); }
@@ -50,6 +70,8 @@ const getTimelineNodeSx = ({
   transform: 'translate(-50%, -50%)',
   fontSize: { xs: 18, sm: 20 },
   zIndex: 1,
+  // Background matches the page so the node "punches through" the timeline
+  // line cleanly — the line appears to flow behind the node, not through it.
   backgroundColor: theme.palette.background.default,
   borderRadius: '50%',
   color,
@@ -118,6 +140,9 @@ export const ThinkingStep = memo(function ThinkingStep({
   const isLong = lines.length > 6 || content.length > 400;
   const displayContent = showMore ? content : lines.slice(0, 6).join('\n');
 
+  // Thinking node uses the muted text color — thinking is "internal" and
+  // shouldn't compete with tool/done nodes for attention. When active, the
+  // icon gently pulses to signal "work in progress".
   const nodeColor = theme.palette.text.secondary;
 
   const thinkingNodeSx = useMemo(
@@ -233,7 +258,9 @@ function humanizeSkillName(name) {
 
 /**
  * Renders activated skills in the timeline.
- * Consistent with thinking and tool steps.
+ * Uses the brand purple as the node color — skill activation is a "moment"
+ * worth highlighting, and the brand color marks it as an identity-level
+ * event (consistent with the welcome name, sidebar wordmark, etc.).
  */
 export const SkillStep = memo(function SkillStep({
   skills = [],
@@ -256,7 +283,8 @@ export const SkillStep = memo(function SkillStep({
 
   const label = skills.map((s) => SKILL_LABELS[s] || humanizeSkillName(s)).join(', ');
 
-  const nodeColor = theme.palette.text.secondary;
+  // Brand purple node — skills are identity moments.
+  const nodeColor = BRAND.main;
 
   const skillNodeSx = useMemo(
     () =>
@@ -264,7 +292,7 @@ export const SkillStep = memo(function SkillStep({
         isDark,
         color: nodeColor,
         isCurrent: isStreaming,
-        shadowColor: theme.palette.text.secondary,
+        shadowColor: BRAND.main,
         animation: isStreaming ? `${pulse} 2s ease-in-out infinite` : undefined,
         theme,
       }),
@@ -283,7 +311,7 @@ export const SkillStep = memo(function SkillStep({
         py: { xs: 0.6, sm: 0.75 },
       }}
     >
-      <MenuBookRoundedIcon sx={skillNodeSx} />
+      <AutoAwesomeRoundedIcon sx={skillNodeSx} />
       <Box
         sx={{
           width: '100%',
@@ -365,17 +393,27 @@ export const ToolStep = memo(function ToolStep({
     return Math.min(Math.max(80, lineCount * 20 + 24), 300);
   }, [parsedArgs?.query]);
 
+  // Status iconography — filled icons for terminal states (done/error),
+  // outline + spin for in-progress. Filled reads as "this is finished";
+  // outline reads as "this is in progress".
   const StatusIcon = isRunning
     ? AutorenewRoundedIcon
     : isError
-      ? ErrorOutlineRoundedIcon
-      : CheckCircleOutlineRoundedIcon;
+      ? CancelRoundedIcon
+      : CheckRoundedIcon;
 
+  // Semantic node colors:
+  //   - running → text.primary (neutral, "working")
+  //   - error   → error.main (red, "failed")
+  //   - done    → success.main (green, "succeeded")
+  // Done uses GREEN instead of primary because green is the universal
+  // "success" semantic color. The previous version used primary (monochrome)
+  // which made success and running states look identical.
   const nodeColor = isRunning
     ? theme.palette.text.primary
     : isError
       ? theme.palette.error.main
-      : theme.palette.primary.main;
+      : theme.palette.success.main;
 
   const statusNodeSx = useMemo(
     () =>
@@ -387,7 +425,7 @@ export const ToolStep = memo(function ToolStep({
           ? theme.palette.text.primary
           : isError
             ? theme.palette.error.main
-            : theme.palette.primary.main,
+            : theme.palette.success.main,
         animation: isRunning ? `${spin} 1s linear infinite` : undefined,
         theme,
       }),
@@ -430,7 +468,7 @@ export const ToolStep = memo(function ToolStep({
           {actionText}
         </Typography>
         {hasDetails && (
-          <KeyboardArrowDownIcon
+          <KeyboardArrowDownRoundedIcon
             className="step-arrow"
             sx={{
               fontSize: { xs: 13, sm: 15 },
@@ -491,11 +529,12 @@ export const DoneIndicator = memo(function DoneIndicator() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
 
+  // Done = green check. Universal "success" semantic color.
   const doneNodeSx = useMemo(
     () =>
       getTimelineNodeSx({
         isDark,
-        color: theme.palette.primary.main,
+        color: theme.palette.success.main,
         theme,
         top: '50%',
       }),
@@ -514,7 +553,7 @@ export const DoneIndicator = memo(function DoneIndicator() {
         '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
       }}
     >
-      <CheckCircleOutlineRoundedIcon sx={doneNodeSx} />
+      <CheckRoundedIcon sx={doneNodeSx} />
       <Typography
         sx={{
           color: alpha(theme.palette.text.secondary, isDark ? 0.74 : 0.64),

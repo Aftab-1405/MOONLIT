@@ -1,11 +1,11 @@
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
-import PlayCircleOutlinedIcon from '@mui/icons-material/PlayCircleOutlined';
+import PlayCircleRoundedIcon from '@mui/icons-material/PlayCircleRounded';
 import { Box, Button, Container, Stack, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { useMemo } from 'react';
 import Hyperspeed from '@/components/Hyperspeed/Hyperspeed';
 import { HOVER_CAPABLE_QUERY, REDUCED_MOTION_QUERY, Section } from '@/pages/Landing/index';
-import { getMoonlitBrandGradients } from '@/theme/themeEffects';
+import { BRAND } from '@/theme/tokens';
 
 const STATS = [
   { value: '10K+', label: 'Queries/day' },
@@ -16,7 +16,6 @@ const STATS = [
 function Hero({ onGetStarted }) {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const brandGradients = getMoonlitBrandGradients(theme);
 
   const hyperspeedOptions = useMemo(() => {
     const brandLeftCars = isDark ? [0x8cff5a, 0x6edb3b, 0x3d9a0e] : [0x3d9a0e, 0x2b6e0a, 0x56bc22];
@@ -154,12 +153,7 @@ function Hero({ onGetStarted }) {
             <Box
               component="span"
               sx={{
-                background: brandGradients.shimmer,
-                backgroundSize: '200% auto',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                animation: 'shimmer 5s linear infinite',
+                color: BRAND.main,
               }}
             >
               Start Asking Questions.
@@ -194,7 +188,7 @@ function Hero({ onGetStarted }) {
           >
             <Button
               size="large"
-              variant="outlined"
+              variant="contained"
               color="primary"
               onClick={onGetStarted}
               endIcon={<ArrowForwardRoundedIcon />}
@@ -203,14 +197,22 @@ function Hero({ onGetStarted }) {
                 py: 1.5,
                 borderRadius: 2,
                 fontWeight: 600,
+                // Solid brand purple — consistent with auth CTAs and the
+                // chat send button.
+                backgroundColor: BRAND.main,
+                '&:hover': {
+                  backgroundColor: BRAND.dark,
+                },
+                boxShadow: `0 4px 14px ${alpha(BRAND.main, isDark ? 0.4 : 0.24)}`,
                 transition: theme.transitions.create(
-                  ['background-color', 'border-color', 'color', 'transform'],
+                  ['box-shadow', 'transform', 'background-color'],
                   { duration: 200 },
                 ),
                 [REDUCED_MOTION_QUERY]: { transition: 'none' },
                 [HOVER_CAPABLE_QUERY]: {
                   '&:hover': {
                     transform: 'translateY(-2px)',
+                    boxShadow: `0 8px 22px ${alpha(BRAND.main, isDark ? 0.5 : 0.32)}`,
                   },
                 },
                 '&:active': { transform: 'scale(0.98)' },
@@ -221,7 +223,7 @@ function Hero({ onGetStarted }) {
             <Button
               size="large"
               variant="outlined"
-              startIcon={<PlayCircleOutlinedIcon />}
+              startIcon={<PlayCircleRoundedIcon />}
               onClick={() => {
                 const reduceMotion = window.matchMedia?.(
                   '(prefers-reduced-motion: reduce)',
@@ -237,6 +239,9 @@ function Hero({ onGetStarted }) {
                 borderColor: alpha(theme.palette.text.primary, 0.18),
                 borderWidth: 1,
                 color: 'text.primary',
+                backgroundColor: alpha(theme.palette.background.default, isDark ? 0.4 : 0.6),
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
                 transition: theme.transitions.create(
                   ['border-color', 'background-color', 'color', 'transform'],
                   { duration: 200 },
@@ -288,10 +293,7 @@ function Hero({ onGetStarted }) {
                 <Typography
                   sx={{
                     fontWeight: 700,
-                    background: brandGradients.static,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
+                    color: BRAND.main,
                     ...theme.typography.uiHeadingLandingMd,
                     fontSize: { xs: '1.1rem', md: '1.25rem' },
                     lineHeight: 1.2,

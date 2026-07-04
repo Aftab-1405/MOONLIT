@@ -314,7 +314,10 @@ function Sidebar({
               <SidebarPanelIcon sx={{ fontSize: 18 }} />
             </Box>
 
-            {/* Title — fades + collapses when sidebar is collapsed */}
+            {/* Title — fades + collapses when sidebar is collapsed.
+                Solid text.primary — no gradient. Premium wordmarks (Linear,
+                Stripe, Vercel) are monochrome. Brand color is reserved for
+                primary actions, not identity text. */}
             <Box sx={getCollapsingLabelSx(theme, collapsed)}>
               <Typography
                 noWrap
@@ -728,7 +731,10 @@ function Sidebar({
         transition={{ type: 'spring', stiffness: 320, damping: 32 }}
         style={{
           flexShrink: 0,
-          height: '100vh',
+          // `100%` (not `100vh`) so the sidebar fills the parent grid row
+          // defined in App.jsx. `100vh` overflowed on mobile browsers with
+          // dynamic browser chrome (address bar / toolbar).
+          height: '100%',
           position: 'sticky',
           top: 0,
           zIndex: 2,

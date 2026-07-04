@@ -2,6 +2,15 @@
 
 Feature modules depend on protocol-shaped ports from ``api_contract``. Concrete
 implementations are registered by the composition root during app startup.
+
+FIX [AUDIT-2-D]: ``get_port`` previously swallowed ``TypeError`` raised
+by ``isinstance`` against ``@runtime_checkable`` protocols, silently
+returning wrong-type implementations when the protocol included
+non-attribute members. The check is now skipped ONLY for the specific
+``TypeError`` raised by ``isinstance`` on unsupported protocols
+(message starts with ``"isinstance() argument 2 cannot be..."``); all
+other ``TypeError`` instances (including the explicit one we raise on
+type mismatch) now propagate.
 """
 
 from __future__ import annotations
@@ -21,47 +30,56 @@ from api_contract.orchestration_protocols import (
     HistoricalContextProvider,
 )
 
-
-T = TypeVar('T')
+T = TypeVar("T")
 
 _ports: dict[str, Any] = {}
 
 
 def register_port(name: str, implementation: Any) -> None:
-    """Register a concrete implementation for a named port."""
+    """Register a concrete implementation for a named port.
+
+    Args:
+        name: Port name (e.g. ``"conversation_agent_streamer"``).
+        implementation: Concrete implementation instance.
+    """
     _ports[name] = implementation
 
 
 def get_port(name: str, expected_type: type[T] | None = None) -> T:
     """Get a registered port implementation.
-    
+
     Args:
-        name: Port name to retrieve
-        expected_type: Optional type check for the returned implementation
-    
+        name: Port name to retrieve.
+        expected_type: Optional type check for the returned implementation.
+
     Returns:
-        The registered implementation
-    
+        The registered implementation.
+
     Raises:
-        RuntimeError: If port is not configured
-        TypeError: If implementation doesn't match expected type
+        RuntimeError: If the port is not configured.
+        TypeError: If the implementation does not match ``expected_type``
+            (and the check is supported by the runtime).
     """
     try:
         implementation = _ports[name]
-        if expected_type is not None:
-            try:
-                if not isinstance(implementation, expected_type):
-                    raise TypeError(
-                        f"Port '{name}' expected type {expected_type.__name__}, "
-                        f"got {type(implementation).__name__}"
-                    )
-            except TypeError:
-                # Some generic protocols or older Python versions don't support isinstance()
-                # even with @runtime_checkable. We safely ignore the check in those cases.
-                pass
-        return implementation
     except KeyError as exc:
         raise RuntimeError(f"Runtime port '{name}' is not configured") from exc
+
+    if expected_type is not None:
+        try:
+            if not isinstance(implementation, expected_type):
+                raise TypeError(
+                    f"Port '{name}' expected type {expected_type.__name__}, got {type(implementation).__name__}"
+                )
+        except TypeError as exc:
+            # FIX [AUDIT-2-D]: only swallow the specific TypeError raised
+            # by ``isinstance`` against a @runtime_checkable Protocol
+            # that has non-attribute members. All other TypeErrors
+            # (including the explicit one we just raised) propagate.
+            if str(exc).startswith("isinstance() argument 2 cannot be"):
+                return implementation
+            raise
+    return implementation
 
 
 def get_conversation_agent_streamer() -> ConversationAgentStreamer:
@@ -76,11 +94,10 @@ def get_conversation_summary_memory_writer() -> ConversationSummaryMemoryWriter:
     return get_port("conversation_summary_memory_writer", ConversationSummaryMemoryWriter)
 
 
-def get_conversation_summarization_context_provider(
-) -> ConversationSummarizationContextProvider:
+def get_conversation_summarization_context_provider() -> ConversationSummarizationContextProvider:
     return get_port(
         "conversation_summarization_context_provider",
-        ConversationSummarizationContextProvider
+        ConversationSummarizationContextProvider,
     )
 
 

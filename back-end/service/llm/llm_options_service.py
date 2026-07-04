@@ -42,10 +42,7 @@ class LLMOptionsService:
 
         default_provider = (
             config.LLM_PROVIDER
-            if any(
-                option["name"] == config.LLM_PROVIDER
-                for option in selected_options
-            )
+            if any(option["name"] == config.LLM_PROVIDER for option in selected_options)
             else selected_options[0]["name"]
         )
         return selected_options, default_provider

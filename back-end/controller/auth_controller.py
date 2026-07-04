@@ -1,4 +1,30 @@
-"""Authentication routes - FastAPI Router."""
+"""Authentication routes - FastAPI Router.
+
+Firebase session-cookie authentication
+--------------------------------------
+The web client obtains a Firebase ID token (via Firebase Auth on the
+frontend) and POSTs it to ``/set_authenticated_user_session``. The
+backend exchanges the ID token for a stateless session cookie (valid
+up to ``SESSION_EXPIRE_SECONDS``, max 24h per Firebase policy) and sets
+it ``HttpOnly``. Subsequent requests authenticate via
+:func:`dependencies.get_current_user`, which calls
+``auth.verify_session_cookie(check_revoked=True)``.
+
+CSRF
+----
+All state-mutating endpoints are guarded by :func:`verify_csrf_token`,
+which compares the ``csrf_token`` cookie value against the
+``x-csrf-token`` header (double-submit pattern). The CSRF token is
+issued by ``/firebase-config-and-csrf-token`` alongside the Firebase
+web config.
+
+Logout
+------
+``/logout_authenticated_user_session`` revokes all Firebase refresh
+tokens for the user (FIX [H17]) BEFORE clearing Redis session state and
+deleting the cookie. Without the revoke call a stolen cookie remained
+valid for up to 24h after the victim logged out.
+"""
 
 import logging
 import secrets
@@ -21,6 +47,10 @@ from dependencies import (
 Config = get_config()
 router = APIRouter(tags=["Authentication & Authorization"])
 logger = logging.getLogger(__name__)
+
+# ENH [RL-HTTP]: Layer 1 IP-level guard for auth endpoints.
+# Login/session endpoints are prime DDoS targets — strict per-IP limits.
+from controller.rate_limiter import limiter
 
 
 class SetSessionRequest(BaseModel):
@@ -55,6 +85,8 @@ def _delete_cookie(response: Response, name: str, *, httponly: bool) -> None:
 
 
 @router.post("/set_authenticated_user_session")
+# ENH [RL-HTTP]: Strict 10/min per IP on login — prevents credential stuffing.
+@limiter.limit("10 per minute")
 async def set_authenticated_user_session(request: Request, response: Response, data: SetSessionRequest):
     """
     Verify a Firebase ID token and establish a secure session cookie for the authenticated user.
@@ -108,9 +140,7 @@ async def set_authenticated_user_session(request: Request, response: Response, d
         raise
     except Exception as e:
         logger.warning("Token verification failed: %s", e)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token"
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token")
 
 
 @router.get("/check_authenticated_user_session")
@@ -128,10 +158,43 @@ async def check_authenticated_user_session(request: Request):
 @router.post("/logout_authenticated_user_session")
 async def logout_authenticated_user_session(request: Request, response: Response):
     """
-    Terminates the active session. This deletes the secure session cookie on the client side
-    and completely cleans up all server-side temporary resources (like database connections, etc.).
+    Terminate the active session.
+
+    Revokes all Firebase refresh tokens for the authenticated user (FIX [H17]),
+    clears the Redis-backed application state (e.g. DB connection persistence),
+    and deletes the session cookie from the client.
+
+    Revocation matters because Firebase session cookies are stateless JWTs
+    valid until their ``exp`` claim (up to 24h). Without calling
+    ``auth.revoke_refresh_tokens(uid)``,
+    ``verify_session_cookie(check_revoked=True)`` cannot detect that the user
+    has logged out — a stolen cookie would remain usable until natural expiry.
+
+    The revoke call is best-effort: if Firebase Admin is unavailable at
+    logout time, the cookie is still cleared client-side and the Redis state
+    is wiped, so the only residual risk is the (stolen) cookie remaining
+    valid until natural expiry. A brief warning is logged so operators can
+    spot a Firebase outage.
     """
     verify_csrf_token(request)
+
+    # FIX [H17]: Revoke Firebase refresh tokens BEFORE clearing state, so
+    # verify_session_cookie(check_revoked=True) returns revoked=true on any
+    # subsequent request with the (now invalid) cookie. This is the only
+    # server-side signal Firebase offers for session-cookie invalidation.
+    user = await get_current_user_optional(request)
+    if user and user.get("uid"):
+        try:
+            await run_in_threadpool(auth.revoke_refresh_tokens, user["uid"])
+        except Exception as exc:
+            logger.warning(
+                "Failed to revoke Firebase refresh tokens for user %s: %s. "
+                "Cookie/Redis state will still be cleared; the cookie may "
+                "remain valid until natural expiry.",
+                user.get("uid"),
+                exc,
+            )
+
     await clear_session_state(request)
 
     _delete_cookie(response, Config.SESSION_COOKIE_NAME, httponly=True)

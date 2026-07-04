@@ -12,6 +12,27 @@ import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { copyToClipboard } from '@/utils/clipboard';
 import { getShikiHighlighter } from '@/utils/shiki';
 
+/**
+ * CodeViewer — renders code blocks inside AI messages.
+ *
+ * Two rendering modes:
+ *   1. Streaming (isStreaming=true): uses ShikiStreamRenderer to highlight
+ *      tokens as they arrive over the SSE stream.
+ *   2. Static (isStreaming=false): highlights the full code with Shiki once.
+ *
+ * For SQL blocks, shows a "Run query" affordance that calls `onRunQuery`.
+ *
+ * The Shiki highlighter is created once and cached (see utils/shiki.js).
+ * Shiki + its grammars live in the `vendor-shiki` chunk (see vite.config.js)
+ * so the main chat bundle stays small until a code block actually appears.
+ *
+ * Accessibility:
+ *   - Action buttons have visible focus rings.
+ *   - The "Run query" button has `aria-label="Run query"`.
+ *   - The pre element uses `tabIndex={0}` only when wrap-long-lines is on,
+ *     so a screen-reader user can scroll horizontally if needed.
+ */
+
 const SQL_LANGUAGES = new Set([
   'sql',
   'mysql',
@@ -32,6 +53,7 @@ const ActionButton = memo(function ActionButton({ title, onClick, disabled, icon
           size="small"
           onClick={onClick}
           disabled={disabled}
+          aria-label={title}
           sx={{
             width: 28,
             height: 28,
@@ -45,6 +67,11 @@ const ActionButton = memo(function ActionButton({ title, onClick, disabled, icon
                 color: 'text.primary',
                 backgroundColor: alpha(theme.palette.text.primary, 0.04),
               },
+            },
+            // Visible focus ring for keyboard users — was missing before.
+            '&.Mui-focusVisible': {
+              outline: `2px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+              outlineOffset: 1,
             },
           }}
         >

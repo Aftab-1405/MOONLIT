@@ -5,16 +5,14 @@ import logging
 import time
 from typing import Any
 
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 
-from dependencies import get_current_user, require_db_config, update_session_data
-from service.database.database_service import DatabaseService
+from api_contract.common import COMMON_ERROR_RESPONSES, ApiSuccess
 from api_contract.database import (
     GetTableSchemaRequest,
     SelectSchemaRequest,
 )
-from api_contract.common import COMMON_ERROR_RESPONSES, ApiSuccess
 from api_contract.database_schemas import (
     DatabaseConfigPublic,
     SchemaListData,
@@ -23,6 +21,8 @@ from api_contract.database_schemas import (
     TableListData,
     TableSchemaData,
 )
+from dependencies import get_current_user, require_db_config, update_session_data
+from service.database.database_service import DatabaseService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Database Operations End Points"])
@@ -87,12 +87,8 @@ def _normalize_column(raw_column: Any) -> TableColumnData:
         name=str(_column_at(raw_column, 0, "")),
         data_type=str(_column_at(raw_column, 1, "")),
         nullable=_bool_from_nullable(_column_at(raw_column, 2)),
-        key=_column_at(raw_column, 3)
-        if column_len <= 6
-        else _column_at(raw_column, 4),
-        default=_column_at(raw_column, 4)
-        if column_len <= 6
-        else _column_at(raw_column, 3),
+        key=_column_at(raw_column, 3) if column_len <= 6 else _column_at(raw_column, 4),
+        default=_column_at(raw_column, 4) if column_len <= 6 else _column_at(raw_column, 3),
         extra=_column_at(raw_column, 5) if column_len <= 6 else "",
         max_length=_column_at(raw_column, 5) if column_len > 6 else None,
         numeric_precision=_column_at(raw_column, 6) if column_len > 6 else None,
@@ -100,9 +96,7 @@ def _normalize_column(raw_column: Any) -> TableColumnData:
     )
 
 
-def _normalize_table_schema_response(
-    result: dict, db_config: dict
-) -> TableSchemaData:
+def _normalize_table_schema_response(result: dict, db_config: dict) -> TableSchemaData:
     return TableSchemaData(
         table_name=result.get("table_name", ""),
         columns=[_normalize_column(column) for column in result.get("schema", [])],
@@ -127,9 +121,7 @@ def _normalize_select_schema_response(
             host=db_config.get("host"),
             port=db_config.get("port"),
             username=db_config.get("username") or db_config.get("user"),
-            is_remote=bool(
-                db_config.get("is_remote") or db_config.get("connection_string")
-            ),
+            is_remote=bool(db_config.get("is_remote") or db_config.get("connection_string")),
             schema_name=db_config.get("schema"),
             service_name=db_config.get("service_name"),
         ),
@@ -175,9 +167,7 @@ async def select_schema(
     """Select a PostgreSQL schema."""
     user_id = user.get("uid") or user
 
-    result = await run_in_threadpool(
-        DatabaseService.select_schema, db_config, data.schema_name, user_id
-    )
+    result = await run_in_threadpool(DatabaseService.select_schema, db_config, data.schema_name, user_id)
 
     # Update session with new db_config containing schema
     if result.get("status") == "success" and "db_config" in result:
@@ -241,13 +231,9 @@ async def get_tables(db_config: dict = Depends(require_db_config)):
     response_model=ApiSuccess[TableSchemaData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def get_table_schema_route(
-    data: GetTableSchemaRequest, db_config: dict = Depends(require_db_config)
-):
+async def get_table_schema_route(data: GetTableSchemaRequest, db_config: dict = Depends(require_db_config)):
     """Get schema information for a specific table."""
-    result = await run_in_threadpool(
-        DatabaseService.get_table_info, db_config, data.table_name
-    )
+    result = await run_in_threadpool(DatabaseService.get_table_info, db_config, data.table_name)
 
     _raise_service_error(result)
     return ApiSuccess(data=_normalize_table_schema_response(result, db_config))

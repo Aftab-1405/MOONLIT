@@ -7,9 +7,7 @@ from typing import Any, AsyncGenerator, Protocol, runtime_checkable
 class ConversationMemoryCleaner(Protocol):
     """Port for deleting non-Firestore memory linked to a conversation."""
 
-    async def delete_conversation_pointers(
-        self, conversation_id: str, user_id: str
-    ) -> None:
+    async def delete_conversation_pointers(self, conversation_id: str, user_id: str) -> None:
         """Delete external memory pointers for a conversation."""
 
 

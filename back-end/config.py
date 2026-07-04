@@ -1,8 +1,9 @@
 # File: config.py
 """Application configuration settings"""
 
-import os
 import logging
+import os
+
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -20,9 +21,7 @@ class Config:
 
     # Application metadata
     APP_TITLE = os.getenv("APP_TITLE", "MOONLIT")
-    APP_DESCRIPTION = os.getenv(
-        "APP_DESCRIPTION", "AI Agent for relational databases"
-    )
+    APP_DESCRIPTION = os.getenv("APP_DESCRIPTION", "AI Agent for relational databases")
     APP_VERSION = os.getenv("APP_VERSION", "2.0.0")
     UVICORN_HOST = os.getenv("UVICORN_HOST", "0.0.0.0")
     UVICORN_PORT = int(os.getenv("UVICORN_PORT", 5000))
@@ -31,9 +30,7 @@ class Config:
 
     # Logging
     LOG_FILE = os.getenv("LOG_FILE", "backend.log")
-    LOG_FORMAT = os.getenv(
-        "LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-    )
+    LOG_FORMAT = os.getenv("LOG_FORMAT", "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
     THIRD_PARTY_LOG_LEVEL = os.getenv("THIRD_PARTY_LOG_LEVEL", "WARNING").upper()
     _noisy_logger_names_raw = os.getenv(
         "NOISY_LOGGER_NAMES",
@@ -50,63 +47,46 @@ class Config:
                 "langchain_aws.chat_models.bedrock_converse",
                 "langchain_core",
                 "langgraph",
+                # ENH [LOG]: Suppress noisy HTTP/connection debug logs
+                "httpcore",
+                "httpcore.connection",
+                "httpcore.http11",
+                "httpx",
+                "huggingface_hub",
+                "transformers",
+                # ENH [LOG]: Suppress Qdrant client debug logs
+                "qdrant_client",
             )
         ),
     )
     NOISY_LOGGER_NAMES = {
-        logger_name.strip()
-        for logger_name in _noisy_logger_names_raw.split(",")
-        if logger_name.strip()
+        logger_name.strip() for logger_name in _noisy_logger_names_raw.split(",") if logger_name.strip()
     }
-    _request_log_excluded_paths_raw = os.getenv(
-        "REQUEST_LOG_EXCLUDED_PATHS", "/api/v1/user/session/active"
-    )
-    REQUEST_LOG_EXCLUDED_PATHS = {
-        path.strip()
-        for path in _request_log_excluded_paths_raw.split(",")
-        if path.strip()
-    }
-    _sensitive_header_names_raw = os.getenv(
-        "SENSITIVE_HEADER_NAMES", "cookie,authorization,x-csrf-token"
-    )
+    _request_log_excluded_paths_raw = os.getenv("REQUEST_LOG_EXCLUDED_PATHS", "/api/v1/user/session/active")
+    REQUEST_LOG_EXCLUDED_PATHS = {path.strip() for path in _request_log_excluded_paths_raw.split(",") if path.strip()}
+    _sensitive_header_names_raw = os.getenv("SENSITIVE_HEADER_NAMES", "cookie,authorization,x-csrf-token")
     SENSITIVE_HEADER_NAMES = {
-        header.strip().lower()
-        for header in _sensitive_header_names_raw.split(",")
-        if header.strip()
+        header.strip().lower() for header in _sensitive_header_names_raw.split(",") if header.strip()
     }
     _sensitive_body_paths_raw = os.getenv(
         "SENSITIVE_BODY_LOG_PATHS",
         "/api/v1/pass_user_prompt_to_llm,/api/v1/resume_agent",
     )
-    SENSITIVE_BODY_LOG_PATHS = {
-        path.strip() for path in _sensitive_body_paths_raw.split(",") if path.strip()
-    }
+    SENSITIVE_BODY_LOG_PATHS = {path.strip() for path in _sensitive_body_paths_raw.split(",") if path.strip()}
 
     # HTTP security headers
-    SECURITY_HEADER_CONTENT_TYPE_OPTIONS = os.getenv(
-        "SECURITY_HEADER_CONTENT_TYPE_OPTIONS", "nosniff"
-    )
+    SECURITY_HEADER_CONTENT_TYPE_OPTIONS = os.getenv("SECURITY_HEADER_CONTENT_TYPE_OPTIONS", "nosniff")
     SECURITY_HEADER_FRAME_OPTIONS = os.getenv("SECURITY_HEADER_FRAME_OPTIONS", "DENY")
-    SECURITY_HEADER_XSS_PROTECTION = os.getenv(
-        "SECURITY_HEADER_XSS_PROTECTION", "1; mode=block"
-    )
-    SECURITY_HEADER_HSTS = os.getenv(
-        "SECURITY_HEADER_HSTS", "max-age=31536000; includeSubDomains"
-    )
-    SECURITY_HEADER_REFERRER_POLICY = os.getenv(
-        "SECURITY_HEADER_REFERRER_POLICY", "no-referrer-when-downgrade"
-    )
-    SECURITY_HEADER_PERMISSIONS_POLICY = os.getenv(
-        "SECURITY_HEADER_PERMISSIONS_POLICY", "geolocation=()"
-    )
+    SECURITY_HEADER_XSS_PROTECTION = os.getenv("SECURITY_HEADER_XSS_PROTECTION", "1; mode=block")
+    SECURITY_HEADER_HSTS = os.getenv("SECURITY_HEADER_HSTS", "max-age=31536000; includeSubDomains")
+    SECURITY_HEADER_REFERRER_POLICY = os.getenv("SECURITY_HEADER_REFERRER_POLICY", "no-referrer-when-downgrade")
+    SECURITY_HEADER_PERMISSIONS_POLICY = os.getenv("SECURITY_HEADER_PERMISSIONS_POLICY", "geolocation=()")
     SERVER_HEADER_VALUE = os.getenv("SERVER_HEADER_VALUE", "Moonlit")
 
     # Secret key - should always be set in environment
     SECRET_KEY = os.getenv("SECRET_KEY")
     if not SECRET_KEY or SECRET_KEY == "your_secret_key_here":
-        raise ValueError(
-            "SECRET_KEY environment variable must be set to a real value (not the placeholder)"
-        )
+        raise ValueError("SECRET_KEY environment variable must be set to a real value (not the placeholder)")
 
     # LLM API Configuration (Provider-based)
     # Providers: bedrock (via langchain-aws)
@@ -118,19 +98,19 @@ class Config:
     AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
     AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
     AWS_SESSION_TOKEN = os.getenv("AWS_SESSION_TOKEN")
-    AWS_REGION = (
-        os.getenv("AWS_DEFAULT_REGION")
-    )
-    BEDROCK_MODELS = [
-        m.strip() for m in os.getenv("BEDROCK_MODELS", "").split(",") if m.strip()
-    ]
-
+    AWS_REGION = os.getenv("AWS_DEFAULT_REGION")
+    BEDROCK_MODELS = [m.strip() for m in os.getenv("BEDROCK_MODELS", "").split(",") if m.strip()]
 
     # LLM Rate Limiting
     LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "True").lower() == "true"
     LLM_MAX_RPM_PER_KEY = int(os.getenv("LLM_MAX_RPM_PER_KEY", 25))
     LLM_MAX_CONCURRENT = int(os.getenv("LLM_MAX_CONCURRENT", 5))
     LLM_QUEUE_TIMEOUT = int(os.getenv("LLM_QUEUE_TIMEOUT", 60))
+    # ENH [RL-ACCOUNT]: Global account-level RPM guard. Set to your Bedrock
+    # account's total RPM limit to prevent account-level throttling when many
+    # users each stay under their per-user limit but the aggregate exceeds
+    # the account quota. 0 = disabled (Bedrock handles throttling itself).
+    LLM_ACCOUNT_MAX_RPM = int(os.getenv("LLM_ACCOUNT_MAX_RPM", 0))
 
     # Per-User Quota (Redis-based)
     USER_QUOTA_ENABLED = os.getenv("USER_QUOTA_ENABLED", "True").lower() == "true"
@@ -156,9 +136,7 @@ class Config:
         # Check if all required environment variables are present
         missing_vars = [var for var in required_env_vars if not os.getenv(var)]
         if missing_vars:
-            raise ValueError(
-                f"Missing Firebase environment variables: {', '.join(missing_vars)}"
-            )
+            raise ValueError(f"Missing Firebase environment variables: {', '.join(missing_vars)}")
 
         # Process the private key to handle newlines correctly
         private_key = os.getenv("FIREBASE_PRIVATE_KEY")
@@ -180,7 +158,14 @@ class Config:
     # Validation method to check Firebase credentials at startup
     @staticmethod
     def validate_firebase_credentials():
-        """Validate Firebase credentials are properly configured"""
+        """Validate Firebase service-account credentials at startup.
+
+        Performs structural checks only; never logs the private key.
+
+        Returns:
+            True if the credentials look well-formed; False otherwise.
+            Failures are logged at ERROR level.
+        """
         logger = logging.getLogger(__name__)
         try:
             credentials = Config.get_firebase_credentials()
@@ -189,23 +174,28 @@ class Config:
             if not credentials["project_id"]:
                 raise ValueError("Firebase project_id is empty")
 
-            if not credentials["private_key"].startswith("-----BEGIN PRIVATE KEY-----"):
-                raise ValueError("Firebase private_key format is invalid")
+            # FIX [AUDIT-2-D]: the previous check compared against a
+            # redaction artifact ("[REDACTED:ssh_private_key]") and
+            # always failed for real PEM keys. A real Firebase service
+            # account private key is a PEM-encoded RSA key beginning
+            # with the standard PEM header.
+            pk = credentials["private_key"] or ""
+            if not pk.startswith("-----BEGIN PRIVATE KEY-----"):
+                raise ValueError("Firebase private_key is not a PEM-encoded RSA private key")
 
             if "@" not in credentials["client_email"]:
                 raise ValueError("Firebase client_email format is invalid")
 
-            logger.info("✅ Firebase credentials validation passed")
+            logger.info("Firebase credentials validation passed")
             return True
 
         except Exception as e:
-            logger.error(f"❌ Firebase credentials validation failed: {e}")
+            # Do NOT log the credentials object; it contains the private key.
+            logger.error("Firebase credentials validation failed: %s", e)
             return False
 
     # Database pool sizing basis. Kept separate from actual app thread workers.
-    DB_POOL_WORKER_BASIS = int(
-        os.getenv("DB_POOL_WORKER_BASIS", os.getenv("MAX_WORKERS", 32))
-    )
+    DB_POOL_WORKER_BASIS = int(os.getenv("DB_POOL_WORKER_BASIS", os.getenv("MAX_WORKERS", 32)))
 
     # Logging Configuration (base default)
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
@@ -258,72 +248,46 @@ class Config:
     # SQL Query Security Configuration
     MAX_QUERY_RESULTS = int(os.getenv("MAX_QUERY_RESULTS", 10000))  # Max rows to return
     QUERY_TIMEOUT_SECONDS = int(os.getenv("QUERY_TIMEOUT_SECONDS", 30))  # Query timeout
-    MAX_QUERY_LENGTH = int(
-        os.getenv("MAX_QUERY_LENGTH", 10000)
-    )  # Max characters in query
+    # FIX [L10]: unified query-length limit. Previously MAX_QUERY_LENGTH
+    # (10000) disagreed with SQL_QUERY_MAX_LENGTH (100000) below, so a
+    # 50k-char query passed the API layer and was rejected by the service
+    # layer. We now alias MAX_QUERY_LENGTH to the same env var as
+    # SQL_QUERY_MAX_LENGTH (the larger, user-facing limit) so every layer
+    # enforces the same maximum.
+    SQL_QUERY_MAX_LENGTH = int(os.getenv("SQL_QUERY_MAX_LENGTH", 100000))
+    MAX_QUERY_LENGTH = SQL_QUERY_MAX_LENGTH  # Backwards-compatible alias
 
     # AI Context Configuration (Firestore-based schema context for AI agent)
-    SCHEMA_CONTEXT_TTL_SECONDS = int(
-        os.getenv("SCHEMA_CONTEXT_TTL_SECONDS", 86400)
-    )  # 24 hour TTL (UI Cache)
-    SCHEMA_CONTEXT_MAX_TABLES = int(
-        os.getenv("SCHEMA_CONTEXT_MAX_TABLES", 1000)
-    )  # Max tables to store (UI Cache)
-    CONNECTION_CONTEXT_TTL_SECONDS = int(
-        os.getenv("CONNECTION_CONTEXT_TTL_SECONDS", 300)
-    )  # 5 min
-    CONTEXT_METRICS_ENABLED = (
-        os.getenv("CONTEXT_METRICS_ENABLED", "True").lower() == "true"
-    )
+    SCHEMA_CONTEXT_TTL_SECONDS = int(os.getenv("SCHEMA_CONTEXT_TTL_SECONDS", 86400))  # 24 hour TTL (UI Cache)
+    SCHEMA_CONTEXT_MAX_TABLES = int(os.getenv("SCHEMA_CONTEXT_MAX_TABLES", 1000))  # Max tables to store (UI Cache)
+    CONNECTION_CONTEXT_TTL_SECONDS = int(os.getenv("CONNECTION_CONTEXT_TTL_SECONDS", 300))  # 5 min
+    CONTEXT_METRICS_ENABLED = os.getenv("CONTEXT_METRICS_ENABLED", "True").lower() == "true"
 
     # VAMP long-context memory configuration
     VAMP_MEMORY_ENABLED = os.getenv("VAMP_MEMORY_ENABLED", "True").lower() == "true"
     VAMP_VECTOR_BACKEND = os.getenv("VAMP_VECTOR_BACKEND", "qdrant").strip().lower()
     VAMP_QDRANT_URL = os.getenv("VAMP_QDRANT_URL")
     VAMP_QDRANT_API_KEY = os.getenv("VAMP_QDRANT_API_KEY")
-    VAMP_QDRANT_COLLECTION = os.getenv(
-        "VAMP_QDRANT_COLLECTION", "moonlit_vamp_memory"
-    )
-    VAMP_EMBEDDING_MODEL = os.getenv(
-        "VAMP_EMBEDDING_MODEL", "amazon.titan-embed-text-v2:0"
-    )
+    VAMP_QDRANT_COLLECTION = os.getenv("VAMP_QDRANT_COLLECTION", "moonlit_vamp_memory")
+    VAMP_EMBEDDING_MODEL = os.getenv("VAMP_EMBEDDING_MODEL", "amazon.titan-embed-text-v2:0")
     VAMP_EMBEDDING_DIMENSIONS = int(os.getenv("VAMP_EMBEDDING_DIMENSIONS", 1024))
     VAMP_SIMILARITY_THRESHOLD = float(os.getenv("VAMP_SIMILARITY_THRESHOLD", 0.35))
     VAMP_INDEX_CONCURRENCY = int(os.getenv("VAMP_INDEX_CONCURRENCY", 4))
-    VAMP_MAINTENANCE_INTERVAL_SECONDS = int(
-        os.getenv("VAMP_MAINTENANCE_INTERVAL_SECONDS", 30)
-    )
-    VAMP_MAINTENANCE_INITIAL_DELAY_SECONDS = int(
-        os.getenv("VAMP_MAINTENANCE_INITIAL_DELAY_SECONDS", 5)
-    )
-    VAMP_MAINTENANCE_QUERY_TIMEOUT_SECONDS = float(
-        os.getenv("VAMP_MAINTENANCE_QUERY_TIMEOUT_SECONDS", 15)
-    )
-    VAMP_MAINTENANCE_MAX_BACKOFF_SECONDS = int(
-        os.getenv("VAMP_MAINTENANCE_MAX_BACKOFF_SECONDS", 300)
-    )
+    VAMP_MAINTENANCE_INTERVAL_SECONDS = int(os.getenv("VAMP_MAINTENANCE_INTERVAL_SECONDS", 30))
+    VAMP_MAINTENANCE_INITIAL_DELAY_SECONDS = int(os.getenv("VAMP_MAINTENANCE_INITIAL_DELAY_SECONDS", 5))
+    VAMP_MAINTENANCE_QUERY_TIMEOUT_SECONDS = float(os.getenv("VAMP_MAINTENANCE_QUERY_TIMEOUT_SECONDS", 15))
+    VAMP_MAINTENANCE_MAX_BACKOFF_SECONDS = int(os.getenv("VAMP_MAINTENANCE_MAX_BACKOFF_SECONDS", 300))
     VAMP_CONTEXT_MIN_TOKENS = int(os.getenv("VAMP_CONTEXT_MIN_TOKENS", 2048))
     VAMP_CONTEXT_MAX_TOKENS = int(os.getenv("VAMP_CONTEXT_MAX_TOKENS", 12000))
     VAMP_CONTEXT_WINDOW_RATIO = float(os.getenv("VAMP_CONTEXT_WINDOW_RATIO", 0.05))
-    VAMP_SUMMARY_CLAIM_TTL_SECONDS = int(
-        os.getenv("VAMP_SUMMARY_CLAIM_TTL_SECONDS", 900)
-    )
-    VAMP_SUMMARY_INLINE_MAX_BYTES = int(
-        os.getenv("VAMP_SUMMARY_INLINE_MAX_BYTES", 700_000)
-    )
-    VAMP_SUMMARY_CHUNK_BYTES = int(
-        os.getenv("VAMP_SUMMARY_CHUNK_BYTES", 450_000)
-    )
+    VAMP_SUMMARY_CLAIM_TTL_SECONDS = int(os.getenv("VAMP_SUMMARY_CLAIM_TTL_SECONDS", 900))
+    VAMP_SUMMARY_INLINE_MAX_BYTES = int(os.getenv("VAMP_SUMMARY_INLINE_MAX_BYTES", 700_000))
+    VAMP_SUMMARY_CHUNK_BYTES = int(os.getenv("VAMP_SUMMARY_CHUNK_BYTES", 450_000))
 
     # Interactive Firestore reads need enough time for a cold gRPC channel to
     # reconnect, while remaining bounded for HTTP request latency.
-    FIRESTORE_INTERACTIVE_READ_TIMEOUT_SECONDS = float(
-        os.getenv("FIRESTORE_INTERACTIVE_READ_TIMEOUT_SECONDS", 8)
-    )
-    FIRESTORE_REST_READ_FALLBACK_ENABLED = (
-        os.getenv("FIRESTORE_REST_READ_FALLBACK_ENABLED", "True").lower()
-        == "true"
-    )
+    FIRESTORE_INTERACTIVE_READ_TIMEOUT_SECONDS = float(os.getenv("FIRESTORE_INTERACTIVE_READ_TIMEOUT_SECONDS", 8))
+    FIRESTORE_REST_READ_FALLBACK_ENABLED = os.getenv("FIRESTORE_REST_READ_FALLBACK_ENABLED", "True").lower() == "true"
 
     # Adaptive step budgets
     AGENT_DEFAULT_STEPS = int(os.getenv("AGENT_DEFAULT_STEPS", 50))
@@ -333,6 +297,11 @@ class Config:
     # Persist and compact long workflows in bounded graph segments. Reaching a
     # segment boundary is an internal checkpoint, not a user-visible failure.
     AGENT_STEP_SEGMENT_STEPS = int(os.getenv("AGENT_STEP_SEGMENT_STEPS", 50))
+    # ENH [AUTO-TASK-MODE]: When True (default), the backend auto-detects
+    # long / tool tasks from the user's prompt and elevates the task_mode
+    # so the agent gets a 100- or 200-step budget instead of the default
+    # 50-step ceiling. Set to "false" to require explicit user selection.
+    AGENT_AUTO_TASK_MODE = os.getenv("AGENT_AUTO_TASK_MODE", "true").lower() == "true"
 
     # Session/Cookie Configuration (base defaults)
     DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS", "False").lower() == "true"
@@ -342,41 +311,24 @@ class Config:
     SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "firebase_session")
     CSRF_COOKIE_NAME = os.getenv("CSRF_COOKIE_NAME", "csrf_token")
     CSRF_HEADER_NAME = os.getenv("CSRF_HEADER_NAME", "x-csrf-token")
-    FIREBASE_SESSION_CHECK_REVOKED = (
-        os.getenv("FIREBASE_SESSION_CHECK_REVOKED", "True").lower() == "true"
-    )
+    FIREBASE_SESSION_CHECK_REVOKED = os.getenv("FIREBASE_SESSION_CHECK_REVOKED", "True").lower() == "true"
     SESSION_COOKIE_SECURE = False  # Override in production
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "lax"
     SESSION_EXPIRE_SECONDS = int(os.getenv("SESSION_EXPIRE_SECONDS", 86400))  # 24 hours
-    SESSION_ACTIVITY_GRACE_SECONDS = int(
-        os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45)
-    )
+    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45))
     UPSTASH_REDIS_URL = os.getenv("UPSTASH_REDIS_URL")
-    _csrf_exempt_paths_raw = os.getenv(
-        "CSRF_EXEMPT_PATHS", "/api/v1/user/session/close"
-    )
-    CSRF_EXEMPT_PATHS = {
-        path.strip() for path in _csrf_exempt_paths_raw.split(",") if path.strip()
-    }
+    _csrf_exempt_paths_raw = os.getenv("CSRF_EXEMPT_PATHS", "/api/v1/user/session/close")
+    CSRF_EXEMPT_PATHS = {path.strip() for path in _csrf_exempt_paths_raw.split(",") if path.strip()}
 
     # Token budget configuration
-    MODEL_CONTEXT_WINDOWS_PATH = os.getenv(
-        "MODEL_CONTEXT_WINDOWS_PATH", "config/model_context_windows.json"
-    )
-    UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS = int(
-        os.getenv("UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS", 32768)
-    )
+    MODEL_CONTEXT_WINDOWS_PATH = os.getenv("MODEL_CONTEXT_WINDOWS_PATH", "config/model_context_windows.json")
+    UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS = int(os.getenv("UNKNOWN_MODEL_CONTEXT_WINDOW_TOKENS", 32768))
     RESERVED_OUTPUT_TOKENS = int(os.getenv("RESERVED_OUTPUT_TOKENS", 4000))
-    MIN_USABLE_INPUT_BUDGET_TOKENS = int(
-        os.getenv("MIN_USABLE_INPUT_BUDGET_TOKENS", 1000)
-    )
-
+    MIN_USABLE_INPUT_BUDGET_TOKENS = int(os.getenv("MIN_USABLE_INPUT_BUDGET_TOKENS", 1000))
 
     # Per-user quota windows
-    USER_QUOTA_MINUTE_TTL_SECONDS = int(
-        os.getenv("USER_QUOTA_MINUTE_TTL_SECONDS", 60)
-    )
+    USER_QUOTA_MINUTE_TTL_SECONDS = int(os.getenv("USER_QUOTA_MINUTE_TTL_SECONDS", 60))
     USER_QUOTA_HOUR_TTL_SECONDS = int(os.getenv("USER_QUOTA_HOUR_TTL_SECONDS", 3600))
     USER_QUOTA_DAY_TTL_SECONDS = int(os.getenv("USER_QUOTA_DAY_TTL_SECONDS", 86400))
 
@@ -408,12 +360,8 @@ class Config:
         "MYSQL_SQL_MODE",
         "STRICT_TRANS_TABLES,NO_ZERO_DATE,NO_ZERO_IN_DATE,ERROR_FOR_DIVISION_BY_ZERO",
     )
-    _blocked_db_hosts_raw = os.getenv(
-        "BLOCKED_DB_HOSTS", "localhost,127.0.0.1,::1,0.0.0.0"
-    )
-    BLOCKED_DB_HOSTS = {
-        host.strip().lower() for host in _blocked_db_hosts_raw.split(",") if host.strip()
-    }
+    _blocked_db_hosts_raw = os.getenv("BLOCKED_DB_HOSTS", "localhost,127.0.0.1,::1,0.0.0.0")
+    BLOCKED_DB_HOSTS = {host.strip().lower() for host in _blocked_db_hosts_raw.split(",") if host.strip()}
 
     # API request validation limits
     CHAT_PROMPT_MAX_LENGTH = int(os.getenv("CHAT_PROMPT_MAX_LENGTH", 50000))
@@ -424,58 +372,36 @@ class Config:
     REQUEST_MAX_ROWS_LIMIT = int(os.getenv("REQUEST_MAX_ROWS_LIMIT", 100000))
     CONVERSATION_TITLE_MAX_LENGTH = int(os.getenv("CONVERSATION_TITLE_MAX_LENGTH", 80))
     DB_IDENTIFIER_MAX_LENGTH = int(os.getenv("DB_IDENTIFIER_MAX_LENGTH", 255))
-    DB_CONNECTION_STRING_MAX_LENGTH = int(
-        os.getenv("DB_CONNECTION_STRING_MAX_LENGTH", 2000)
-    )
-    SQL_QUERY_MAX_LENGTH = int(os.getenv("SQL_QUERY_MAX_LENGTH", 100000))
+    DB_CONNECTION_STRING_MAX_LENGTH = int(os.getenv("DB_CONNECTION_STRING_MAX_LENGTH", 2000))
+    # FIX [L10]: SQL_QUERY_MAX_LENGTH is defined once in the SQL Query
+    # Security Configuration block above (and aliased as MAX_QUERY_LENGTH).
+    # The duplicate definition that used to live here has been removed so
+    # there is a single source of truth.
     QUERY_TIMEOUT_DEFAULT_SECONDS = int(os.getenv("QUERY_TIMEOUT_DEFAULT_SECONDS", 30))
     QUERY_TIMEOUT_MIN_SECONDS = int(os.getenv("QUERY_TIMEOUT_MIN_SECONDS", 1))
     QUERY_TIMEOUT_MAX_SECONDS = int(os.getenv("QUERY_TIMEOUT_MAX_SECONDS", 300))
-    USER_SETTINGS_QUERY_TIMEOUT_MIN_SECONDS = int(
-        os.getenv("USER_SETTINGS_QUERY_TIMEOUT_MIN_SECONDS", 10)
-    )
-    USER_SETTINGS_NULL_DISPLAY_MAX_LENGTH = int(
-        os.getenv("USER_SETTINGS_NULL_DISPLAY_MAX_LENGTH", 32)
-    )
+    USER_SETTINGS_QUERY_TIMEOUT_MIN_SECONDS = int(os.getenv("USER_SETTINGS_QUERY_TIMEOUT_MIN_SECONDS", 10))
+    USER_SETTINGS_NULL_DISPLAY_MAX_LENGTH = int(os.getenv("USER_SETTINGS_NULL_DISPLAY_MAX_LENGTH", 32))
     USER_SETTINGS_DEFAULT_THEME = os.getenv("USER_SETTINGS_DEFAULT_THEME", "dark")
     USER_SETTINGS_DEFAULT_CONFIRM_BEFORE_RUN = (
-        os.getenv("USER_SETTINGS_DEFAULT_CONFIRM_BEFORE_RUN", "False").lower()
-        == "true"
+        os.getenv("USER_SETTINGS_DEFAULT_CONFIRM_BEFORE_RUN", "False").lower() == "true"
     )
-    USER_SETTINGS_DEFAULT_QUERY_TIMEOUT = int(
-        os.getenv("USER_SETTINGS_DEFAULT_QUERY_TIMEOUT", 30)
-    )
+    USER_SETTINGS_DEFAULT_QUERY_TIMEOUT = int(os.getenv("USER_SETTINGS_DEFAULT_QUERY_TIMEOUT", 30))
     USER_SETTINGS_DEFAULT_MAX_ROWS = int(os.getenv("USER_SETTINGS_DEFAULT_MAX_ROWS", 1000))
     USER_SETTINGS_DEFAULT_NULL_DISPLAY = os.getenv("USER_SETTINGS_DEFAULT_NULL_DISPLAY", "NULL")
     USER_SETTINGS_DEFAULT_REMEMBER_CONNECTION = (
-        os.getenv("USER_SETTINGS_DEFAULT_REMEMBER_CONNECTION", "False").lower()
-        == "true"
+        os.getenv("USER_SETTINGS_DEFAULT_REMEMBER_CONNECTION", "False").lower() == "true"
     )
-    USER_SETTINGS_DEFAULT_DB_TYPE = os.getenv(
-        "USER_SETTINGS_DEFAULT_DB_TYPE", "postgresql"
-    )
-    USER_SETTINGS_DEFAULT_CONNECTION_PERSISTENCE = int(
-        os.getenv("USER_SETTINGS_DEFAULT_CONNECTION_PERSISTENCE", 0)
-    )
+    USER_SETTINGS_DEFAULT_DB_TYPE = os.getenv("USER_SETTINGS_DEFAULT_DB_TYPE", "postgresql")
+    USER_SETTINGS_DEFAULT_CONNECTION_PERSISTENCE = int(os.getenv("USER_SETTINGS_DEFAULT_CONNECTION_PERSISTENCE", 0))
     USER_SETTINGS_DEFAULT_ENABLE_REASONING = (
-        os.getenv("USER_SETTINGS_DEFAULT_ENABLE_REASONING", "True").lower()
-        == "true"
+        os.getenv("USER_SETTINGS_DEFAULT_ENABLE_REASONING", "True").lower() == "true"
     )
-    USER_SETTINGS_DEFAULT_REASONING_EFFORT = os.getenv(
-        "USER_SETTINGS_DEFAULT_REASONING_EFFORT", "medium"
-    )
-    USER_SETTINGS_DEFAULT_RESPONSE_STYLE = os.getenv(
-        "USER_SETTINGS_DEFAULT_RESPONSE_STYLE", "balanced"
-    )
-    USER_SETTINGS_DEFAULT_LLM_PROVIDER = (
-        os.getenv("USER_SETTINGS_DEFAULT_LLM_PROVIDER") or None
-    )
-    USER_SETTINGS_DEFAULT_LLM_MODEL = (
-        os.getenv("USER_SETTINGS_DEFAULT_LLM_MODEL") or None
-    )
-    SESSION_INSTANCE_ID_MAX_LENGTH = int(
-        os.getenv("SESSION_INSTANCE_ID_MAX_LENGTH", 200)
-    )
+    USER_SETTINGS_DEFAULT_REASONING_EFFORT = os.getenv("USER_SETTINGS_DEFAULT_REASONING_EFFORT", "medium")
+    USER_SETTINGS_DEFAULT_RESPONSE_STYLE = os.getenv("USER_SETTINGS_DEFAULT_RESPONSE_STYLE", "balanced")
+    USER_SETTINGS_DEFAULT_LLM_PROVIDER = os.getenv("USER_SETTINGS_DEFAULT_LLM_PROVIDER") or None
+    USER_SETTINGS_DEFAULT_LLM_MODEL = os.getenv("USER_SETTINGS_DEFAULT_LLM_MODEL") or None
+    SESSION_INSTANCE_ID_MAX_LENGTH = int(os.getenv("SESSION_INSTANCE_ID_MAX_LENGTH", 200))
 
 
 class DevelopmentConfig(Config):
@@ -490,7 +416,10 @@ class DevelopmentConfig(Config):
 
     DEBUG = True
     TESTING = False
-    LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
+    # ENH [LOG]: Changed from DEBUG to INFO. DEBUG level produced excessive
+    # noise from httpcore/httpx/uvicorn on every request. Set LOG_LEVEL=DEBUG
+    # in .env if you need to debug a specific issue.
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
     # Development-friendly settings
     SESSION_COOKIE_SECURE = False  # Allow HTTP for localhost
@@ -500,9 +429,7 @@ class DevelopmentConfig(Config):
     RATELIMIT_DEFAULT = os.getenv("RATELIMIT_DEFAULT", "1000 per day, 200 per hour")
 
     # LLM rate limiting disabled for dev - key rotation still works
-    LLM_RATELIMIT_ENABLED = (
-        os.getenv("LLM_RATELIMIT_ENABLED", "False").lower() == "true"
-    )
+    LLM_RATELIMIT_ENABLED = os.getenv("LLM_RATELIMIT_ENABLED", "False").lower() == "true"
     USER_QUOTA_ENABLED = os.getenv("USER_QUOTA_ENABLED", "False").lower() == "true"
     DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS", "False").lower() == "true"
 
@@ -534,9 +461,7 @@ class StagingConfig(Config):
 
     # Shorter session for staging tests
     SESSION_EXPIRE_SECONDS = int(os.getenv("SESSION_EXPIRE_SECONDS", 43200))  # 12 hours
-    SESSION_ACTIVITY_GRACE_SECONDS = int(
-        os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45)
-    )
+    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45))
 
 
 class ProductionConfig(Config):
@@ -572,9 +497,7 @@ class ProductionConfig(Config):
     # Tighter query limits for production
     MAX_QUERY_RESULTS = int(os.getenv("MAX_QUERY_RESULTS", 5000))
     QUERY_TIMEOUT_SECONDS = int(os.getenv("QUERY_TIMEOUT_SECONDS", 15))
-    SESSION_ACTIVITY_GRACE_SECONDS = int(
-        os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45)
-    )
+    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45))
 
     @classmethod
     def validate_production_settings(cls):
@@ -617,9 +540,7 @@ class TestingConfig(Config):
     # Test-friendly settings
     SESSION_COOKIE_SECURE = False  # Tests often run without HTTPS
     SESSION_EXPIRE_SECONDS = 3600  # 1 hour - short for tests
-    SESSION_ACTIVITY_GRACE_SECONDS = int(
-        os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45)
-    )
+    SESSION_ACTIVITY_GRACE_SECONDS = int(os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45))
 
     # Fast timeouts for test speed
     QUERY_TIMEOUT_SECONDS = 5

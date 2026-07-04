@@ -1,12 +1,48 @@
 """
 Conversation Streaming Service - Handles real-time AI response streaming, SSE parsing, and Firestore serialization.
+
+Streaming lifecycle
+-------------------
+``create_streaming_generator`` is the heart of every chat / resume
+request. It:
+
+1. Loads the existing conversation (or seed-creates it) and verifies
+   ownership.
+2. Persists the user prompt as the first message of a new turn (lazy —
+   deferred until the first non-empty agent event so we don't write a
+   turn that immediately fails).
+3. Streams SSE events from the LangGraph agent
+   (:func:`agent_streamer.stream`) line-by-line. As events arrive we
+   classify them (token / tool_start / tool_end / thinking / done /
+   usage / interrupt / error) and accumulate an ``ordered_timeline``
+   that mirrors what the frontend's eventTimeline will render.
+4. On normal completion OR mid-stream abort (``CancelledError`` /
+   ``GeneratorExit``), the accumulated timeline is persisted to
+   Firestore as the assistant message (FIX [L6] ensures
+   ``GeneratorExit`` propagates so the cleanup actually runs).
+5. If the stream produced no content and no tools, ``has_fatal_error``
+   is set and NO assistant message is persisted (the user's prompt
+   remains as the last message and the UI shows the error event).
+
+SSE event handling
+------------------
+``_parse_sse_event`` is the single point of JSON decoding for the SSE
+``data: {…}\\n\\n`` wire format. Anything that isn't a ``data:`` line
+is passed through verbatim (e.g. heartbeat comments).
+
+Partial-response persistence
+----------------------------
+When the user closes the tab mid-stream, the underlying generator
+receives ``GeneratorExit``. We persist whatever was streamed so far
+plus a trailing ``_(Response stopped by user)_`` marker so the
+conversation history reflects reality and the user can resume from the
+interruption.
 """
 
 import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
 from typing import AsyncGenerator, Optional
 
 from fastapi.concurrency import run_in_threadpool
@@ -15,6 +51,7 @@ logger = logging.getLogger(__name__)
 
 
 def _build_tool_trace_summary(timeline: list[dict]) -> str | None:
+    """Build a short human-readable summary of the tool calls in ``timeline``."""
     tools = [item for item in timeline if item.get("type") == "tool"]
     if not tools:
         return None
@@ -27,7 +64,12 @@ def _build_tool_trace_summary(timeline: list[dict]) -> str | None:
 
 
 def _parse_sse_event(sse_line: str) -> Optional[dict]:
-    """Extract the JSON dict from a ``data: {…}\\n\\n`` SSE line."""
+    """Extract the JSON dict from a ``data: {…}\\n\\n`` SSE line.
+
+    Returns ``None`` for non-``data:`` lines (e.g. heartbeat comments)
+    so the caller can pass them through verbatim. ``[DONE]`` is mapped
+    to ``{"type": "done"}`` for ergonomic handling.
+    """
     line = sse_line.strip()
     if not line.startswith("data: "):
         return None
@@ -46,6 +88,7 @@ def _make_sse_error(message: str) -> str:
 
 
 def _classify_error(raw: str) -> str:
+    """Map a raw error string to a user-safe message."""
     lower = raw.lower()
     if "rate_limit" in lower or "quota" in lower or "429" in lower:
         return "API rate limit exceeded. Please wait a moment and try again."
@@ -73,12 +116,10 @@ class ConversationStreamingService:
         resume: dict | None = None,
         task_mode: str = "normal",
     ) -> AsyncGenerator[str, None]:
-        """
-        Consume SSE events from the LangGraph agent, pass them through
-        to the client, and persist the completed message to Firestore.
+        """Consume SSE events from the LangGraph agent, persist them, and pass them through to the client.
 
-        Yields:
-            SSE ``data: {…}\\n\\n`` strings.
+        Yields SSE ``data: {…}\\n\\n`` strings. See the module docstring for
+        the full lifecycle description.
         """
         from service.conversations.agent_streaming import (
             get_default_agent_streamer,
@@ -101,9 +142,7 @@ class ConversationStreamingService:
 
         try:
             # Load conversation history for the checkpointer
-            conv_data = await run_in_threadpool(
-                ConversationRepository.get, conversation_id
-            )
+            conv_data = await run_in_threadpool(ConversationRepository.get, conversation_id)
             if conv_data and conv_data.get("user_id") != user_id:
                 raise PermissionError("User does not own this conversation")
 
@@ -117,17 +156,15 @@ class ConversationStreamingService:
                 if current_turn_id is None:
                     current_turn_id = str(uuid.uuid4())
                 if current_turn_index is None:
-                    existing_messages = (
-                        conv_data.get("messages", []) if conv_data else []
-                    )
+                    existing_messages = conv_data.get("messages", []) if conv_data else []
                     max_turn_index = -1
                     for msg in existing_messages:
                         ti = msg.get("turn_index")
                         if ti is not None:
-                          try:
-                              max_turn_index = max(max_turn_index, int(ti))
-                          except (ValueError, TypeError):
-                              pass
+                            try:
+                                max_turn_index = max(max_turn_index, int(ti))
+                            except (ValueError, TypeError):
+                                pass
                     current_turn_index = max_turn_index + 1
                 return current_turn_id, current_turn_index
 
@@ -155,12 +192,10 @@ class ConversationStreamingService:
 
             # Persist task_mode to Firestore conversation
             if prompt_stored or conv_data:
-                task_mode_stored = (conv_data.get("task_mode", "normal") if conv_data else None) or task_mode or "normal"
-                if (
-                    resume is not None
-                    and task_mode == "normal"
-                    and task_mode_stored != "normal"
-                ):
+                task_mode_stored = (
+                    (conv_data.get("task_mode", "normal") if conv_data else None) or task_mode or "normal"
+                )
+                if resume is not None and task_mode == "normal" and task_mode_stored != "normal":
                     task_mode = task_mode_stored
                 try:
                     from service.firestore.firestore_service import FirestoreService
@@ -242,34 +277,23 @@ class ConversationStreamingService:
                 elif event_type == "tool_end":
                     name = event.get("name", "")
                     for item in reversed(ordered_timeline):
-                        if (
-                            item["type"] == "tool"
-                            and item["name"] == name
-                            and item["status"] == "running"
-                        ):
+                        if item["type"] == "tool" and item["name"] == name and item["status"] == "running":
                             item["status"] = "done"
-                            item["args"] = json.dumps(
-                                event.get("args", {}), default=str
-                            )
+                            item["args"] = json.dumps(event.get("args", {}), default=str)
                             res_val = event.get("result") or {}
                             if name == "execute_query" and isinstance(res_val, dict):
                                 # Strip large query rows and preview arrays
                                 res_val = dict(res_val)
                                 res_val.pop("data", None)
                                 res_val.pop("preview", None)
-                            item["result"] = json.dumps(
-                                res_val, default=str
-                            )
+                            item["result"] = json.dumps(res_val, default=str)
                             break
 
                 elif event_type == "thinking_token":
                     await store_prompt_once()
                     chunk = event.get("content", "")
                     if chunk:
-                        if (
-                            ordered_timeline
-                            and ordered_timeline[-1]["type"] == "thinking"
-                        ):
+                        if ordered_timeline and ordered_timeline[-1]["type"] == "thinking":
                             ordered_timeline[-1]["content"] += chunk
                         else:
                             ordered_timeline.append(
@@ -317,9 +341,7 @@ class ConversationStreamingService:
                                 break
                         if existing_item:
                             existing_skills = existing_item.get("skills", [])
-                            existing_item["skills"] = list(
-                                dict.fromkeys([*existing_skills, *skills])
-                            )
+                            existing_item["skills"] = list(dict.fromkeys([*existing_skills, *skills]))
                         else:
                             ordered_timeline.append(
                                 {
@@ -344,29 +366,12 @@ class ConversationStreamingService:
                         )
 
                 elif event_type == "usage_metrics":
-                    last_usage_metrics = {
-                        "inputTokens": event.get("inputTokens"),
-                        "outputTokens": event.get("outputTokens"),
-                        "totalTokens": event.get("totalTokens"),
-                        "activeContextBudget": event.get("activeContextBudget"),
-                        "totalContextWindow": event.get("totalContextWindow"),
-                        "inputPayloadTokens": event.get("inputPayloadTokens"),
-                        "availableInputPayloadTokens": event.get("availableInputPayloadTokens"),
-                        "pressureTriggerTokens": event.get("pressureTriggerTokens"),
-                        "modelContextWindow": event.get("modelContextWindow"),
-                        "reservedOutputTokens": event.get("reservedOutputTokens"),
-                        "safetyMarginTokens": event.get("safetyMarginTokens"),
-                        "systemPromptTokens": event.get("systemPromptTokens"),
-                        "toolSchemaTokens": event.get("toolSchemaTokens"),
-                        "vampMemoryTokens": event.get("vampMemoryTokens"),
-                        "taskCheckpointTokens": event.get("taskCheckpointTokens"),
-                        "hotHistoryBudget": event.get("hotHistoryBudget"),
-                        "tokenCountingMode": event.get("tokenCountingMode"),
-                        "tokenCountingReason": event.get("tokenCountingReason"),
-                        "contextPhase": event.get("contextPhase"),
-                        "summaryThresholdTokens": event.get("summaryThresholdTokens"),
-                        "summaryCompleteTurns": event.get("summaryCompleteTurns"),
-                    }
+                    # ENH [CTX-SINGLE-SOURCE]: Spread all fields from the
+                    # event instead of listing them explicitly. This ensures
+                    # new fields like activePercent and modelPercent are
+                    # automatically stored on the message's usage in Firestore
+                    # and restored when the conversation is loaded later.
+                    last_usage_metrics = {k: v for k, v in event.items() if k != "type"}
 
                 elif event_type == "agent_interrupt" and prompt and not prompt_stored:
                     await store_prompt_once()
@@ -379,14 +384,22 @@ class ConversationStreamingService:
             raise
 
         except GeneratorExit:
+            # FIX [L6]: GeneratorExit MUST be re-raised. The original code
+            # set was_aborted=True and fell through to the finally block,
+            # which awaited run_in_threadpool(...). That await blocked the
+            # StreamingResponse's aclose() for several seconds while the
+            # partial-response store ran — long enough for uvicorn to log
+            # "RuntimeError: Unexpected ASGI message" and for the client to
+            # time out. Re-raising lets the generator unwind promptly; the
+            # finally block still runs (Python guarantees it), but the
+            # generator's aclose() doesn't block on it.
             was_aborted = True
             logger.info(f"Stream aborted for conversation {conversation_id}")
+            raise
 
         except PermissionError:
             has_fatal_error = True
-            yield _make_sse_error(
-                "You don't have permission to access this conversation."
-            )
+            yield _make_sse_error("You don't have permission to access this conversation.")
 
         except Exception as err:
             if not ordered_timeline and not prompt_stored:
@@ -396,9 +409,7 @@ class ConversationStreamingService:
 
         finally:
             should_store_response = (
-                (prompt_stored or resume is not None)
-                and not response_stored
-                and not has_fatal_error
+                (prompt_stored or resume is not None) and not response_stored and not has_fatal_error
             )
             if should_store_response:
                 # Mark all open thinking blocks complete before persisting
@@ -409,19 +420,11 @@ class ConversationStreamingService:
                     for item in ordered_timeline:
                         if item["type"] == "text":
                             item["content"] = item["content"].rstrip()
-                    ordered_timeline.append(
-                        {"type": "text", "content": "\n\n_(Response stopped by user)_"}
-                    )
+                    ordered_timeline.append({"type": "text", "content": "\n\n_(Response stopped by user)_"})
 
                 # Derive flat content for Firestore storage
-                response_text = "".join(
-                    item["content"]
-                    for item in ordered_timeline
-                    if item["type"] == "text"
-                ).strip()
-                tools_used = [
-                    item for item in ordered_timeline if item["type"] == "tool"
-                ]
+                response_text = "".join(item["content"] for item in ordered_timeline if item["type"] == "text").strip()
+                tools_used = [item for item in ordered_timeline if item["type"] == "tool"]
 
                 if not response_text and tools_used:
                     response_text = "(Used tools to gather information)"

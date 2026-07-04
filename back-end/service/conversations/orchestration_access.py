@@ -38,8 +38,9 @@ class ConversationOrchestrationAccess:
         new_messages: list[dict] | None = None,
         assistant_message: dict | None = None,
         pressure_budget_tokens: int | None = None,
+        model_id: str | None = None,
     ) -> dict:
-        from service.conversations.conversation_service import (
+        from service.conversations.conversation_compaction_service import (
             _get_background_summary_pressure,
         )
 
@@ -48,6 +49,7 @@ class ConversationOrchestrationAccess:
             new_messages=new_messages,
             assistant_message=assistant_message,
             pressure_budget_tokens=pressure_budget_tokens,
+            model_id=model_id,
         )
 
     async def check_and_summarize(
@@ -94,18 +96,14 @@ class FirestoreConversationTaskStateStore:
             data = snapshot.to_dict() if snapshot.exists else {}
             previous_status = data.get("task_status", "")
             previous_task_mode = data.get("task_mode", "normal") or "normal"
-            if data.get("task_status") == "running" and self._lease_is_active(
-                data, now
-            ):
+            if data.get("task_status") == "running" and self._lease_is_active(data, now):
                 if data.get("task_run_id") == run_id:
                     return TaskRunAcquisition(
                         True,
                         data.get("task_run_previous_status", ""),
                         data.get("task_run_previous_mode", "normal") or "normal",
                     )
-                return TaskRunAcquisition(
-                    False, previous_status, previous_task_mode
-                )
+                return TaskRunAcquisition(False, previous_status, previous_task_mode)
             if not snapshot.exists:
                 raise ValueError(f"Conversation {conversation_id} does not exist")
             try:
@@ -117,38 +115,30 @@ class FirestoreConversationTaskStateStore:
                         "task_run_previous_status": previous_status,
                         "task_run_previous_mode": previous_task_mode,
                         "task_status_updated_at": now,
-                        "task_lease_expires_at": now
-                        + timedelta(seconds=max(1, lease_seconds)),
+                        "task_lease_expires_at": now + timedelta(seconds=max(1, lease_seconds)),
                     },
                     option=LastUpdateOption(snapshot.update_time),
                     retry=_task_state_retry(),
                     timeout=_TASK_STATE_RPC_TIMEOUT_SECONDS,
                 )
-                return TaskRunAcquisition(
-                    True, previous_status, previous_task_mode
-                )
+                return TaskRunAcquisition(True, previous_status, previous_task_mode)
             except (Aborted, FailedPrecondition):
                 continue
         raise RuntimeError("Could not acquire task lease after concurrent updates")
 
-    def renew_task_run(
-        self, conversation_id: str, run_id: str, lease_seconds: int
-    ) -> bool:
+    def renew_task_run(self, conversation_id: str, run_id: str, lease_seconds: int) -> bool:
         now = datetime.now(timezone.utc)
         return self._update_if_owner(
             conversation_id,
             run_id,
             {
                 "task_status_updated_at": now,
-                "task_lease_expires_at": now
-                + timedelta(seconds=max(1, lease_seconds)),
+                "task_lease_expires_at": now + timedelta(seconds=max(1, lease_seconds)),
             },
             require_running=True,
         )
 
-    def update_task_checkpoint_summary(
-        self, conversation_id: str, summary: str, run_id: str
-    ) -> bool:
+    def update_task_checkpoint_summary(self, conversation_id: str, summary: str, run_id: str) -> bool:
         return self._update_if_owner(
             conversation_id,
             run_id,
@@ -186,27 +176,21 @@ class FirestoreConversationTaskStateStore:
                 continue
         raise RuntimeError("Could not update task lease after concurrent updates")
 
-    def reset_task_checkpoint(
-        self, conversation_id: str, task_mode: str, run_id: str
-    ) -> bool:
+    def reset_task_checkpoint(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
         return self._update_if_owner(
             conversation_id,
             run_id,
             {"task_checkpoint_summary": "", "task_mode": task_mode},
         )
 
-    def update_task_mode(
-        self, conversation_id: str, task_mode: str, run_id: str
-    ) -> bool:
+    def update_task_mode(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
         return self._update_if_owner(
             conversation_id,
             run_id,
             {"task_mode": task_mode},
         )
 
-    def save_paused_task(
-        self, conversation_id: str, task_mode: str, run_id: str
-    ) -> bool:
+    def save_paused_task(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
         return self._update_if_owner(
             conversation_id,
             run_id,
@@ -221,9 +205,7 @@ class FirestoreConversationTaskStateStore:
             },
         )
 
-    def save_interrupted_task(
-        self, conversation_id: str, task_mode: str, reason: str, run_id: str
-    ) -> bool:
+    def save_interrupted_task(self, conversation_id: str, task_mode: str, reason: str, run_id: str) -> bool:
         safe_reason = reason if reason in {"cancelled", "error"} else "error"
         return self._update_if_owner(
             conversation_id,
@@ -239,9 +221,7 @@ class FirestoreConversationTaskStateStore:
             },
         )
 
-    def clear_task_status(
-        self, conversation_id: str, task_mode: str, run_id: str
-    ) -> bool:
+    def clear_task_status(self, conversation_id: str, task_mode: str, run_id: str) -> bool:
         return self._update_if_owner(
             conversation_id,
             run_id,

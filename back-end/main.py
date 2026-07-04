@@ -4,23 +4,29 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
+import redis.asyncio as redis
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
+from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-import redis.asyncio as redis
 
-from config import get_config, ProductionConfig
-from service.firestore.firestore_service import FirestoreService
-from service.quota import create_rate_limiter, create_user_quota_service
-from langgraph_orchestration.checkpointing import init_checkpointer, shutdown_checkpointer
 from api_contract.common import ApiError
 from composition import configure_runtime_ports
+from config import ProductionConfig, get_config
 
+# ENH [RL-HTTP]: Use the shared limiter instance so controllers can apply
+# @limiter.limit decorators. Previously the limiter was created here but
+# no routes had decorators — the limiter existed but never enforced.
+from controller.rate_limiter import limiter
+from langgraph_orchestration.checkpointing import (
+    init_checkpointer,
+    shutdown_checkpointer,
+)
+from service.firestore.firestore_service import FirestoreService
+from service.quota import create_rate_limiter, create_user_quota_service
 
 # Get environment-specific configuration
 AppConfig = get_config()
@@ -30,23 +36,17 @@ configure_runtime_ports()
 logging.basicConfig(
     level=getattr(logging, AppConfig.LOG_LEVEL, logging.INFO),
     format=AppConfig.LOG_FORMAT,
-    handlers=[
-        logging.FileHandler(AppConfig.LOG_FILE),
-        logging.StreamHandler()
-    ]
+    handlers=[logging.FileHandler(AppConfig.LOG_FILE), logging.StreamHandler()],
 )
 logger = logging.getLogger(__name__)
 logging.getLogger().setLevel(getattr(logging, AppConfig.LOG_LEVEL, logging.INFO))
-third_party_log_level = getattr(
-    logging, AppConfig.THIRD_PARTY_LOG_LEVEL, logging.WARNING
-)
+third_party_log_level = getattr(logging, AppConfig.THIRD_PARTY_LOG_LEVEL, logging.WARNING)
 for noisy_logger in AppConfig.NOISY_LOGGER_NAMES:
     logging.getLogger(noisy_logger).setLevel(third_party_log_level)
 
-# Rate limiter - uses storage from config (memory:// for dev, redis:// for prod)
-limiter = Limiter(
-    key_func=get_remote_address, storage_uri=AppConfig.RATELIMIT_STORAGE_URL
-)
+# Rate limiter - imported from controller.rate_limiter (shared instance)
+# ENH [RL-HTTP]: The limiter instance is now created in controller/rate_limiter.py
+# so controllers can import it for @limiter.limit decorators.
 
 # Redis client for sessions (initialized in lifespan)
 from service.redis_service import get_redis_client, set_redis_client
@@ -80,19 +80,11 @@ async def lifespan(app: FastAPI):
 
     if is_prod_like:
         if not redis_url:
-            logger.error(
-                "UPSTASH_REDIS_URL is required for staging/production (multi-worker safe sessions)"
-            )
+            logger.error("UPSTASH_REDIS_URL is required for staging/production (multi-worker safe sessions)")
             raise RuntimeError("UPSTASH_REDIS_URL must be set for staging/production")
-        if AppConfig.RATELIMIT_ENABLED and str(
-            AppConfig.RATELIMIT_STORAGE_URL
-        ).lower().startswith("memory"):
-            logger.error(
-                "RATELIMIT_STORAGE_URL must not use memory storage in staging/production"
-            )
-            raise RuntimeError(
-                "RATELIMIT_STORAGE_URL must be a shared backend (e.g., Redis) in staging/production"
-            )
+        if AppConfig.RATELIMIT_ENABLED and str(AppConfig.RATELIMIT_STORAGE_URL).lower().startswith("memory"):
+            logger.error("RATELIMIT_STORAGE_URL must not use memory storage in staging/production")
+            raise RuntimeError("RATELIMIT_STORAGE_URL must be a shared backend (e.g., Redis) in staging/production")
     checkpoint_redis_url: str | None = None
     if redis_url:
         # Convert redis:// to rediss:// for TLS (Upstash requires TLS)
@@ -104,9 +96,7 @@ async def lifespan(app: FastAPI):
         set_redis_client(client)
         logger.info("✅ Redis application state storage enabled (Upstash)")
     else:
-        logger.warning(
-            "⚠️ UPSTASH_REDIS_URL not set, using in-memory application state"
-        )
+        logger.warning("⚠️ UPSTASH_REDIS_URL not set, using in-memory application state")
 
     # LangGraph thread persistence (Redis in staging/production; in-memory in dev)
     await init_checkpointer(
@@ -116,16 +106,29 @@ async def lifespan(app: FastAPI):
 
     # Initialize per-user quota service (needs Redis)
     app.state.user_quota = create_user_quota_service(get_redis_client(), AppConfig)
-    logger.info(
-        f"User quota: {AppConfig.USER_QUOTA_PER_MINUTE}/min, "
-        f"enabled={AppConfig.USER_QUOTA_ENABLED}"
-    )
+    logger.info(f"User quota: {AppConfig.USER_QUOTA_PER_MINUTE}/min, enabled={AppConfig.USER_QUOTA_ENABLED}")
+
+    # FIX [M19]: Bind the Redis client to the LLM rate limiter so its
+    # sliding-window counters are shared across all uvicorn workers. The
+    # limiter was constructed in create_app() before Redis was ready; now
+    # that the Redis client exists we attach it. If Redis is unavailable
+    # the limiter falls back to in-process per-worker counters (dev only).
+    redis_client = get_redis_client()
+    if redis_client is not None and app.state.llm_rate_limiter is not None:
+        app.state.llm_rate_limiter.redis = redis_client
+        logger.info("LLM rate limiter bound to shared Redis backend")
+    else:
+        logger.info(
+            "LLM rate limiter using in-process per-worker counters (no Redis) — dev mode only; do not use in production"
+        )
 
     # Eagerly pre-compute static budgets and tool schemas
     from llm_provider.token_budget import eagerly_initialize_static_budgets
+
     logger.info("Initializing static token budgets...")
     eagerly_initialize_static_budgets()
     from llm_provider.model_factory import prewarm_chat_models
+
     logger.info("Prewarming Bedrock model clients...")
     await asyncio.to_thread(prewarm_chat_models)
 
@@ -143,9 +146,7 @@ async def lifespan(app: FastAPI):
             logger.warning("VAMP vector store was not ready at startup: %s", exc)
 
         vamp_task = asyncio.create_task(
-            run_vamp_maintenance(
-                vamp_stop, AppConfig.VAMP_MAINTENANCE_INTERVAL_SECONDS
-            ),
+            run_vamp_maintenance(vamp_stop, AppConfig.VAMP_MAINTENANCE_INTERVAL_SECONDS),
             name="vamp-maintenance",
         )
 
@@ -161,6 +162,28 @@ async def lifespan(app: FastAPI):
             await vamp_task
         except asyncio.CancelledError:
             pass
+
+    # FIX [M30]: Drain in-flight VAMP background index tasks so blocks don't
+    # get stuck in `pending` mid-embed when the loop closes.
+    # FIX [M26]: Close the QdrantClient HTTP connection pool so the worker
+    # process exits without leaking sockets.
+    if AppConfig.VAMP_MEMORY_ENABLED:
+        from vamp_memory.vamp_memory_service import (
+            _VAMP_MEMORY_SERVICE_SINGLETON,
+            _VECTOR_STORE_SINGLETON,
+        )
+
+        if _VAMP_MEMORY_SERVICE_SINGLETON is not None:
+            try:
+                await _VAMP_MEMORY_SERVICE_SINGLETON.aclose()
+            except Exception as exc:
+                logger.warning("VAMP service shutdown error: %s", exc)
+        if _VECTOR_STORE_SINGLETON is not None:
+            try:
+                await _VECTOR_STORE_SINGLETON.aclose()
+            except Exception as exc:
+                logger.warning("Qdrant client close error: %s", exc)
+
     await shutdown_checkpointer()
     client = get_redis_client()
     if client:
@@ -194,7 +217,7 @@ def create_app() -> FastAPI:
         {
             "name": "General",
             "description": "System-level health checking and status routes.",
-        }
+        },
     ]
 
     app = FastAPI(
@@ -227,11 +250,7 @@ def create_app() -> FastAPI:
 
             # Redact sensitive headers
             safe_headers = {
-                k: (
-                    "***REDACTED***"
-                    if k.lower() in AppConfig.SENSITIVE_HEADER_NAMES
-                    else v
-                )
+                k: ("***REDACTED***" if k.lower() in AppConfig.SENSITIVE_HEADER_NAMES else v)
                 for k, v in request.headers.items()
             }
             logger.debug(f"Headers: {safe_headers}")
@@ -292,6 +311,13 @@ def create_app() -> FastAPI:
         logger.info(f"Rate limiting enabled: {AppConfig.RATELIMIT_DEFAULT}")
 
     # Configure LLM rate limiter (single-key rate limiting)
+    # FIX [M19]: Pass the Redis client so the rate limiter can use a shared
+    # sliding-window counter across all uvicorn workers. Without Redis each
+    # worker would maintain its own counters and the effective limit would
+    # be LLM_MAX_RPM_PER_KEY * num_workers — far above the Bedrock account's
+    # actual quota. Redis may not be available yet at create_app() time
+    # (Redis is initialised in the lifespan above), so we pass None here
+    # and re-bind in lifespan once the client is ready.
     app.state.llm_rate_limiter = create_rate_limiter(AppConfig)
     logger.info(
         f"LLM provider: {AppConfig.LLM_PROVIDER}; "
@@ -307,8 +333,8 @@ def create_app() -> FastAPI:
     _register_error_handlers(app)
 
     # Register routers
-    from controller.auth_controller import router as auth_router
     from api_router import combined_router as api_router
+    from controller.auth_controller import router as auth_router
 
     app.include_router(auth_router)
     app.include_router(api_router, prefix="/api/v1")
@@ -360,9 +386,7 @@ def _register_error_handlers(app: FastAPI):
             error = str(detail.get("error") or detail.get("error_type") or error)
             message = str(detail.get("message") or detail.get("detail") or message)
             details = {
-                key: value
-                for key, value in detail.items()
-                if key not in {"error", "error_type", "message", "detail"}
+                key: value for key, value in detail.items() if key not in {"error", "error_type", "message", "detail"}
             }
 
         return api_error_response(
@@ -374,9 +398,7 @@ def _register_error_handlers(app: FastAPI):
         )
 
     @app.exception_handler(RequestValidationError)
-    async def validation_exception_handler(
-        request: Request, exc: RequestValidationError
-    ):
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
         return api_error_response(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             error="VALIDATION_ERROR",

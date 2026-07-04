@@ -6,6 +6,8 @@ from api_contract.orchestration_protocols import (
 )
 from api_contract.runtime_ports import (
     get_conversation_state_reader as _get_conversation_state_reader,
+)
+from api_contract.runtime_ports import (
     get_conversation_summarizer as _get_conversation_summarizer,
 )
 

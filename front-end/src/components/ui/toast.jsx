@@ -4,6 +4,19 @@ import { motion } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { useMemo } from 'react';
 import { DARK, LIGHT } from '@/theme/tokens';
 
+/**
+ * Notification (toast) — transient status message.
+ *
+ * Renders into the fixed-position toast stack in MainInterface. Each toast:
+ *   - Animates in (spring) and out (fade).
+ *   - Shows an icon + title + optional message.
+ *   - Auto-dismisses after `duration` ms (if provided) with a thin progress bar.
+ *   - Has a manual close button with visible focus ring.
+ *
+ * The toast pulls colours directly from the LIGHT/DARK token objects so it
+ * looks identical regardless of which MUI theme is currently mounted.
+ */
+
 // Information Icon SVG
 const InfoIcon = ({ style }) => (
   <svg
@@ -248,6 +261,7 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
         <button
           type="button"
           onClick={onClose}
+          aria-label="Dismiss notification"
           style={{
             flexShrink: 0,
             background: 'none',
@@ -268,6 +282,12 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent';
             e.currentTarget.style.color = tokens.text400;
+          }}
+          onFocus={(e) => {
+            e.currentTarget.style.boxShadow = `0 0 0 2px ${alpha(tokens.text000, 0.4)}`;
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.boxShadow = 'none';
           }}
         >
           <CloseIcon style={{ width: '14px', height: '14px' }} />

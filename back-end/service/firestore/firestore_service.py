@@ -1,7 +1,26 @@
-"""Firestore service for application storage."""
+"""Firestore service for application storage.
 
-import logging
+This module owns the Firebase Admin SDK lifecycle and exposes the
+module-level convenience functions used throughout the backend for
+persisting conversation data, fetching conversations, and storing
+large query-result payloads.
+
+Chunked storage atomicity
+-------------------------
+
+``store_execution_result`` splits oversized query results (above
+``_EXECUTION_INLINE_BYTES``) into per-chunk sibling documents under
+``conversations/{cid}/execution_results/{eid}/chunks/{NNNNNN}``. The
+chunk writes and the final ``"complete"`` status flip are committed in
+a single Firestore ``WriteBatch`` (FIX [H15]) so a process crash
+mid-write can never leave the parent document permanently stuck in the
+``"writing"`` state with ``chunk_count=N`` but missing chunks — a state
+that previously caused ``get_execution_result`` to raise an unrecoverable
+``RuntimeError``.
+"""
+
 import json
+import logging
 from datetime import datetime, timezone
 from functools import lru_cache
 
@@ -47,9 +66,7 @@ def _initialize_firebase():
             cred = credentials.Certificate(firebase_credentials)
             firebase_admin.initialize_app(cred)
             logger.info("Firebase Admin SDK initialized successfully")
-            logger.info(
-                f"Connected to Firebase project: {firebase_credentials['project_id']}"
-            )
+            logger.info(f"Connected to Firebase project: {firebase_credentials['project_id']}")
 
         except Exception as e:
             logger.error(f"Failed to initialize Firebase Admin SDK: {e}")
@@ -76,7 +93,11 @@ def store_conversation(conversation_id, sender, message, user_id, tools=None):
 
         if not conversation_ref.get().exists:
             conversation_ref.set(
-                {"user_id": user_id, "timestamp": datetime.now(timezone.utc), "messages": []}
+                {
+                    "user_id": user_id,
+                    "timestamp": datetime.now(timezone.utc),
+                    "messages": [],
+                }
             )
 
         content = str(message or "").strip()
@@ -103,11 +124,7 @@ def get_conversations(user_id):
         db = get_firestore_db()
         from google.cloud.firestore_v1 import FieldFilter
 
-        conversations = (
-            db.collection("conversations")
-            .where(filter=FieldFilter("user_id", "==", user_id))
-            .get()
-        )
+        conversations = db.collection("conversations").where(filter=FieldFilter("user_id", "==", user_id)).get()
         conversation_list = []
         for conv in conversations:
             conv_data = conv.to_dict()
@@ -117,11 +134,7 @@ def get_conversations(user_id):
                         "id": conv.id,
                         "timestamp": conv_data["timestamp"],
                         "title": conv_data["messages"][0]["content"][:40]
-                        + (
-                            "..."
-                            if len(conv_data["messages"][0]["content"]) > 40
-                            else ""
-                        ),
+                        + ("..." if len(conv_data["messages"][0]["content"]) > 40 else ""),
                     }
                 )
         conversation_list.sort(key=lambda x: x["timestamp"], reverse=True)
@@ -132,34 +145,72 @@ def get_conversations(user_id):
 
 
 def store_execution_result(conversation_id: str, execution_id: str, data: dict) -> None:
-    """Store a query result without exceeding Firestore's per-document limit."""
+    """
+    Persist a query result, splitting oversized payloads into sibling chunk documents.
+
+    Small results (``<= _EXECUTION_INLINE_BYTES`` serialized) are stored
+    inline on the parent document with ``storage_status="complete"``.
+
+    Large results are split into ``chunks/{NNNNNN}`` sibling documents. The
+    parent ``set()``, all chunk ``set()`` calls, and the final
+    ``storage_status="complete"`` flip are committed in a single Firestore
+    ``WriteBatch`` (FIX [H15]) so a crash mid-write cannot leave the parent
+    permanently stuck in ``"writing"`` with missing chunks. If the batch
+    fails atomically, ``get_execution_result`` will see no document and
+    return ``{}`` — the caller can retry cleanly.
+
+    Args:
+        conversation_id: The owning conversation ID.
+        execution_id: The execution ID produced by the AI tool path.
+        data: The result payload (``columns``, ``data``, ``row_count``, …).
+    """
     try:
         db = get_firestore_db()
         # Path: conversations/{conversation_id}/execution_results/{execution_id}
-        doc_ref = db.collection("conversations").document(conversation_id).collection("execution_results").document(execution_id)
-        
+        doc_ref = (
+            db.collection("conversations")
+            .document(conversation_id)
+            .collection("execution_results")
+            .document(execution_id)
+        )
+
         rows = list(data.get("data") or [])
         serialized_size = len(json.dumps(rows, default=str).encode("utf-8"))
-        payload = {
-            **data,
-            "created_at": firestore.SERVER_TIMESTAMP,
-            "storage_version": 2,
-            "storage_status": "complete",
-        }
         chunks = []
         if serialized_size > _EXECUTION_INLINE_BYTES:
             chunks = _chunk_rows(rows, _EXECUTION_CHUNK_BYTES)
-            payload["data"] = []
-            payload["chunk_count"] = len(chunks)
-            payload["storage_status"] = "writing"
 
-        doc_ref.set(payload)
-        for index, chunk in enumerate(chunks):
-            doc_ref.collection("chunks").document(f"{index:06d}").set(
-                {"index": index, "rows": chunk}
-            )
+        # FIX [H15]: All chunks and the final status flip commit atomically.
+        # Previously the parent doc was written with storage_status="writing",
+        # then chunks were written one-by-one, then status was flipped to
+        # "complete" in a separate update — a crash between any two of those
+        # steps left the parent permanently unreadable.
+        batch = db.batch()
         if chunks:
-            doc_ref.update({"storage_status": "complete"})
+            payload = {
+                **data,
+                "data": [],
+                "created_at": firestore.SERVER_TIMESTAMP,
+                "storage_version": 2,
+                "storage_status": "complete",
+                "chunk_count": len(chunks),
+            }
+            batch.set(doc_ref, payload)
+            for index, chunk in enumerate(chunks):
+                batch.set(
+                    doc_ref.collection("chunks").document(f"{index:06d}"),
+                    {"index": index, "rows": chunk},
+                )
+        else:
+            # Fits inline — single-op batch is still atomic for free.
+            payload = {
+                **data,
+                "created_at": firestore.SERVER_TIMESTAMP,
+                "storage_version": 2,
+                "storage_status": "complete",
+            }
+            batch.set(doc_ref, payload)
+        batch.commit()
         logger.debug(f"Stored execution result {execution_id} for conversation {conversation_id}")
     except Exception as e:
         logger.error(f"Error storing execution result {execution_id}: {e}")
@@ -167,11 +218,31 @@ def store_execution_result(conversation_id: str, execution_id: str, data: dict) 
 
 
 def get_execution_result(conversation_id: str, execution_id: str) -> dict:
-    """Retrieve a specific execution result."""
+    """
+    Retrieve a query result previously persisted via :func:`store_execution_result`.
+
+    Reassembles chunked payloads by reading each ``chunks/{NNNNNN}`` sibling
+    document in index order. If any chunk is missing (which can only happen
+    after a non-atomic write — now prevented by FIX [H15]) the function raises
+    ``RuntimeError`` so the controller can surface a 500 to the caller rather
+    than silently returning truncated data.
+
+    Args:
+        conversation_id: The owning conversation ID.
+        execution_id: The execution ID produced by the AI tool path.
+
+    Returns:
+        The reassembled result payload, or ``{}`` if no document exists.
+    """
     try:
         db = get_firestore_db()
-        doc_ref = db.collection("conversations").document(conversation_id).collection("execution_results").document(execution_id)
-        
+        doc_ref = (
+            db.collection("conversations")
+            .document(conversation_id)
+            .collection("execution_results")
+            .document(execution_id)
+        )
+
         doc = doc_ref.get()
         if doc.exists:
             result = doc.to_dict()
@@ -181,15 +252,9 @@ def get_execution_result(conversation_id: str, execution_id: str) -> dict:
             if chunk_count:
                 rows = []
                 for index in range(chunk_count):
-                    chunk = (
-                        doc_ref.collection("chunks")
-                        .document(f"{index:06d}")
-                        .get()
-                    )
+                    chunk = doc_ref.collection("chunks").document(f"{index:06d}").get()
                     if not chunk.exists:
-                        raise RuntimeError(
-                            f"Execution result chunk {index} is missing"
-                        )
+                        raise RuntimeError(f"Execution result chunk {index} is missing")
                     rows.extend((chunk.to_dict() or {}).get("rows") or [])
                 result["data"] = rows
             return result

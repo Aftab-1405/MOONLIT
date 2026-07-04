@@ -1,4 +1,23 @@
-"""Provider-agnostic chat-model construction and configuration."""
+"""Provider-agnostic chat-model construction and configuration.
+
+Model caching
+-------------
+``_get_cached_chat_model`` is ``@lru_cache``-d on
+``(provider, model, reasoning flag, reasoning effort, temperature, max_tokens)``
+so repeated chat requests for the same configuration reuse a single
+``ChatBedrockConverse`` instance instead of rebuilding boto3 clients per
+request. FIX [M23] ensures the cached instance does NOT bake in static
+AWS credentials — when ``AWS_ACCESS_KEY_ID`` is not set in the
+environment, the underlying ``ChatBedrockConverse`` is constructed
+without explicit credential kwargs so boto3's default credential chain
+resolves (and rotates) credentials on each call.
+
+Prewarming
+----------
+``prewarm_chat_models`` is called from the application lifespan to
+construct the configured model clients before accepting traffic, so the
+first user request doesn't pay the boto3 init cost.
+"""
 
 import logging
 from functools import lru_cache
@@ -50,6 +69,20 @@ def _get_cached_chat_model(
     temperature: float,
     max_tokens: int,
 ) -> BaseChatModel:
+    """Construct (and cache) a chat model for the given config tuple.
+
+    Caching is keyed on the user-visible knobs (provider, model, reasoning
+    flag, reasoning effort, temperature, max_tokens) so two requests with
+    the same config reuse one ``ChatBedrockConverse`` instance and its
+    underlying boto3 clients.
+
+    FIX [M23]: The cached instance does NOT bake in static AWS credentials
+    when ``AWS_ACCESS_KEY_ID`` is unset. The underlying
+    :func:`llm_provider.bedrock_client.init_chat_bedrock` defers to
+    boto3's default credential chain in that case, so temporary
+    credentials (e.g. from ``aws sso login``) rotate automatically
+    without invalidating this cache entry.
+    """
     from llm_provider.bedrock_client import init_chat_bedrock
 
     request_fields = _reasoning_request_fields(
@@ -92,9 +125,7 @@ def get_chat_model(
 
     config = get_config()
     requested_output = int(max_tokens or config.RESERVED_OUTPUT_TOKENS)
-    model_output_limit = int(
-        model_capability(selected_model, "max_output_tokens", requested_output)
-    )
+    model_output_limit = int(model_capability(selected_model, "max_output_tokens", requested_output))
     bounded_output = max(1, min(requested_output, model_output_limit))
     return _get_cached_chat_model(
         provider,
@@ -134,7 +165,16 @@ def get_provider_api_key(provider: str) -> str | None:
 
 
 def prewarm_chat_models() -> None:
-    """Construct reusable provider clients/models before accepting traffic."""
+    """Construct reusable provider clients/models before accepting traffic.
+
+    Called from the FastAPI lifespan so the first user request doesn't pay
+    the boto3 client init cost (~hundreds of ms for the first STS call).
+    Each model is constructed via :func:`get_chat_model`, which consults
+    :func:`_get_cached_chat_model`'s LRU cache. FIX [M23] ensures the
+    prewarmed instances don't bake in static AWS credentials — when
+    ``AWS_ACCESS_KEY_ID`` is unset the underlying boto3 clients resolve
+    credentials from the default chain on each call.
+    """
     for provider in get_supported_providers():
         for model in get_provider_models(provider):
             try:

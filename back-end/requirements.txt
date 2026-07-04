@@ -43,3 +43,17 @@ qdrant-client>=1.12.0,<2.0.0
 
 pydantic>=2.0.0,<3.0.0
 sqlglot>=20.0.0
+cachetools>=5.3.0
+
+# ENH [TOK]: Model-native tokenizers for EXACT pre-call token counting.
+# All three are REQUIRED dependencies — the old chars/3 fallback has been
+# removed. These give exact token counts matching the model's own tokenizer,
+# so the indicator and summarization trigger always agree.
+tiktoken>=0.7.0                    # GPT-OSS 120B/20B, GPT-4o (o200k_base encoding)
+mistral-common>=1.5.0              # Mistral Devstral 2 123B, Mistral Large (tekken tokenizer)
+sentencepiece>=0.2.0               # Required by mistral-common's tekken tokenizer
+transformers>=4.46.0               # Moonshot Kimi K2/K2.5 (also works for other HF models)
+tokenizers>=0.22.0                 # Rust BPE engine required by transformers
+huggingface-hub>=0.26.0            # Downloads tokenizer files from HuggingFace Hub
+safetensors>=0.4.0                 # Required by transformers (model weight format)
+typer>=0.12.0                      # Required by transformers (CLI dependency)

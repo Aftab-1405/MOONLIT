@@ -21,7 +21,7 @@
       "reasoning_type": "openai_effort"
     },
     "mistral.devstral-2-123b": {
-      "context_window": 30000,
+      "context_window": 256000,
       "max_output_tokens": 32000,
       "local_estimate_multiplier": 1.2,
       "supports_count_tokens": false,

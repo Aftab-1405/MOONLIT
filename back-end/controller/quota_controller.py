@@ -2,7 +2,8 @@
 """User quota status API routes."""
 
 import logging
-from fastapi import APIRouter, Request, Depends
+
+from fastapi import APIRouter, Depends, Request
 
 from dependencies import get_current_user
 

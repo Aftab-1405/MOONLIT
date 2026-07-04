@@ -5,9 +5,9 @@ Centralized utilities for parsing MySQL connection strings and creating connecti
 Ensures consistent behavior across all MySQL connection points in the codebase.
 """
 
-from typing import Dict
-from urllib.parse import urlparse, unquote, parse_qs
 import logging
+from typing import Dict
+from urllib.parse import parse_qs, unquote, urlparse
 
 from config import get_config
 
@@ -50,18 +50,12 @@ def parse_mysql_connection_string(connection_string: str) -> Dict:
     # Determine SSL settings
     ssl_enabled = False
     ssl_params = {}
-    if any(
-        key.lower() in ["ssl", "sslmode", "ssl_ca", "ssl-mode", "ssl_disabled"]
-        for key in query_params.keys()
-    ):
+    if any(key.lower() in ["ssl", "sslmode", "ssl_ca", "ssl-mode", "ssl_disabled"] for key in query_params.keys()):
         ssl_enabled = True
         # Extract specific SSL params if provided
         if "ssl_ca" in query_params:
             ssl_params["ca"] = query_params["ssl_ca"][0]
-    elif (
-        parsed.hostname
-        and parsed.hostname.lower() not in Config.BLOCKED_DB_HOSTS
-    ):
+    elif parsed.hostname and parsed.hostname.lower() not in Config.BLOCKED_DB_HOSTS:
         # Default: enable SSL for non-localhost connections (cloud providers need it)
         ssl_enabled = True
 

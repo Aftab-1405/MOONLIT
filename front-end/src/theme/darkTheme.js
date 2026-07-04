@@ -772,8 +772,27 @@ const components = {
     },
     styleOverrides: {
       root: {
-        backgroundColor: alpha(H.text200, 0.08),
+        // Layered skeleton treatment: a base fill + a subtle top-edge highlight
+        // so the skeleton reads as a "sunken surface" rather than a flat block.
+        // This matches the rest of the dark theme's "elevated panel" language.
+        backgroundColor: alpha(H.text200, 0.06),
+        backgroundImage: `linear-gradient(
+          180deg,
+          ${alpha(H.text000, 0.04)} 0%,
+          ${alpha(H.text000, 0.02)} 40%,
+          transparent 100%
+        )`,
         borderRadius: SHAPE.radius.sm,
+        // Wave animation overlay is drawn by MUI on top of backgroundColor.
+        // We tune the wave keyframe via CSS variable to make it subtle.
+        '&::after': {
+          background: `linear-gradient(
+            90deg,
+            transparent 0%,
+            ${alpha(H.text000, 0.08)} 50%,
+            transparent 100%
+          )`,
+        },
       },
     },
   },
@@ -844,11 +863,16 @@ const components = {
           color: H.bg000,
           '& + .MuiSwitch-track': {
             opacity: 1,
-            backgroundColor: H.brand000,
+            // Green = "on / enabled / active". This is a deliberate semantic
+            // color choice — switches are the one control where green is the
+            // universal "this is turned on" signal. Matches the light theme.
+            backgroundColor: H.success000,
           },
         },
         '&.Mui-focusVisible + .MuiSwitch-track': {
-          boxShadow: `0 0 0 4px ${alpha(H.brand000, 0.22)}`,
+          // Focus ring uses the same green so keyboard users see the
+          // connection between the focus state and the on state.
+          boxShadow: `0 0 0 4px ${alpha(H.success000, 0.24)}`,
         },
         '&.Mui-disabled + .MuiSwitch-track': { opacity: 0.5 },
       },

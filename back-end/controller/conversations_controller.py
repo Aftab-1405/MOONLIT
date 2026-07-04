@@ -1,14 +1,36 @@
 # File: api/routes/conversation.py
-"""Conversation/chat related API routes."""
+"""
+Conversation/chat API routes.
+
+Streaming workflow
+------------------
+1. ``chat`` / ``resume_agent`` validate the request body and delegate to
+   :func:`_handle_agent_stream`.
+2. ``_handle_agent_stream`` validates provider, verifies conversation ownership
+   (using a user_id-only projection so the full message array isn't
+   downloaded — see FIX [L7]), debits the user quota via
+   :class:`UserQuotaService`, then acquires the per-user-per-provider LLM
+   rate-limiter slot (FIX [M18]/[M19]).
+3. If the rate-limiter rejects the request, the just-debited quota is
+   refunded (FIX [C4]) because the LLM call never produced user-visible
+   output. The same refund is applied if the streaming generator fails
+   before yielding its first SSE event.
+4. SSE events are produced by :func:`_stream_with_heartbeats`, which wraps
+   the underlying generator with a producer task and emits ``: heartbeat``
+   comments every ``interval_seconds`` to keep proxy/LB idle timeouts at
+   bay during long LLM/DB operations.
+5. The rate-limiter slot is released exactly once via a ``finally`` block
+   guarded by the ``rate_limiter_released`` flag.
+"""
 
 import asyncio
 import contextlib
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Request, Depends, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import StreamingResponse
 from google.api_core.exceptions import (
     DeadlineExceeded,
     ResourceExhausted,
@@ -17,19 +39,28 @@ from google.api_core.exceptions import (
 )
 
 from config import get_config
+
 Config = get_config()
-from dependencies import get_current_user, get_db_config
-from service.conversations.conversation_service import ConversationService
-from service.llm import LLMOptionsService
 from api_contract.conversations import (
     AgentResumeRequest,
     ChatRequest,
     RenameConversationRequest,
 )
 from api_contract.streaming import STREAMING_RESPONSES
+from dependencies import get_current_user, get_db_config
+from service.conversations.conversation_service import ConversationService
+from service.llm import LLMOptionsService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Moonlit Conversation End Points"])
+
+# ENH [RL-HTTP]: Import the shared HTTP rate limiter for IP-level protection.
+# This is Layer 1 of the 4-layer rate-limiting stack:
+#   Layer 1: HTTP (slowapi, per-IP) ← THIS
+#   Layer 2: User Quota (Redis, per-user per-min/hour/day)
+#   Layer 3: LLM Rate Limiter (Redis, per-user-per-provider RPM + concurrent)
+#   Layer 4: Task Lease (Firestore, per-conversation 1-concurrent)
+from controller.rate_limiter import limiter
 
 _TRANSIENT_FIRESTORE_ERRORS = (
     DeadlineExceeded,
@@ -105,9 +136,7 @@ async def _stream_with_heartbeats(source, *, interval_seconds: float = 15.0):
     try:
         while True:
             try:
-                kind, value = await asyncio.wait_for(
-                    queue.get(), timeout=interval_seconds
-                )
+                kind, value = await asyncio.wait_for(queue.get(), timeout=interval_seconds)
             except asyncio.TimeoutError:
                 yield ": heartbeat\n\n"
                 continue
@@ -134,11 +163,21 @@ async def _handle_agent_stream(
     stream_generator_kwargs: dict,
 ):
     """
-    Validate limits, acquire rate-limiting locks, and return a streaming SSE response for the agent.
+    Validate limits, acquire quota + rate-limiter locks, and return a streaming SSE response for the agent.
 
-    This function performs authentication validation, checks user query quotas,
-    acquires the provider rate-limiting lock, constructs the streaming generator,
-    and returns a StreamingResponse.
+    The acquisition order is intentionally quota-first, rate-limiter-second:
+
+    1. **Debit quota** via :meth:`UserQuotaService.check_and_increment`.
+       If the user is over quota we short-circuit with a 429 and do NOT
+       touch the rate limiter.
+    2. **Acquire the per-user-per-provider LLM rate-limiter slot**
+       (:meth:`ProviderRateLimiter.acquire`). If it rejects, the request
+       never produced LLM output, so we :meth:`refund` the quota debit
+       (FIX [C4]).
+    3. **Build the SSE response.** If the underlying streaming generator
+       raises before yielding its first event, the quota debit is also
+       refunded (FIX [C4]). The rate-limiter slot is released exactly once
+       via a ``finally`` block guarded by ``rate_limiter_released``.
 
     Args:
         request: The active FastAPI Request.
@@ -167,8 +206,15 @@ async def _handle_agent_stream(
 
     if conversation_id:
         try:
+            # FIX [L7]: Previously this called get_conversation_data, which
+            # downloaded the ENTIRE conversation document (all messages,
+            # potentially megabytes) purely to verify ownership. Use the
+            # user_id-only projection variant instead — same security check,
+            # ~1 field of Firestore read traffic.
             _ = await run_in_threadpool(
-                ConversationService.get_conversation_data, conversation_id, user_id
+                ConversationService.verify_conversation_owner,
+                conversation_id,
+                user_id,
             )
         except PermissionError as e:
             raise HTTPException(status_code=403, detail=str(e))
@@ -187,10 +233,22 @@ async def _handle_agent_stream(
             },
         )
 
+    # Track whether the debited quota has been refunded. Once the stream has
+    # emitted any user-visible output we MUST NOT refund, because the user
+    # consumed real LLM tokens for that turn (FIX [C4]).
+    quota_refunded = False
+
     llm_rate_limiter = request.app.state.llm_rate_limiter
-    success, api_key = await llm_rate_limiter.acquire(provider)
+    # FIX [M18]: Rate limiter is keyed per-user-per-provider so one user
+    # cannot exhaust the global RPM budget for everyone else on the same
+    # provider.
+    success, api_key = await llm_rate_limiter.acquire(provider, user_id)
 
     if not success:
+        # FIX [C4]: Rate-limiter rejection produces no user-visible output,
+        # so refund the quota debit we just made.
+        await user_quota.refund(user_id)
+        quota_refunded = True
         logger.warning(
             "LLM rate limit timeout for user %s on provider %s",
             user_id,
@@ -205,9 +263,17 @@ async def _handle_agent_stream(
         )
 
     rate_limiter_released = False
+    stream_started = False  # FIX [C4]: tracks whether the user has seen any SSE output
     try:
+
         async def sse_generator():
-            nonlocal rate_limiter_released
+            # FIX [C4-UNBOUND]: quota_refunded must be declared nonlocal so the
+            # generator reads/writes the outer variable. Without this, Python
+            # treats it as a local of sse_generator (because of the assignment
+            # at line 288), causing UnboundLocalError when the except block
+            # reads it before any assignment — which happens when the stream
+            # is cancelled before producing any output.
+            nonlocal rate_limiter_released, stream_started, quota_refunded
             try:
                 source = ConversationService.create_streaming_generator(
                     conversation_id=conversation_id,
@@ -215,13 +281,35 @@ async def _handle_agent_stream(
                     api_key=api_key,
                     provider=provider,
                     model=model,
-                    **stream_generator_kwargs
+                    **stream_generator_kwargs,
                 )
                 async for sse_line in _stream_with_heartbeats(source):
+                    stream_started = True
                     yield sse_line
+            except BaseException:
+                # FIX [C4]: If the streaming generator raised before emitting
+                # ANY user-visible output, the user did not consume LLM
+                # tokens for this turn — refund the debit. If partial content
+                # was already yielded, do NOT refund.
+                if not stream_started and not quota_refunded:
+                    try:
+                        await user_quota.refund(user_id)
+                    except Exception as refund_err:
+                        logger.warning(
+                            "Quota refund failed for user %s: %s",
+                            user_id,
+                            refund_err,
+                        )
+                    quota_refunded = True
+                raise
             finally:
                 if not rate_limiter_released:
-                    llm_rate_limiter.release(provider)
+                    # FIX [M18]: release keyed on the same per-user-per-provider
+                    # tuple used during acquire.
+                    # FIX [AWAIT]: release() is async — must be awaited.
+                    # Without await, the coroutine was created but never
+                    # executed, silently leaking concurrency slots.
+                    await llm_rate_limiter.release(provider, user_id)
                     rate_limiter_released = True
 
         headers = ConversationService.get_streaming_headers(conversation_id)
@@ -232,8 +320,17 @@ async def _handle_agent_stream(
         )
     except Exception as e:
         if not rate_limiter_released:
-            llm_rate_limiter.release(provider)
+            # FIX [AWAIT]: release() is async — must be awaited.
+            await llm_rate_limiter.release(provider, user_id)
             rate_limiter_released = True
+        # FIX [C4]: Outer-path failure (e.g. StreamingResponse construction
+        # error) — refund only if no SSE bytes were ever yielded.
+        if not stream_started and not quota_refunded:
+            try:
+                await user_quota.refund(user_id)
+            except Exception as refund_err:
+                logger.warning("Quota refund failed for user %s: %s", user_id, refund_err)
+            quota_refunded = True
         logger.error("Error streaming agent: %s", e)
         if ConversationService.check_quota_error(str(e)):
             raise HTTPException(status_code=429, detail="Rate limit exceeded")
@@ -245,6 +342,9 @@ async def _handle_agent_stream(
     response_class=StreamingResponse,
     responses=STREAMING_RESPONSES,
 )
+# ENH [RL-HTTP]: Layer 1 IP-level guard. 30/min per IP — the user quota
+# (Layer 2) handles per-user fairness; this prevents IP-level abuse.
+@limiter.limit("30 per minute")
 async def chat(
     request: Request,
     data: ChatRequest,
@@ -267,9 +367,7 @@ async def chat(
         A StreamingResponse yielding SSE tokens/events.
     """
     provider = data.provider or Config.LLM_PROVIDER
-    conversation_id = ConversationService.create_or_get_conversation_id(
-        data.conversation_id
-    )
+    conversation_id = ConversationService.create_or_get_conversation_id(data.conversation_id)
     user_id = user.get("uid") if isinstance(user, dict) else user
 
     logger.info(
@@ -288,14 +386,14 @@ async def chat(
         "max_rows": data.max_rows,
         "task_mode": getattr(data, "task_mode", "normal") or "normal",
     }
-    
+
     return await _handle_agent_stream(
         request=request,
         user_id=user_id,
         conversation_id=conversation_id,
         provider=provider,
         model=data.model,
-        stream_generator_kwargs=kwargs
+        stream_generator_kwargs=kwargs,
     )
 
 
@@ -304,6 +402,8 @@ async def chat(
     response_class=StreamingResponse,
     responses=STREAMING_RESPONSES,
 )
+# ENH [RL-HTTP]: Layer 1 IP-level guard for agent resume (same as chat).
+@limiter.limit("30 per minute")
 async def resume_agent(
     request: Request,
     data: AgentResumeRequest,
@@ -327,7 +427,7 @@ async def resume_agent(
     """
     user_id = user.get("uid") if isinstance(user, dict) else user
     provider = data.provider or Config.LLM_PROVIDER
-    
+
     kwargs = {
         "prompt": None,
         "db_config": db_config,
@@ -338,14 +438,14 @@ async def resume_agent(
         "resume": data.resume,
         "task_mode": getattr(data, "task_mode", "normal") or "normal",
     }
-    
+
     return await _handle_agent_stream(
         request=request,
         user_id=user_id,
         conversation_id=data.conversation_id,
         provider=provider,
         model=data.model,
-        stream_generator_kwargs=kwargs
+        stream_generator_kwargs=kwargs,
     )
 
 
@@ -376,13 +476,12 @@ async def get_llm_options(user: dict = Depends(get_current_user)):
     # This logic is used to determine if the reasoning is supported for the specfic model or not
     # using the model_capability function from the llm_provider.model_capabilities module.
     from llm_provider.model_capabilities import model_capability
+
     capabilities = {}
     for provider in provider_options:
         for model in provider.get("models", []):
             reasoning_type = model_capability(model, "reasoning_type", "none")
-            capabilities[model] = {
-                "supports_reasoning": reasoning_type == "openai_effort"
-            }
+            capabilities[model] = {"supports_reasoning": reasoning_type == "openai_effort"}
 
     return {
         "status": "success",
@@ -396,24 +495,25 @@ async def get_llm_options(user: dict = Depends(get_current_user)):
 def _sanitize_messages(messages: list) -> list:
     """
     Process and sanitize the message history list for a conversation.
-    
+
     This function performs two main tasks:
     1. Deserializes the stringified 'args' and 'result' fields of timeline
        items (which are stored as JSON strings in Firestore) back into native
        Python dictionaries/lists. This prevents double-serialization backslashes
        in the final API response.
-    2. Strips massive, redundant result datasets ('data' and 'preview' arrays) 
-       from 'execute_query' tool steps. The frontend doesn't need these in the 
-       timeline payload since it fetches them asynchronously from the 
+    2. Strips massive, redundant result datasets ('data' and 'preview' arrays)
+       from 'execute_query' tool steps. The frontend doesn't need these in the
+       timeline payload since it fetches them asynchronously from the
        get_execution_result endpoint.
-       
+
     Args:
         messages: A list of raw message dictionaries from database storage.
-        
+
     Returns:
         A list of sanitized message dictionaries with unescaped nested objects.
     """
     import json
+
     sanitized = []
     for msg in messages:
         if not isinstance(msg, dict):
@@ -428,7 +528,7 @@ def _sanitize_messages(messages: list) -> list:
                     new_timeline.append(item)
                     continue
                 item_copy = dict(item)
-                
+
                 # Parse args to dict if they are stored as JSON string
                 args_val = item_copy.get("args")
                 if isinstance(args_val, str):
@@ -436,7 +536,7 @@ def _sanitize_messages(messages: list) -> list:
                         item_copy["args"] = json.loads(args_val)
                     except Exception:
                         pass
-                
+
                 # Parse result to dict if stored as JSON string
                 res_val = item_copy.get("result")
                 if isinstance(res_val, str):
@@ -444,14 +544,14 @@ def _sanitize_messages(messages: list) -> list:
                         res_val = json.loads(res_val)
                     except Exception:
                         pass
-                
+
                 # Strip large query arrays from execute_query results
                 if item_copy.get("type") == "tool" and item_copy.get("name") == "execute_query":
                     if isinstance(res_val, dict):
                         res_val = dict(res_val)
                         res_val.pop("data", None)
                         res_val.pop("preview", None)
-                
+
                 item_copy["result"] = res_val
                 new_timeline.append(item_copy)
             msg_copy["timeline"] = new_timeline
@@ -460,9 +560,7 @@ def _sanitize_messages(messages: list) -> list:
 
 
 @router.get("/get_conversation/{conversation_id}")
-async def get_conversation(
-    conversation_id: str, user: dict = Depends(get_current_user)
-):
+async def get_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
     """
     Get message history and status for a specific conversation.
 
@@ -482,9 +580,7 @@ async def get_conversation(
     """
     try:
         user_id = user.get("uid") if isinstance(user, dict) else user
-        conv_data = await run_in_threadpool(
-            ConversationService.get_conversation_data, conversation_id, user_id
-        )
+        conv_data = await run_in_threadpool(ConversationService.get_conversation_data, conversation_id, user_id)
         if conv_data:
             # Keep this flat response shape; frontend conversation loaders read `conversation` directly.
             raw_messages = conv_data.get("messages") or []
@@ -506,13 +602,14 @@ async def get_conversation(
         raise
     except Exception:
         logger.exception("Error fetching conversation")
-        raise HTTPException(status_code=500, detail="An internal error occurred while fetching conversation.")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while fetching conversation.",
+        )
 
 
 @router.get("/get_execution_result/{conversation_id}/{execution_id}")
-async def fetch_execution_result(
-    conversation_id: str, execution_id: str, user: dict = Depends(get_current_user)
-):
+async def fetch_execution_result(conversation_id: str, execution_id: str, user: dict = Depends(get_current_user)):
     """
     Get full query execution results (columns and rows) for an inline table.
 
@@ -533,7 +630,7 @@ async def fetch_execution_result(
     """
     try:
         user_id = user.get("uid") if isinstance(user, dict) else user
-        
+
         # Verify ownership using a user_id-only projection. Downloading the
         # full message array once per artifact causes severe N+1 amplification.
         conversation_exists = await run_in_threadpool(
@@ -543,15 +640,14 @@ async def fetch_execution_result(
         )
         if not conversation_exists:
             raise HTTPException(status_code=404, detail="Conversation not found")
-            
+
         from service.firestore.firestore_service import get_execution_result
-        result_data = await run_in_threadpool(
-            get_execution_result, conversation_id, execution_id
-        )
-        
+
+        result_data = await run_in_threadpool(get_execution_result, conversation_id, execution_id)
+
         if not result_data:
             raise HTTPException(status_code=404, detail="Execution result not found")
-            
+
         sanitized_result = {
             "columns": result_data.get("columns") or [],
             "data": result_data.get("data") or [],
@@ -583,17 +679,13 @@ async def get_all_user_conversations(user: dict = Depends(get_current_user)):
         A dict containing success status and list of conversations.
     """
     user_id = user.get("uid") if isinstance(user, dict) else user
-    conversations = await run_in_threadpool(
-        ConversationService.get_user_conversations, user_id
-    )
+    conversations = await run_in_threadpool(ConversationService.get_user_conversations, user_id)
     # Keep this flat response shape; frontend conversation loaders read `conversations` directly.
     return {"status": "success", "conversations": conversations}
 
 
 @router.delete("/delete_conversation/{conversation_id}")
-async def delete_conversation(
-    conversation_id: str, user: dict = Depends(get_current_user)
-):
+async def delete_conversation(conversation_id: str, user: dict = Depends(get_current_user)):
     """
     Delete a conversation and all its associated messages.
 
@@ -610,9 +702,7 @@ async def delete_conversation(
     """
     try:
         user_id = user.get("uid") if isinstance(user, dict) else user
-        await run_in_threadpool(
-            ConversationService.delete_user_conversation, conversation_id, user_id
-        )
+        await run_in_threadpool(ConversationService.delete_user_conversation, conversation_id, user_id)
         return {"status": "success"}
     except PermissionError as e:
         raise HTTPException(status_code=403, detail=str(e))
@@ -620,7 +710,10 @@ async def delete_conversation(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error("Error deleting conversation: %s", e)
-        raise HTTPException(status_code=500, detail="An internal error occurred while deleting conversation.")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while deleting conversation.",
+        )
 
 
 @router.patch("/rename_conversation/{conversation_id}")
@@ -659,4 +752,7 @@ async def rename_conversation(
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         logger.error("Error renaming conversation: %s", e)
-        raise HTTPException(status_code=500, detail="An internal error occurred while renaming conversation.")
+        raise HTTPException(
+            status_code=500,
+            detail="An internal error occurred while renaming conversation.",
+        )

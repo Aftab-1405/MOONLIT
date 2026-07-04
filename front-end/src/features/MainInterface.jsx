@@ -1,4 +1,20 @@
-// Main Interface - Logged-in application shell
+// Main Interface — logged-in application shell.
+//
+// This is the screen users land on after authentication. It composes three
+// layers:
+//
+//   1. Sidebar (left)          — conversation list, nav items, profile footer
+//   2. Chat workspace (center) — message list + composer + welcome screen
+//   3. Artifact panel (right)  — SQL editor, visualizations, diagram canvas
+//
+// On narrow viewports the sidebar becomes a drawer and the artifact panel
+// becomes a full-screen slide-up overlay — see `useChatPageController` and
+// `useResponsive` for the breakpoint logic.
+//
+// Overlays (DatabaseModal, SettingsModal, ConfirmDialog) are mounted at the
+// end of the tree so they float above the workspace layers. Toasts use MUI's
+// `Snackbar` z-index token (1400) so they sit above everything except
+// tooltips.
 
 import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
@@ -44,6 +60,24 @@ import {
 const DatabaseModal = lazy(() => import('@/features/overlays/database/DatabaseModal'));
 const SettingsModal = lazy(() => import('@/features/overlays/settings/SettingsModal'));
 
+/**
+ * ENH [TASK-PAUSED-BANNER]: Compact "Task Paused" strip that slides UP from
+ * behind the composer, overlaying the chat instead of pushing it.
+ *
+ * Design goals:
+ *   1. No layout shift — the banner is absolutely positioned over the chat,
+ *      so chat messages don't jump when it appears.
+ *   2. Compact single-line text ("⏸ Step limit reached · 5 steps used") —
+ *      the buttons speak for themselves.
+ *   3. Slides up from behind the composer's top edge (translateY animation).
+ *   4. Composer stays fully interactive (zIndex above the banner).
+ *   5. A subtle gradient fade at the banner's top edge so the chat content
+ *      behind it fades out gracefully.
+ *
+ * Layering:
+ *   - Banner zIndex: 3  (above chat messages, below composer)
+ *   - Composer zIndex: 4 (always on top, always interactive)
+ */
 const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
   open,
   title,
@@ -56,75 +90,119 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
 }) {
   const isDark = theme.palette.mode === 'dark';
 
+  // The compact one-line message is already built by the caller
+  // ("Step limit reached · 5 steps used"). We render it as a single line.
+  const compactMessage = message || 'Task paused';
+
   return (
-    <Collapse in={open} timeout={250}>
+    <Collapse
+      in={open}
+      timeout={250}
+      sx={{
+        // Collapse wraps the banner; we position it absolutely so it
+        // overlays the chat instead of pushing content. Anchored to the
+        // bottom of the composer wrapper, just above the composer.
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: '100%',
+        zIndex: 3,
+        pointerEvents: open ? 'auto' : 'none',
+      }}
+    >
       <Fade in={open} timeout={250}>
         <Box
           role="status"
           aria-live="polite"
           aria-atomic="true"
+          aria-label={title ? `${title}: ${compactMessage}` : compactMessage}
           sx={{
             width: '100%',
             maxWidth: UI_LAYOUT.chatInputMaxWidth,
             mx: 'auto',
-            position: 'relative',
-            zIndex: 3, // Must be > ChatInput's zIndex (2) so the prompt paints on top
+            px: { xs: 1, sm: 0 },
+            // Slide up from behind the composer: start translated down + faded,
+            // end at rest. The Collapse handles the height; this transform
+            // adds the "from behind" feel.
+            transform: open ? 'translateY(0)' : 'translateY(8px)',
+            transition: theme.transitions.create(['transform', 'opacity'], {
+              duration: 250,
+              easing: theme.transitions.easing.easeOut,
+            }),
           }}
         >
           <Box
             sx={{
-              position: 'relative',
-              zIndex: 3,
-              mx: { xs: 1, sm: 0 },
-              mb: -3.5, // Slide behind composer
               display: 'flex',
-              flexDirection: { xs: 'column-reverse', sm: 'row' },
-              alignItems: { xs: 'flex-start', sm: 'center' },
+              flexDirection: { xs: 'column', sm: 'row' },
+              alignItems: { xs: 'stretch', sm: 'center' },
               justifyContent: 'space-between',
-              gap: { xs: 1.5, sm: 2 },
-              borderTopLeftRadius: '20px',
-              borderTopRightRadius: '20px',
+              gap: { xs: 1, sm: 1.5 },
+              borderTopLeftRadius: '14px',
+              borderTopRightRadius: '14px',
               border: '1px solid',
-              borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.08),
+              borderColor: alpha(theme.palette.warning.main, isDark ? 0.32 : 0.24),
               borderBottom: 0,
               ...getAppPanelSurfaceSx(theme),
-              px: { xs: 2.25, sm: 3 },
-              pb: { xs: 5.5, sm: 5 }, // padding overlap
-              pt: 1.5,
+              px: { xs: 1.75, sm: 2.25 },
+              py: 1,
+              // Subtle warning-tinted background so it reads as a status,
+              // not a plain panel.
+              bgcolor: (th) =>
+                alpha(th.palette.warning.main, th.palette.mode === 'dark' ? 0.08 : 0.05),
+              // Shadow upward so it lifts off the composer edge.
+              boxShadow: `0 -4px 16px ${alpha(theme.palette.common.black, isDark ? 0.3 : 0.08)}`,
             }}
           >
-            <Box sx={{ minWidth: 0 }}>
-              <Typography
-                sx={{
-                  ...theme.typography.uiBodySm,
-                  color: 'text.primary',
-                  fontWeight: 700,
-                  lineHeight: 1.35,
-                }}
-              >
-                {title || 'Confirm action'}
-              </Typography>
-              {message && (
-                <Typography
-                  sx={{
-                    mt: 0.25,
-                    ...theme.typography.uiCaptionMd,
-                    color: 'text.secondary',
-                    lineHeight: 1.45,
-                    overflowWrap: 'anywhere',
-                  }}
-                >
-                  {message}
-                </Typography>
-              )}
-            </Box>
+            {/* Compact single-line message with icon */}
             <Box
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 1.5,
+                gap: 1,
+                minWidth: 0,
+              }}
+            >
+              <Box
+                aria-hidden
+                component="span"
+                sx={{
+                  fontSize: 14,
+                  lineHeight: 1,
+                  flexShrink: 0,
+                  color: 'warning.main',
+                }}
+              >
+                ⏸
+              </Box>
+              <Typography
+                sx={{
+                  ...theme.typography.uiBodySm,
+                  color: 'text.primary',
+                  fontWeight: 600,
+                  lineHeight: 1.3,
+                  // Allow wrapping for longer messages (agent interrupts,
+                  // navigate_new_chat) but keep it compact. The step-limit
+                  // message ("Step limit reached · 5 steps used") fits on
+                  // one line in most widths.
+                  overflowWrap: 'anywhere',
+                  maxHeight: '2.6em', // cap at ~2 lines
+                  overflow: 'hidden',
+                }}
+              >
+                {compactMessage}
+              </Typography>
+            </Box>
+
+            {/* Action buttons — compact, single row */}
+            <Box
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 0.75,
                 flexShrink: 0,
-                alignSelf: { xs: 'flex-start', sm: 'center' },
+                // On mobile, buttons go to the right edge of their row.
+                alignSelf: { xs: 'flex-end', sm: 'center' },
               }}
             >
               <Button
@@ -135,7 +213,7 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                   borderRadius: '6px',
                   textTransform: 'none',
                   color: 'text.secondary',
-                  px: 1.5,
+                  px: 1.25,
                   ...theme.typography.uiCaptionMd,
                   fontWeight: 500,
                   '&:hover': {
@@ -147,24 +225,25 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                   },
                 }}
               >
-                {cancelText || 'Not now'}
+                {cancelText || 'Stop'}
               </Button>
               <Button
                 size="small"
+                variant="contained"
                 onClick={onConfirm}
                 sx={{
                   minHeight: 28,
                   borderRadius: '6px',
                   textTransform: 'none',
-                  color: theme.palette.primary.main,
                   px: 1.5,
                   ...theme.typography.uiCaptionMd,
                   fontWeight: 700,
-                  textDecoration: 'underline',
-                  textUnderlineOffset: '3px',
+                  bgcolor: 'primary.main',
+                  color: 'primary.contrastText',
+                  boxShadow: 'none',
                   '&:hover': {
-                    textDecoration: 'underline',
-                    bgcolor: alpha(theme.palette.primary.main, 0.08),
+                    bgcolor: 'primary.dark',
+                    boxShadow: 'none',
                   },
                   '&.Mui-focusVisible': {
                     boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, isDark ? 0.28 : 0.2)}`,
@@ -172,7 +251,7 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                   },
                 }}
               >
-                {confirmText || 'Confirm'}
+                {confirmText || 'Continue'}
               </Button>
             </Box>
           </Box>
@@ -200,12 +279,21 @@ const MobileSidebarOpenButton = memo(function MobileSidebarOpenButton({ visible,
           width: 44,
           height: 44,
           ...getAppPanelSurfaceSx(theme),
-          boxShadow: 'none',
-          opacity: 0.82,
-          transition: 'opacity 0.15s ease',
+          // Subtle resting shadow so the button reads as "floating" above the chat surface.
+          // Previous version used `opacity: 0.82` which reduced visible contrast and hurt
+          // a11y — we now keep the button at full opacity and rely on shadow + position
+          // to communicate its overlay role.
+          boxShadow: (th) =>
+            th.palette.mode === 'dark'
+              ? `0 4px 14px ${alpha('#000', 0.42)}, 0 0 0 1px ${alpha(th.palette.text.primary, 0.12)}`
+              : `0 4px 14px ${alpha('#000', 0.08)}, 0 0 0 1px ${alpha(th.palette.text.primary, 0.08)}`,
+          transition: 'box-shadow 160ms ease, background-color 160ms ease',
           '&:hover': {
-            opacity: 1,
             backgroundColor: getInteractionColors(theme).hoverBackground,
+            boxShadow: (th) =>
+              th.palette.mode === 'dark'
+                ? `0 6px 18px ${alpha('#000', 0.5)}, 0 0 0 1px ${alpha(th.palette.text.primary, 0.18)}`
+                : `0 6px 18px ${alpha('#000', 0.1)}, 0 0 0 1px ${alpha(th.palette.text.primary, 0.12)}`,
           },
         }}
       >
@@ -282,6 +370,7 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
           <Box
             sx={{
               flexShrink: 0,
+              position: 'relative', // Anchor for the absolutely-positioned banner
               zIndex: 2,
               px: { xs: 0, sm: 1 },
               pt: { xs: 1, sm: 1.5 },
@@ -298,7 +387,9 @@ const ChatWorkspaceLayer = memo(function ChatWorkspaceLayer({
               onConfirm={handleGuidedConfirm}
               theme={theme}
             />
-            <ChatInput {...chatInputSharedProps} messageCount={messages.length} />
+            <Box sx={{ position: 'relative', zIndex: 4 }}>
+              <ChatInput {...chatInputSharedProps} messageCount={messages.length} />
+            </Box>
           </Box>
         </Box>
       </Fade>
@@ -533,7 +624,7 @@ function MainInterface() {
         {/* Separator */}
         <Box
           sx={{
-            height: '0.5px',
+            height: '1px',
             backgroundColor: alpha(theme.palette.text.primary, 0.07),
             my: 0.75,
             mx: 0.5,
@@ -646,20 +737,29 @@ function MainInterface() {
         settingsInitialSection={settingsInitialSection}
       />
 
-      <div
-        style={{
+      {/* ── Toast stack ───────────────────────────────────────────────────────
+          Notification toasts stacked in the bottom-right on desktop, centered
+          on narrow viewports. We render into a `pointerEvents: none` container
+          so the underlying UI remains interactive; each toast re-enables its
+          own pointer events.
+
+          We use MUI's `Snackbar` z-index token rather than the previous magic
+          `9999` so the stack stays in sync with MUI's layer cake.
+      */}
+      <Box
+        sx={{
           position: 'fixed',
-          bottom: '24px',
-          right: isNarrowLayout ? 'auto' : '24px',
+          bottom: { xs: 16, sm: 24 },
+          right: isNarrowLayout ? 'auto' : 24,
           left: isNarrowLayout ? '50%' : 'auto',
           transform: isNarrowLayout ? 'translateX(-50%)' : 'none',
-          zIndex: 9999,
+          zIndex: (th) => th.zIndex.snackbar,
           display: 'flex',
           flexDirection: 'column',
-          gap: '10px',
+          gap: 1.25,
           pointerEvents: 'none',
-          width: 'calc(100% - 32px)',
-          maxWidth: '380px',
+          width: { xs: 'calc(100% - 32px)', sm: 'auto' },
+          maxWidth: 380,
         }}
       >
         <AnimatePresence>
@@ -675,7 +775,7 @@ function MainInterface() {
             />
           ))}
         </AnimatePresence>
-      </div>
+      </Box>
       <ConfirmDialog
         open={confirmDialog.open}
         onClose={handleConfirmDialogClose}

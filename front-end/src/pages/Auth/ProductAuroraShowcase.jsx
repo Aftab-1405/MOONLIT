@@ -1,6 +1,24 @@
 import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+/**
+ * ProductAuroraShowcase — the marketing panel on the left of the Auth page.
+ *
+ * Renders:
+ *   - A slowly-rotating aurora background (CSS-only, GPU-accelerated).
+ *   - A typewriter-style headline that cycles through "Query <X>" / "Visualize <Y>" / "Explain <Z>".
+ *   - A floating cluster of database-brand cards that drift on a slow loop.
+ *
+ * Performance:
+ *   - Uses requestAnimationFrame for the typewriter effect (paused when the
+ *     tab is hidden) so we never animate off-screen.
+ *   - All visual effects are CSS transforms (translate/rotate) so they hit
+ *     the GPU compositor and don't trigger layout.
+ *
+ * The whole panel is desktop-only (md and up) — on mobile the Auth page
+ * collapses to a single column with just the form card.
+ */
+
 const DB_CARDS = [
   {
     name: 'PostgreSQL',

@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { resumeAgent, sendMessage } from '@/api';
 import { queryClient, queryKeys } from '@/api/queryClient';
+import { toBackendTaskMode } from '@/config/userSettings';
 import {
   createAssistantMessage,
   createMessageId,
@@ -113,6 +114,7 @@ export function useMessageStreaming({
   dispatchUiAction = () => {},
   onAgentInterrupt = () => {},
   onAgentStepLimitReached = () => {},
+  onTaskModeResolved = () => {},
   getMessages = () => [],
 }) {
   const abortControllerRef = useRef(null);
@@ -324,35 +326,27 @@ export function useMessageStreaming({
             scheduleStreamUpdate(MESSAGE_STATUS.PAUSED);
             break;
 
+          case 'task_mode':
+            // ENH [AUTO-TASK-MODE]: Backend reports the effective task mode
+            // (which may have been auto-elevated from normal → tool_task /
+            // long_task based on the prompt). Forward to the controller so
+            // it can display a badge in the chat input.
+            onTaskModeResolved(event, assistantMessageId);
+            break;
+
           case 'error':
             contentParts.push(`\n\n**Error**: ${event.message}`);
             scheduleStreamUpdate(MESSAGE_STATUS.ERROR);
             break;
 
           case 'usage_metrics':
-            lastUsageMetrics = {
-              inputTokens: event.inputTokens,
-              outputTokens: event.outputTokens,
-              totalTokens: event.totalTokens,
-              activeContextBudget: event.activeContextBudget,
-              totalContextWindow: event.totalContextWindow,
-              inputPayloadTokens: event.inputPayloadTokens,
-              availableInputPayloadTokens: event.availableInputPayloadTokens,
-              pressureTriggerTokens: event.pressureTriggerTokens,
-              modelContextWindow: event.modelContextWindow,
-              reservedOutputTokens: event.reservedOutputTokens,
-              safetyMarginTokens: event.safetyMarginTokens,
-              systemPromptTokens: event.systemPromptTokens,
-              toolSchemaTokens: event.toolSchemaTokens,
-              vampMemoryTokens: event.vampMemoryTokens,
-              taskCheckpointTokens: event.taskCheckpointTokens,
-              hotHistoryBudget: event.hotHistoryBudget,
-              tokenCountingMode: event.tokenCountingMode,
-              tokenCountingReason: event.tokenCountingReason,
-              contextPhase: event.contextPhase,
-              summaryThresholdTokens: event.summaryThresholdTokens,
-              summaryCompleteTurns: event.summaryCompleteTurns,
-            };
+            // FIX [CTX-SYNC]: Spread all fields from the event instead of
+            // listing them explicitly. The old code missed `contextMapTokens`
+            // (added by CENH [6]) and any future fields. Spreading ensures
+            // the stored `.usage` on the message matches the live event,
+            // so the indicator stays in sync when restored from history.
+            lastUsageMetrics = { ...event };
+            delete lastUsageMetrics.type;
             dispatchUiAction({ action: 'usage_metrics', payload: event });
             scheduleStreamUpdate(MESSAGE_STATUS.STREAMING);
             break;
@@ -415,6 +409,7 @@ export function useMessageStreaming({
       navigate,
       onAgentInterrupt,
       onAgentStepLimitReached,
+      onTaskModeResolved,
       registerStreamingConversation,
       setConversations,
       setCurrentConversationId,
@@ -455,7 +450,11 @@ export function useMessageStreaming({
       abortControllerRef.current = new AbortController();
 
       try {
-        const taskMode = overrides?.taskMode ?? settings.taskMode ?? 'normal';
+        // ENH [AUTO-TASK-MODE]: 'auto' → 'normal' on the wire; the backend
+        // classifier then upgrades to tool_task / long_task if the prompt
+        // matches. Explicit non-auto choices are passed through unchanged.
+        const userTaskMode = overrides?.taskMode ?? settings.taskMode ?? 'auto';
+        const taskMode = toBackendTaskMode(userTaskMode);
         const response = await sendMessage(
           {
             prompt,
@@ -569,7 +568,10 @@ export function useMessageStreaming({
       abortControllerRef.current = new AbortController();
 
       try {
-        const taskMode = overrides?.taskMode ?? settings.taskMode ?? 'normal';
+        // ENH [AUTO-TASK-MODE]: Same conversion as sendMessage — 'auto'
+        // becomes 'normal' on the wire; explicit choices pass through.
+        const userTaskMode = overrides?.taskMode ?? settings.taskMode ?? 'auto';
+        const taskMode = toBackendTaskMode(userTaskMode);
         const response = await resumeAgent(
           {
             conversationId: currentConversationId,

@@ -11,13 +11,33 @@ Features:
 
 Note: Oracle Cloud Autonomous DB requires wallet-based authentication which
 is not supported in this simple connection string approach.
+
+Query timeout (FIX [EC3])
+-------------------------
+Oracle has no ``SET QUERY_TIMEOUT``-style SQL statement that the caller
+can ``execute`` before each query. The correct mechanism is the
+``oracledb`` driver's per-connection ``call_timeout`` attribute: when
+set to a non-zero number of milliseconds, every round-trip (RPC/execute
+/fetch) on that connection is aborted by the driver if it exceeds the
+limit, raising ``DPI-1067`` (or ``cx_Oracle.DatabaseError`` on older
+drivers). See ``set_session_timeout`` below.
+
+``get_set_timeout_sql`` therefore still returns ``None``; the callers
+(``operations.execute_sql_query`` and
+``ai_tool_executor._execute_query_with_db_config``) detect the presence
+of ``set_session_timeout`` via ``getattr(adapter, 'set_session_timeout',
+None)`` and call it directly on the connection object before executing
+the user query. The asyncio ``wait_for`` cancel in the caller remains
+the second line of defense.
 """
 
 import logging
 import re
-from typing import Any, Dict, List, Optional
 from contextlib import contextmanager
+from typing import Any, Dict, List, Optional
+
 from config import get_config
+
 Config = get_config()
 from .base_adapter import BaseDatabaseAdapter
 
@@ -38,10 +58,7 @@ class OracleAdapter(BaseDatabaseAdapter):
 
     def __init__(self):
         if not ORACLE_AVAILABLE:
-            raise ImportError(
-                "oracledb is required for Oracle support. "
-                "Install it with: pip install oracledb"
-            )
+            raise ImportError("oracledb is required for Oracle support. Install it with: pip install oracledb")
 
     @property
     def db_type(self) -> str:
@@ -82,10 +99,7 @@ class OracleAdapter(BaseDatabaseAdapter):
 
             return {"user": user, "password": password, "dsn": dsn}
         else:
-            raise ValueError(
-                "Invalid Oracle connection string format. "
-                "Expected: user/password@host:port/service_name"
-            )
+            raise ValueError("Invalid Oracle connection string format. Expected: user/password@host:port/service_name")
 
     def create_connection_pool(self, config: Dict) -> Any:
         """
@@ -113,25 +127,19 @@ class OracleAdapter(BaseDatabaseAdapter):
                 password = parsed["password"]
                 dsn = parsed["dsn"]
 
-                logger.info(
-                    f"Creating Oracle connection pool using connection string for DSN: {dsn}"
-                )
+                logger.info(f"Creating Oracle connection pool using connection string for DSN: {dsn}")
             else:
                 # Local connection via individual parameters
                 host = config.get("host", Config.DEFAULT_ORACLE_HOST)
                 port = config.get("port", Config.DEFAULT_ORACLE_PORT)
                 user = config.get("user", "")
                 password = config.get("password", "")
-                service_name = config.get("service_name") or config.get(
-                    "database", Config.DEFAULT_ORACLE_SERVICE
-                )
+                service_name = config.get("service_name") or config.get("database", Config.DEFAULT_ORACLE_SERVICE)
 
                 # Easy Connect string format: host:port/service_name
                 dsn = f"{host}:{port}/{service_name}"
 
-                logger.info(
-                    f"Creating Oracle connection pool for {user}@{host}:{port}/{service_name}"
-                )
+                logger.info(f"Creating Oracle connection pool for {user}@{host}:{port}/{service_name}")
 
             # Create TRUE connection pool with oracledb
             pool = oracledb.create_pool(
@@ -148,9 +156,7 @@ class OracleAdapter(BaseDatabaseAdapter):
                 getmode=oracledb.POOL_GETMODE_WAIT,  # Wait for connection if pool exhausted
             )
 
-            logger.info(
-                f"Created Oracle connection pool: min={pool.min}, max={pool.max}, opened={pool.opened}"
-            )
+            logger.info(f"Created Oracle connection pool: min={pool.min}, max={pool.max}, opened={pool.opened}")
             return pool
 
         except Exception as err:
@@ -167,9 +173,7 @@ class OracleAdapter(BaseDatabaseAdapter):
             # acquire() gets a connection from the pool (fast!)
             # If pool is exhausted, waits up to 'timeout' seconds
             connection = pool.acquire()
-            logger.debug(
-                f"Acquired Oracle connection from pool (busy={pool.busy}, opened={pool.opened})"
-            )
+            logger.debug(f"Acquired Oracle connection from pool (busy={pool.busy}, opened={pool.opened})")
             return connection
         except Exception as err:
             logger.error(f"Failed to acquire Oracle connection from pool: {err}")
@@ -201,9 +205,7 @@ class OracleAdapter(BaseDatabaseAdapter):
             logger.warning(f"Failed to release Oracle connection to pool: {err}")
 
     @contextmanager
-    def get_cursor(
-        self, connection: Any, dictionary: bool = False, buffered: bool = True
-    ):
+    def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
         """Get Oracle cursor from connection."""
         cursor = None
         try:
@@ -223,9 +225,9 @@ class OracleAdapter(BaseDatabaseAdapter):
         # Oracle doesn't have "databases" like MySQL/PostgreSQL
         # We list user schemas instead
         return """
-            SELECT username 
-            FROM all_users 
-            WHERE username NOT IN ('SYS', 'SYSTEM', 'ORACLE_OCM', 'XDB', 'WMSYS', 
+            SELECT username
+            FROM all_users
+            WHERE username NOT IN ('SYS', 'SYSTEM', 'ORACLE_OCM', 'XDB', 'WMSYS',
                                    'CTXSYS', 'MDSYS', 'OLAPSYS', 'ORDDATA', 'ORDSYS',
                                    'OUTLN', 'DBSNMP', 'APPQOSSYS', 'ANONYMOUS')
             ORDER BY username
@@ -243,7 +245,7 @@ class OracleAdapter(BaseDatabaseAdapter):
     def get_table_schema_query(self) -> str:
         """SQL query to get Oracle table schema."""
         return """
-            SELECT 
+            SELECT
                 column_name,
                 data_type,
                 nullable,
@@ -273,16 +275,30 @@ class OracleAdapter(BaseDatabaseAdapter):
         }
 
     def validate_connection(self, connection: Any) -> bool:
-        """Validate Oracle connection is alive."""
+        """
+        Validate that the Oracle connection is alive by issuing ``SELECT 1 FROM DUAL``.
+
+        Resource handling (FIX [M11]): the cursor is created inside a
+        ``try/finally`` so it is always closed even if ``execute`` or
+        ``fetchone`` raises. Previously the cursor was only closed on the
+        success path, which leaked it on every validation failure.
+        """
+        cursor = None
         try:
             if connection:
                 cursor = connection.cursor()
                 cursor.execute("SELECT 1 FROM DUAL")
                 cursor.fetchone()
-                cursor.close()
                 return True
         except Exception as e:
             logger.debug(f"Oracle connection validation failed: {e}")
+        finally:
+            # FIX [M11]: always close the cursor, even on the error path.
+            if cursor is not None:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
         return False
 
     # =========================================================================
@@ -293,17 +309,86 @@ class OracleAdapter(BaseDatabaseAdapter):
         """Return SQL query and params to get all tables for schema caching."""
         # In Oracle, db_name is actually the schema/owner
         query = """
-            SELECT table_name 
-            FROM all_tables 
+            SELECT table_name
+            FROM all_tables
             WHERE owner = :1
             ORDER BY table_name
         """
         return query, (db_name.upper(),)
 
     def get_set_timeout_sql(self, timeout_seconds: int) -> Optional[str]:
-        """Return Oracle query timeout SQL."""
+        """
+        Return Oracle query timeout SQL.
+
+        FIX [EC3]: Oracle has no ``SET QUERY_TIMEOUT``-style SQL
+        statement. The correct mechanism is the ``oracledb`` driver's
+        per-connection ``call_timeout`` attribute (see
+        ``set_session_timeout``). This method therefore still returns
+        ``None`` so that the generic SQL-string-based timeout path is
+        skipped for Oracle; callers detect ``set_session_timeout`` via
+        ``getattr`` and apply it directly to the connection object.
+        """
         # Oracle doesn't support query-level timeout in the same way
         return None
+
+    def get_health_check_sql(self) -> str:
+        """
+        Return Oracle's no-op health-check SQL.
+
+        FIX [EC6]: Oracle requires a ``FROM`` clause on every SELECT,
+        so ``SELECT 1`` raises ``ORA-00923: FROM keyword not found``.
+        ``DUAL`` is a one-row virtual table provided specifically for
+        this purpose. Used by ``operations.execute_sql_query`` and
+        ``ai_tool_executor._execute_query_with_db_config`` to verify
+        the pooled connection is alive before issuing the user query.
+        """
+        return "SELECT 1 FROM DUAL"
+
+    def set_session_timeout(self, conn: Any, seconds: int) -> None:
+        """
+        Apply a per-connection call timeout to an Oracle connection.
+
+        FIX [EC3]: oracledb's ``Connection.call_timeout`` is the
+        server-side timeout mechanism for Oracle. When set to a non-zero
+        number of milliseconds, every round-trip (execute / fetch / RPC)
+        on that connection is aborted by the driver if it exceeds the
+        limit, raising ``DPI-1067`` (or ``cx_Oracle.DatabaseError`` on
+        older drivers). This is the only reliable way to enforce a
+        per-query timeout on Oracle — there is no ``SET QUERY_TIMEOUT``
+        SQL statement the caller can execute.
+
+        Called from ``operations.execute_sql_query`` and
+        ``ai_tool_executor._execute_query_with_db_config`` via
+        ``getattr(adapter, 'set_session_timeout', None)`` before the
+        user query is executed. We deliberately accept ``seconds`` here
+        (matching the ``get_set_timeout_sql`` interface) and convert to
+        ms internally — oracledb uses milliseconds.
+
+        Args:
+            conn: oracledb Connection object (acquired from the pool).
+            seconds: Timeout in seconds. 0 disables the timeout (no
+                upper bound on round-trip time).
+
+        Raises:
+            Nothing: a failure to set the timeout is logged at debug
+                level and swallowed, mirroring the SQL-string timeout
+                path's tolerance in other adapters. The asyncio
+                ``wait_for`` cancel in the caller remains the second
+                line of defense.
+        """
+        try:
+            # oracledb uses milliseconds for call_timeout.
+            conn.call_timeout = int(seconds) * 1000
+            logger.debug(
+                "Oracle call_timeout set to %dms on connection %r",
+                int(seconds) * 1000,
+                conn,
+            )
+        except Exception as e:
+            logger.debug(
+                "Could not set Oracle call_timeout (older driver or non-oracledb conn?): %s",
+                e,
+            )
 
     def get_column_names_from_cursor(self, cursor: Any) -> List[str]:
         """Extract column names from Oracle cursor."""
@@ -315,9 +400,7 @@ class OracleAdapter(BaseDatabaseAdapter):
         """Return SQL query and params to get all schemas for caching."""
         return self.get_databases_query(), ()
 
-    def get_batch_columns_for_tables(
-        self, db_name: str, tables: List[str], schema: str = None
-    ) -> tuple:
+    def get_batch_columns_for_tables(self, db_name: str, tables: List[str], schema: str = None) -> tuple:
         """Return SQL query and params to batch fetch columns for multiple tables.
 
         Returns (table_name, column_name, column_key) where column_key is 'PRI' for primary keys.
@@ -329,15 +412,15 @@ class OracleAdapter(BaseDatabaseAdapter):
         # Building IN clause with positional params
         table_placeholders = ",".join([f":{i + 2}" for i in range(len(tables))])
         query = f"""
-            SELECT 
-                c.table_name, 
+            SELECT
+                c.table_name,
                 c.column_name,
                 CASE WHEN pk.column_name IS NOT NULL THEN 'PRI' ELSE '' END AS column_key
             FROM all_tab_columns c
             LEFT JOIN (
                 SELECT cc.table_name, cc.column_name
                 FROM all_constraints con
-                JOIN all_cons_columns cc ON con.constraint_name = cc.constraint_name 
+                JOIN all_cons_columns cc ON con.constraint_name = cc.constraint_name
                     AND con.owner = cc.owner
                 WHERE con.constraint_type = 'P'
                 AND con.owner = :1
@@ -353,12 +436,10 @@ class OracleAdapter(BaseDatabaseAdapter):
     # Schema Metadata Methods (for AI tools)
     # =========================================================================
 
-    def get_indexes_query(
-        self, table_name: str, db_name: str = None, schema: str = None
-    ) -> tuple:
+    def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = None) -> tuple:
         """Return SQL query and params to get indexes for an Oracle table."""
         query = """
-            SELECT 
+            SELECT
                 i.index_name,
                 ic.column_name,
                 CASE WHEN i.uniqueness = 'UNIQUE' THEN 1 ELSE 0 END AS is_unique,
@@ -371,15 +452,13 @@ class OracleAdapter(BaseDatabaseAdapter):
         owner = db_name.upper() if db_name else schema.upper() if schema else "PUBLIC"
         return query, (table_name.upper(), owner)
 
-    def get_foreign_keys_query(
-        self, table_name: str = None, db_name: str = None, schema: str = None
-    ) -> tuple:
+    def get_foreign_keys_query(self, table_name: str = None, db_name: str = None, schema: str = None) -> tuple:
         """Return SQL query and params to get foreign key relationships in Oracle."""
         owner = db_name.upper() if db_name else schema.upper() if schema else "PUBLIC"
 
         if table_name:
             query = """
-                SELECT 
+                SELECT
                     a.table_name,
                     a.column_name,
                     c_pk.table_name AS referenced_table,
@@ -394,7 +473,7 @@ class OracleAdapter(BaseDatabaseAdapter):
             return query, (table_name.upper(), owner)
         else:
             query = """
-                SELECT 
+                SELECT
                     a.table_name,
                     a.column_name,
                     c_pk.table_name AS referenced_table,
@@ -407,3 +486,153 @@ class OracleAdapter(BaseDatabaseAdapter):
                 ORDER BY a.table_name, a.column_name
             """
             return query, (owner,)
+
+    # =========================================================================
+    # EXPLAIN / Query-plan Methods (added for the explain_query AI tool)
+    # =========================================================================
+    #
+    # Oracle's EXPLAIN flow is two-statement:
+    #   1. ``EXPLAIN PLAN SET STATEMENT_ID = 'agent' FOR <query>`` writes the
+    #      plan into the ``PLAN_TABLE`` (a per-user global table) keyed by
+    #      the statement_id. The query is NOT executed — only its plan is
+    #      computed and stored.
+    #   2. ``SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, 'agent', 'ALL'))``
+    #      retrieves the formatted plan text (one row per line of output).
+    #
+    # The shared 'agent' statement_id is reused across calls. A previous
+    # plan with the same statement_id is automatically overwritten by the
+    # next EXPLAIN PLAN, so we don't strictly need to clean it up — but
+    # concurrent calls from the same user on the same pool could collide.
+    # The single-threaded nature of the AI tool path (one tool call at a
+    # time per stream) makes this safe in practice. ``explain_format =
+    # "text"`` because DBMS_XPLAN.DISPLAY returns formatted text rows.
+
+    @property
+    def explain_format(self) -> str:
+        """Oracle EXPLAIN output format tag (text from DBMS_XPLAN.DISPLAY)."""
+        return "text"
+
+    def get_explain_sql(self, query: str) -> str:
+        """Return Oracle ``EXPLAIN PLAN`` for a validated read-only query.
+
+        This produces the SETUP statement only; retrieving the formatted
+        plan requires a second statement (see ``run_explain``). The
+        statement_id ``'agent'`` is reused across calls — Oracle overwrites
+        the prior plan for the same statement_id, so no cleanup is needed.
+        """
+        return f"EXPLAIN PLAN SET STATEMENT_ID = 'agent' FOR {query}"
+
+    def run_explain(self, cursor: Any, query: str) -> list:
+        """Execute Oracle EXPLAIN PLAN and return formatted plan rows.
+
+        Workflow:
+          1. ``EXPLAIN PLAN SET STATEMENT_ID = 'agent' FOR <query>`` —
+             compute the plan and store it in PLAN_TABLE.
+          2. ``SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, 'agent',
+             'ALL'))`` — return the formatted plan text rows.
+
+        The 'ALL' format includes cost, cardinality, bytes, partition
+        info, predicate info, and column projections — the richest
+        non-executing plan Oracle offers.
+        """
+        # Step 1: compute and store the plan.
+        cursor.execute(self.get_explain_sql(query))
+
+        # Step 2: retrieve the formatted plan text.
+        display_query = "SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, 'agent', 'ALL'))"
+        cursor.execute(display_query)
+        return cursor.fetchall()
+
+    # =========================================================================
+    # Table-details Method (added for the get_table_details AI tool)
+    # =========================================================================
+
+    def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = None) -> tuple:
+        """Return SQL query and params for a rich per-column Oracle schema dump.
+
+        Returns one row per column with positional columns:
+            name, data_type, is_nullable, default_value,
+            is_primary_key (0/1), is_unique (0/1), max_length
+
+        ``db_name`` is interpreted as the owner (Oracle schema). Oracle's
+        positional bind syntax (``:1``, ``:2``, ...) is used.
+        """
+        owner = db_name.upper() if db_name else (schema.upper() if schema else "PUBLIC")
+        query = """
+            SELECT
+                c.column_name AS name,
+                c.data_type AS data_type,
+                c.nullable AS is_nullable,
+                c.data_default AS default_value,
+                CASE WHEN pk.column_name IS NOT NULL THEN 1 ELSE 0 END AS is_primary_key,
+                CASE WHEN uq.column_name IS NOT NULL THEN 1 ELSE 0 END AS is_unique,
+                c.data_length AS max_length
+            FROM all_tab_columns c
+            LEFT JOIN (
+                SELECT cc.table_name, cc.column_name
+                FROM all_constraints con
+                JOIN all_cons_columns cc ON con.constraint_name = cc.constraint_name
+                    AND con.owner = cc.owner
+                WHERE con.constraint_type = 'P'
+                AND con.owner = :1
+                AND cc.table_name = :2
+            ) pk ON c.table_name = pk.table_name AND c.column_name = pk.column_name
+            LEFT JOIN (
+                SELECT cc.table_name, cc.column_name
+                FROM all_constraints con
+                JOIN all_cons_columns cc ON con.constraint_name = cc.constraint_name
+                    AND con.owner = cc.owner
+                WHERE con.constraint_type = 'U'
+                AND con.owner = :3
+                AND cc.table_name = :4
+            ) uq ON c.table_name = uq.table_name AND c.column_name = uq.column_name
+            WHERE c.owner = :5
+            AND c.table_name = :6
+            ORDER BY c.column_id
+        """
+        return query, (
+            owner,
+            table_name.upper(),
+            owner,
+            table_name.upper(),
+            owner,
+            table_name.upper(),
+        )
+
+    # =========================================================================
+    # Views Introspection Methods (added for the list_views AI tool)
+    # =========================================================================
+
+    def get_views(self, schema: str = None, db_name: str = None) -> tuple:
+        """Return SQL query and params to list Oracle views owned by ``db_name``.
+
+        ``db_name`` is interpreted as the owner (Oracle schema); ``schema``
+        is accepted for API uniformity but ignored — Oracle has no
+        sub-schema concept below the user/owner level. Materialized views
+        are queried separately via ``get_materialized_views`` (Oracle
+        supports them via ``all_mviews``).
+        """
+        owner = db_name.upper() if db_name else (schema.upper() if schema else "PUBLIC")
+        query = """
+            SELECT view_name
+            FROM all_views
+            WHERE owner = :1
+            ORDER BY view_name
+        """
+        return query, (owner,)
+
+    def get_materialized_views(self, schema: str = None, db_name: str = None):
+        """Return SQL query and params to list Oracle materialized views.
+
+        Oracle exposes materialized views via ``all_mviews``. The
+        ``mview_name`` column is the equivalent of ``view_name`` on
+        ``all_views``.
+        """
+        owner = db_name.upper() if db_name else (schema.upper() if schema else "PUBLIC")
+        query = """
+            SELECT mview_name
+            FROM all_mviews
+            WHERE owner = :1
+            ORDER BY mview_name
+        """
+        return query, (owner,)

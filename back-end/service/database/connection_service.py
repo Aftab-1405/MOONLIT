@@ -105,11 +105,7 @@ class ConnectionService:
         db_type = result.get("db_type") or db_config.get("db_type", "mysql")
         database = ConnectionService._context_database(result, db_config, db_type)
         host = ConnectionService._context_host(db_type, db_config)
-        is_remote = bool(
-            result.get("is_remote")
-            or db_config.get("is_remote")
-            or db_config.get("connection_string")
-        )
+        is_remote = bool(result.get("is_remote") or db_config.get("is_remote") or db_config.get("connection_string"))
         schema = db_config.get("schema", "public")
 
         try:
@@ -117,9 +113,7 @@ class ConnectionService:
                 get_default_context_sync,
             )
 
-            get_default_context_sync().set_connection(
-                user_id, db_type, database, host, is_remote, schema
-            )
+            get_default_context_sync().set_connection(user_id, db_type, database, host, is_remote, schema)
             logger.info(f"Synced context for user {user_id}: {db_type}/{database}")
         except Exception as e:
             logger.warning(f"Failed to sync context: {e}")
@@ -127,20 +121,14 @@ class ConnectionService:
         if database:
             tables = result.get("tables")
             if tables is None:
-                tables = ConnectionService._fetch_tables_for_context(
-                    db_config, database, db_type
-                )
+                tables = ConnectionService._fetch_tables_for_context(db_config, database, db_type)
 
-            ConnectionService._store_schema_context(
-                user_id, db_config, database, tables or [], db_type
-            )
+            ConnectionService._store_schema_context(user_id, db_config, database, tables or [], db_type)
 
     @staticmethod
     def _context_database(result: dict, db_config: dict, db_type: str) -> str:
         selected_database = (
-            result.get("selected_database")
-            or result.get("selectedDatabase")
-            or db_config.get("database")
+            result.get("selected_database") or result.get("selectedDatabase") or db_config.get("database")
         )
         if selected_database:
             return selected_database
@@ -172,30 +160,49 @@ class ConnectionService:
         return match.group(1) if match else "remote"
 
     @staticmethod
-    def _fetch_tables_for_context(
-        db_config: dict, database: str, db_type: str
-    ) -> list[str]:
+    def _fetch_tables_for_context(db_config: dict, database: str, db_type: str) -> list[str]:
+        """
+        Fetch the table list for a database, used to populate the schema
+        context cache after a connect/select/switch.
+
+        FIX [M13]: previously this passed only ``database`` to
+        ``DatabaseOperations.get_tables`` and let the adapter default the
+        schema (``public`` for PostgreSQL, ``dbo`` for SQL Server). For a
+        user connected to a non-default schema (e.g. ``analytics``), the
+        cached table list was wrong. We now forward ``db_config["schema"]``
+        when present so the cache reflects the user's actual schema.
+        """
         try:
             from service.database.operations import DatabaseOperations
 
-            schema = db_config.get("schema", "public")
+            # FIX [M13]: use the user's selected schema, not the adapter default.
+            schema = db_config.get("schema") or "public"
             return DatabaseOperations.get_tables(db_config, database, schema=schema)
         except Exception as e:
             logger.warning(f"Failed to fetch tables for context: {e}")
             return []
 
     @staticmethod
-    def _store_schema_context(
-        user_id: str, db_config: dict, database: str, tables: list, db_type: str
-    ) -> None:
-        """Store database schema as AI context in Firestore."""
+    def _store_schema_context(user_id: str, db_config: dict, database: str, tables: list, db_type: str) -> None:
+        """
+        Store database schema (tables + columns) as AI context in Firestore.
+
+        FIX [M13]: previously this called
+        ``adapter.get_batch_columns_for_tables(database, tables_subset)`` with
+        no ``schema`` argument, so the adapter used its default schema
+        (``public`` for PostgreSQL, ``dbo`` for SQL Server). For a user
+        connected to a non-default schema, the cached columns were wrong —
+        the AI agent would then generate SQL against the wrong column set.
+        We now forward ``db_config.get("schema")`` so the cache reflects
+        the user's selected schema.
+        """
         try:
-            from service.database.connection_manager import get_connection_manager
+            from config import get_config
             from service.database.adapters import get_adapter
+            from service.database.connection_manager import get_connection_manager
             from service.database.context_sync import (
                 get_default_context_sync,
             )
-            from config import get_config
 
             config = get_config()
             max_tables = config.SCHEMA_CONTEXT_MAX_TABLES
@@ -203,9 +210,12 @@ class ConnectionService:
             adapter = get_adapter(db_type)
             manager = get_connection_manager()
 
+            # FIX [M13]: use the user's selected schema, not the adapter default.
+            schema = db_config.get("schema") or "public"
+
             columns = {}
             tables_subset = tables[:max_tables]
-            query, params = adapter.get_batch_columns_for_tables(database, tables_subset)
+            query, params = adapter.get_batch_columns_for_tables(database, tables_subset, schema=schema)
 
             if query:
                 with manager.get_cursor(db_config) as cursor:
@@ -218,19 +228,13 @@ class ConnectionService:
                         if table_name not in columns:
                             columns[table_name] = []
 
-                        columns[table_name].append(
-                            {"name": column_name, "is_primary_key": column_key == "PRI"}
-                        )
+                        columns[table_name].append({"name": column_name, "is_primary_key": column_key == "PRI"})
 
             for table in tables_subset:
                 if table not in columns:
                     columns[table] = []
 
-            get_default_context_sync().store_schema_context(
-                user_id, database, tables, columns
-            )
-            logger.info(
-                f"Stored schema context for {database}: {len(tables)} tables (limit: {max_tables})"
-            )
+            get_default_context_sync().store_schema_context(user_id, database, tables, columns)
+            logger.info(f"Stored schema context for {database}.{schema}: {len(tables)} tables (limit: {max_tables})")
         except Exception as e:
             logger.warning(f"Failed to store schema context: {e}")

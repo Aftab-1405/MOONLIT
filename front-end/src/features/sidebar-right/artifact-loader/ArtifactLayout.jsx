@@ -16,6 +16,22 @@ import {
 } from '@/features/styles/interfaceChrome';
 import { getScrollbarStyles } from '@/styles/shared';
 
+/**
+ * ArtifactLayout — chrome primitives for the right-side artifact panel.
+ *
+ * Provides:
+ *   - `ArtifactShell`         — full-panel wrapper (header + body + footer)
+ *   - `ArtifactHeader`        — title + subtitle + actions row
+ *   - `ArtifactToolbar`       — secondary controls row below the header
+ *   - `ArtifactBody`          — scrollable content area
+ *   - `ArtifactFooter`        — optional bottom action bar
+ *   - `ArtifactEmptyState`    — centred placeholder for empty / error states
+ *
+ * All sections share the same divider colour (`getAppDividerColor`) and
+ * surface treatment (`getAppBarSurfaceSx`) so the panel reads as one
+ * cohesive surface rather than a stack of disconnected cards.
+ */
+
 function getArtifactBarSx(theme) {
   return {
     borderColor: getAppDividerColor(theme),

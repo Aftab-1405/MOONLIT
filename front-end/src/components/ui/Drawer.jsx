@@ -6,6 +6,26 @@ import { useTheme } from '@mui/material/styles';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { createContext, useContext, useEffect } from 'react';
 
+/**
+ * Drawer — accessible slide-in panel built on framer-motion.
+ *
+ * Used by the mobile sidebar and any other overlay panel that needs to
+ * slide in from a screen edge. Composes three sub-components:
+ *
+ *   Drawer (open, onOpenChange, side) wraps:
+ *     DrawerOverlay     - click-to-close backdrop
+ *     DrawerContent     - the sliding panel itself
+ *
+ * Accessibility:
+ *   - Escape key closes the drawer (handled here, not by consumers).
+ *   - Close button has `aria-label="Close"` and a visible focus ring.
+ *   - Backdrop click dismisses.
+ *
+ * The sliding panel uses a layered box-shadow (close + ambient) rather than
+ * a single hard drop shadow so the drawer reads as "elevated" rather than
+ * "floating".
+ */
+
 const DrawerContext = createContext(undefined);
 
 export const useDrawerContext = () => {
@@ -129,7 +149,12 @@ export const DrawerContent = React.forwardRef(
           zIndex: theme.zIndex.drawer + 1,
           backgroundColor: 'background.paper',
           color: 'text.primary',
-          boxShadow: theme.shadows[16],
+          // Layered shadow = premium feel. Two-stop shadow (close + ambient)
+          // reads as "elevated panel" rather than a hard drop shadow.
+          boxShadow:
+            theme.palette.mode === 'dark'
+              ? `0 18px 48px ${alpha('#000', 0.6)}, 0 4px 12px ${alpha('#000', 0.36)}`
+              : `0 18px 48px ${alpha('#000', 0.12)}, 0 4px 12px ${alpha('#000', 0.05)}`,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
@@ -152,12 +177,19 @@ export const DrawerContent = React.forwardRef(
             size="small"
             sx={{
               position: 'absolute',
-              top: 12,
+              // Use safe-area-aware top so the button never collides with the
+              // status bar / notch on mobile.
+              top: 'max(env(safe-area-inset-top), 12px)',
               right: 12,
               color: 'text.secondary',
               borderRadius: '50%',
               '&:hover': {
                 backgroundColor: alpha(theme.palette.text.primary, 0.08),
+                color: 'text.primary',
+              },
+              '&:focus-visible': {
+                outline: `2px solid ${alpha(theme.palette.text.primary, 0.4)}`,
+                outlineOffset: 2,
               },
             }}
           >

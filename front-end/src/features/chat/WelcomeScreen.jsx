@@ -7,8 +7,19 @@ import SchemaIcon from '@/components/icons/SchemaIcon';
 import ChatInput from '@/features/chat/ChatInput';
 import { getWelcomeHeroSx } from '@/features/styles/interfaceChrome';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
-import { getInteractionColors, UI_LAYOUT } from '@/styles/shared';
+import { getInteractionColors, getPillSx, UI_LAYOUT } from '@/styles/shared';
+import { BRAND } from '@/theme/tokens';
 
+/**
+ * WelcomeScreen — empty-state hero shown when no conversation is selected.
+ *
+ * Renders the greeting headline + composer + suggestion chips. The user's
+ * first name uses the Moonlit brand gradient (orange → purple → pink) as an
+ * identity moment — this is the only place in the chat interface where the
+ * brand color appears at full saturation.
+ */
+
+/** Soft entrance animation — fades content up from 4px below. */
 const softReveal = keyframes`
   from {
     opacity: 0;
@@ -20,6 +31,7 @@ const softReveal = keyframes`
   }
 `;
 
+/** Subtle gradient drift on the highlighted first-name (8s loop). */
 const gradientFlow = keyframes`
   0% { background-position: 0% 50%; }
   50% { background-position: 100% 50%; }
@@ -46,60 +58,12 @@ const SUGGESTIONS = [
   },
 ];
 
-const getSuggestionChipSx = (theme, interaction) => ({
-  height: 30,
-  borderRadius: '8px',
-  border: '1px solid',
-  borderColor: interaction.border,
-  color: 'text.secondary',
-  backgroundColor: 'transparent',
-  cursor: 'pointer',
-  transition: theme.transitions.create(['background-color', 'color', 'transform', 'box-shadow'], {
-    duration: theme.transitions.duration.shorter,
-  }),
-  '&:active': {
-    backgroundColor: interaction.activeBackground,
-    transform: 'translateY(0.5px)',
-  },
-  '& .MuiChip-label': {
-    px: 1.2,
-    ...theme.typography.uiCaptionSm,
-    lineHeight: 1,
-    display: 'flex',
-    alignItems: 'center',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-  },
-  '& .MuiChip-icon': {
-    color: alpha(theme.palette.text.primary, 0.45),
-    ml: 1,
-    mr: -0.25,
-    fontSize: 16,
-    flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    transition: theme.transitions.create('color', {
-      duration: theme.transitions.duration.shorter,
-    }),
-  },
-  [HOVER_CAPABLE_QUERY]: {
-    '&:hover': {
-      borderColor: interaction.border,
-      backgroundColor: interaction.hoverBackground,
-      color: 'text.primary',
-      transform: 'translateY(-1.5px)',
-      boxShadow: `0 3px 10px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.03)}`,
-      '& .MuiChip-icon': {
-        color: alpha(theme.palette.text.primary, 0.65),
-      },
-    },
-  },
-  '&.Mui-focusVisible': {
-    borderColor: interaction.border,
-    boxShadow: `0 0 0 3px ${interaction.focusRing}`,
-  },
-});
+/**
+ * Build the sx for a suggestion chip.
+ * Uses the shared `getPillSx` from styles/shared.js so every pill/chip in
+ * the app has identical geometry and interaction states.
+ */
+const getSuggestionChipSx = (theme, interaction) => getPillSx(theme, interaction);
 
 function WelcomeScreen({ visible, user, chatInputProps }) {
   const theme = useTheme();
@@ -117,6 +81,31 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
       onSend?.(prompt);
     },
     [onSend],
+  );
+
+  // Brand gradient for the user's first name. This is the Moonlit brand
+  // accent — orange → purple → pink — used as an identity moment on the
+  // welcome hero. The gradient slowly shimmers (cycles left → right) to
+  // give the empty state a sense of life without being distracting.
+  const nameGradientSx = useMemo(
+    () => ({
+      display: 'inline-block',
+      // Brand shimmer gradient (orange → purple → pink → orange). The 4th
+      // stop matches the 1st so the loop is seamless.
+      backgroundImage: BRAND.shimmer,
+      backgroundSize: '300% 100%',
+      backgroundClip: 'text',
+      WebkitBackgroundClip: 'text',
+      WebkitTextFillColor: 'transparent',
+      animation: `${gradientFlow} 6s linear infinite`,
+      fontWeight: 600,
+      '@media (prefers-reduced-motion: reduce)': {
+        animation: 'none',
+        // Fall back to the static 3-stop gradient (no animation).
+        backgroundImage: BRAND.static,
+      },
+    }),
+    [],
   );
 
   return (
@@ -155,12 +144,18 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
               component="h1"
               sx={{
                 ...getWelcomeHeroSx(theme),
+                // Use the new display-weight hero variant for an editorial
+                // "moment" feel — tighter letter-spacing, serif face, heavier
+                // weight. Falls back gracefully on small screens.
+                ...theme.typography.uiDisplayMd,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.24em',
                 flexWrap: 'wrap',
                 maxWidth: { xs: 'min(100%, 680px)', sm: 720 },
+                // Override uiDisplayMd's font-size with the responsive scale
+                // we already tuned for this hero.
                 fontSize: { xs: '1.65rem', sm: '2.05rem', md: '2.55rem' },
                 fontWeight: 500,
                 lineHeight: 1.18,
@@ -177,24 +172,7 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
                 {firstName ? ',' : ''}
               </Box>
               {firstName ? (
-                <Box
-                  component="span"
-                  sx={{
-                    display: 'inline-block',
-                    backgroundImage: `linear-gradient(to right, #ffaa40, #9c40ff, #ff5a8c, #ffaa40)`,
-                    backgroundSize: '300% 100%',
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    animation: `${gradientFlow} 6s linear infinite`,
-                    fontWeight: 600,
-                    '@media (prefers-reduced-motion: reduce)': {
-                      animation: 'none',
-                      backgroundImage: 'none',
-                      WebkitTextFillColor: 'currentColor',
-                    },
-                  }}
-                >
+                <Box component="span" sx={nameGradientSx}>
                   {` ${firstName}?`}
                 </Box>
               ) : (

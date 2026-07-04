@@ -2,11 +2,11 @@ import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import { Box, Button, Container, Stack, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { REDUCED_MOTION_QUERY, Section } from '@/pages/Landing/index';
-import { getMoonlitBrandGradients } from '@/theme/themeEffects';
+import { BRAND } from '@/theme/tokens';
 
 function FinalCTA({ onGetStarted }) {
   const theme = useTheme();
-  const brandGradients = getMoonlitBrandGradients(theme);
+  const isDark = theme.palette.mode === 'dark';
 
   return (
     <Section sx={{ flexDirection: 'column', py: { xs: 6, md: 8 } }}>
@@ -21,12 +21,7 @@ function FinalCTA({ onGetStarted }) {
             <Box
               component="span"
               sx={{
-                background: brandGradients.shimmer,
-                backgroundSize: '200% auto',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                animation: 'shimmer 5s linear infinite',
+                color: BRAND.main,
               }}
             >
               Your Database?
@@ -40,7 +35,7 @@ function FinalCTA({ onGetStarted }) {
 
           <Button
             size="large"
-            variant="outlined"
+            variant="contained"
             color="primary"
             onClick={onGetStarted}
             endIcon={<ArrowForwardRoundedIcon />}
@@ -49,14 +44,21 @@ function FinalCTA({ onGetStarted }) {
               py: 1.75,
               borderRadius: 2,
               fontWeight: 600,
+              // Solid brand purple — matches the hero CTA.
+              backgroundColor: BRAND.main,
+              '&:hover': {
+                backgroundColor: BRAND.dark,
+              },
+              boxShadow: `0 4px 14px ${alpha(BRAND.main, isDark ? 0.4 : 0.24)}`,
               transition: theme.transitions.create(
-                ['background-color', 'border-color', 'color', 'transform'],
+                ['box-shadow', 'transform', 'background-color'],
                 { duration: 200 },
               ),
               [REDUCED_MOTION_QUERY]: { transition: 'none' },
               '@media (hover: hover)': {
                 '&:hover': {
                   transform: 'translateY(-2px)',
+                  boxShadow: `0 8px 22px ${alpha(BRAND.main, isDark ? 0.5 : 0.32)}`,
                 },
               },
               '&:active': { transform: 'scale(0.98)' },

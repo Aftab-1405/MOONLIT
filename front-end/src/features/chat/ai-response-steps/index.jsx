@@ -1,6 +1,6 @@
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { Box, ButtonBase, Collapse, Typography, useMediaQuery, useTheme } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { alpha, keyframes } from '@mui/material/styles';
 import { memo, useCallback, useMemo, useState } from 'react';
 import {
   DoneIndicator,
@@ -23,7 +23,37 @@ import {
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { TRANSITIONS } from '@/theme/index';
 
-export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming }) {
+/**
+ * StepsAccordion — collapsible summary of the AI's reasoning steps.
+ *
+ * Renders a single-line summary that, when expanded, shows the full timeline
+ * of thinking + tool steps (delegated to StepTimelineItems).
+ *
+ * Visual states:
+ *   - Live (streaming + active step): summary text shimmers; small pulsing
+ *     dot before the text signals "work in progress".
+ *   - Idle (not streaming, all complete): static summary; subtle check mark
+ *     before the text signals "done".
+ *   - Single workflow step (e.g. summarization): not expandable, renders as
+ *     a plain status line.
+ *
+ * The accordion starts collapsed and only opens when the user clicks it —
+ * there is no auto-expand or auto-collapse behavior. The live shimmer and
+ * status dot still update during streaming so the user can see progress is
+ * happening, but the timeline details are hidden until the user opts in.
+ */
+
+// Soft pulse for the "live" status dot. Kept subtle so it doesn't compete
+// with the shimmer on the summary text.
+const dotPulse = keyframes`
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.5; transform: scale(0.85); }
+`;
+
+export const StepsAccordion = memo(function StepsAccordion({
+  steps,
+  isStreaming,
+}) {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -40,13 +70,13 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
   );
   // Shimmer is "live" when the outer turn is streaming AND this accordion
   // still has active work (a running tool or an incomplete thinking step).
-  // This ensures a completed workflow step (e.g. summarization) stops
-  // shimmering the moment it finishes — even if the LLM is still generating
-  // text below it. Tying isLive purely to isStreaming caused the header to
-  // keep shimmering with "Conversation context summarized." while the LLM
-  // continued, creating a false "in-progress" signal.
   const hasActiveStep = useMemo(() => isAnyStepActive(normalizedSteps), [normalizedSteps]);
   const isLive = isStreaming && hasActiveStep;
+  // Error state — if any tool step errored, the summary dot turns red.
+  const hasError = useMemo(
+    () => normalizedSteps.some((s) => s.type === 'tool' && s.isError),
+    [normalizedSteps],
+  );
 
   const isSingleWorkflowStep =
     normalizedSteps.length === 1 && normalizedSteps[0].id?.startsWith('workflow-');
@@ -62,6 +92,19 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
 
   const summaryColor = alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.55);
   const summaryHighlight = alpha(theme.palette.text.primary, isDark ? 0.92 : 0.82);
+
+  // Status dot color reflects the accordion's overall state.
+  //   - Live (streaming + active)  → text.primary (neutral, "working")
+  //   - Error                      → error.main (red, "failed")
+  //   - Done (all complete)        → success.main (green, "succeeded")
+  //   - Default                    → text.secondary (muted)
+  const statusDotColor = hasError
+    ? theme.palette.error.main
+    : isLive
+      ? theme.palette.text.primary
+      : isAllComplete
+        ? theme.palette.success.main
+        : theme.palette.text.secondary;
 
   return (
     <Box
@@ -121,11 +164,29 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
           sx={{
             display: 'flex',
             alignItems: 'center',
-            gap: 0.5,
+            gap: 1,
             flex: 1,
             minWidth: 0,
           }}
         >
+          {/* Status dot — small (6px) indicator before the summary text.
+              Color reflects the overall state (live/error/done/idle).
+              Pulses when live. */}
+          <Box
+            aria-hidden
+            sx={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              backgroundColor: statusDotColor,
+              flexShrink: 0,
+              transition: 'background-color 200ms ease',
+              ...(isLive && {
+                animation: `${dotPulse} 1.8s ease-in-out infinite`,
+                '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
+              }),
+            }}
+          />
           <Typography
             className="summary-text"
             sx={{
@@ -171,6 +232,9 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
         >
           {isExpandable && (
             <>
+              {/* Step count badge — small monospace pill. Shows the number
+                  of steps inside the accordion so users know what they're
+                  expanding. */}
               <Typography
                 sx={{
                   color: alpha(theme.palette.text.secondary, isDark ? 0.62 : 0.54),
@@ -192,7 +256,7 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
                 {normalizedSteps.length}
               </Typography>
 
-              <KeyboardArrowDownIcon
+              <KeyboardArrowDownRoundedIcon
                 className="summary-arrow"
                 sx={{
                   fontSize: { xs: 15, sm: 16 },

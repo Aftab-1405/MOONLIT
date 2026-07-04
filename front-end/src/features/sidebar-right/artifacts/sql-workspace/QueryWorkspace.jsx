@@ -75,6 +75,7 @@ function QueryWorkspace({
   onToggleSidebar,
   schemaSidebarOpen,
   onClearError,
+  isStreaming = false,
 }) {
   return (
     <Box
@@ -108,6 +109,7 @@ function QueryWorkspace({
           query={activeTab?.query || ''}
           error={activeTab?.error}
           isConnected={isConnected}
+          isStreaming={isStreaming}
           onQueryChange={onQueryChange}
           onQueryExecute={onQueryExecute}
           onRunQuery={onRunQuery}

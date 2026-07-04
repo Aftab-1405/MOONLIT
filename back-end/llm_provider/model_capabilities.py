@@ -33,9 +33,7 @@ def load_model_capabilities() -> dict:
         config_path = Path(__file__).parent.parent / config_path
     if config_path != bundled_path:
         for model_id, override in _read_capability_file(config_path).items():
-            if isinstance(configured.get(model_id), dict) and isinstance(
-                override, dict
-            ):
+            if isinstance(configured.get(model_id), dict) and isinstance(override, dict):
                 configured[model_id] = {**configured[model_id], **override}
             else:
                 configured[model_id] = override

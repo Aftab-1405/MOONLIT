@@ -1,14 +1,48 @@
 """
 User Quota Service - Per-user rate limiting using Redis.
 
-Tracks per-user request counts across multiple timeframes (minute, hour, day)
-to ensure fair usage distribution.
+Three-tier sliding quota system
+-------------------------------
+Every authenticated chat request increments three Redis counters keyed by
+``quota:{user_id}:{minute|hour|day}``. Each key has a TTL equal to its window
+length, so the counters self-expire at the close of their window.
+
+Atomicity contract
+~~~~~~~~~~~~~~~~~~
+INCR and the conditional EXPIRE (only set on the FIRST increment of a fresh
+window) must execute atomically. If they were separated (as they were before
+FIX [H16]), a process crash between the two would leave a counter with value
+``1`` and no TTL — the user would be permanently locked out of that window.
+``check_and_increment`` therefore uses a single Lua script (``_INCR_WITH_EXPIRE``)
+that does both in one round-trip.
+
+Refund semantics
+~~~~~~~~~~~~~~~~
+Quota is debited *before* the LLM call. If the LLM call never produces
+user-visible output (rate-limiter rejection, network error before the first
+token), the request did not actually consume LLM tokens, so the caller MUST
+invoke :py:meth:`refund` to release the debited counters. If the stream
+delivered partial content, the caller MUST NOT refund — the user did consume
+LLM tokens for that turn. See FIX [C4].
 """
 
 import logging
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+
+# FIX [H16]: Atomic INCR + conditional EXPIRE in a single Redis round-trip.
+# Previously the two operations were in separate pipelines; a process crash
+# between them left the counter with no TTL and the user was permanently
+# locked out of that quota window.
+_INCR_WITH_EXPIRE = """
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then
+    redis.call('EXPIRE', KEYS[1], ARGV[1])
+end
+return count
+"""
 
 
 @dataclass
@@ -58,8 +92,7 @@ class UserQuotaService:
 
         if config.enabled:
             logger.info(
-                f"👤 UserQuotaService initialized: "
-                f"{config.per_minute}/min, {config.per_hour}/hr, {config.per_day}/day"
+                f"👤 UserQuotaService initialized: {config.per_minute}/min, {config.per_hour}/hr, {config.per_day}/day"
             )
 
     def _get_key(self, user_id: str, timeframe: str) -> str:
@@ -68,7 +101,12 @@ class UserQuotaService:
 
     async def check_and_increment(self, user_id: str) -> tuple[bool, QuotaUsage]:
         """
-        Check if user is within quota and increment counters.
+        Check if user is within quota and atomically increment all three counters.
+
+        Uses a single Lua script per timeframe so that INCR and the conditional
+        EXPIRE execute as one atomic Redis operation (FIX [H16]). The EXPIRE is
+        applied only when the INCR returns ``1`` (i.e. the key was just created);
+        subsequent increments reuse the existing TTL.
 
         Args:
             user_id: The user's ID
@@ -76,7 +114,7 @@ class UserQuotaService:
         Returns:
             tuple: (allowed: bool, usage: QuotaUsage)
             - allowed=True: Request can proceed
-            - allowed=False: Quota exceeded
+            - allowed=False: Quota exceeded (counters already reverted)
         """
         if not self.config.enabled:
             # Quota disabled - always allow
@@ -96,90 +134,60 @@ class UserQuotaService:
 
         usage_data = {}
         exceeded_timeframe = None
+        incr_results: list[int] = []
 
-        # Atomic Increment first (eliminates TOCTOU race condition)
-        pipe = self.redis.pipeline()
+        # FIX [H16]: Atomic INCR + conditional EXPIRE in a single round-trip
+        # per timeframe. Previously the INCR pipeline and the EXPIRE pipeline
+        # were separate; a crash between them left the counter with no TTL and
+        # the user was permanently locked out of that quota window.
         for timeframe, (limit, ttl) in self.limits.items():
             key = self._get_key(user_id, timeframe)
-            pipe.incr(key)
-        
-        try:
-            incr_results = await pipe.execute()
-        except Exception:
-            # Fallback for synchronous mock redis (in tests)
-            incr_results = []
-            for timeframe in self.limits.keys():
-                key = self._get_key(user_id, timeframe)
-                val = await self.redis.incr(key)
-                incr_results.append(val)
-
-        # Check if any limit was exceeded
-        for i, (timeframe, (limit, ttl)) in enumerate(self.limits.items()):
-            current_count = incr_results[i]
-            if current_count > limit:
+            try:
+                count = await self.redis.eval(_INCR_WITH_EXPIRE, 1, key, ttl)
+            except Exception:
+                # Fallback for synchronous mock redis (in tests) which doesn't
+                # implement eval(); emulate the same atomic semantics inline.
+                count = await self.redis.incr(key)
+                if count == 1:
+                    try:
+                        await self.redis.expire(key, ttl)
+                    except Exception:
+                        pass
+            incr_results.append(int(count))
+            if int(count) > limit:
                 exceeded_timeframe = timeframe
-
             usage_data[timeframe] = {
-                "used": current_count,
+                "used": int(count),
                 "limit": limit,
             }
 
         if exceeded_timeframe:
             # Revert the increments since the request is denied
-            pipe = self.redis.pipeline()
-            for timeframe in self.limits.keys():
-                key = self._get_key(user_id, timeframe)
-                pipe.decr(key)
-            try:
-                await pipe.execute()
-            except Exception:
-                for timeframe in self.limits.keys():
-                    key = self._get_key(user_id, timeframe)
-                    await self.redis.decr(key)
-
+            await self.refund(user_id)
             logger.warning(f"User {user_id} exceeded {exceeded_timeframe} quota")
             # We don't have exact TTLs here for the rejected payload, but 0 is fine
             for tf in self.limits.keys():
                 usage_data[tf]["used"] -= 1
                 usage_data[tf]["resets_in"] = 0
-            
+
             return False, QuotaUsage(
                 minute=usage_data.get("minute", {}),
                 hour=usage_data.get("hour", {}),
                 day=usage_data.get("day", {}),
             )
 
-        # Set expirations for newly created keys
-        pipe = self.redis.pipeline()
-        for i, (timeframe, (limit, ttl)) in enumerate(self.limits.items()):
+        # Look up the remaining TTL for each window so the UI can display
+        # "resets in" countdowns. INCR has already been applied atomically,
+        # so this is a read-only follow-up.
+        for timeframe, (limit, ttl) in self.limits.items():
             key = self._get_key(user_id, timeframe)
-            current_count = incr_results[i]
-            if current_count == 1:
-                pipe.expire(key, ttl)
-            pipe.ttl(key)
-            
-        try:
-            ttl_results = await pipe.execute()
-        except Exception:
-            ttl_results = []
-            for i, (timeframe, (limit, ttl)) in enumerate(self.limits.items()):
-                key = self._get_key(user_id, timeframe)
-                if incr_results[i] == 1:
-                    await self.redis.expire(key, ttl)
-                ttl_results.append(await self.redis.ttl(key))
-                
-        # ttl_results will contain the results of expire and ttl commands.
-        # Since expire returns a bool and ttl returns an int, the ttl is always the last result for each timeframe.
-        # If current_count == 1, there are 2 commands (expire, ttl). If > 1, only 1 command (ttl).
-        result_idx = 0
-        for i, (timeframe, (limit, ttl)) in enumerate(self.limits.items()):
-            if incr_results[i] == 1:
-                result_idx += 1 # Skip expire result
-            remaining_ttl = ttl_results[result_idx]
-            result_idx += 1
-            if remaining_ttl < 0:
+            try:
+                remaining_ttl = await self.redis.ttl(key)
+            except Exception:
+                remaining_ttl = -1
+            if remaining_ttl is None or remaining_ttl < 0:
                 remaining_ttl = ttl
-            usage_data[timeframe]["resets_in"] = remaining_ttl
+            usage_data[timeframe]["resets_in"] = int(remaining_ttl)
 
         usage = QuotaUsage(
             minute=usage_data.get("minute", {}),
@@ -187,14 +195,82 @@ class UserQuotaService:
             day=usage_data.get("day", {}),
         )
 
-        logger.debug(
-            f"User {user_id} quota: {usage.minute['used']}/min, {usage.hour['used']}/hr"
-        )
+        logger.debug(f"User {user_id} quota: {usage.minute['used']}/min, {usage.hour['used']}/hr")
         return True, usage
+
+    async def refund(self, user_id: str) -> None:
+        """Best-effort decrement of all three quota counters by one.
+
+        Called by :func:`_handle_agent_stream` (FIX [C4]) on any failure path
+        where the user never received LLM output: rate-limiter rejection, stream
+        errors before the first token, or graph setup failures. If the stream
+        delivered partial content the caller MUST NOT invoke this — the user
+        consumed LLM tokens for that turn and a refund would let them bypass the
+        quota.
+
+        The decrement is best-effort: a Redis hiccup during refund is logged
+        but not raised, because the request has already failed and the caller
+        cannot meaningfully retry.
+
+        FIX [AUDIT-2-B]: the previous implementation used ``DECR`` without a
+        floor, so a refund on an already-zero counter would push the value
+        to -1, allowing the next ``INCR`` to surface ``used=0`` even though
+        a request had been served. We now use a Lua script that clamps the
+        decrement at zero (``DECR-with-floor``), so refunds on zero counters
+        are no-ops.
+
+        Args:
+            user_id: The user whose counters should be decremented.
+        """
+        if not self.config.enabled or not self.redis:
+            return
+
+        # FIX [AUDIT-2-B]: Lua script that decrements only if the current
+        # value is > 0. This prevents refunds on already-zero counters
+        # from driving the counter negative and allowing a free request
+        # on the next increment.
+        decr_with_floor_lua = """
+local current = tonumber(redis.call('GET', KEYS[1]) or '0')
+if current > 0 then
+  return redis.call('DECR', KEYS[1])
+end
+return current
+"""
+        # FIX [C4]: Quota was incremented before the LLM call but never refunded
+        # on failure. Users burned their entire daily quota during transient
+        # outages. Now we refund on errors that produce no user-visible output.
+        pipe = self.redis.pipeline()
+        for timeframe in self.limits.keys():
+            key = self._get_key(user_id, timeframe)
+            pipe.eval(decr_with_floor_lua, 1, key)
+        try:
+            await pipe.execute()
+        except Exception:
+            # Fallback for synchronous mock redis (in tests) or pipeline
+            # failure. Re-try each key individually with the same Lua
+            # script; if the redis client does not support eval, fall
+            # back to a plain DECR (preserves prior behavior for tests).
+            for timeframe in self.limits.keys():
+                key = self._get_key(user_id, timeframe)
+                try:
+                    try:
+                        await self.redis.eval(decr_with_floor_lua, 1, key)
+                    except (AttributeError, NotImplementedError):
+                        await self.redis.decr(key)
+                except Exception as exc:
+                    logger.warning(
+                        "Quota refund failed for user %s on %s: %s",
+                        user_id,
+                        timeframe,
+                        exc,
+                    )
 
     async def get_usage(self, user_id: str) -> QuotaUsage:
         """
         Get current quota usage for a user (without incrementing).
+
+        Reads the live counter values and TTLs from Redis so the UI can display
+        the remaining request allowance and a "resets in" countdown per window.
 
         Args:
             user_id: The user's ID

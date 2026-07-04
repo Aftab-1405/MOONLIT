@@ -36,6 +36,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return undefined;
+          // ── CodeMirror / Lezer (SQL editor + inline code blocks) ──────────
           if (
             id.includes('@uiw/react-codemirror') ||
             id.includes('@codemirror') ||
@@ -43,9 +44,11 @@ export default defineConfig({
           ) {
             return 'vendor-codemirror';
           }
-          if (id.includes('@xyflow') || id.includes('dagre')) {
+          // ── React-Flow + Dagre (diagram-flow artifact) ────────────────────
+          if (id.includes('@xyflow') || id.includes('dagre') || id.includes('@dagrejs')) {
             return 'vendor-react-flow';
           }
+          // ── Markdown pipeline (react-markdown + remark + micromark + hast) ─
           if (
             id.includes('react-markdown') ||
             id.includes('remark-') ||
@@ -60,11 +63,46 @@ export default defineConfig({
           ) {
             return 'vendor-markdown';
           }
-          if (id.includes('firebase')) {
-            return 'vendor-firebase';
+          // ── Shiki (syntax highlighting for CodeViewer) ────────────────────
+          // Shiki ships dozens of language grammars (multi-MB). Splitting it
+          // out keeps the main chat bundle lean; only the first message that
+          // contains a code block pays the cost.
+          if (id.includes('shiki') || id.includes('@shikijs') || id.includes('@vscode/')) {
+            return 'vendor-shiki';
           }
-          if (id.includes('@mui') || id.includes('@emotion')) {
+          // ── Perspective (data-visualization artifact) ─────────────────────
+          // Perspective is by far the heaviest dependency (~10MB unminified).
+          // It is lazy-loaded via dynamic import inside PerspectiveDashboard;
+          // isolating it here ensures no other chunk accidentally pulls it in.
+          if (id.includes('@perspective-dev')) {
+            return 'vendor-perspective';
+          }
+          // ── Three.js + postprocessing (Hyperspeed landing background) ─────
+          if (
+            id.includes('three') ||
+            id.includes('postprocessing') ||
+            id.includes('@types/three')
+          ) {
+            return 'vendor-three';
+          }
+          // ── Framer Motion + MUI + Emotion ────────────────────────────────
+          // These three are bundled together to avoid a circular-chunk
+          // warning: framer-motion v12 internally imports from @emotion
+          // (which would otherwise land in vendor-mui), while some MUI
+          // components import framer-motion. Putting them in the same chunk
+          // breaks the cycle and keeps the download sequential.
+          if (
+            id.includes('framer-motion') ||
+            id.includes('motion-dom') ||
+            id.includes('motion-utils') ||
+            id.includes('@mui') ||
+            id.includes('@emotion')
+          ) {
             return 'vendor-mui';
+          }
+          // ── Firebase ──────────────────────────────────────────────────────
+          if (id.includes('firebase') || id.includes('@firebase')) {
+            return 'vendor-firebase';
           }
           return undefined;
         },

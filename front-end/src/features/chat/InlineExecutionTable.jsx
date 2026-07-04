@@ -5,7 +5,6 @@ import { alpha, useTheme } from '@mui/material/styles';
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table';
 import { useEffect, useState } from 'react';
 import { getExecutionResult } from '@/api/conversations';
-import { INTERFACE_RADIUS } from '@/features/styles/interfaceChrome';
 
 const MIN_COLUMN_SIZE = 112;
 const MAX_COLUMN_SIZE = 360;
@@ -80,23 +79,30 @@ function createColumnDefinitions(columnNames, rows) {
 function getSurfaceSx(theme) {
   const isDark = theme.palette.mode === 'dark';
 
+  // ── Visual parity with MarkdownRenderer tables ──────────────────────────
+  // The inline execution table and the markdown table must look identical
+  // (same border, radius, surface treatment). This ensures query results
+  // rendered as inline tables feel like the same surface as tables in AI
+  // markdown responses.
   return {
     width: '100%',
     maxWidth: '100%',
-    mt: 1,
+    mt: 2,
     mb: 2,
     overflow: 'hidden',
-    borderRadius: INTERFACE_RADIUS.panel,
-    border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08)}`,
-    backgroundColor: 'transparent',
+    borderRadius: '8px',
+    border: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
+    backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.022 : 0.014),
     boxShadow: 'none',
   };
 }
 
 function LoadingTable() {
   const theme = useTheme();
+  const isDark = theme.palette.mode === 'dark';
   const skeletonRows = Array.from({ length: 4 });
   const skeletonColumns = Array.from({ length: 3 });
+  const headerBg = alpha(theme.palette.text.primary, isDark ? 0.045 : 0.028);
 
   return (
     <Box role="status" aria-label="Loading query results" sx={getSurfaceSx(theme)}>
@@ -104,9 +110,10 @@ function LoadingTable() {
         sx={{
           display: 'grid',
           gridTemplateColumns: '48px repeat(3, minmax(112px, 1fr))',
-          px: 1.25,
-          py: 1,
-          bgcolor: 'background.paper',
+          px: { xs: 1.25, sm: 2 },
+          py: { xs: 0.85, sm: 1 },
+          bgcolor: headerBg,
+          borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
         }}
       >
         <Skeleton variant="text" width={12} height={16} sx={{ mx: 'auto' }} />
@@ -128,8 +135,9 @@ function LoadingTable() {
             display: 'grid',
             gridTemplateColumns: '48px repeat(3, minmax(112px, 1fr))',
             alignItems: 'center',
-            px: 1.25,
-            borderTop: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.055 : 0.045)}`,
+            px: { xs: 1.25, sm: 2 },
+            py: { xs: 0.85, sm: 1 },
+            borderTop: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.055 : 0.045)}`,
           }}
         >
           <Skeleton variant="text" width={14} height={16} sx={{ mx: 'auto' }} />
@@ -262,7 +270,12 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
 
   const shouldVirtualizeRows = data.length > 50;
   const shouldVirtualizeColumns = columns.length > 12;
+  // Same divider color as MarkdownRenderer tables for visual parity.
   const rowDivider = alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05);
+  // Same header background as MarkdownRenderer tables.
+  const headerBg = alpha(theme.palette.text.primary, isDark ? 0.045 : 0.028);
+  // Same row-hover background as MarkdownRenderer tables.
+  const rowHoverBg = alpha(theme.palette.text.primary, isDark ? 0.04 : 0.024);
 
   const table = useMaterialReactTable({
     columns,
@@ -331,7 +344,7 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
       },
     },
     muiTableHeadProps: {
-      sx: { bgcolor: 'background.paper' },
+      sx: { bgcolor: 'transparent' },
     },
     muiTableHeadRowProps: {
       sx: { boxShadow: 'none' },
@@ -339,16 +352,17 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
     muiTableHeadCellProps: ({ column }) => ({
       align: column.id === 'mrt-row-numbers' ? 'center' : 'left',
       sx: {
+        // ── Header style matches MarkdownRenderer `th` ──
+        // Same bgcolor, fontWeight, typography, padding, border.
         minHeight: 39,
-        px: column.id === 'mrt-row-numbers' ? 0.5 : 1.5,
-        py: 0.75,
-        borderBottom: `1px solid ${rowDivider}`,
+        px: column.id === 'mrt-row-numbers' ? 0.5 : { xs: 1.25, sm: 2 },
+        py: { xs: 0.85, sm: 1 },
+        borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
         color: column.id === 'mrt-row-numbers' ? 'text.disabled' : 'text.secondary',
-        bgcolor: 'background.paper',
-        fontFamily: theme.typography.fontFamilyMono,
-        fontSize: '0.7rem',
-        fontWeight: 650,
-        letterSpacing: '0.01em',
+        bgcolor: headerBg,
+        // Use the same typography as markdown table headers.
+        ...theme.typography.uiCaptionMd,
+        fontWeight: 600,
         '& .Mui-TableHeadCell-Content-Actions': { display: 'none' },
         '& .Mui-TableHeadCell-ResizeHandle-Divider': {
           height: 20,
@@ -364,15 +378,14 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
     }),
     muiTableBodyRowProps: ({ row }) => ({
       sx: {
-        bgcolor:
-          row.index % 2 === 1
-            ? alpha(theme.palette.text.primary, isDark ? 0.012 : 0.009)
-            : 'transparent',
+        // No zebra striping — markdown table doesn't have it.
+        bgcolor: 'transparent',
         transition: theme.transitions.create('background-color', {
           duration: theme.transitions.duration.shorter,
         }),
+        // Same row hover as markdown table.
         '&:hover > td': {
-          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.03),
+          bgcolor: rowHoverBg,
         },
         '&:last-of-type > td': { borderBottom: 0 },
       },
@@ -380,17 +393,21 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
     muiTableBodyCellProps: ({ column }) => ({
       align: column.id === 'mrt-row-numbers' ? 'center' : 'left',
       sx: {
+        // ── Body cell style matches MarkdownRenderer `td` ──
+        // Same padding, border, typography. Keeps tabular-nums for data
+        // alignment (query results need numeric alignment).
         minHeight: 38,
-        px: column.id === 'mrt-row-numbers' ? 0.5 : 1.5,
-        py: 0.75,
+        px: column.id === 'mrt-row-numbers' ? 0.5 : { xs: 1.25, sm: 2 },
+        py: { xs: 0.85, sm: 1 },
         overflow: 'hidden',
         borderBottom: `1px solid ${rowDivider}`,
         color: column.id === 'mrt-row-numbers' ? 'text.disabled' : 'text.primary',
         bgcolor: 'inherit',
-        fontFamily: theme.typography.fontFamilyMono,
-        fontSize: column.id === 'mrt-row-numbers' ? '0.68rem' : '0.78rem',
+        // Use the same typography as markdown table body cells.
+        ...theme.typography.uiBodyTable,
+        // Keep tabular-nums for numeric alignment in query results.
         fontVariantNumeric: 'tabular-nums',
-        lineHeight: 1.45,
+        lineHeight: 1.55,
         textOverflow: 'ellipsis',
         whiteSpace: 'nowrap',
       },

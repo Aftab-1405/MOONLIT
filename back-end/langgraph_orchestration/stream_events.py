@@ -1,12 +1,178 @@
-"""Pure translation helpers for LangGraph stream parts and SSE events."""
+"""Pure translation helpers for LangGraph stream parts and SSE events.
+
+This module owns the translation layer between LangGraph's internal v2
+stream parts (``messages``, ``custom``, ``updates``) and the public SSE
+event schema consumed by the browser UI. It is intentionally stateless
+aside from :class:`ThinkTagParser`, which tracks the partial-delimiter
+state that arises from chunked model output.
+"""
 
 from __future__ import annotations
 
+import re
+
 from langchain_core.messages import AIMessage, AIMessageChunk
+
+# ENH [TAG-STRIP]: Context-structure tags that should NEVER appear in the
+# model's output. These are internal envelopes used to structure the model's
+# INPUT — if the model mimics them in its output, they must be stripped
+# before reaching the user. The model is instructed not to emit these
+# (prompt_builder.py <response_rules>), but some models (especially Mistral
+# Devstral) occasionally ignore the instruction. This is the safety net.
+_CONTEXT_STRUCTURE_TAGS = [
+    "assistant_response",
+    "previous_assistant_turn",
+    "previous_user_turn",
+    "current_user_request",
+    "system_instructions",
+    "context_structure",
+    "context_map",
+    "retrieved_long_term_memory",
+    "ongoing_task_checkpoint",
+    "available_skills",
+    "loaded_skill",
+    "tool_selection_guide",
+    "stop_conditions",
+    "current_session_state",
+    "memory_handling_rules",
+    "response_rules",
+    "evidence_and_hallucination_rules",
+    "query_result_display_rules",
+    "global_rules",
+    "interaction_persona",
+    "supported_scope",
+    "identity",
+    "authority",
+    "source_and_recency",
+    "memory_summaries",
+    "user_quote",
+    "skill_instructions",
+    "usage_rule",
+    "purpose",
+    "previous_tool_activity",
+    "system_nudge",
+]
+
+# Build a regex that matches any opening or closing context-structure tag
+# Examples it matches: <assistant_response>, </assistant_response>,
+#   <previous_assistant_turn turn="3">, </current_user_request>
+_CONTEXT_TAG_PATTERN = re.compile(
+    r"</?(?:" + "|".join(_CONTEXT_STRUCTURE_TAGS) + r")(?:\s[^>]*)?>",
+    re.IGNORECASE,
+)
+
+
+class ContextTagStripper:
+    """Streaming-safe stripper for leaked context-structure XML tags.
+
+    ENH [TAG-STRIP]: Some models (especially Mistral Devstral) occasionally
+    mimic the context-structure tags they see in their input (e.g.,
+    wrapping their response in <assistant_response>...</assistant_response>).
+    The system prompt instructs them not to, but this is a safety net.
+
+    Streaming-safe: buffers text that ends with a partial tag prefix (e.g.,
+    "<assistan") and only emits text once it's clear the partial prefix
+    is NOT the start of a context-structure tag.
+    """
+
+    def __init__(self) -> None:
+        self.buffer = ""
+
+    def process_chunk(self, chunk: str) -> str:
+        """Process a chunk and return text safe to emit to the user.
+
+        Returns the text with any complete context-structure tags removed.
+        Partial tag prefixes at the end are buffered until the next chunk.
+
+        FIX [AUDIT-2-A]: the previous condition
+        ``tag.startswith(partial[1:]) or partial[1:].startswith(tag)``
+        was always True when ``partial[1:]`` was empty (because
+        ``str.startswith("")`` is True for any string), causing every
+        trailing ``<`` to be buffered even when the next chunk made it
+        clear the ``<`` was a math/comparison operator. The second
+        ``or`` clause was also semantically wrong: it checked whether
+        the partial already contained a full tag name as a prefix,
+        which is irrelevant to deciding whether to buffer. The new
+        check is a single ``tag.startswith(partial[1:])`` — the
+        partial is a prefix of some context tag — which correctly
+        handles both the empty-partial case (buffer the ``<`` for one
+        chunk) and the non-tag case (emit as soon as the next char
+        rules out every context tag).
+        """
+        if not chunk:
+            return ""
+        self.buffer += chunk
+
+        # Remove any complete context-structure tags
+        self.buffer = _CONTEXT_TAG_PATTERN.sub("", self.buffer)
+
+        # Check if the buffer ends with a partial tag prefix that could
+        # be the start of a context-structure tag. If so, hold it back.
+        # We check for "<" followed by up to 30 chars that could be a tag name.
+        safe_end = len(self.buffer)
+        for i in range(len(self.buffer) - 1, max(-1, len(self.buffer) - 32), -1):
+            if self.buffer[i] == "<":
+                # Found a potential tag start — check if it could be a context tag.
+                partial_after_lt = self.buffer[i + 1 :].lower()
+                # FIX [AUDIT-2-A]: only buffer if some context tag starts
+                # with the partial. The empty-partial case (buffer ends
+                # with exactly "<") is True here, which is correct: we
+                # must wait one chunk to see whether "<" is the start of
+                # a context tag. The next chunk will either complete the
+                # tag (regex strips it) or rule it out (we emit "<").
+                could_be_tag = any(tag.startswith(partial_after_lt) for tag in _CONTEXT_STRUCTURE_TAGS)
+                if could_be_tag:
+                    safe_end = i
+                break  # Only check the last "<"
+
+        safe_text = self.buffer[:safe_end]
+        self.buffer = self.buffer[safe_end:]
+        return safe_text
+
+    def flush(self) -> str:
+        """Emit any remaining buffered text. Called when the stream ends."""
+        # Remove any remaining context tags (in case of incomplete stream)
+        result = _CONTEXT_TAG_PATTERN.sub("", self.buffer)
+        self.buffer = ""
+        return result
 
 
 class ThinkTagParser:
-    """Parse streamed ``<think>`` blocks without leaking split delimiters."""
+    """Streaming parser for ``<think>`` / ``</think>`` blocks.
+
+    Why a streaming parser?
+    -----------------------
+    Bedrock (and most LLM providers) emit model output as a sequence of
+    short ``AIMessageChunk`` deltas. A ``<think>`` or ``</think>``
+    delimiter may be SPLIT across two chunks (e.g., chunk N ends with
+    ``"<thi"`` and chunk N+1 starts with ``"nk>"``). Naively scanning
+    each chunk in isolation would (a) fail to detect the delimiter and
+    (b) leak the partial ``"<thi"`` text as a token to the client.
+
+    Algorithm
+    ---------
+    - Maintain a ``buffer`` of unprocessed text and an ``in_think_block``
+      flag.
+    - For each chunk, append to the buffer, then loop:
+        * Look for the active delimiter (``<think>`` or ``</think>``).
+        * If found, emit any text BEFORE it as a token (or
+          ``thinking_token`` if inside a think block), flip
+          ``in_think_block``, and continue with the remainder.
+        * If not found, compute the longest suffix of the buffer that
+          is also a PREFIX of the delimiter (via
+          :func:`_delimiter_suffix_length`). The buffer up to that
+          suffix is safe to emit; the suffix itself is held back until
+          the next chunk arrives (or :meth:`flush` runs).
+    - On :meth:`flush`, the remaining buffer is emitted — but see FIX
+      [L3] below for the partial-delimiter guard.
+
+    FIX [L3]: ``flush()`` previously returned the entire buffer as a
+    single ``token`` event, which leaked any trailing partial delimiter
+    (e.g., buffer = ``"some text<thin"`` was rendered to the client
+    verbatim). The fix detects a trailing partial delimiter on flush
+    and emits only the safe prefix, dropping the partial bytes so they
+    never reach the UI.
+    """
 
     def __init__(self) -> None:
         self.in_think_block = False
@@ -37,12 +203,27 @@ class ThinkTagParser:
         return results
 
     def flush(self) -> list[tuple[str, str]]:
+        """Emit any remaining buffered text as a final event.
+
+        FIX [L3]: Detect a trailing partial delimiter on flush and emit
+        only the safe prefix, dropping the partial bytes. The previous
+        implementation returned the entire buffer verbatim, so a stream
+        ending with ``"some text<thin"`` would render ``"<thin"`` to the
+        client as if it were model output. The dropped bytes are
+        intentionally discarded — they could not have been meaningful
+        model output (they were awaiting a delimiter completion that
+        never came).
+        """
         if not self.buffer:
             return []
         token_type = "thinking_token" if self.in_think_block else "token"
-        result = [(token_type, self.buffer)]
+        delimiter = "</think>" if self.in_think_block else "<think>"
+        partial_length = _delimiter_suffix_length(self.buffer, delimiter)
+        safe_text = self.buffer[: len(self.buffer) - partial_length]
         self.buffer = ""
-        return result
+        if not safe_text:
+            return []
+        return [(token_type, safe_text)]
 
 
 def _delimiter_suffix_length(value: str, delimiter: str) -> int:
@@ -53,27 +234,64 @@ def _delimiter_suffix_length(value: str, delimiter: str) -> int:
 
 
 def build_usage_metrics(budget_info: dict, **kwargs) -> dict:
+    # ENH [CTX-SINGLE-SOURCE]: The back-end now computes the FINAL
+    # percentages that the front-end displays. The front-end does ZERO
+    # calculation — it just renders these values. This eliminates all
+    # sync issues between what the indicator shows and when summarization
+    # triggers, because both use the same formula in the same code.
+    #
+    # The front-end receives:
+    #   activePercent: 0-100 (when this hits 90, summarization triggers)
+    #   modelPercent:  0-100 (total payload vs. model's context window)
+    #
+    # Both are computed here from the same budget_info that the
+    # summarization pressure check uses. No more front-end math.
+    input_payload = (
+        budget_info.get("input_payload_tokens")
+        if budget_info.get("input_payload_tokens") is not None
+        else budget_info.get("tail_tokens")
+    ) or 0
+
+    pressure_trigger = budget_info.get("pressure_trigger_tokens") or budget_info.get("active_context_budget") or 1
+    model_window = budget_info.get("model_context_window") or 1
+
+    # Compute the EXACT percentages the front-end will display
+    active_pct = min(100, max(0, round((input_payload / pressure_trigger) * 100))) if pressure_trigger > 0 else 0
+    model_pct = min(100, max(0, round((input_payload / model_window) * 100))) if model_window > 0 else 0
+
     event = {
         "type": "usage_metrics",
-        "activeContextBudget": budget_info.get("active_context_budget"),
-        "totalContextWindow": budget_info.get("model_context_window"),
-        "availableInputPayloadTokens": budget_info.get(
-            "available_input_payload_tokens"
-        ),
+        # Pre-computed percentages — front-end renders these directly
+        "activePercent": active_pct,
+        "modelPercent": model_pct,
+        # Raw values for the tooltip / advanced display
+        "inputPayloadTokens": input_payload,
         "pressureTriggerTokens": budget_info.get("pressure_trigger_tokens"),
         "modelContextWindow": budget_info.get("model_context_window"),
-        "reservedOutputTokens": budget_info.get("reserved_output_tokens"),
-        "safetyMarginTokens": budget_info.get("reserved_safety_margin_tokens"),
+        "activeContextBudget": budget_info.get("active_context_budget"),
+        "hotHistoryBudget": budget_info.get("hot_history_budget"),
+        "contextPhase": budget_info.get("context_phase"),
+        # Component breakdown for the tooltip
         "systemPromptTokens": budget_info.get("system_prompt_tokens"),
         "toolSchemaTokens": budget_info.get("tool_schema_tokens"),
         "vampMemoryTokens": budget_info.get("vamp_memory_tokens"),
         "taskCheckpointTokens": budget_info.get("task_checkpoint_tokens"),
-        "hotHistoryBudget": budget_info.get("hot_history_budget"),
+        "contextMapTokens": budget_info.get("context_map_tokens"),
         "tokenCountingMode": budget_info.get("token_counting_mode"),
         "tokenCountingReason": budget_info.get("token_counting_reason"),
-        "inputPayloadTokens": budget_info.get("tail_tokens"),
     }
     event.update(kwargs)
+
+    # Recalculate percentages if kwargs overrode inputPayloadTokens
+    if "inputPayloadTokens" in kwargs and kwargs["inputPayloadTokens"] is not None:
+        override_input = kwargs["inputPayloadTokens"]
+        event["activePercent"] = (
+            min(100, max(0, round((override_input / pressure_trigger) * 100))) if pressure_trigger > 0 else 0
+        )
+        event["modelPercent"] = (
+            min(100, max(0, round((override_input / model_window) * 100))) if model_window > 0 else 0
+        )
+
     return event
 
 
@@ -104,11 +322,7 @@ def translate_stream_part(
         completed_tool = None
         if event.get("type") == "tool_end":
             result = event.get("result")
-            if (
-                event.get("name") == "execute_query"
-                and isinstance(result, dict)
-                and result.get("success", True)
-            ):
+            if event.get("name") == "execute_query" and isinstance(result, dict) and result.get("success", True):
                 completed_tool = event
         return [event], completed_tool
 
@@ -138,20 +352,26 @@ def _translate_message(
     total_tokens = usage_metadata.get("total_tokens") or usage.get("totalTokens")
     latency_ms = metrics.get("latencyMs")
 
+    # ENH [TOK]: Derive input_tokens from total - output when the model
+    # returns total_tokens but not input_tokens directly. Some Bedrock
+    # model variants omit input_tokens while still providing total_tokens.
+    if input_tokens is None and total_tokens is not None and output_tokens is not None:
+        input_tokens = max(0, total_tokens - output_tokens)
+
+    # ENH [TOK]: Store the ACTUAL input payload size reported by the model.
+    # This is the true "active context used" value — the model is telling
+    # us exactly how many input tokens it received. We store it on
+    # budget_info so build_usage_metrics uses it for the indicator.
+    #
+    # Use max() so the indicator is monotonically non-decreasing within a
+    # turn. During a multi-step tool loop, each model invocation reports a
+    # different input_tokens (because tool results get added). The last
+    # invocation has the highest value and is the most accurate. Taking the
+    # max prevents the indicator from jumping down mid-loop.
     if input_tokens is not None:
-        current_output = output_tokens or 0
-        last_output = budget_info.get("_last_output_tokens", 0)
-        if current_output < last_output:
-            budget_info["_cumulative_output_tokens"] = (
-                budget_info.get("_cumulative_output_tokens", 0) + last_output
-            )
-        budget_info["_last_output_tokens"] = current_output
-        total_generated = (
-            budget_info.get("_cumulative_output_tokens", 0) + current_output
-        )
-        budget_info["tail_tokens"] = max(
-            0, budget_info.get("_baseline_tail", 0) + total_generated
-        )
+        new_payload = int(input_tokens)
+        prev_payload = budget_info.get("input_payload_tokens", 0)
+        budget_info["input_payload_tokens"] = max(prev_payload, new_payload)
 
     if total_tokens is not None or latency_ms is not None:
         events.append(
@@ -181,27 +401,20 @@ def _translate_message(
         if block_type == "thinking":
             thinking = block.get("thinking", "")
             if thinking:
-                events.append(
-                    {"type": "thinking_token", "content": str(thinking)}
-                )
+                events.append({"type": "thinking_token", "content": str(thinking)})
         elif block_type == "reasoning_content":
             reasoning = block.get("reasoning_content", {})
             if isinstance(reasoning, dict):
                 thinking = reasoning.get("text") or reasoning.get("reasoningText")
                 if thinking:
-                    events.append(
-                        {"type": "thinking_token", "content": str(thinking)}
-                    )
+                    events.append({"type": "thinking_token", "content": str(thinking)})
         elif block_type == "text":
             events.extend(_text_events(str(block.get("text", "")), think_parser))
     return events
 
 
 def _text_events(text: str, parser: ThinkTagParser) -> list[dict]:
-    return [
-        {"type": token_type, "content": content}
-        for token_type, content in parser.process_chunk(text)
-    ]
+    return [{"type": token_type, "content": content} for token_type, content in parser.process_chunk(text)]
 
 
 def extract_interrupt_event(data) -> dict | None:
@@ -221,9 +434,17 @@ def extract_interrupt_event(data) -> dict | None:
 def friendly_error(raw: str) -> str:
     lower = raw.lower()
     if "model_context_window_exceeded" in lower or "context window" in lower:
+        # WENH [2]: Updated message to be accurate — compaction runs in the
+        # exception handler now (see stream_conversation.py), but if it
+        # failed, the user should know to simplify their request. The
+        # previous message ("The task checkpoint was preserved; continue the
+        # task to resume from compacted context.") was misleading because
+        # the user has no way to "continue the task" mid-error and
+        # compaction may not have run at all.
         return (
-            "Model context window exceeded. The task checkpoint was preserved; "
-            "continue the task to resume from compacted context."
+            "The conversation context grew too large. Compaction has been "
+            "triggered — please retry your request. If it fails again, try "
+            "simplifying your query or starting a new conversation."
         )
     if "429" in lower or "rate_limit" in lower or "too_many_requests" in lower:
         return "Rate limit exceeded. Please wait a moment and try again."

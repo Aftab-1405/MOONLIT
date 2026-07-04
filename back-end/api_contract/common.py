@@ -4,7 +4,6 @@ from typing import Any, Generic, Literal, TypeVar
 
 from pydantic import BaseModel, Field
 
-
 DataT = TypeVar("DataT")
 
 

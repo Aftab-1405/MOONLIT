@@ -3,12 +3,11 @@ import { alpha, useTheme } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import { useMemo } from 'react';
 import { HOVER_CAPABLE_QUERY, REDUCED_MOTION_QUERY, Section } from '@/pages/Landing/index';
-import { getMoonlitBrandGradients } from '@/theme/themeEffects';
+import { BRAND } from '@/theme/tokens';
 
 function StepsGrid() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const brandGradients = getMoonlitBrandGradients(theme);
 
   const steps = useMemo(
     () => [
@@ -57,12 +56,7 @@ function StepsGrid() {
             <Box
               component="span"
               sx={{
-                background: brandGradients.shimmer,
-                backgroundSize: '200% auto',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                animation: 'shimmer 5s linear infinite',
+                color: BRAND.main,
               }}
             >
               Zero Learning Curve.
@@ -140,8 +134,7 @@ function StepsGrid() {
                       width: 44,
                       height: 44,
                       borderRadius: '50%',
-                      backgroundImage: brandGradients.static,
-                      backgroundColor: 'transparent',
+                      backgroundColor: BRAND.main,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',

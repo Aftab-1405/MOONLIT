@@ -1,3 +1,25 @@
+/**
+ * MessageList — renders the conversation transcript.
+ *
+ * Composition:
+ *   - ConversationLoadingSkeleton  (shown while the conversation is loading)
+ *   - Error state                   (shown if load failed and there's no cache)
+ *   - "Load older messages" button  (visible when total > visibleCount)
+ *   - For each message: UserMessage | AIMessage
+ *
+ * AIMessage internally splits content into a timeline (interleaved
+ * text + thinking/tool steps) OR a fallback of (steps + text). Canvas
+ * code blocks (`diagram-flow`) are extracted and rendered as
+ * DiagramArtifactCard entries below the text content.
+ *
+ * Performance:
+ *   - `visibleCount` caps the number of rendered messages to keep DOM size
+ *     bounded for very long conversations (default 60).
+ *   - Each message component is memoised and uses stable callbacks.
+ *   - `overflowAnchor: 'none'` is set on scroll containers to prevent the
+ *     browser from auto-scrolling to keep older content in view.
+ */
+
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
@@ -20,7 +42,7 @@ import { StepsAccordion } from '@/features/chat/ai-response-steps';
 import { slideIn } from '@/features/chat/ai-response-steps/timelineShared';
 import MarkdownRenderer from '@/features/chat/MarkdownRenderer';
 import { HOVER_CAPABLE_QUERY, REDUCED_MOTION_QUERY } from '@/styles/mediaQueries';
-import { UI_LAYOUT } from '@/styles/shared';
+import { getSecondaryActionButtonSx, UI_LAYOUT } from '@/styles/shared';
 import { MESSAGE_STATUS } from '@/utils/chatMessages';
 import { copyToClipboard } from '@/utils/clipboard';
 import InlineExecutionTable from './InlineExecutionTable';
@@ -441,33 +463,11 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
         <Button
           size="small"
           variant="outlined"
-          color="primary"
           disableElevation
           onClick={() => onOpen?.(artifact)}
           sx={{
             flexShrink: 0,
-            borderRadius: '8px',
-            textTransform: 'none',
-            ...theme.typography.uiBodySm,
-            fontFamily: theme.typography.fontFamily,
-            fontSize: { xs: '0.75rem', sm: '0.8125rem' },
-            fontWeight: 650,
-            px: { xs: 1.75, sm: 2.25 },
-            py: 0.625,
-            color: 'text.primary',
-            borderColor: alpha(theme.palette.text.primary, isDark ? 0.18 : 0.14),
-            transition:
-              'background-color 140ms ease, border-color 140ms ease, color 140ms ease, transform 140ms ease',
-            [HOVER_CAPABLE_QUERY]: {
-              '&:hover': {
-                borderColor: alpha(theme.palette.text.primary, isDark ? 0.24 : 0.18),
-                bgcolor: alpha(theme.palette.text.primary, isDark ? 0.065 : 0.045),
-                boxShadow: 'none',
-              },
-            },
-            '&:active': {
-              transform: 'translateY(1px)',
-            },
+            ...getSecondaryActionButtonSx(theme),
           }}
         >
           View diagram
@@ -605,8 +605,12 @@ const AIMessage = memo(function AIMessage({
           key={key}
           data-testid="assistant-text-chunk"
           sx={{
+            // Symmetric horizontal padding so text blocks align with step
+            // blocks. The previous version used `pr: 3` on the right which
+            // pushed content visually off-centre and made wrapped lines look
+            // misaligned.
             pl: { xs: 0, sm: 0.5 },
-            pr: { xs: 0.5, sm: 3 },
+            pr: { xs: 0, sm: 0.5 },
             minWidth: 0,
             py: 0.25,
             overflowAnchor: 'none',
@@ -635,7 +639,12 @@ const AIMessage = memo(function AIMessage({
         <Box
           key={key}
           data-testid={`assistant-${step.type}-step`}
-          sx={{ pl: { xs: 0, sm: 0.5 }, pr: { xs: 0.5, sm: 3 }, py: 0.5, minWidth: 0 }}
+          sx={{
+            pl: { xs: 0, sm: 0.5 },
+            pr: { xs: 0, sm: 0.5 },
+            py: 0.5,
+            minWidth: 0,
+          }}
         >
           <StepsAccordion steps={[step]} isStreaming={isWaiting || isStreaming} />
           {executionMeta?.executionId && (
@@ -650,6 +659,113 @@ const AIMessage = memo(function AIMessage({
     [isStreaming, isWaiting, conversationId],
   );
 
+  /**
+   * ENH [ANTI-FLOOD]: Render a GROUP of consecutive non-text timeline items
+   * (tool / thinking / skill) as a SINGLE StepsAccordion instead of one
+   * accordion per step. This is the core anti-flood change: when the agent
+   * runs 9 tools in a row, the user sees ONE collapsed accordion ("Analyzed
+   * 6 tables · 9 tools used") instead of 9 separate accordions flooding the
+   * response.
+   *
+   * execute_query steps that produced an executionId still render their
+   * InlineExecutionTable BELOW the accordion, so query result tables stay
+   * visible inline — they're the user's actual data, not chrome.
+   *
+   * Alternating behavior (text → tools → text → tools) naturally produces
+   * one accordion per phase, because the grouping logic in the caller
+   * flushes the buffer whenever it hits a text item.
+   */
+  const renderStepGroupBlock = useCallback(
+    (groupedSteps, key) => {
+      if (!Array.isArray(groupedSteps) || groupedSteps.length === 0) return null;
+
+      // Single step → fall back to the per-step renderer (preserves the
+      // exact per-step layout for the single-step case, including the
+      // InlineExecutionTable placement).
+      if (groupedSteps.length === 1) {
+        return renderStepBlock(groupedSteps[0], key);
+      }
+
+      // Multiple steps → one accordion for the whole group, with any
+      // execute_query result tables rendered below.
+      const streamFlag = isWaiting || isStreaming;
+      return (
+        <Box
+          key={key}
+          data-testid="assistant-step-group"
+          sx={{
+            pl: { xs: 0, sm: 0.5 },
+            pr: { xs: 0, sm: 0.5 },
+            py: 0.5,
+            minWidth: 0,
+          }}
+        >
+          <StepsAccordion steps={groupedSteps} isStreaming={streamFlag} />
+          {groupedSteps.map((step, idx) => {
+            const executionMeta = getQueryExecutionMeta(step, conversationId);
+            if (!executionMeta?.executionId) return null;
+            return (
+              <InlineExecutionTable
+                key={`exec-${executionMeta.executionId}-${idx}`}
+                conversationId={executionMeta.conversationId}
+                executionId={executionMeta.executionId}
+              />
+            );
+          })}
+        </Box>
+      );
+    },
+    [isStreaming, isWaiting, conversationId, renderStepBlock],
+  );
+
+  /**
+   * ENH [ANTI-FLOOD]: Group consecutive non-text timeline items into batches,
+   * preserving the original order. Each batch becomes ONE StepsAccordion.
+   * Text items break the chain — so alternating text → tools → text → tools
+   * produces one accordion per tool-calling phase.
+   *
+   * Returns an array of renderable nodes (text blocks + step-group blocks).
+   */
+  const renderGroupedTimeline = useCallback(
+    (timelineItems) => {
+      const nodes = [];
+      let stepBuffer = [];
+      let groupIndex = 0;
+
+      const flushStepBuffer = () => {
+        if (stepBuffer.length === 0) return;
+        const groupKey = `step-group-${groupIndex}`;
+        groupIndex += 1;
+        nodes.push(renderStepGroupBlock(stepBuffer, groupKey));
+        stepBuffer = [];
+      };
+
+      timelineItems.forEach((item, index) => {
+        if (item.type === 'text') {
+          // Text breaks the step chain — flush the accumulated steps as a
+          // single accordion, then render the text block.
+          flushStepBuffer();
+          nodes.push(
+            renderTextBlock(item.content || '', item.id || `text-${index}`),
+          );
+        } else if (
+          item.type === 'thinking' ||
+          item.type === 'tool' ||
+          item.type === 'skill'
+        ) {
+          stepBuffer.push(item);
+        }
+        // Unknown types are silently skipped (same as the old behavior).
+      });
+
+      // Flush any trailing steps (timeline ended with a tool, no text after).
+      flushStepBuffer();
+
+      return nodes;
+    },
+    [renderStepGroupBlock, renderTextBlock],
+  );
+
   return (
     <Fade in timeout={180}>
       <Box
@@ -662,31 +778,25 @@ const AIMessage = memo(function AIMessage({
         <Box ref={contentRef} sx={{ position: 'relative', lineHeight: 1.65, minWidth: 0 }}>
           {/* Fade in+out so it cross-fades with the first arriving step
                rather than instantly popping out when the accordion mounts. */}
-          {hasEffectiveTimeline ? (
-            effectiveTimeline.map((item, index) => {
-              if (item.type === 'text') {
-                return renderTextBlock(item.content || '', item.id || `text-${index}`);
-              }
-              if (item.type === 'thinking' || item.type === 'tool' || item.type === 'skill') {
-                return renderStepBlock(item, item.id || `${item.type}-${index}`);
-              }
-              return null;
-            })
-          ) : (
-            <>
-              {displaySteps.map((step, index) =>
-                renderStepBlock(step, step.id || `${step.type}-${index}`),
-              )}
-
-              {displayText.trim() && renderTextBlock(displayText, 'fallback-text')}
-            </>
-          )}
+          {/* ENH [ANTI-FLOOD]: Consecutive non-text timeline items are
+              grouped into a single StepsAccordion per phase. Text items
+              break the chain so alternating text → tools → text → tools
+              produces one accordion per phase. The fallback path (no
+              timeline, only legacy steps + text) also groups the steps. */}
+          {hasEffectiveTimeline
+            ? renderGroupedTimeline(effectiveTimeline)
+            : renderGroupedTimeline([
+                ...(Array.isArray(displaySteps) ? displaySteps : []),
+                ...(displayText.trim()
+                  ? [{ type: 'text', content: displayText, id: 'fallback-text' }]
+                  : []),
+              ])}
 
           {allArtifacts.length > 0 && (
             <Box
               sx={{
                 pl: { xs: 0, sm: 0.5 },
-                pr: { xs: 0.5, sm: 3 },
+                pr: { xs: 0, sm: 0.5 },
                 mt: 1,
                 mb: 1,
                 display: 'flex',
@@ -752,6 +862,7 @@ const AIMessage = memo(function AIMessage({
             width: '100%',
             mt: 0,
             pl: { xs: 0, sm: 0.5 },
+            pr: { xs: 0, sm: 0.5 },
           }}
         >
           <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
@@ -762,12 +873,12 @@ const AIMessage = memo(function AIMessage({
 });
 
 const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
+  // `animation` is passed to each Skeleton; respects user motion preference.
+  // We no longer override `bgcolor` on individual skeletons — the MuiSkeleton
+  // theme override in lightTheme/darkTheme provides a layered fill + highlight
+  // that gives every skeleton a premium "sunken surface" look for free.
   const animation = prefersReducedMotion ? false : 'wave';
-  const skBg = alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06);
-  const skBgLight = alpha(theme.palette.text.primary, isDark ? 0.05 : 0.04);
 
   return (
     <Box
@@ -795,8 +906,7 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
             sx={{
               width: { xs: 148, sm: 210 },
               height: { xs: 30, sm: 38 },
-              borderRadius: '10px',
-              bgcolor: skBg,
+              borderRadius: '14px 14px 6px 14px',
             }}
           />
         </Box>
@@ -817,7 +927,7 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
               animation={animation}
               width={13}
               height={13}
-              sx={{ flexShrink: 0, bgcolor: skBgLight }}
+              sx={{ flexShrink: 0 }}
             />
             <Skeleton
               variant="rounded"
@@ -827,7 +937,6 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
                 maxWidth: 196,
                 height: 9,
                 borderRadius: 999,
-                bgcolor: skBgLight,
               }}
             />
           </Box>
@@ -841,7 +950,6 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
                 height: { xs: 10, sm: 12 },
                 mb: { xs: 0.85, sm: 1 },
                 borderRadius: 999,
-                bgcolor: skBg,
               }}
             />
           ))}
@@ -855,8 +963,7 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
             sx={{
               width: { xs: 100, sm: 148 },
               height: { xs: 30, sm: 38 },
-              borderRadius: '10px',
-              bgcolor: skBg,
+              borderRadius: '14px 14px 6px 14px',
             }}
           />
         </Box>
@@ -873,7 +980,6 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
                 height: { xs: 10, sm: 12 },
                 mb: { xs: 0.85, sm: 1 },
                 borderRadius: 999,
-                bgcolor: skBg,
               }}
             />
           ))}
@@ -901,6 +1007,11 @@ const MessageList = memo(function MessageList({
   onRunQuery,
   onOpenCanvasArtifact,
 }) {
+  // FIX [THEME-UNBOUND]: theme is used at line 1010 in
+  // getSecondaryActionButtonSx(theme) for the "Load older messages" button.
+  // Without this declaration, theme is undefined and throws
+  // ReferenceError when hiddenCount > 0 (conversation has >60 messages).
+  const theme = useTheme();
   const [visibleCount, setVisibleCount] = useState(60);
   const normalizedMessages = useMemo(
     () =>
@@ -1000,33 +1111,9 @@ const MessageList = memo(function MessageList({
           <Box sx={{ pb: 1.5, display: 'flex', justifyContent: 'center' }}>
             <Button
               size="small"
+              variant="outlined"
               onClick={() => setVisibleCount((c) => c + 50)}
-              sx={(th) => ({
-                minHeight: 28,
-                borderRadius: '6px',
-                color: 'text.secondary',
-                backgroundColor: alpha(
-                  th.palette.text.primary,
-                  th.palette.mode === 'dark' ? 0.05 : 0.03,
-                ),
-                ...th.typography.uiCaptionSm,
-                px: 1.5,
-                textTransform: 'none',
-                fontWeight: 500,
-                letterSpacing: 0,
-                transition: th.transitions.create(['background-color', 'color'], {
-                  duration: th.transitions.duration.shorter,
-                }),
-                [HOVER_CAPABLE_QUERY]: {
-                  '&:hover': {
-                    backgroundColor: alpha(
-                      th.palette.text.primary,
-                      th.palette.mode === 'dark' ? 0.08 : 0.05,
-                    ),
-                    color: 'text.primary',
-                  },
-                },
-              })}
+              sx={getSecondaryActionButtonSx(theme)}
             >
               Load {Math.min(50, hiddenCount)} older messages
             </Button>

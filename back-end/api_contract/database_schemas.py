@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-
 DbType = Literal["mysql", "postgresql", "sqlserver", "oracle"]
 
 
@@ -19,9 +18,7 @@ class DatabaseConfigPublic(BaseModel):
     port: int | None = None
     username: str | None = None
     is_remote: bool = False
-    schema_name: str | None = Field(
-        default=None, validation_alias="schema", serialization_alias="schema"
-    )
+    schema_name: str | None = Field(default=None, validation_alias="schema", serialization_alias="schema")
     service_name: str | None = None
 
 
@@ -100,9 +97,7 @@ class TableListData(BaseModel):
 
     tables: list[str] = Field(default_factory=list)
     database: str | None = None
-    schema_name: str | None = Field(
-        default=None, validation_alias="schema", serialization_alias="schema"
-    )
+    schema_name: str | None = Field(default=None, validation_alias="schema", serialization_alias="schema")
 
 
 class TableColumnData(BaseModel):
@@ -128,6 +123,4 @@ class TableSchemaData(BaseModel):
     columns: list[TableColumnData] = Field(default_factory=list)
     row_count: int | None = None
     database: str | None = None
-    schema_name: str | None = Field(
-        default=None, validation_alias="schema", serialization_alias="schema"
-    )
+    schema_name: str | None = Field(default=None, validation_alias="schema", serialization_alias="schema")

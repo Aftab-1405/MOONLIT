@@ -8,7 +8,6 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -106,9 +105,7 @@ def _claim_summary_range(
             return None
 
         pending = data.get("summary_pending")
-        if pending and not _summary_claim_is_stale(
-            pending, Config.VAMP_SUMMARY_CLAIM_TTL_SECONDS
-        ):
+        if pending and not _summary_claim_is_stale(pending, Config.VAMP_SUMMARY_CLAIM_TTL_SECONDS):
             return None
 
         _update_doc_in_transaction(
@@ -128,11 +125,10 @@ def _claim_summary_range(
     return _run_firestore_transaction(db, _work)
 
 
-def _commit_summary_claim(
-    doc_ref, claim_id: str, end_idx: int, last_summarized_turn: int | None = None
-) -> bool:
+def _commit_summary_claim(doc_ref, claim_id: str, end_idx: int, last_summarized_turn: int | None = None) -> bool:
     """Advance last_summarized_idx and last_summarized_turn only if this worker still owns the claim."""
     from firebase_admin import firestore
+
     from service.firestore.firestore_service import FirestoreService
 
     db = FirestoreService.get_db()
@@ -178,9 +174,7 @@ def _renew_summary_claim(doc_ref, claim_id: str) -> bool:
             return False
         refreshed = dict(pending)
         refreshed["claimed_at"] = datetime.now(timezone.utc).isoformat()
-        _update_doc_in_transaction(
-            doc_ref, transaction, {"summary_pending": refreshed}
-        )
+        _update_doc_in_transaction(doc_ref, transaction, {"summary_pending": refreshed})
         return True
 
     return bool(_run_firestore_transaction(db, _work))
@@ -212,6 +206,7 @@ async def _run_summary_claim_heartbeat(
 def _clear_summary_claim(doc_ref, claim_id: str) -> None:
     """Clear an active failed claim if it still belongs to this worker."""
     from firebase_admin import firestore
+
     from service.firestore.firestore_service import FirestoreService
 
     db = FirestoreService.get_db()
@@ -255,11 +250,7 @@ def _build_summary_input(messages: list) -> str:
                     try:
                         import json as _json
 
-                        result_obj = (
-                            _json.loads(raw_result)
-                            if isinstance(raw_result, str)
-                            else raw_result
-                        )
+                        result_obj = _json.loads(raw_result) if isinstance(raw_result, str) else raw_result
                     except Exception:
                         result_obj = raw_result
                     result_summary = _summarize_tool_result(name, result_obj, status)
@@ -299,9 +290,7 @@ def _summarize_tool_result(tool_name: str, result, status: str) -> str:
     if tool_name == "get_schema_overview":
         tables = result.get("tables", [])
         if isinstance(tables, list):
-            names = ", ".join(
-                str(t.get("name", t) if isinstance(t, dict) else t) for t in tables[:10]
-            )
+            names = ", ".join(str(t.get("name", t) if isinstance(t, dict) else t) for t in tables[:10])
             suffix = f" (+{len(tables) - 10} more)" if len(tables) > 10 else ""
             return f"{len(tables)} table(s): {names}{suffix}"
 
@@ -312,25 +301,45 @@ def _summarize_tool_result(tool_name: str, result, status: str) -> str:
 
     if tool_name == "get_table_indexes":
         indexes = result.get("indexes", [])
-        return (
-            f"{len(indexes)} index(es) found"
-            if isinstance(indexes, list)
-            else "indexes retrieved"
-        )
+        return f"{len(indexes)} index(es) found" if isinstance(indexes, list) else "indexes retrieved"
 
     if tool_name == "get_connection_status":
         connected = result.get("connected", False)
         db = result.get("database", "")
         db_type = result.get("db_type", "")
-        return (
-            f"connected={connected}, db={db} ({db_type})"
-            if db
-            else f"connected={connected}"
-        )
+        return f"connected={connected}, db={db} ({db_type})" if db else f"connected={connected}"
 
-    scalar_fields = {
-        k: v for k, v in result.items() if isinstance(v, (str, int, float, bool)) and v
-    }
+    # New DB tools — one-line digests used by the compaction summarizer so
+    # prior turns that used these tools still produce useful memory context
+    # after compaction. Each branch mirrors the existing tool-name pattern.
+    if tool_name == "explain_query":
+        plan_format = result.get("plan_format", "tabular")
+        row_count = result.get("row_count", 0)
+        return f"EXPLAIN plan ({plan_format}, {row_count} row(s))"
+
+    if tool_name == "get_table_details":
+        table = result.get("table", "")
+        col_count = result.get("column_count", 0)
+        return f"{col_count} column(s) detailed for {table}"
+
+    if tool_name == "get_table_row_count":
+        table = result.get("table", "")
+        row_count = result.get("row_count", 0)
+        is_estimate = result.get("is_estimate", False)
+        suffix = " (estimated)" if is_estimate else ""
+        return f"{table}: {row_count} row(s){suffix}"
+
+    if tool_name == "get_foreign_keys":
+        count = result.get("count", 0)
+        table = result.get("table")
+        return f"{count} FK(s) for {table}" if table else f"{count} FK(s) in database"
+
+    if tool_name == "list_views":
+        views = result.get("views", [])
+        matviews = result.get("materialized_views", [])
+        return f"{len(views)} view(s)" + (f", {len(matviews)} materialized view(s)" if matviews else "")
+
+    scalar_fields = {k: v for k, v in result.items() if isinstance(v, (str, int, float, bool)) and v}
     if scalar_fields:
         parts = [f"{k}={v}" for k, v in list(scalar_fields.items())[:4]]
         return ", ".join(parts)
@@ -449,7 +458,7 @@ def _parse_summary_json_response(raw_content: str) -> dict:
     elif cleaned.startswith("```"):
         cleaned = cleaned.removeprefix("```").strip()
     if cleaned.endswith("```"):
-        cleaned = cleaned[: -3].strip()
+        cleaned = cleaned[:-3].strip()
 
     parsed = json.loads(_extract_balanced_json_object(cleaned))
     if not isinstance(parsed, dict):
@@ -467,10 +476,7 @@ def _summary_parse_failure_is_likely_truncation(response, raw_content: str) -> b
     """Identify provider output-limit failures without altering model content."""
     metadata = getattr(response, "response_metadata", {}) or {}
     stop_reason = str(
-        metadata.get("stopReason")
-        or metadata.get("stop_reason")
-        or metadata.get("finish_reason")
-        or ""
+        metadata.get("stopReason") or metadata.get("stop_reason") or metadata.get("finish_reason") or ""
     ).lower()
     if "max_token" in stop_reason or stop_reason in {"length", "max_length"}:
         return True
@@ -479,11 +485,17 @@ def _summary_parse_failure_is_likely_truncation(response, raw_content: str) -> b
     return bool(stripped.startswith("{") and not stripped.endswith("}"))
 
 
-def _get_message_tokens_cheap(msg: dict) -> int:
-    """Cheap pressure estimate for deciding whether to schedule exact summary."""
+def _get_message_tokens_cheap(msg: dict, model_id: str | None = None) -> int:
+    """Accurate token count for a message using model-native tokenizer.
+
+    ENH [TOK]: Previously used chars/3 byte estimate (20-40% off for code/JSON).
+    Now uses the model's native tokenizer (tiktoken for GPT-OSS, tekken for
+    Mistral/Devstral, BPE for Kimi) for exact counts. Falls back to the
+    conservative byte estimate only when no tokenizer is available.
+    """
     from llm_provider.token_budget import estimate_tokens
 
-    return estimate_tokens(_message_countable_text(msg))
+    return estimate_tokens(_message_countable_text(msg), model_id=model_id)
 
 
 def _get_background_summary_pressure(
@@ -492,8 +504,14 @@ def _get_background_summary_pressure(
     new_messages: list[dict] | None = None,
     assistant_message: dict | None = None,
     pressure_budget_tokens: int | None = None,
+    model_id: str | None = None,
 ) -> dict:
-    """Return cheap unsummarized-tail pressure used by summary scheduling."""
+    """Return unsummarized-tail pressure used by summary scheduling.
+
+    ENH [TOK]: Now accepts model_id so the tail token count uses the model's
+    native tokenizer (tiktoken/tekken/transformers) instead of the chars/3
+    byte estimate. This makes the Tier 2 pre-call sum accurate.
+    """
     messages = list((conv_data or {}).get("messages", []) or [])
     messages.extend(new_messages or [])
     if assistant_message:
@@ -512,10 +530,9 @@ def _get_background_summary_pressure(
         }
 
     from langgraph_orchestration.conversation_access import group_messages_into_turns
+
     turns = group_messages_into_turns(unsummarized_tail)
-    complete_turn_count = sum(
-        1 for turn in turns if _turn_is_complete(turn, unsummarized_tail)
-    )
+    complete_turn_count = sum(1 for turn in turns if _turn_is_complete(turn, unsummarized_tail))
 
     pressure_budget = pressure_budget_tokens
     if assistant_message and isinstance(assistant_message.get("usage"), dict):
@@ -529,9 +546,21 @@ def _get_background_summary_pressure(
     if pressure_budget is None:
         pressure_budget = 12000
 
-    cheap_tail_tokens = sum(_get_message_tokens_cheap(msg) for msg in unsummarized_tail)
+    # ENH [TOK]: Use model-native tokenizer for accurate tail token count
+    cheap_tail_tokens = sum(_get_message_tokens_cheap(msg, model_id=model_id) for msg in unsummarized_tail)
     threshold_tokens = int(float(pressure_budget) * 0.90)
-    should_schedule = complete_turn_count > 0 and cheap_tail_tokens >= threshold_tokens
+    # FIX [CTX-SUMMARY]: Trigger summarization when EITHER:
+    # (a) tail tokens exceed the 90% threshold AND there's at least one
+    #     complete turn (the original condition), OR
+    # (b) tail tokens exceed the FULL pressure_budget (100%) — this is a
+    #     safety net so summarization ALWAYS triggers when the context is
+    #     completely full, even if turn-counting underreports (e.g. when
+    #     the last assistant message is still "in progress" and not yet
+    #     counted as a complete turn). Without this, the indicator could
+    #     sit at 100% with no summarization triggered.
+    should_schedule = (
+        complete_turn_count > 0 and cheap_tail_tokens >= threshold_tokens
+    ) or cheap_tail_tokens >= pressure_budget
     return {
         "should_schedule": should_schedule,
         "tail_tokens": cheap_tail_tokens,
@@ -558,13 +587,9 @@ def _message_countable_text(msg: dict) -> str:
 
 
 def _turn_is_complete(turn: list[int], messages: list) -> bool:
-    has_user = any(
-        str(messages[idx].get("sender", "")).lower() == "user" for idx in turn
-    )
+    has_user = any(str(messages[idx].get("sender", "")).lower() == "user" for idx in turn)
     has_ai = any(str(messages[idx].get("sender", "")).lower() == "ai" for idx in turn)
-    has_final_ai = any(
-        messages[idx].get("is_final_assistant_response") is True for idx in turn
-    )
+    has_final_ai = any(messages[idx].get("is_final_assistant_response") is True for idx in turn)
     if has_final_ai:
         return True
     return has_user and has_ai
@@ -590,13 +615,14 @@ class ConversationCompactionService:
             "threshold_tokens": None,
         }
         try:
-            from config import get_config
             from langchain_core.messages import HumanMessage, SystemMessage
+
+            from config import get_config
+            from llm_provider.model_capabilities import model_capability
             from llm_provider.model_factory import (
                 get_chat_model,
                 get_default_model,
             )
-            from llm_provider.model_capabilities import model_capability
             from llm_provider.token_budget import (
                 calculate_dynamic_token_budget,
                 count_converse_tokens_cached,
@@ -616,9 +642,7 @@ class ConversationCompactionService:
                     get_conversation_summarization_context_provider,
                 )
 
-                summarization_context = (
-                    get_conversation_summarization_context_provider()
-                )
+                summarization_context = get_conversation_summarization_context_provider()
                 system_prompt = summarization_context.build_system_prompt("balanced")
                 tools = summarization_context.get_tools()
                 system_prompt_count = count_converse_tokens_cached(
@@ -643,20 +667,30 @@ class ConversationCompactionService:
                     output_reserve_tokens=output_reserve_for_task_mode("normal"),
                     token_counting_mode=(
                         "estimated"
-                        if system_prompt_count["mode"] == "estimated"
-                        or tool_schema_count["mode"] == "estimated"
+                        if system_prompt_count["mode"] == "estimated" or tool_schema_count["mode"] == "estimated"
                         else "exact"
                     ),
                 )
                 active_context_budget = int(budget_info["active_context_budget"])
             summary_trigger_tokens = int(float(active_context_budget) * 0.90)
             result["threshold_tokens"] = summary_trigger_tokens
-            summary_chunk_token_limit = max(1, active_context_budget // 2)
+            max(1, active_context_budget // 2)
 
             db = FirestoreService.get_db()
-            doc_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(
-                conversation_id
-            )
+            doc_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(conversation_id)
+
+            # FIX [CTX-BOUNDARY-MATCH]: Track whether at least one summary
+            # block has been committed in this call. Once we have committed
+            # a summary, we must keep looping until EVERY complete
+            # unsummarized turn has been summarized — even if the remaining
+            # tail_tokens drop below the 90% threshold. This guarantees
+            # that the summarization boundary (the range of turns covered
+            # by summaries) and the active-context boundary
+            # (last_summarized_idx) always match exactly. Previously, the
+            # loop exited as soon as tail_tokens < threshold, which left
+            # the second half of a truncated chunk unsummarized and still
+            # in the active context.
+            summarization_committed = False
 
             while True:
                 doc = doc_ref.get()
@@ -677,20 +711,34 @@ class ConversationCompactionService:
                 result["start_idx"] = start_idx
                 unsummarized_tail = messages[start_idx:]
                 if not unsummarized_tail:
-                    result["reason"] = "empty_tail"
+                    # FIX [CTX-BOUNDARY-MATCH]: If we already committed at
+                    # least one summary block in this call, the empty tail
+                    # means every summarizable turn has been summarized —
+                    # report "complete" instead of "empty_tail".
+                    if summarization_committed:
+                        result["reason"] = "complete"
+                    else:
+                        result["reason"] = "empty_tail"
                     return result
 
-                tail_tokens = sum(
-                    _get_message_tokens_cheap(msg)
-                    for msg in unsummarized_tail
-                )
+                # ENH [TOK]: Pass model_id for model-native tokenizer
+                tail_tokens = sum(_get_message_tokens_cheap(msg, model_id=model) for msg in unsummarized_tail)
                 result["tail_tokens"] = tail_tokens
 
-                if tail_tokens < summary_trigger_tokens:
+                # FIX [CTX-BOUNDARY-MATCH]: Only gate on the 90% threshold
+                # for the FIRST summarization decision in this call. Once we
+                # have committed a summary, we must keep summarizing every
+                # remaining complete turn so the active-context boundary
+                # catches up to the summarization boundary — even if the
+                # remaining tail is now below the threshold.
+                if not summarization_committed and tail_tokens < summary_trigger_tokens:
                     result["reason"] = "below_threshold"
                     return result
 
-                from langgraph_orchestration.conversation_access import group_messages_into_turns
+                from langgraph_orchestration.conversation_access import (
+                    group_messages_into_turns,
+                )
+
                 turns = group_messages_into_turns(messages)
 
                 turn_idx_by_msg_idx = {}
@@ -709,25 +757,31 @@ class ConversationCompactionService:
                         break
 
                 if not complete_unsummarized_turns:
-                    result["reason"] = "no_complete_turns"
+                    # FIX [CTX-BOUNDARY-MATCH]: Same as the empty_tail case —
+                    # if we already committed a summary this call, the
+                    # absence of further complete turns means we are done.
+                    if summarization_committed:
+                        result["reason"] = "complete"
+                    else:
+                        result["reason"] = "no_complete_turns"
                     return result
 
-                chunk_turns = []
-                chunk_tokens = 0
-                max_chunk_tokens = summary_chunk_token_limit
-
-                for turn in complete_unsummarized_turns:
-                    turn_tokens = sum(
-                        _get_message_tokens_cheap(messages[idx])
-                        for idx in turn
-                    )
-                    if chunk_turns and chunk_tokens + turn_tokens > max_chunk_tokens:
-                        break
-                    chunk_turns.append(turn)
-                    chunk_tokens += turn_tokens
-
-                if not chunk_turns:
-                    chunk_turns = [complete_unsummarized_turns[0]]
+                # ENH [CTX-BOUNDARY-FIX]: Summarize ALL complete unsummarized
+                # turns, not just a chunk. The old code limited the chunk to
+                # `active_context_budget // 2` tokens, which meant only a
+                # subset of turns were summarized. The remaining turns stayed
+                # in the active context, causing the boundary mismatch where
+                # the summary covered turns 1-10 but turns 6-16 were still
+                # in the active context.
+                #
+                # Now: ALL complete unsummarized turns are included in the
+                # summary. If the text is too large for a single LLM call,
+                # the summarizer will truncate its output (the summary itself
+                # is compact). The important thing is that `last_summarized_idx`
+                # covers ALL summarized turns, so the active context only
+                # contains turns created AFTER summarization.
+                chunk_turns = complete_unsummarized_turns
+                sum(_get_message_tokens_cheap(messages[idx], model_id=model) for turn in chunk_turns for idx in turn)
 
                 chunk_end_msg_idx = chunk_turns[-1][-1]
                 end_idx = chunk_end_msg_idx + 1
@@ -770,70 +824,138 @@ class ConversationCompactionService:
                         enable_reasoning=False,
                         max_tokens=summary_output_tokens,
                     )
-                    from langgraph_orchestration.prompt_builder import SummarizationPromptBuilder
+                    from langgraph_orchestration.prompt_builder import (
+                        SummarizationPromptBuilder,
+                    )
 
-                    prompt = [
-                        SystemMessage(
-                            content=SummarizationPromptBuilder.get_system_prompt()
-                        ),
-                        HumanMessage(
-                            content=f"Conversation block:\n<conversation_history>\n{text_block}\n</conversation_history>"
-                        ),
-                    ]
-
-                    response = await chat.ainvoke(prompt)
-                    raw_content = _ai_message_content_to_str(response.content).strip()
-
+                    # FIX [CTX-BOUNDARY-MATCH]: Truncation retry loop.
+                    #
+                    # OLD BEHAVIOR (buggy):
+                    #   1. First summarizer call fails (truncation detected).
+                    #   2. Retry ONCE with half the turns.
+                    #   3. Whether or not the retry succeeded, the code at
+                    #      the same indentation as the `if` block would
+                    #      always run: clear the claim, set reason to
+                    #      "summary_output_truncated", and RETURN — never
+                    #      reaching _commit_summary_claim. So truncation
+                    #      caused ZERO trimming. last_summarized_idx stayed
+                    #      at its pre-call value, every prior turn remained
+                    #      in the active context, and the indicator never
+                    #      went down.
+                    #
+                    # NEW BEHAVIOR:
+                    #   1. Try to summarize the current chunk.
+                    #   2. On truncation (and chunk has >1 turn), halve the
+                    #      chunk and retry — keep halving until the
+                    #      summarizer succeeds or the chunk is a single turn.
+                    #   3. On success, BREAK out of the retry loop and fall
+                    #      through to the commit logic. The summary IS
+                    #      committed, last_summarized_idx IS advanced.
+                    #   4. After committing, the outer while-True loop
+                    #      continues and summarizes the remaining complete
+                    #      turns (the half we just skipped), so the
+                    #      summarization boundary and the active-context
+                    #      boundary always match exactly.
+                    response = None
+                    raw_content = ""
                     summary_body = ""
-                    memory_bullets = []
-                    try:
-                        parsed = _parse_summary_json_response(raw_content)
-                        summary_body = parsed.get("summary_text", "").strip()
-                        memory_bullets = parsed.get("memory_bullets", [])
-                        response_metadata = (
-                            getattr(response, "response_metadata", {}) or {}
-                        )
-                        logger.info(
-                            "Summarizer output conversation=%s bytes=%s bullets=%s "
-                            "stop_reason=%s",
-                            conversation_id,
-                            len(raw_content.encode("utf-8")),
-                            len(memory_bullets),
-                            response_metadata.get("stopReason")
-                            or response_metadata.get("stop_reason")
-                            or response_metadata.get("finish_reason"),
-                        )
-                    except Exception as e:
-                        if (
-                            _summary_parse_failure_is_likely_truncation(
-                                response, raw_content
-                            )
-                            and len(chunk_turns) > 1
-                        ):
-                            next_limit = max(1, chunk_tokens // 2)
-                            if next_limit >= summary_chunk_token_limit:
-                                next_limit = max(1, summary_chunk_token_limit // 2)
-                            summary_chunk_token_limit = next_limit
-                            _clear_summary_claim(doc_ref, claim_id)
-                            result["reason"] = "retrying_smaller_summary_chunk"
-                            logger.warning(
-                                "Summarizer output was truncated for %s; retrying "
-                                "with complete-turn chunk budget %s",
+                    memory_bullets: list[dict] = []
+                    while True:
+                        prompt = [
+                            SystemMessage(content=SummarizationPromptBuilder.get_system_prompt()),
+                            HumanMessage(
+                                content=f"Conversation block:\n<conversation_history>\n{text_block}\n</conversation_history>"
+                            ),
+                        ]
+
+                        response = await chat.ainvoke(prompt)
+                        raw_content = _ai_message_content_to_str(response.content).strip()
+
+                        try:
+                            parsed = _parse_summary_json_response(raw_content)
+                            summary_body = parsed.get("summary_text", "").strip()
+                            memory_bullets = parsed.get("memory_bullets", [])
+                            response_metadata = getattr(response, "response_metadata", {}) or {}
+                            logger.info(
+                                "Summarizer output conversation=%s bytes=%s bullets=%s stop_reason=%s",
                                 conversation_id,
-                                summary_chunk_token_limit,
+                                len(raw_content.encode("utf-8")),
+                                len(memory_bullets),
+                                response_metadata.get("stopReason")
+                                or response_metadata.get("stop_reason")
+                                or response_metadata.get("finish_reason"),
                             )
-                            continue
-                        logger.warning("Failed to parse JSON from summarizer: %s", e)
-                        _clear_summary_claim(doc_ref, claim_id)
-                        result["reason"] = (
-                            "summary_output_truncated"
-                            if _summary_parse_failure_is_likely_truncation(
-                                response, raw_content
-                            )
-                            else "invalid_summary_json"
-                        )
-                        result["error"] = str(e)
-                        return result
+                            # Success — exit the truncation retry loop and
+                            # fall through to the commit logic below.
+                            break
+                        except Exception as parse_err:
+                            is_truncation = _summary_parse_failure_is_likely_truncation(response, raw_content)
+                            if is_truncation and len(chunk_turns) > 1:
+                                # Halve the chunk and retry. The half we
+                                # just summarized will be committed (below),
+                                # and the outer while-True loop will pick up
+                                # the remaining turns on the next iteration.
+                                half = len(chunk_turns) // 2
+                                chunk_turns = chunk_turns[:half]
+                                chunk_end_msg_idx = chunk_turns[-1][-1]
+                                end_idx = chunk_end_msg_idx + 1
+                                _clear_summary_claim(doc_ref, claim_id)
+                                logger.warning(
+                                    "Summarizer output was truncated for %s; retrying with first %d of %d turns",
+                                    conversation_id,
+                                    len(chunk_turns),
+                                    len(complete_unsummarized_turns),
+                                )
+                                # Re-claim with the smaller range
+                                claim_id = _claim_summary_range(
+                                    db,
+                                    doc_ref,
+                                    user_id=user_id,
+                                    start_idx=start_idx,
+                                    end_idx=end_idx,
+                                )
+                                if not claim_id:
+                                    result["reason"] = "claim_conflict"
+                                    return result
+                                block_to_summarize = messages[start_idx:end_idx]
+                                text_block = _build_summary_input(block_to_summarize)
+                                # Cancel the old heartbeat and start a fresh
+                                # one for the new claim, so the heartbeat
+                                # renews the correct claim_id.
+                                claim_heartbeat_stop.set()
+                                claim_heartbeat.cancel()
+                                try:
+                                    await claim_heartbeat
+                                except asyncio.CancelledError:
+                                    pass
+                                claim_heartbeat_stop = asyncio.Event()
+                                claim_heartbeat = asyncio.create_task(
+                                    _run_summary_claim_heartbeat(
+                                        doc_ref,
+                                        claim_id,
+                                        claim_heartbeat_stop,
+                                        Config.VAMP_SUMMARY_CLAIM_TTL_SECONDS,
+                                    ),
+                                    name=f"summary-claim-{claim_id}",
+                                )
+                                # Loop back and retry with the smaller chunk.
+                                continue
+                            else:
+                                # Either not a truncation failure, or the
+                                # chunk is already a single turn and cannot
+                                # be halved further. We cannot make progress
+                                # on this chunk — abort and let the next
+                                # pre-call check try again.
+                                logger.warning(
+                                    "Failed to parse JSON from summarizer: %s",
+                                    parse_err,
+                                )
+                                _clear_summary_claim(doc_ref, claim_id)
+                                result["reason"] = (
+                                    "summary_output_truncated" if is_truncation else "invalid_summary_json"
+                                )
+                                result["error"] = str(parse_err)
+                                return result
 
                     if not summary_body:
                         logger.warning(
@@ -844,9 +966,7 @@ class ConversationCompactionService:
                         result["reason"] = "empty_summary"
                         return result
 
-                    new_summary = (
-                        f"[Messages {start_idx + 1}-{end_idx}]\n{summary_body}"
-                    )
+                    new_summary = f"[Messages {start_idx + 1}-{end_idx}]\n{summary_body}"
 
                     if not Config.VAMP_MEMORY_ENABLED:
                         logger.info(
@@ -880,9 +1000,7 @@ class ConversationCompactionService:
                             covers_to_turn = turns.index(chunk_turns[-1])
 
                     covers_message_ids = [
-                        messages[idx].get("id")
-                        or messages[idx].get("message_id")
-                        or idx
+                        messages[idx].get("id") or messages[idx].get("message_id") or idx
                         for idx in range(start_idx, end_idx)
                     ]
 
@@ -898,9 +1016,7 @@ class ConversationCompactionService:
                         covers_message_ids=covers_message_ids,
                         created_from_unsummarized_tail=True,
                     )
-                    if not _commit_summary_claim(
-                        doc_ref, claim_id, end_idx, last_summarized_turn=covers_to_turn
-                    ):
+                    if not _commit_summary_claim(doc_ref, claim_id, end_idx, last_summarized_turn=covers_to_turn):
                         logger.warning(
                             "Summary claim commit skipped for %s: claim no longer active",
                             conversation_id,
@@ -917,6 +1033,15 @@ class ConversationCompactionService:
                         await claim_heartbeat
                     except asyncio.CancelledError:
                         pass
+
+                # FIX [CTX-BOUNDARY-MATCH]: Mark that we've committed a
+                # summary in this call. The outer while-True loop will now
+                # continue and summarize any remaining complete turns —
+                # even if their tail_tokens are below the 90% threshold —
+                # so the active-context boundary (last_summarized_idx)
+                # catches up to the summarization boundary.
+                summarization_committed = True
+
                 result.update(
                     {
                         "created": True,
@@ -934,6 +1059,7 @@ class ConversationCompactionService:
                     covers_from_turn,
                     covers_to_turn,
                 )
+                # Loop back to summarize any remaining complete turns.
 
         except Exception as e:
             logger.error(f"Error in background summarization: {e}", exc_info=True)

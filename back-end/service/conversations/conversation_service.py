@@ -7,8 +7,12 @@ import logging
 import uuid
 from typing import AsyncGenerator, Optional
 
-from service.conversations.conversation_streaming_service import ConversationStreamingService
-from service.conversations.conversation_compaction_service import ConversationCompactionService
+from service.conversations.conversation_compaction_service import (
+    ConversationCompactionService,
+)
+from service.conversations.conversation_streaming_service import (
+    ConversationStreamingService,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,9 +65,7 @@ class ConversationService:
                 "Failed to clean up external memory during conversation delete: %s",
                 cleanup_err,
             )
-            ConversationRepository.create_memory_cleanup_retry(
-                conversation_id, user_id, cleanup_err
-            )
+            ConversationRepository.create_memory_cleanup_retry(conversation_id, user_id, cleanup_err)
 
         ConversationRepository.delete(conversation_id, user_id)
 
@@ -76,9 +78,7 @@ class ConversationService:
             get_default_memory_cleaner,
         )
 
-        return ConversationRepository.retry_qdrant_cleanups(
-            get_default_memory_cleaner()
-        )
+        return ConversationRepository.retry_qdrant_cleanups(get_default_memory_cleaner())
 
     @staticmethod
     def rename_user_conversation(conversation_id: str, user_id: str, title: str) -> str:

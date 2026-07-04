@@ -111,7 +111,7 @@ export function useChatPageController() {
   );
   const {
     workspaceCanvasOpen,
-    workspaceCanvasArtifact,
+    workspaceCanvasArtifact: rawWorkspaceCanvasArtifact,
     workspaceCanvasWidth,
     handleOpenCanvasArtifact,
     handleOpenSqlEditor: openSqlEditorCanvas,
@@ -122,6 +122,10 @@ export function useChatPageController() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [anchorEl, setAnchorEl] = useState(null);
   const [usageMetrics, setUsageMetrics] = useState(null);
+  // ENH [AUTO-TASK-MODE]: The effective task mode reported by the backend
+  // for the current/last turn. Reset to null when the conversation changes
+  // or streaming stops so the badge doesn't persist across turns.
+  const [effectiveTaskMode, setEffectiveTaskMode] = useState(null);
 
   // ── Guided confirm dialog (agent interrupts / step limits) ─────────────────
   const [guidedConfirmDialog, setGuidedConfirmDialog] = useState({
@@ -155,6 +159,36 @@ export function useChatPageController() {
     return lastMessage?.role === 'assistant' && isMessageActive(lastMessage);
   }, [messages]);
 
+  // ── Detect agent streaming into the SQL editor ───────────────────────────
+  // When the agent calls `write_sql_editor_query`, the tool step is in
+  // `running` state. We detect this and inject `isStreaming: true` into the
+  // artifact props so SqlEditorSurface switches to streaming mode.
+  const isSqlEditorStreaming = useMemo(() => {
+    if (!isCurrentlyStreaming) return false;
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage?.steps) return false;
+    return lastMessage.steps.some(
+      (step) =>
+        step.type === 'tool' &&
+        step.name === 'write_sql_editor_query' &&
+        step.status === 'running',
+    );
+  }, [isCurrentlyStreaming, messages]);
+
+  // Inject isStreaming into the artifact props when the SQL editor is open
+  // and the agent is actively writing a query.
+  const workspaceCanvasArtifact = useMemo(() => {
+    if (!rawWorkspaceCanvasArtifact) return null;
+    if (rawWorkspaceCanvasArtifact.type !== 'sql-editor') return rawWorkspaceCanvasArtifact;
+    return {
+      ...rawWorkspaceCanvasArtifact,
+      props: {
+        ...rawWorkspaceCanvasArtifact.props,
+        isStreaming: isSqlEditorStreaming,
+      },
+    };
+  }, [rawWorkspaceCanvasArtifact, isSqlEditorStreaming]);
+
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleOpenSqlEditor = useCallback(
     (query = '', results = null) => {
@@ -168,6 +202,19 @@ export function useChatPageController() {
     },
     [isDbConnected, openSqlEditorCanvas, setDbModalOpen, setSettingsOpen, showSnackbar],
   );
+
+  // ── Open SQL editor early when agent starts writing a query ──────────────
+  // When `write_sql_editor_query` enters `running` state, open the editor
+  // immediately (with empty query) so the user sees the "Agent is writing…"
+  // indicator while the agent composes the query. The actual query arrives
+  // when the `ui_action` event fires (via the handler below).
+  useEffect(() => {
+    if (!isSqlEditorStreaming) return;
+    // Only open if the SQL editor isn't already open
+    if (rawWorkspaceCanvasArtifact?.type === 'sql-editor') return;
+    if (!isDbConnected) return;
+    openSqlEditorCanvas('', null);
+  }, [isSqlEditorStreaming, rawWorkspaceCanvasArtifact, isDbConnected, openSqlEditorCanvas]);
 
   const handleQueryResults = useCallback(
     (data, sourceQuery) => {
@@ -259,8 +306,24 @@ export function useChatPageController() {
     },
   });
 
+  // Restore usageMetrics from message history when NOT streaming.
+  //
+  // FIX [CTX-SYNC]: Previously this effect ran on EVERY `messages` change
+  // (every token batch during streaming) and used `setTimeout(() => ..., 0)`
+  // to defer `setUsageMetrics`. Those deferred updates could fire AFTER the
+  // live SSE `usage_metrics` event handler's synchronous `setUsageMetrics`,
+  // clobbering the live value with `null` or stale data from a previous turn.
+  // This caused the context-window indicator to flicker and fall out of sync.
+  //
+  // Fix: (1) Skip entirely while streaming — the live SSE path is the sole
+  // source of truth during active streaming. (2) Remove the `setTimeout`
+  // wrappers — React batches synchronous state updates, so the deferral
+  // was unnecessary AND was the root cause of the clobbering race.
+  // (3) Add `isCurrentlyStreaming` to the dependency array.
   useEffect(() => {
     messagesRef.current = messages;
+
+    if (isCurrentlyStreaming) return;
 
     let nextUsage = null;
     let foundUsage = false;
@@ -282,31 +345,30 @@ export function useChatPageController() {
       (messages[0].role === 'user' || messages[0].sender === 'user');
 
     if (foundUsage) {
-      setTimeout(() => {
-        setUsageMetrics(nextUsage);
-      }, 0);
+      setUsageMetrics(nextUsage);
     } else if (!isLastUser || !messages || messages.length === 0) {
-      setTimeout(() => {
-        setUsageMetrics(null);
-      }, 0);
+      setUsageMetrics(null);
     }
-  }, [messages]);
+  }, [messages, isCurrentlyStreaming]);
 
   const handleAgentStepLimitReached = useCallback(
     (event, assistantMessageId = null) => {
       stepLimitEventRef.current = event;
       const stepsUsed = event?.steps_used ?? '?';
       const taskMode = event?.task_mode || 'normal';
-      const message =
-        event?.message ||
-        `The agent paused after ${stepsUsed} steps to avoid runaway execution. The task context has been saved.`;
 
+      // ENH [TASK-PAUSED-BANNER]: The compact banner shows a one-line summary
+      // ("Step limit reached · 5 steps used") instead of the old full
+      // sentence. The stepsUsed count is passed through so the banner can
+      // display it. We keep the full message in the state for accessibility
+      // (screen readers) but the visual banner uses the compact form.
       setGuidedConfirmDialog({
         open: true,
         title: '⏸ Task Paused',
-        message,
+        message: `Step limit reached · ${stepsUsed} steps used`,
+        stepsUsed,
         confirmText: 'Continue Task',
-        cancelText: 'Stop Here',
+        cancelText: 'Stop',
         onCancel: () => {
           stepLimitEventRef.current = null;
         },
@@ -323,6 +385,22 @@ export function useChatPageController() {
     },
     [selectedModel, selectedProvider],
   );
+
+  /**
+   * ENH [AUTO-TASK-MODE]: Called when the backend emits a `task_mode` SSE
+   * event at the start of each turn. The event reports the EFFECTIVE mode
+   * (which may have been auto-elevated from normal → tool_task / long_task
+   * based on the prompt). We store it so the ChatInput can display a badge
+   * ("Long Task · 200 steps") while the agent is running.
+   */
+  const handleTaskModeResolved = useCallback((event) => {
+    setEffectiveTaskMode({
+      task_mode: event?.task_mode || 'normal',
+      label: event?.label || event?.task_mode || 'Standard',
+      recursion_limit: event?.recursion_limit ?? null,
+      source: event?.source || 'user',
+    });
+  }, []);
 
   const handleAgentInterrupt = useCallback(
     (event, assistantMessageId = null) => {
@@ -371,8 +449,16 @@ export function useChatPageController() {
       dispatchUiAction,
       onAgentInterrupt: handleAgentInterrupt,
       onAgentStepLimitReached: handleAgentStepLimitReached,
+      onTaskModeResolved: handleTaskModeResolved,
       getMessages: () => messagesRef.current,
     });
+
+  // ENH [AUTO-TASK-MODE]: Clear the effective-mode badge when the user
+  // switches conversations so a stale "Long Task" badge from the previous
+  // conversation doesn't bleed into the new one.
+  useEffect(() => {
+    setEffectiveTaskMode(null);
+  }, [currentConversationId]);
 
   useEffect(() => {
     resumeAgentRef.current = handleResumeAgent;
@@ -507,6 +593,11 @@ export function useChatPageController() {
       llmOptionsLoading,
       onSelectLlm: handleLlmSelection,
       usageMetrics,
+      // ENH [AUTO-TASK-MODE]: User's chosen task mode (from settings) and
+      // the backend-reported effective mode for the current turn.
+      taskMode: settings.taskMode ?? 'auto',
+      onTaskModeChange: (value) => updateSetting('taskMode', value),
+      effectiveTaskMode,
     }),
     [
       handleSendMessageWithModel,
@@ -527,6 +618,9 @@ export function useChatPageController() {
       llmOptionsLoading,
       handleLlmSelection,
       usageMetrics,
+      settings.taskMode,
+      updateSetting,
+      effectiveTaskMode,
     ],
   );
 

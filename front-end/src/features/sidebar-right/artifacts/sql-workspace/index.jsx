@@ -39,6 +39,7 @@ function SqlWorkspace({
   onExitFullscreen,
   onToggleFullscreen,
   workspaceContainerRef,
+  isStreaming = false,
 }) {
   // Panel state
   const [schemaSidebarOpen, setSchemaSidebarOpen] = useState(true);
@@ -331,6 +332,7 @@ function SqlWorkspace({
           activeTab={activeTab}
           isConnected={isConnected}
           currentDatabase={currentDatabase}
+          isStreaming={isStreaming}
           onTabChange={setActiveTabId}
           onTabAdd={handleAddTab}
           onTabClose={handleCloseTab}

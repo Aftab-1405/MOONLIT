@@ -87,10 +87,7 @@ def _sanitize_patch(patch: dict[str, Any]) -> dict[str, Any]:
         return {}
 
     incoming = dict(patch)
-    if (
-        "connectionPersistence" not in incoming
-        and "connectionPersistenceMinutes" in incoming
-    ):
+    if "connectionPersistence" not in incoming and "connectionPersistenceMinutes" in incoming:
         incoming["connectionPersistence"] = incoming.pop("connectionPersistenceMinutes")
 
     sanitized: dict[str, Any] = {}

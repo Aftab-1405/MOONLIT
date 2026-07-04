@@ -32,9 +32,7 @@ class UserContextDatabaseSync:
     ) -> None:
         from service.context.context_service import ContextService
 
-        ContextService.set_connection(
-            user_id, db_type, database, host, is_remote, schema
-        )
+        ContextService.set_connection(user_id, db_type, database, host, is_remote, schema)
 
     def clear_connection(self, user_id: str) -> None:
         from service.context.context_service import ContextService
@@ -46,15 +44,18 @@ class UserContextDatabaseSync:
 
         ContextService.update_schema(user_id, schema_name)
 
-    def store_schema_context(
-        self, user_id: str, database: str, tables: list, columns: dict
-    ) -> None:
+    def store_schema_context(self, user_id: str, database: str, tables: list, columns: dict) -> None:
         from service.context.context_service import ContextService
 
         ContextService.store_schema_context(user_id, database, tables, columns)
 
     def add_query(
-        self, user_id: str, query: str, database: str | None, row_count: int, status: str
+        self,
+        user_id: str,
+        query: str,
+        database: str | None,
+        row_count: int,
+        status: str,
     ) -> None:
         from service.context.context_service import ContextService
 

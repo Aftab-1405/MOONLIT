@@ -149,8 +149,35 @@ class SkillRegistry:
         self._skills = _load_skills()
         self._skill_map = {skill.name: skill for skill in self._skills}
 
-    def build_available_skills_context(self) -> str:
+    def build_available_skills_context(
+        self, *, db_connected: bool = True
+    ) -> str:
+        """Render the ``<available_skills>`` block injected into the base prompt.
+
+        ENH [5]: ``db_connected`` (default ``True`` for backward compat)
+        controls whether the database-related skill cards are advertised.
+        When the user has no live database connection, advertising
+        ``database-querying``, ``query-history``, and ``react-flow-diagram``
+        wastes ~250 tokens of context for zero benefit (the user can't act
+        on them). Only ``web-research`` survives the filter because the
+        user may still ask general questions even without a database.
+        """
+        # ENH [5]: skills that require a live database connection. They are
+        # hidden from <available_skills> when db_connected=False so the LLM
+        # does not waste tokens considering them.
+        DB_DEPENDENT_SKILLS = frozenset(
+            {"database-querying", "query-history", "react-flow-diagram"}
+        )
+
         if not self._skills:
+            return ""
+
+        visible_skills = [
+            skill
+            for skill in self._skills
+            if db_connected or skill.name not in DB_DEPENDENT_SKILLS
+        ]
+        if not visible_skills:
             return ""
 
         lines = [
@@ -165,7 +192,7 @@ class SkillRegistry:
                 f"When to use: {skill.when_to_use} "
                 f"Avoid when: {skill.avoid_when}"
             )
-            for skill in self._skills
+            for skill in visible_skills
         )
         lines.append("</available_skills>")
         return "\n\n" + "\n".join(lines)

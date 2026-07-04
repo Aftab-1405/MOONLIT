@@ -19,6 +19,5 @@ class LangGraphSummarizationContextProvider:
         return list(ALL_TOOLS)
 
 
-def create_summarization_context_provider(
-) -> ConversationSummarizationContextProvider:
+def create_summarization_context_provider() -> ConversationSummarizationContextProvider:
     return LangGraphSummarizationContextProvider()

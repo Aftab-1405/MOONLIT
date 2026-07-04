@@ -5,9 +5,24 @@ import logging
 import time
 from typing import Any, Optional
 
-from fastapi import APIRouter, Request, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
 
+from api_contract.common import COMMON_ERROR_RESPONSES, ApiSuccess
+from api_contract.database import (
+    ConnectDBRequest,
+    RunQueryRequest,
+    SwitchDatabaseRequest,
+)
+from api_contract.database_schemas import (
+    ConnectDatabaseData,
+    DatabaseConfigPublic,
+    DatabaseListData,
+    DatabaseSelectionData,
+    DatabaseStatusData,
+    DisconnectDatabaseData,
+)
+from api_contract.query_schemas import QueryResultData, RunSqlQueryData
 from dependencies import (
     get_current_user,
     get_db_config,
@@ -16,21 +31,6 @@ from dependencies import (
 )
 from service.database.connection_service import ConnectionService
 from service.database.database_service import DatabaseService
-from api_contract.database import (
-    ConnectDBRequest,
-    RunQueryRequest,
-    SwitchDatabaseRequest,
-)
-from api_contract.common import COMMON_ERROR_RESPONSES, ApiSuccess
-from api_contract.database_schemas import (
-    ConnectDatabaseData,
-    DatabaseConfigPublic,
-    DatabaseStatusData,
-    DisconnectDatabaseData,
-    DatabaseListData,
-    DatabaseSelectionData,
-)
-from api_contract.query_schemas import QueryResultData, RunSqlQueryData
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Database Operations End Points"])
@@ -70,9 +70,7 @@ def _public_db_config(raw_config: dict | None, fallback_db_type: str | None = No
 
 def _selected_database(result: dict, db_config: DatabaseConfigPublic | None = None):
     return (
-        result.get("selected_database")
-        or result.get("selectedDatabase")
-        or (db_config.database if db_config else None)
+        result.get("selected_database") or result.get("selectedDatabase") or (db_config.database if db_config else None)
     )
 
 
@@ -194,7 +192,7 @@ def _normalize_rows(rows: list[Any]) -> list[list[Any]]:
             row_list = list(row)
         else:
             row_list = [row]
-        
+
         # Handle binary data (bytes) cleanly to prevent JSON serialization crash
         normalized_row = []
         for val in row_list:
@@ -238,23 +236,15 @@ def _normalize_query_response(result: dict) -> RunSqlQueryData:
     response_model=ApiSuccess[ConnectDatabaseData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def connect_db(
-    request: Request, data: ConnectDBRequest, user: dict = Depends(get_current_user)
-):
+async def connect_db(request: Request, data: ConnectDBRequest, user: dict = Depends(get_current_user)):
     """Connect to a remote database via connection string or host/port credentials."""
     user_id = user.get("uid") or user
 
     # Log connection request without sensitive fields
-    safe_log_data = {
-        k: v
-        for k, v in data.model_dump().items()
-        if k not in ("password", "connection_string")
-    }
+    safe_log_data = {k: v for k, v in data.model_dump().items() if k not in ("password", "connection_string")}
     logger.info(f"Connect request data: {safe_log_data}")
 
-    result = await run_in_threadpool(
-        ConnectionService.connect_database, data.model_dump(), user_id
-    )
+    result = await run_in_threadpool(ConnectionService.connect_database, data.model_dump(), user_id)
 
     # Store db_config in session if connection successful
     if result.get("status") in ["connected", "success"] and "db_config" in result:
@@ -320,8 +310,8 @@ async def disconnect_db(
 async def sync_connection_state(db_config: Optional[dict] = Depends(get_db_config)):
     """Synchronize the active database connection state with the consumer.
 
-    This endpoint is used primarily by the frontend React application to restore, 
-    hydrate, and synchronize its local state (e.g. green badges, active tables, 
+    This endpoint is used primarily by the frontend React application to restore,
+    hydrate, and synchronize its local state (e.g. green badges, active tables,
     and sidebar schema explorers) on page reload or fresh tab visits.
 
     Returns all state needed by the client-side DatabaseContext:
@@ -397,9 +387,7 @@ async def switch_remote_database(
     """Switch to a different database on remote server."""
     user_id = user.get("uid") or user
 
-    result = await run_in_threadpool(
-        DatabaseService.switch_remote_database, db_config, data.database, user_id
-    )
+    result = await run_in_threadpool(DatabaseService.switch_remote_database, db_config, data.database, user_id)
 
     # Update session with new db_config
     if result.get("status") == "success" and "db_config" in result:
@@ -434,9 +422,7 @@ async def select_database(
     """Select a database on existing connection."""
     user_id = user.get("uid") or user
 
-    result = await run_in_threadpool(
-        ConnectionService.select_database, db_config, data.database, user_id
-    )
+    result = await run_in_threadpool(ConnectionService.select_database, db_config, data.database, user_id)
 
     if result.get("status") in ["connected", "success"] and "db_config" in result:
         await update_session_data(
@@ -473,6 +459,7 @@ async def run_sql_query(
 ):
     """Execute a SQL query."""
     from config import get_config
+
     Config = get_config()
 
     user_id = user.get("uid") or user

@@ -3,7 +3,16 @@ import { alpha, useTheme as useMuiTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 /**
- * ResizeHandle - Draggable vertical divider for resizing panels
+ * ResizeHandle — draggable vertical divider for resizing panels.
+ *
+ * Visible affordance: a 2px-wide, 36px-tall pill that brightens + glows
+ * on hover/focus. The clickable hit area is 8px wide so it's easy to grab
+ * with a mouse or finger.
+ *
+ * Accessibility:
+ *   - `role="separator"` with `aria-orientation="vertical"`.
+ *   - Keyboard: ArrowLeft/ArrowRight resizes by 24px (Shift = 48px).
+ *   - Visible focus ring matches the hover treatment.
  *
  * @param {Function} onResize - Callback fired during drag with deltaX
  * @param {Function} onResizeEnd - Callback fired when drag ends
@@ -86,6 +95,14 @@ function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }
   }, [handlePointerMove, handlePointerUp, restoreBodyStyles]);
   if (disabled) return null;
 
+  // Resolve handle colours. We use theme.primary for the active/hover state
+  // and a low-alpha foreground for the resting state so the handle reads as
+  // "grab me" without being visually loud.
+  const restingColor = theme.palette.border?.subtle || alpha(theme.palette.text.primary, 0.14);
+  const activeColor = theme.palette.primary.main;
+  const activeGlow = alpha(theme.palette.primary.main, 0.38);
+  const hoverGlow = alpha(theme.palette.primary.main, 0.28);
+
   return (
     <Box
       role="separator"
@@ -95,7 +112,8 @@ function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }
       onPointerDown={handlePointerDown}
       onKeyDown={handleKeyDown}
       sx={{
-        width: 8,
+        // 10px hit area for easy grabbing (was 8px — bumped for touch).
+        width: 10,
         flexShrink: 0,
         cursor: 'col-resize',
         display: 'flex',
@@ -103,6 +121,9 @@ function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }
         justifyContent: 'center',
         touchAction: 'none',
         backgroundColor: 'transparent',
+        // Outline is drawn on the inner pill (`::after`) so the hit area
+        // itself doesn't show a focus ring that would extend past the visible
+        // handle.
         '&:hover, &:focus-visible': {
           backgroundColor: 'transparent',
           outline: 'none',
@@ -112,20 +133,20 @@ function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }
         },
         '&::after': {
           content: '""',
-          width: 2,
+          // Slightly thicker pill (3px, was 2px) — more visible at small sizes.
+          width: 3,
           height: 36,
           borderRadius: 999,
-          backgroundColor: dragging
-            ? theme.palette.primary.main
-            : theme.palette.border?.subtle || alpha(theme.palette.text.primary, 0.14),
-          boxShadow: dragging ? `0 0 10px ${alpha(theme.palette.primary.main, 0.38)}` : 'none',
-          transition: theme.transitions.create(['background-color', 'box-shadow'], {
+          backgroundColor: dragging ? activeColor : restingColor,
+          boxShadow: dragging ? `0 0 12px ${activeGlow}` : 'none',
+          transition: theme.transitions.create(['background-color', 'box-shadow', 'height'], {
             duration: theme.transitions.duration.shorter,
           }),
         },
         '&:hover::after, &:focus-visible::after': {
-          backgroundColor: theme.palette.primary.main,
-          boxShadow: `0 0 10px ${alpha(theme.palette.primary.main, 0.28)}`,
+          backgroundColor: activeColor,
+          height: 40,
+          boxShadow: `0 0 12px ${hoverGlow}`,
         },
       }}
     />

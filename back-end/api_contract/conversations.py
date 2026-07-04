@@ -14,12 +14,8 @@ class BaseConversationRequest(BaseModel):
 
     enable_reasoning: bool = Field(default=True)
     reasoning_effort: Literal["low", "medium", "high"] = Field(default="medium")
-    response_style: Literal["concise", "balanced", "detailed"] = Field(
-        default="balanced"
-    )
-    max_rows: Optional[int] = Field(
-        default=Config.DEFAULT_REQUEST_MAX_ROWS, ge=1, le=Config.REQUEST_MAX_ROWS_LIMIT
-    )
+    response_style: Literal["concise", "balanced", "detailed"] = Field(default="balanced")
+    max_rows: Optional[int] = Field(default=Config.DEFAULT_REQUEST_MAX_ROWS, ge=1, le=Config.REQUEST_MAX_ROWS_LIMIT)
     provider: Optional[str] = Field(default=None, max_length=Config.LLM_PROVIDER_MAX_LENGTH)
     model: Optional[str] = Field(default=None, max_length=Config.LLM_MODEL_MAX_LENGTH)
     task_mode: Literal["normal", "tool_task", "long_task"] = Field(default="normal")
@@ -45,10 +41,7 @@ class ChatRequest(BaseConversationRequest):
     """Schema for chat request."""
 
     prompt: str = Field(..., min_length=1, max_length=Config.CHAT_PROMPT_MAX_LENGTH)
-    conversation_id: Optional[str] = Field(
-        None, max_length=Config.CONVERSATION_ID_MAX_LENGTH
-    )
-
+    conversation_id: Optional[str] = Field(None, max_length=Config.CONVERSATION_ID_MAX_LENGTH)
 
     @field_validator("prompt")
     @classmethod
@@ -57,28 +50,38 @@ class ChatRequest(BaseConversationRequest):
             raise ValueError("Prompt cannot be empty")
         return v.strip()
 
+
 class AgentResumeRequest(BaseConversationRequest):
     """Schema for resuming a paused LangGraph conversation."""
 
-    conversation_id: str = Field(
-        ..., min_length=1, max_length=Config.CONVERSATION_ID_MAX_LENGTH
-    )
-    resume: dict[str, Any] = Field(...)
-
+    conversation_id: str = Field(..., min_length=1, max_length=Config.CONVERSATION_ID_MAX_LENGTH)
+    # FIX [AUDIT-2-D]: the previous ``resume: dict[str, Any]`` had no
+    # size cap, allowing a malicious client to send a multi-MB payload
+    # and exhaust process memory. Additive constraint: cap the number
+    # of top-level keys at 64 and the JSON-serialized size at 64 KiB.
+    resume: dict[str, Any] = Field(..., max_length=64)
 
     @field_validator("resume")
     @classmethod
     def resume_not_empty(cls, v):
         if not isinstance(v, dict) or not v:
             raise ValueError("Resume payload cannot be empty")
+        # Defense-in-depth: cap the serialized size to protect against
+        # pathological nested inputs that pass the key-count cap but
+        # expand when serialized. 64 KiB is generous for a LangGraph
+        # resume payload (typically <1 KiB).
+        import json
+
+        serialized = json.dumps(v, default=str)
+        if len(serialized) > 65536:
+            raise ValueError("Resume payload too large (max 65536 bytes serialized)")
         return v
+
 
 class RenameConversationRequest(BaseModel):
     """Schema for renaming a saved conversation."""
 
-    title: str = Field(
-        ..., min_length=1, max_length=Config.CONVERSATION_TITLE_MAX_LENGTH
-    )
+    title: str = Field(..., min_length=1, max_length=Config.CONVERSATION_TITLE_MAX_LENGTH)
 
     @field_validator("title")
     @classmethod

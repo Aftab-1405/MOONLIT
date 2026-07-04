@@ -1,6 +1,6 @@
 from .rate_limiter import (
-    SingleKeyRateLimiter,
     ProviderRateLimiter,
+    SingleKeyRateLimiter,
     create_rate_limiter,
 )
 

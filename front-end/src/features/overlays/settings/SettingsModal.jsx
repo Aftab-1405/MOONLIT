@@ -1,8 +1,9 @@
 import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
 import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
 import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
-import MemoryIcon from '@mui/icons-material/Memory';
 import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
+import PsychologyRoundedIcon from '@mui/icons-material/PsychologyRounded';
+import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import {
   Box,
   Button,
@@ -20,7 +21,6 @@ import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { memo, useEffect, useMemo, useState } from 'react';
 import { queryClient, queryKeys } from '@/api/queryClient';
 import { DialogShell } from '@/components';
-import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import {
   getPreferenceBackdropSx,
@@ -41,11 +41,16 @@ import {
 import UserDBContextManagerForAI from '@/features/overlays/settings/UserDBContextManagerForAI';
 import { getPopoverPaperSx, UI_Z_INDEX } from '@/styles/shared';
 
+// Settings nav items. Icons are chosen for semantic clarity:
+//   - Appearance → Palette (color/style)
+//   - Moonlit (AI settings) → AutoAwesome (sparkles = AI magic)
+//   - Database → Storage (database cylinder, more modern than DatabaseIcon)
+//   - AI Context → Psychology (brain = AI memory/context)
 const SECTIONS = [
   { id: 'appearance', label: 'Appearance', icon: PaletteRoundedIcon },
   { id: 'ai', label: 'Moonlit', icon: AutoAwesomeRoundedIcon },
-  { id: 'database', label: 'Database', icon: DatabaseIcon },
-  { id: 'context', label: 'AI Context', icon: MemoryIcon },
+  { id: 'database', label: 'Database', icon: StorageRoundedIcon },
+  { id: 'context', label: 'AI Context', icon: PsychologyRoundedIcon },
 ];
 
 function SettingsModal({ open, onClose, initialSection = null }) {
@@ -182,6 +187,36 @@ function SettingsModal({ open, onClose, initialSection = null }) {
                     </Select>
                   </FormControl>
                 </PreferenceRow>
+
+                {/*
+                  ENH [AUTO-TASK-MODE]: Default task mode for new messages.
+                  'Auto' lets the backend classify the prompt and elevate
+                  the mode when the request clearly needs more steps
+                  (e.g., "analyze and produce report" → Long Task, 200 steps).
+                  The other values force the mode for every message — useful
+                  when you know your work is always long-form. The user can
+                  also override per-message by typing a slash command in the
+                  chat input (/auto, /standard, /tool, /long).
+                */}
+                <PreferenceRow
+                  label="Default Task Mode"
+                  description="Step budget per message (type / in chat to override)"
+                  htmlFor="setting-task-mode"
+                >
+                  <FormControl size="small" sx={controlSx}>
+                    <Select
+                      id="setting-task-mode"
+                      value={settings.taskMode ?? 'auto'}
+                      onChange={(e) => updateSetting('taskMode', e.target.value)}
+                      MenuProps={selectMenuProps}
+                    >
+                      <MenuItem value="auto">Auto (recommended)</MenuItem>
+                      <MenuItem value="normal">Standard (50 steps)</MenuItem>
+                      <MenuItem value="tool_task">Tool Task (100 steps)</MenuItem>
+                      <MenuItem value="long_task">Long Task (200 steps)</MenuItem>
+                    </Select>
+                  </FormControl>
+                </PreferenceRow>
               </PreferenceSection>
             </Box>
           </Fade>
@@ -230,7 +265,7 @@ function SettingsModal({ open, onClose, initialSection = null }) {
                   label="Max Rows"
                   description={
                     settings.maxRows === 0
-                      ? '⚠️ No limit — may slow down'
+                      ? 'No limit — may slow down on large tables'
                       : 'Limit results to prevent slowdown'
                   }
                   htmlFor="setting-max-rows"
@@ -247,8 +282,14 @@ function SettingsModal({ open, onClose, initialSection = null }) {
                       <MenuItem value={1000}>1,000</MenuItem>
                       <MenuItem value={5000}>5,000</MenuItem>
                       <MenuItem value={10000}>10,000</MenuItem>
-                      <MenuItem value={0} sx={{ color: 'warning.main', fontWeight: 500 }}>
-                        No Limit ⚠️
+                      <MenuItem
+                        value={0}
+                        sx={{
+                          color: 'warning.main',
+                          fontWeight: 500,
+                        }}
+                      >
+                        No Limit
                       </MenuItem>
                     </Select>
                   </FormControl>

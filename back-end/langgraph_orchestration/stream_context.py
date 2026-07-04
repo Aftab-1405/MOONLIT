@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
-import logging
 import inspect
+import logging
+from dataclasses import dataclass
 
 from config import get_config
 from langgraph_orchestration.conversation_access import (
@@ -19,9 +19,7 @@ def vamp_token_budget(model_id: str) -> int:
     from llm_provider.token_budget import get_model_context_window
 
     config = get_config()
-    proportional = int(
-        get_model_context_window(model_id) * config.VAMP_CONTEXT_WINDOW_RATIO
-    )
+    proportional = int(get_model_context_window(model_id) * config.VAMP_CONTEXT_WINDOW_RATIO)
     return min(
         config.VAMP_CONTEXT_MAX_TOKENS,
         max(config.VAMP_CONTEXT_MIN_TOKENS, proportional),
@@ -77,6 +75,11 @@ async def load_initial_stream_context(
                 get_default_historical_context_provider,
             )
 
+            # CENH [3]: Increased from 3s to 8s. The 3s cap silently dropped
+            # VAMP context on cold Bedrock embeddings (Titan embed + Qdrant
+            # search + Firestore hydrate can exceed 3s). 8s gives enough
+            # headroom while still failing fast enough to not block the
+            # stream excessively.
             return await asyncio.wait_for(
                 retrieve_historical_context(
                     get_default_historical_context_provider(),
@@ -85,8 +88,17 @@ async def load_initial_stream_context(
                     message,
                     selected_model,
                 ),
-                timeout=3.0,
+                timeout=8.0,
             )
+        except asyncio.TimeoutError:
+            # CENH [3]: Graceful degradation — log and proceed without
+            # historical context. The next turn will retry.
+            logger.warning(
+                "VAMP memory retrieval timed out after 8s for conversation %s; "
+                "proceeding without historical context. The next turn will retry.",
+                conversation_id,
+            )
+            return None
         except Exception as exc:
             logger.warning(
                 "VAMP historical context retrieval failed for %s: %s",
@@ -95,7 +107,5 @@ async def load_initial_stream_context(
             )
             return None
 
-    conversation, historical_context = await asyncio.gather(
-        load_conversation(), load_historical_context()
-    )
+    conversation, historical_context = await asyncio.gather(load_conversation(), load_historical_context())
     return InitialStreamContext(conversation, historical_context)

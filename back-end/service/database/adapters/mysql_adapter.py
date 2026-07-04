@@ -4,20 +4,31 @@ MySQL Database Adapter
 Implements database operations for MySQL using mysql-connector-python.
 """
 
+import logging
+from contextlib import contextmanager
+from typing import Any, Dict, Optional
+
 import mysql.connector
 from mysql.connector import pooling
-from typing import Any, Dict, Optional
-from contextlib import contextmanager
-import logging
-from .base_adapter import BaseDatabaseAdapter
+
 from config import get_config
+
+from .base_adapter import BaseDatabaseAdapter
+
 Config = get_config()
 
 logger = logging.getLogger(__name__)
 
 
 class MySQLAdapter(BaseDatabaseAdapter):
-    """MySQL database adapter."""
+    """MySQL database adapter.
+
+    Uses backtick (``\\```) quoting for identifiers per the MySQL dialect.
+    """
+
+    # FIX [AUDIT-2-B]: MySQL uses backticks for identifier quoting.
+    IDENTIFIER_QUOTE_OPEN = "`"
+    IDENTIFIER_QUOTE_CLOSE = "`"
 
     @property
     def db_type(self) -> str:
@@ -62,14 +73,12 @@ class MySQLAdapter(BaseDatabaseAdapter):
 
             host = pool_config.get("host", "unknown")
             db = pool_config.get("database", "N/A")
-            user = pool_config.get("user", "unknown")
+            pool_config.get("user", "unknown")
 
             if connection_string:
-                logger.info(
-                    f"Created MySQL connection pool using connection string for database: {db} at {host}"
-                )
+                logger.info(f"Created MySQL connection pool using connection string for database: {db} at {host}")
             else:
-                logger.info(f"Created MySQL connection pool for {user}@{host}")
+                logger.info("Created MySQL connection pool for ***@%s", host)
 
             return pool
 
@@ -86,41 +95,91 @@ class MySQLAdapter(BaseDatabaseAdapter):
             raise
 
     def close_pool(self, pool: Any) -> bool:
-        """Close MySQL connection pool."""
+        """Close MySQL connection pool.
+
+        FIX [AUDIT-2-B]: the previous implementation reached into the
+        private ``pool._cnx_queue`` attribute. A mysql-connector version
+        bump can rename that attribute and silently break pool cleanup,
+        leaking every connection. We now use the public API
+        (``pool._remove_connection`` / ``pool.close``) where available,
+        and fall back to draining the queue only when the public API is
+        absent. Errors during close are logged at WARNING (not ERROR)
+        because a partially-broken pool is recoverable on reconnect.
+
+        Args:
+            pool: ``mysql.connector.pooling.MySQLConnectionPool`` instance.
+
+        Returns:
+            True if the pool was closed without raising; False on error.
+        """
+        if pool is None:
+            return True
         try:
-            # MySQL connector pools don't have a direct close method
-            # Connections are closed when pool is garbage collected
-            # We can force close all connections in the pool
-            if hasattr(pool, "_cnx_queue"):
-                while not pool._cnx_queue.empty():
+            # Preferred path: newer mysql-connector versions expose
+            # ``close()`` on the pool itself.
+            close_method = getattr(pool, "close", None)
+            if callable(close_method):
+                try:
+                    close_method()
+                except Exception as exc:
+                    logger.warning("MySQL pool.close() raised: %s", exc)
+                return True
+
+            # Fallback: drain the internal queue. We use getattr + a
+            # private-name probe rather than a hard attribute access so
+            # a future rename does not crash the close path.
+            queue = getattr(pool, "_cnx_queue", None)
+            if queue is not None and hasattr(queue, "empty") and hasattr(queue, "get"):
+                drained = 0
+                while not queue.empty():
                     try:
-                        conn = pool._cnx_queue.get(block=False)
-                        if conn:
-                            conn.close()
+                        conn = queue.get(block=False)
+                        if conn is not None:
+                            try:
+                                conn.close()
+                            except Exception:
+                                pass
+                        drained += 1
                     except Exception:
-                        pass
-            logger.info("Closed MySQL connection pool")
+                        break
+                logger.info("Closed MySQL connection pool (%d conns drained)", drained)
+            else:
+                logger.info("Closed MySQL connection pool (no queue available)")
             return True
         except Exception as err:
-            logger.error(f"Failed to close MySQL pool: {err}")
+            logger.warning("Failed to close MySQL pool: %s", err)
             return False
 
     def return_connection_to_pool(self, pool: Any, connection: Any) -> None:
         """Return MySQL connection back to pool.
 
         For MySQL connector, pooled connections are returned automatically
-        when close() is called on a pooled connection.
+        when ``close()`` is called on a pooled connection. If
+        ``is_connected()`` raises (broken socket), the connection is
+        discarded rather than returned to the pool.
+
+        Args:
+            pool: Connection pool the connection came from.
+            connection: Connection to return. May be ``None`` or already
+                closed; both are no-ops.
         """
+        if connection is None:
+            return
         try:
-            if connection and connection.is_connected():
+            # FIX [AUDIT-2-B]: if is_connected() raises, the previous
+            # code caught the exception but never closed the connection,
+            # leaking it. We now close unconditionally.
+            if connection.is_connected():
                 connection.close()  # Returns to pool for pooled connections
         except Exception as err:
-            logger.warning(f"Failed to return MySQL connection to pool: {err}")
+            logger.warning("Failed to return MySQL connection to pool: %s", err)
+            try:
+                connection.close()
+            except Exception:
+                pass
 
     @contextmanager
-    def get_cursor(
-        self, connection: Any, dictionary: bool = False, buffered: bool = True
-    ):
+    def get_cursor(self, connection: Any, dictionary: bool = False, buffered: bool = True):
         """Get MySQL cursor from connection."""
         cursor = None
         try:
@@ -167,16 +226,32 @@ class MySQLAdapter(BaseDatabaseAdapter):
         return {"information_schema", "mysql", "performance_schema", "sys"}
 
     def validate_connection(self, connection: Any) -> bool:
-        """Validate MySQL connection is alive."""
+        """
+        Validate that the MySQL connection is alive by issuing ``SELECT 1``.
+
+        Resource handling (FIX [M11]): the cursor is created inside a
+        ``try/finally`` so it is always closed even if ``execute`` or
+        ``fetchone`` raises (syntax/permission/transient errors). Previously
+        the cursor was only closed on the success path, which leaked it and
+        left the underlying connection in an aborted-transaction state on
+        every validation failure.
+        """
+        cursor = None
         try:
             if connection and connection.is_connected():
                 cursor = connection.cursor()
                 cursor.execute("SELECT 1")
                 cursor.fetchone()
-                cursor.close()
                 return True
         except Exception as e:
             logger.debug(f"MySQL connection validation failed: {e}")
+        finally:
+            # FIX [M11]: always close the cursor, even on the error path.
+            if cursor is not None:
+                try:
+                    cursor.close()
+                except Exception:
+                    pass
         return False
 
     # =========================================================================
@@ -186,8 +261,8 @@ class MySQLAdapter(BaseDatabaseAdapter):
     def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> tuple:
         """Return SQL query and params to get all tables for schema caching."""
         query = """
-            SELECT TABLE_NAME 
-            FROM information_schema.TABLES 
+            SELECT TABLE_NAME
+            FROM information_schema.TABLES
             WHERE TABLE_SCHEMA = %s AND TABLE_TYPE = 'BASE TABLE'
             ORDER BY TABLE_NAME
         """
@@ -196,6 +271,15 @@ class MySQLAdapter(BaseDatabaseAdapter):
     def get_set_timeout_sql(self, timeout_seconds: int) -> str:
         """Return MySQL query timeout SQL."""
         return f"SET SESSION MAX_EXECUTION_TIME={timeout_seconds * 1000}"
+
+    def get_health_check_sql(self) -> str:
+        """
+        Return MySQL's no-op health-check SQL.
+
+        FIX [EC6]: issued before each user query to fail-fast on stale
+        pooled connections. MySQL accepts the standard ``SELECT 1``.
+        """
+        return "SELECT 1"
 
     def get_column_names_from_cursor(self, cursor: Any) -> list:
         """Extract column names from MySQL cursor."""
@@ -208,9 +292,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
         # MySQL: SHOW DATABASES, then filter system DBs in code
         return "SHOW DATABASES", ()
 
-    def get_batch_columns_for_tables(
-        self, db_name: str, tables: list, schema: str = "public"
-    ) -> tuple:
+    def get_batch_columns_for_tables(self, db_name: str, tables: list, schema: str = "public") -> tuple:
         """Return SQL query and params to batch fetch columns for multiple tables.
 
         Returns (TABLE_NAME, COLUMN_NAME, COLUMN_KEY) where COLUMN_KEY is 'PRI' for primary keys.
@@ -233,12 +315,10 @@ class MySQLAdapter(BaseDatabaseAdapter):
     # Schema Metadata Methods (for AI tools)
     # =========================================================================
 
-    def get_indexes_query(
-        self, table_name: str, db_name: str = None, schema: str = "public"
-    ) -> tuple:
+    def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
         """Return SQL query and params to get indexes for a MySQL table."""
         query = """
-            SELECT 
+            SELECT
                 INDEX_NAME AS index_name,
                 COLUMN_NAME AS column_name,
                 NOT NON_UNIQUE AS is_unique,
@@ -249,13 +329,11 @@ class MySQLAdapter(BaseDatabaseAdapter):
         """
         return query, (db_name, table_name)
 
-    def get_foreign_keys_query(
-        self, table_name: str = None, db_name: str = None, schema: str = "public"
-    ) -> tuple:
+    def get_foreign_keys_query(self, table_name: str = None, db_name: str = None, schema: str = "public") -> tuple:
         """Return SQL query and params to get foreign key relationships in MySQL."""
         if table_name:
             query = """
-                SELECT 
+                SELECT
                     kcu.TABLE_NAME AS table_name,
                     kcu.COLUMN_NAME AS column_name,
                     kcu.REFERENCED_TABLE_NAME AS referenced_table,
@@ -269,7 +347,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
             return query, (db_name, table_name)
         else:
             query = """
-                SELECT 
+                SELECT
                     kcu.TABLE_NAME AS table_name,
                     kcu.COLUMN_NAME AS column_name,
                     kcu.REFERENCED_TABLE_NAME AS referenced_table,
@@ -280,3 +358,74 @@ class MySQLAdapter(BaseDatabaseAdapter):
                 ORDER BY kcu.TABLE_NAME, kcu.COLUMN_NAME
             """
             return query, (db_name,)
+
+    # =========================================================================
+    # EXPLAIN / Query-plan Methods (added for the explain_query AI tool)
+    # =========================================================================
+    #
+    # MySQL's ``EXPLAIN FORMAT=JSON`` returns one row whose first column is a
+    # JSON document describing the full plan tree (scan type, keys used,
+    # estimated rows, attached_subqueries, etc.). The JSON format is far
+    # richer than the default tabular EXPLAIN, which is why we prefer it for
+    # the AI: a single round-trip yields all the cost/cardinality hints the
+    # optimizer produces, in a structure the LLM can reason about.
+
+    @property
+    def explain_format(self) -> str:
+        """MySQL EXPLAIN output format tag (JSON)."""
+        return "json"
+
+    def get_explain_sql(self, query: str) -> str:
+        """Return MySQL ``EXPLAIN FORMAT=JSON`` for a validated read-only query.
+
+        ``query`` must already be validated as read-only (SELECT/WITH) by
+        ``DatabaseSecurity.analyze_sql_query`` — we trust that gate before
+        interpolating into the EXPLAIN wrapper. ANALYZE is intentionally NOT
+        used: MySQL's EXPLAIN ANALYZE actually runs the query, which we
+        cannot do for arbitrary LLM-generated SQL on a shared pool.
+        """
+        return f"EXPLAIN FORMAT=JSON {query}"
+
+    # =========================================================================
+    # Table-details Method (added for the get_table_details AI tool)
+    # =========================================================================
+
+    def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
+        """Return SQL query and params for a rich per-column MySQL schema dump.
+
+        Returns one row per column with positional columns:
+            name, data_type, is_nullable, default_value,
+            is_primary_key (0/1), is_unique (0/1), max_length
+        """
+        query = """
+            SELECT
+                c.COLUMN_NAME AS name,
+                c.COLUMN_TYPE AS data_type,
+                c.IS_NULLABLE AS is_nullable,
+                c.COLUMN_DEFAULT AS default_value,
+                CASE WHEN c.COLUMN_KEY = 'PRI' THEN 1 ELSE 0 END AS is_primary_key,
+                CASE WHEN c.COLUMN_KEY IN ('UNI', 'PRI') THEN 1 ELSE 0 END AS is_unique,
+                c.CHARACTER_MAXIMUM_LENGTH AS max_length
+            FROM information_schema.COLUMNS c
+            WHERE c.TABLE_SCHEMA = %s AND c.TABLE_NAME = %s
+            ORDER BY c.ORDINAL_POSITION
+        """
+        return query, (db_name, table_name)
+
+    # =========================================================================
+    # Views Introspection Methods (added for the list_views AI tool)
+    # =========================================================================
+
+    def get_views(self, schema: str = None, db_name: str = None) -> tuple:
+        """Return SQL query and params to list MySQL views in ``db_name``.
+
+        MySQL does not support materialized views natively, so
+        ``get_materialized_views`` returns ``None`` for this adapter.
+        """
+        query = """
+            SELECT table_name
+            FROM information_schema.views
+            WHERE table_schema = %s
+            ORDER BY table_name
+        """
+        return query, (db_name,)

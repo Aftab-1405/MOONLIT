@@ -10,7 +10,7 @@ import hashlib
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any
+from typing import Any, Dict, List, Optional
 
 from config import get_config
 
@@ -51,14 +51,12 @@ class ContextMetrics:
     def _increment_counter(cls, user_id: str, field: str):
         """Increment a counter in Firestore under metrics_telemetry field."""
         from firebase_admin import firestore
+
         from service.context.context_repository import ContextRepository
+
         try:
             ref = ContextRepository.get_ref(user_id)
-            ref.set({
-                "metrics_telemetry": {
-                    field: firestore.Increment(1)
-                }
-            }, merge=True)
+            ref.set({"metrics_telemetry": {field: firestore.Increment(1)}}, merge=True)
         except Exception as e:
             logger.error(f"Error incrementing metric {field} for user {user_id}: {e}")
 
@@ -66,6 +64,7 @@ class ContextMetrics:
     def get_stats(cls, user_id: str) -> Dict:
         """Get current metrics statistics."""
         from service.context.context_repository import ContextRepository
+
         try:
             context = ContextRepository.get(user_id)
             telemetry = context.get("metrics_telemetry", {})
@@ -94,16 +93,20 @@ class ContextMetrics:
     def reset(cls, user_id: str):
         """Reset all metrics."""
         from service.context.context_repository import ContextRepository
+
         try:
             ref = ContextRepository.get_ref(user_id)
-            ref.set({
-                "metrics_telemetry": {
-                    "hits": 0,
-                    "misses": 0,
-                    "stores": 0,
-                    "clears": 0
-                }
-            }, merge=True)
+            ref.set(
+                {
+                    "metrics_telemetry": {
+                        "hits": 0,
+                        "misses": 0,
+                        "stores": 0,
+                        "clears": 0,
+                    }
+                },
+                merge=True,
+            )
         except Exception as e:
             logger.error(f"Error resetting metrics for user {user_id}: {e}")
 
@@ -149,10 +152,30 @@ class ContextService:
 
     @staticmethod
     def watch_context_document(user_id: str, on_context) -> Any:
-        """Subscribe to a user's context document and publish plain dict payloads."""
+        """Subscribe to the user's context document and publish plain dict payloads.
+
+        Registers a Firestore ``on_snapshot`` listener that fires whenever
+        the user's context document changes. Each callback delivers the
+        current context dict to ``on_context``.
+
+        FIX [M21]: When the document is deleted, Firestore invokes the
+        callback with an EMPTY ``doc_snapshot`` list. The previous code
+        indexed ``doc_snapshot[0]`` unconditionally, raising ``IndexError``
+        on the Firestore background thread — which silently killed the
+        watch subscription (the user's metrics stream froze with no error
+        sent to the client). We now detect the empty-list case and call
+        ``on_context({})`` instead.
+        """
         from service.context.context_repository import ContextRepository
 
         def on_snapshot(doc_snapshot, _changes, _read_time):
+            # FIX [M21]: Empty doc_snapshot list means the watched document
+            # was deleted. Indexing doc_snapshot[0] raised IndexError on
+            # the Firestore background thread and silently killed the
+            # subscription. Push an empty context and return cleanly.
+            if isinstance(doc_snapshot, list) and not doc_snapshot:
+                on_context({})
+                return
             snapshot = doc_snapshot[0] if isinstance(doc_snapshot, list) else doc_snapshot
             context = snapshot.to_dict() if snapshot and snapshot.exists else {}
             on_context(context)
@@ -194,9 +217,7 @@ class ContextService:
                 "connected_at": datetime.now(timezone.utc).isoformat(),
             }
         }
-        logger.info(
-            f"Setting connection context for user {user_id}: {db_type}/{database}"
-        )
+        logger.info(f"Setting connection context for user {user_id}: {db_type}/{database}")
         return ContextService._update_context(user_id, connection_data)
 
     @staticmethod
@@ -239,9 +260,7 @@ class ContextService:
         context = ContextService._get_context(user_id)
         connection = context.get("current_connection", {})
         connection["schema"] = schema_name
-        return ContextService._update_context(
-            user_id, {"current_connection": connection}
-        )
+        return ContextService._update_context(user_id, {"current_connection": connection})
 
     # =========================================================================
     # Schema Caching
@@ -266,9 +285,7 @@ class ContextService:
         schema_str = json.dumps(
             {
                 "tables": sorted(tables),
-                "columns": {
-                    k: normalize_columns(v) for k, v in sorted(columns.items())
-                },
+                "columns": {k: normalize_columns(v) for k, v in sorted(columns.items())},
             },
             sort_keys=True,
         )
@@ -307,9 +324,7 @@ class ContextService:
                         cache_time = cached_at
                 else:
                     # It's a string - parse as ISO format
-                    cache_time = datetime.fromisoformat(
-                        str(cached_at).replace("Z", "+00:00")
-                    )
+                    cache_time = datetime.fromisoformat(str(cached_at).replace("Z", "+00:00"))
 
                 if cache_time.tzinfo:
                     cache_time = cache_time.replace(tzinfo=timezone.utc)
@@ -331,9 +346,7 @@ class ContextService:
         return cached
 
     @staticmethod
-    def store_schema_context(
-        user_id: str, database: str, tables: List[str], columns: Dict[str, List]
-    ) -> bool:
+    def store_schema_context(user_id: str, database: str, tables: List[str], columns: Dict[str, List]) -> bool:
         """Store database schema as AI context.
 
         This provides the AI agent with understanding of the database
@@ -351,9 +364,7 @@ class ContextService:
         schemas[database] = schema_data
 
         ContextMetrics.record_store(user_id)
-        logger.info(
-            f"Stored schema context for user {user_id}, database {database}: {len(tables)} tables"
-        )
+        logger.info(f"Stored schema context for user {user_id}, database {database}: {len(tables)} tables")
         return ContextService._update_context(user_id, {"database_schemas": schemas})
 
     @staticmethod
@@ -363,9 +374,7 @@ class ContextService:
 
         database = db_config.get("database")
         db_type = db_config.get("db_type", "postgresql")
-        tables, columns = AIToolExecutor._fetch_tables_and_columns(
-            db_config, db_type, database
-        )
+        tables, columns = AIToolExecutor._fetch_tables_and_columns(db_config, db_type, database)
         ContextService.store_schema_context(user_id, database, tables, columns)
         return {"tables": tables, "columns": columns}
 
@@ -374,9 +383,7 @@ class ContextService:
         """Clear schema context for a database (forces refresh on next access)."""
         from service.context.context_repository import ContextRepository
 
-        success = ContextRepository.delete_field(
-            user_id, f"database_schemas.{database}"
-        )
+        success = ContextRepository.delete_field(user_id, f"database_schemas.{database}")
         if success:
             ContextMetrics.record_clear(user_id)
             logger.info(f"Cleared schema context for {database}")
@@ -421,7 +428,20 @@ class ContextService:
 
     @staticmethod
     def get_full_context(user_id: str) -> Dict:
-        """Get complete context for AI tools."""
+        """Get the complete AI-tool-facing context: connection, schemas, queries.
+
+        Aggregates the user's ``current_connection`` (active DB metadata),
+        ``database_schemas`` (cached table/column info per database), and
+        ``recent_queries`` (recent SQL history used for AI prompt context).
+        Returns a stable shape with ``{}`` defaults so callers can dot-access
+        fields without a KeyError on first request (when the user has no
+        context document yet).
+
+        FIX [M20]: The underlying repository now propagates transient
+        Firestore errors so a 503 surfaces to the client; previously a
+        Firestore outage silently returned this empty-defaults shape and
+        the AI agent generated SQL against a non-existent schema.
+        """
         context = ContextService._get_context(user_id)
 
         return {
@@ -430,5 +450,3 @@ class ContextService:
             "recent_queries": context.get("recent_queries", []),
             "updated_at": context.get("updated_at"),
         }
-
-

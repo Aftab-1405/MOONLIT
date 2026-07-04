@@ -2,6 +2,21 @@ import { alpha } from '@mui/material/styles';
 import { getAppPanelSurfaceSx, getSidebarChromeSx } from '@/features/styles/interfaceChrome';
 import { getInteractionColors, UI_LAYOUT } from '@/styles/shared';
 
+/**
+ * Sidebar styling primitives.
+ *
+ * Every clickable row in the sidebar (toggle, nav items, conversation rows,
+ * footer) goes through `buildNavRowSx` or `buildConversationRowSx` so the
+ * row geometry — height, padding, icon column width, border radius — stays
+ * consistent. Visual state (hover, active, focus, disabled) is driven by
+ * the shared `getInteractionColors` helper.
+ *
+ * Layout invariants:
+ *   - `ICON_COL` (36px) is the fixed-width icon slot. Icon never reflows.
+ *   - `ROW_PX` (8px) is the horizontal inset for every row's hover pill.
+ *   - `ROW_HEIGHT` (36px) is the consistent height for every row.
+ */
+
 const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth; // 260
 const _COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth; // 52
 const SIDEBAR_RADIUS = '10px';
@@ -77,6 +92,7 @@ export function buildNavRowSx(
     },
     '&:focus-visible': {
       outline: 'none',
+      // Use boxShadow (not outline) so the ring doesn't clip with borderRadius.
       boxShadow: isActive
         ? `inset 0 0 0 1px ${interaction.activeBorder}, ${focusRing(theme)}`
         : focusRing(theme),

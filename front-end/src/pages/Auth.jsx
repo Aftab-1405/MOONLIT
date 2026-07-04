@@ -35,7 +35,7 @@ import { ButtonLoadingSpinner } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { BACKDROP_FILTER_FALLBACK_QUERY } from '@/styles/mediaQueries';
-import { getMoonlitBrandGradients } from '@/theme/themeEffects';
+import { BRAND } from '@/theme/tokens';
 import logger from '@/utils/logger';
 import {
   authFieldSchemas,
@@ -46,6 +46,27 @@ import {
 
 import { AUTH_KEYFRAMES } from './Auth/auth.keyframes';
 import ProductAuroraShowcase from './Auth/ProductAuroraShowcase';
+
+/**
+ * Auth page — sign-in / sign-up screen.
+ *
+ * Layout (md and up):
+ *   ┌───────────────────────────┬───────────────────────────┐
+ *   │  Aurora showcase (left)    │  Auth form card (right)    │
+ *   │  brand-marketing panel     │  Tabs: Sign In | Sign Up   │
+ *   │                            │  OAuth + email/password    │
+ *   └───────────────────────────┴───────────────────────────┘
+ *
+ * On narrow viewports the aurora panel collapses; the brand wordmark moves
+ * above the form card. The card uses backdrop-filter (with a solid fallback)
+ * so the aurora subtly bleeds through on desktop.
+ *
+ * Accessibility:
+ *   - All interactive controls have visible focus rings.
+ *   - Tab panels use `role="tabpanel"` with `hidden` (not unmount) so input
+ *     focus state survives tab switches.
+ *   - Password reveal button has a descriptive `aria-label`.
+ */
 
 function GoogleBrandIcon(props) {
   return (
@@ -86,7 +107,6 @@ function Auth() {
   const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
-  const brandGradients = getMoonlitBrandGradients(theme);
 
   useEffect(() => {
     document.title = 'Moonlit - Sign In';
@@ -244,8 +264,10 @@ function Auth() {
     '& .MuiTabs-indicator': {
       height: '100%',
       borderRadius: 1,
-      backgroundImage: brandGradients.static,
-      backgroundColor: 'transparent',
+      // Solid brand purple — not the gradient. Keeps the tab indicator
+      // consistent with the CTAs and the send button.
+      backgroundColor: BRAND.main,
+      backgroundImage: 'none',
       boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, isDark ? 0.28 : 0.1)}`,
       zIndex: 0,
     },
@@ -260,6 +282,12 @@ function Auth() {
       '&.Mui-selected': {
         color: theme.palette.primary.contrastText,
         fontWeight: 600,
+      },
+      // Visible focus ring for keyboard navigation between tabs.
+      '&.Mui-focusVisible': {
+        outline: `2px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+        outlineOffset: '-2px',
+        borderRadius: 1,
       },
     },
   };
@@ -405,10 +433,9 @@ function Auth() {
                   component="span"
                   sx={{
                     ...theme.typography.uiBrandWordmark,
-                    background: brandGradients.shimmer,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
+                    // Solid text.primary — matches the sidebar wordmark.
+                    // Premium wordmarks are monochrome.
+                    color: 'text.primary',
                     letterSpacing: 0,
                   }}
                 >
@@ -464,14 +491,17 @@ function Auth() {
               <Stack spacing={{ xs: 2, sm: 2.5 }} alignItems="center">
                 <Box sx={{ textAlign: 'center' }}>
                   <Typography
-                    variant="h5"
                     sx={{
                       mb: 0.35,
-                      fontWeight: 700,
+                      // Use the new display-weight hero variant for the auth
+                      // headline — gives the card a clear "moment" feel that
+                      // the regular h5 didn't deliver.
+                      ...theme.typography.uiDisplaySm,
                       fontSize: {
                         xs: '1.45rem',
-                        sm: theme.typography.h5.fontSize,
+                        sm: '1.7rem',
                       },
+                      fontWeight: 600,
                     }}
                   >
                     {tabValue === 0 ? 'Welcome back' : 'Create account'}
@@ -537,6 +567,11 @@ function Auth() {
                             ),
                             boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, isDark ? 0.22 : 0.08)}`,
                           },
+                        },
+                        // Visible focus ring for keyboard users.
+                        '&.Mui-focusVisible': {
+                          outline: `2px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+                          outlineOffset: 2,
                         },
                       }}
                     >
@@ -619,7 +654,19 @@ function Auth() {
                               onClick={() => setShowPassword((p) => !p)}
                               edge="end"
                               size="small"
-                              sx={{ color: 'text.secondary', opacity: 0.55 }}
+                              sx={{
+                                color: 'text.secondary',
+                                opacity: 0.55,
+                                '&:hover': {
+                                  backgroundColor: alpha(theme.palette.text.primary, 0.06),
+                                  color: 'text.primary',
+                                  opacity: 1,
+                                },
+                                '&.Mui-focusVisible': {
+                                  outline: `2px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+                                  outlineOffset: 1,
+                                },
+                              }}
                             >
                               {showPassword ? (
                                 <VisibilityOffOutlinedIcon fontSize="small" />
@@ -652,6 +699,11 @@ function Auth() {
                           '@media (hover: hover)': {
                             '&:hover': { opacity: 1, color: 'text.primary' },
                           },
+                          '&.Mui-focusVisible': {
+                            outline: `2px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+                            outlineOffset: 2,
+                            borderRadius: '4px',
+                          },
                         }}
                       >
                         Forgot password?
@@ -665,6 +717,32 @@ function Auth() {
                       variant="contained"
                       color="primary"
                       startIcon={formLoading ? <ButtonLoadingSpinner size={18} /> : null}
+                      sx={{
+                        py: 0.9,
+                        borderRadius: 1.5,
+                        fontWeight: 600,
+                        // Solid brand purple on the primary CTA — consistent
+                        // with the send button and tab indicator.
+                        backgroundColor: formLoading ? undefined : BRAND.main,
+                        '&:hover': {
+                          backgroundColor: BRAND.dark,
+                        },
+                        // Subtle resting elevation — uses brand purple tint.
+                        boxShadow: formLoading
+                          ? 'none'
+                          : `0 1px 3px ${alpha(BRAND.main, isDark ? 0.45 : 0.25)}`,
+                        '@media (hover: hover)': {
+                          '&:hover': {
+                            boxShadow: formLoading
+                              ? 'none'
+                              : `0 3px 8px ${alpha(BRAND.main, isDark ? 0.55 : 0.32)}`,
+                          },
+                        },
+                        '&.Mui-focusVisible': {
+                          outline: `2px solid ${alpha(BRAND.main, 0.6)}`,
+                          outlineOffset: 2,
+                        },
+                      }}
                     >
                       {formLoading ? 'Signing in...' : 'Sign In'}
                     </Button>
@@ -756,7 +834,19 @@ function Auth() {
                               onClick={() => setShowPassword((p) => !p)}
                               edge="end"
                               size="small"
-                              sx={{ color: 'text.secondary', opacity: 0.55 }}
+                              sx={{
+                                color: 'text.secondary',
+                                opacity: 0.55,
+                                '&:hover': {
+                                  backgroundColor: alpha(theme.palette.text.primary, 0.06),
+                                  color: 'text.primary',
+                                  opacity: 1,
+                                },
+                                '&.Mui-focusVisible': {
+                                  outline: `2px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+                                  outlineOffset: 1,
+                                },
+                              }}
                             >
                               {showPassword ? (
                                 <VisibilityOffOutlinedIcon fontSize="small" />
@@ -804,6 +894,30 @@ function Auth() {
                       variant="contained"
                       color="primary"
                       startIcon={formLoading ? <ButtonLoadingSpinner size={18} /> : null}
+                      sx={{
+                        py: 0.9,
+                        borderRadius: 1.5,
+                        fontWeight: 600,
+                        // Solid brand purple — matches the Sign In CTA.
+                        backgroundColor: formLoading ? undefined : BRAND.main,
+                        '&:hover': {
+                          backgroundColor: BRAND.dark,
+                        },
+                        boxShadow: formLoading
+                          ? 'none'
+                          : `0 1px 3px ${alpha(BRAND.main, isDark ? 0.45 : 0.25)}`,
+                        '@media (hover: hover)': {
+                          '&:hover': {
+                            boxShadow: formLoading
+                              ? 'none'
+                              : `0 3px 8px ${alpha(BRAND.main, isDark ? 0.55 : 0.32)}`,
+                          },
+                        },
+                        '&.Mui-focusVisible': {
+                          outline: `2px solid ${alpha(BRAND.main, 0.6)}`,
+                          outlineOffset: 2,
+                        },
+                      }}
                     >
                       {formLoading ? 'Creating...' : 'Create Account'}
                     </Button>

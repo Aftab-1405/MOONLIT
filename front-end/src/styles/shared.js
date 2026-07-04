@@ -1,5 +1,19 @@
 /**
  * Shared styling helpers built on theme tokens.
+ *
+ * This module is the single source of truth for cross-cutting styling
+ * primitives (popover paper, menu items, scrollbars, focus rings, etc.).
+ * Anything that needs to look the same in multiple places should live here
+ * so we can evolve the visual language in one shot.
+ *
+ * Conventions:
+ *   - Hairline borders always use `1px solid <alpha(text.primary, n)>`.
+ *     We avoid `0.5px` borders — they disappear on non-retina displays and
+ *     render inconsistently across browsers. Lower alpha achieves the same
+ *     "soft" feel without the rendering risk.
+ *   - Focus rings use `--focus-ring` token below; do not roll your own.
+ *   - Scrollbars are visible-but-subtle. Hiding them entirely (the old
+ *     behaviour) removed a key navigation affordance in long conversations.
  */
 import { alpha } from '@mui/material/styles';
 import { BACKDROP_FILTER_FALLBACK_QUERY, HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
@@ -50,6 +64,57 @@ export const UI_POPOVER = Object.freeze({
   sectionGap: 0.5,
 });
 
+/**
+ * Standardised hairline border colour.
+ *
+ * We deliberately avoid `0.5px` borders (they vanish on non-retina screens).
+ * Using `1px` with a low alpha gives a crisp-but-soft divider that renders
+ * consistently across DPRs.
+ *
+ * @param {object} theme  MUI theme
+ * @param {number} [opacity]  Override the default alpha (defaults to 0.07/0.09)
+ */
+export const getHairlineBorder = (theme, opacity) => {
+  const isDark = theme.palette.mode === 'dark';
+  const o = opacity ?? (isDark ? 0.09 : 0.07);
+  return `1px solid ${alpha(theme.palette.text.primary, o)}`;
+};
+
+/**
+ * Standardised focus ring for keyboard navigation.
+ * Use as `&:focus-visible` outline or as a `box-shadow` for inset focus.
+ *
+ * @param {object} theme
+ * @param {object} [opts]
+ * @param {string} [opts.color]  Override colour (defaults to text.primary)
+ * @param {number} [opts.width]  Ring width in px (default 2)
+ * @param {number} [opts.offset] Outline offset in px (default 2)
+ */
+export const getFocusRing = (theme, { color, width = 2, offset = 2 } = {}) => {
+  const isDark = theme.palette.mode === 'dark';
+  const ringColor = color || theme.palette.text.primary;
+  const alphaVal = isDark ? 0.4 : 0.32;
+  return {
+    outline: `${width}px solid ${alpha(ringColor, alphaVal)}`,
+    outlineOffset: offset,
+  };
+};
+
+/**
+ * Scrollbar styling — hidden by default for a unibody look.
+ *
+ * The Moonlit design language intentionally hides scrollbars to reduce visual
+ * clutter and keep the interface feeling "intact" (one continuous surface
+ * rather than a stack of scrollable regions). Scroll still works — the
+ * scrollbar affordance is just invisible.
+ *
+ * This is a deliberate design decision, not an oversight. If you need a
+ * visible scrollbar in a specific context (e.g. a data table where scroll
+ * position is critical), override locally rather than changing this default.
+ *
+ * Firefox: `scrollbar-width: none`
+ * WebKit/Blink: `::-webkit-scrollbar { display: none }`
+ */
 export const getScrollbarStyles = (_theme, _opts = {}) => ({
   scrollbarWidth: 'none',
   '&::-webkit-scrollbar': { display: 'none' },
@@ -444,9 +509,121 @@ export const getDialogFooterSx = () => ({
  * @param {boolean} isDark   — whether dark mode is active
  * @param {object} overrides — extra sx merged last (e.g. width, mt, p overrides)
  */
+/**
+ * Shared secondary action button sx.
+ *
+ * Used for small action buttons that appear inside content areas —
+ * "View diagram", "Filter to selection", "Copy row", "Load older messages",
+ * etc. Keeps every small action button in the app visually identical:
+ *   - borderRadius: 8px
+ *   - typography: uiBodySm
+ *   - color: text.secondary → text.primary on hover
+ *   - border: hairline at low alpha
+ *   - padding: px 1.75, py 0.625
+ *
+ * Usage:
+ *   <Button size="small" variant="outlined" sx={getSecondaryActionButtonSx(theme)}>...</Button>
+ */
+export const getSecondaryActionButtonSx = (theme) => {
+  const isDark = theme.palette.mode === 'dark';
+  return {
+    borderRadius: '8px',
+    textTransform: 'none',
+    ...theme.typography.uiBodySm,
+    fontWeight: 600,
+    px: 1.75,
+    py: 0.5,
+    minHeight: 30,
+    color: 'text.secondary',
+    borderColor: alpha(theme.palette.text.primary, isDark ? 0.16 : 0.12),
+    backgroundColor: 'transparent',
+    transition: theme.transitions.create(
+      ['background-color', 'border-color', 'color'],
+      { duration: theme.transitions.duration.shorter },
+    ),
+    [HOVER_CAPABLE_QUERY]: {
+      '&:hover': {
+        color: 'text.primary',
+        borderColor: alpha(theme.palette.text.primary, isDark ? 0.24 : 0.18),
+        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
+      },
+    },
+    '&.Mui-focusVisible': {
+      outline: `2px solid ${alpha(theme.palette.text.primary, isDark ? 0.32 : 0.22)}`,
+      outlineOffset: 2,
+    },
+  };
+};
+
+/**
+ * Shared pill/chip sx for suggestion chips and similar inline action pills.
+ *
+ * Used by:
+ *   - WelcomeScreen suggestion chips
+ *
+ * Pills are bordered, transparent by default, lift slightly on hover.
+ * Keep this as the single source of truth for pill geometry so every
+ * pill in the app looks identical.
+ */
+export const getPillSx = (theme, interaction) => ({
+  height: 30,
+  borderRadius: '8px',
+  border: '1px solid',
+  borderColor: interaction.border,
+  color: 'text.secondary',
+  backgroundColor: 'transparent',
+  cursor: 'pointer',
+  transition: theme.transitions.create(['background-color', 'color', 'transform', 'box-shadow'], {
+    duration: theme.transitions.duration.shorter,
+  }),
+  '&:active': {
+    backgroundColor: interaction.activeBackground,
+    transform: 'translateY(0.5px)',
+  },
+  '& .MuiChip-label': {
+    px: 1.2,
+    ...theme.typography.uiCaptionSm,
+    lineHeight: 1,
+    display: 'flex',
+    alignItems: 'center',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  '& .MuiChip-icon': {
+    color: alpha(theme.palette.text.primary, 0.45),
+    ml: 1,
+    mr: -0.25,
+    fontSize: 16,
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    transition: theme.transitions.create('color', {
+      duration: theme.transitions.duration.shorter,
+    }),
+  },
+  [HOVER_CAPABLE_QUERY]: {
+    '&:hover': {
+      borderColor: interaction.hoverBorder,
+      backgroundColor: interaction.hoverBackground,
+      color: 'text.primary',
+      transform: 'translateY(-1.5px)',
+      boxShadow: `0 3px 10px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.03)}`,
+      '& .MuiChip-icon': {
+        color: alpha(theme.palette.text.primary, 0.65),
+      },
+    },
+  },
+  '&.Mui-focusVisible': {
+    borderColor: interaction.hoverBorder,
+    boxShadow: `0 0 0 3px ${interaction.focusRing}`,
+  },
+});
+
 export const getPopoverPaperSx = (theme, isDark, overrides = {}) => ({
   borderRadius: '14px',
-  border: `0.5px solid ${
+  // 1px (not 0.5px) so the border survives on non-retina displays.
+  border: `1px solid ${
     isDark ? alpha(theme.palette.text.primary, 0.12) : alpha(theme.palette.text.primary, 0.09)
   }`,
   backgroundColor: isDark
@@ -457,9 +634,11 @@ export const getPopoverPaperSx = (theme, isDark, overrides = {}) => ({
     : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.65)} 0%, transparent 100%)`,
   backdropFilter: 'blur(24px) saturate(1.15)',
   WebkitBackdropFilter: 'blur(24px) saturate(1.15)',
+  // Layered shadow = premium feel. Two-stop shadow (close + ambient)
+  // reads as "elevated but not floating" rather than a hard drop shadow.
   boxShadow: isDark
-    ? `0 12px 40px ${alpha('#000', 0.42)}, 0 0 0 0.5px ${alpha(theme.palette.common.white, 0.04)}`
-    : `0 12px 36px ${alpha('#000', 0.1)}, 0 0 0 0.5px ${alpha(theme.palette.common.white, 0.8)}`,
+    ? `0 12px 40px ${alpha('#000', 0.42)}, 0 2px 8px ${alpha('#000', 0.28)}, 0 0 0 0.5px ${alpha(theme.palette.common.white, 0.04)}`
+    : `0 12px 36px ${alpha('#000', 0.1)}, 0 2px 8px ${alpha('#000', 0.06)}, 0 0 0 0.5px ${alpha(theme.palette.common.white, 0.8)}`,
   [BACKDROP_FILTER_FALLBACK_QUERY]: {
     backdropFilter: 'none',
     WebkitBackdropFilter: 'none',
