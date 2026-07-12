@@ -64,8 +64,6 @@ class DatabaseService:
             lambda m: f"/{new_db_name}{m.group(2)}",
             connection_string,
         )
-
-        # Create new config
         new_config = {
             "db_type": db_type,
             "connection_string": new_connection_string,
@@ -89,11 +87,7 @@ class DatabaseService:
                         "status": "error",
                         "message": "Failed to connect to new database",
                     }
-
-            # Fetch tables
             tables = DatabaseService._fetch_tables(new_config, new_db_name, db_type)
-
-            # Update context
             if user_id:
                 DatabaseService._update_context(user_id, db_type, new_db_name, "remote", True)
 
@@ -150,12 +144,8 @@ class DatabaseService:
                 "status": "error",
                 "message": "Schema selection only for PostgreSQL",
             }
-
-        # Update config with schema
         new_config = db_config.copy()
         new_config["schema"] = schema_name
-
-        # Get tables in schema
         adapter = get_adapter(db_type)
         manager = get_connection_manager()
         tables = []
@@ -365,8 +355,6 @@ class DatabaseService:
         from service.database.operations import execute_sql_query
 
         result = execute_sql_query(db_config, sql_query, max_rows=max_rows, timeout_seconds=timeout)
-
-        # Log query to context
         if user_id:
             try:
                 from service.database.context_sync import (
@@ -390,7 +378,6 @@ class DatabaseService:
         result = DatabaseOperations.get_databases(db_config)
 
         if db_config:
-            # Always include db_type for frontend to use
             result["db_type"] = db_config.get("db_type")
 
             if db_config.get("connection_string"):

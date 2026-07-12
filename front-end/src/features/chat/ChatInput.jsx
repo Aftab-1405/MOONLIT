@@ -30,7 +30,6 @@ import {
   Button,
   IconButton,
   LinearProgress,
-  MenuItem,
   Skeleton,
   TextField,
   Tooltip,
@@ -43,9 +42,9 @@ import { AppPopover } from '@/components';
 import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import SchemaIcon from '@/components/icons/SchemaIcon';
+import SlashCommandMenu, { extractSlashQuery } from '@/features/chat/SlashCommandMenu';
 import { getComposerHoverShadow, getComposerSurfaceSx } from '@/features/styles/interfaceChrome';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
-import SlashCommandMenu, { extractSlashQuery } from '@/features/chat/SlashCommandMenu';
 import {
   getInteractionColors,
   getPopoverSectionLabelSx,
@@ -125,15 +124,6 @@ const ContextProgressRing = ({ total, budget, theme }) => {
 const toFiniteNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
-};
-
-const percentOf = (used, budget) => {
-  const numericUsed = toFiniteNumber(used);
-  const numericBudget = toFiniteNumber(budget);
-  if (numericUsed == null || numericBudget == null || numericBudget <= 0) {
-    return null;
-  }
-  return Math.min(100, Math.max(0, (numericUsed / numericBudget) * 100));
 };
 
 const TruncatedLabel = ({ children, sx = {} }) => (
@@ -504,20 +494,35 @@ function ChatInput({
     //
     // Fallback: for OLD conversations (stored before the back-end computed
     // percentages), compute from raw values so the indicator still works.
-    const activePercent = usageMetrics.activePercent ?? (
-      usageMetrics.inputPayloadTokens && usageMetrics.pressureTriggerTokens
-        ? Math.min(100, Math.max(0, Math.round(
-            (usageMetrics.inputPayloadTokens / usageMetrics.pressureTriggerTokens) * 100
-          )))
-        : null
-    );
-    const modelPercent = usageMetrics.modelPercent ?? (
-      usageMetrics.inputPayloadTokens && (usageMetrics.modelContextWindow || usageMetrics.totalContextWindow)
-        ? Math.min(100, Math.max(0, Math.round(
-            (usageMetrics.inputPayloadTokens / (usageMetrics.modelContextWindow || usageMetrics.totalContextWindow)) * 100
-          )))
-        : null
-    );
+    const activePercent =
+      usageMetrics.activePercent ??
+      (usageMetrics.inputPayloadTokens && usageMetrics.pressureTriggerTokens
+        ? Math.min(
+            100,
+            Math.max(
+              0,
+              Math.round(
+                (usageMetrics.inputPayloadTokens / usageMetrics.pressureTriggerTokens) * 100,
+              ),
+            ),
+          )
+        : null);
+    const modelPercent =
+      usageMetrics.modelPercent ??
+      (usageMetrics.inputPayloadTokens &&
+      (usageMetrics.modelContextWindow || usageMetrics.totalContextWindow)
+        ? Math.min(
+            100,
+            Math.max(
+              0,
+              Math.round(
+                (usageMetrics.inputPayloadTokens /
+                  (usageMetrics.modelContextWindow || usageMetrics.totalContextWindow)) *
+                  100,
+              ),
+            ),
+          )
+        : null);
     if (activePercent == null) return null;
     return {
       activePercent,
@@ -1246,9 +1251,7 @@ function ChatInput({
             }}
           >
             {effectiveTaskMode.label}
-            {effectiveTaskMode.recursion_limit
-              ? ` · ${effectiveTaskMode.recursion_limit}`
-              : ''}
+            {effectiveTaskMode.recursion_limit ? ` · ${effectiveTaskMode.recursion_limit}` : ''}
             {effectiveTaskMode.source === 'auto' && (
               <Box
                 component="span"

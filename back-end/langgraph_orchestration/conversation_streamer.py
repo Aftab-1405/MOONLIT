@@ -25,6 +25,26 @@ class LangGraphConversationAgentStreamer:
         resume: dict | None = None,
         task_mode: str = "normal",
     ) -> AsyncGenerator[str, None]:
+        """Stream a conversation turn as SSE lines from the LangGraph agent.
+
+        Args:
+            conversation_id: ID of the target conversation.
+            prompt: The user's prompt text, or ``None`` for a resume-only turn.
+            user_id: ID of the user issuing the turn.
+            db_config: Optional database connection descriptor for tool calls.
+            response_style: One of ``"concise"``, ``"balanced"``, ``"detailed"``.
+            max_rows: Row cap passed to ``execute_query`` (``None`` = default).
+            api_key: Optional provider API key override.
+            provider: LLM provider name (e.g. ``"bedrock"``).
+            model: Optional model ID override; ``None`` resolves the default.
+            enable_reasoning: Whether to enable reasoning/thinking output.
+            reasoning_effort: Reasoning effort level (``"low"|"medium"|"high"``).
+            resume: Optional resume payload for an interrupted agent run.
+            task_mode: Agent step-budget mode (``"normal"|"tool_task"|"long_task"``).
+
+        Yields:
+            SSE-encoded ``data: {...}\\n\\n`` lines for the browser UI.
+        """
         async for sse_line in stream_conversation(
             conversation_id,
             prompt,

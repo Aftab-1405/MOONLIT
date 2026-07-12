@@ -175,16 +175,19 @@ class TokenCountingError(RuntimeError):
 
 
 class TokenCountResult(TypedDict):
+    """Result of a token-count operation (count, mode, and reason)."""
     tokens: int
     mode: str
     reason: str | None
 
 
 def _is_mock_model(model_id: str | None) -> bool:
+    """Return whether ``model_id`` is a test ``mock*`` model."""
     return bool(model_id and str(model_id).startswith("mock"))
 
 
 def _context_window_from_entry(entry) -> int | None:
+    """Extract an integer context window from a capability entry (``None`` when absent/invalid)."""
     if isinstance(entry, dict):
         entry = entry.get("context_window") or entry.get("contextWindow")
     try:
@@ -194,6 +197,7 @@ def _context_window_from_entry(entry) -> int | None:
 
 
 def _supports_count_tokens_from_entry(entry) -> bool | None:
+    """Read the ``supports_count_tokens`` flag from a capability entry (``None`` when unspecified)."""
     if not isinstance(entry, dict):
         return None
     value = entry.get("supports_count_tokens")
@@ -443,6 +447,7 @@ def _build_bedrock_converse_payload(
     messages: Sequence[dict] | None = None,
     tools: Sequence | None = None,
 ) -> dict:
+    """Assemble a Bedrock Converse request payload from system/messages/tools for token counting."""
     converse_payload: dict = {"messages": list(messages or [])}
     if system:
         if isinstance(system, str):
@@ -491,6 +496,7 @@ def count_bedrock_converse_tokens(
 
 
 def _is_unsupported_count_tokens_error(exc: Exception) -> bool:
+    """Return whether ``exc`` indicates the model doesn't support ``CountTokens``."""
     text = str(exc).lower()
     return (
         "doesn't support counting tokens" in text
@@ -699,7 +705,6 @@ def truncate_messages_to_budget(
         import logging as _logging
 
         _logger = _logging.getLogger(__name__)
-        # Find the most recent human message
         for idx in range(len(messages) - 1, -1, -1):
             if getattr(messages[idx], "type", "") == "human":
                 kept_messages = messages[idx:]
@@ -712,7 +717,6 @@ def truncate_messages_to_budget(
                 )
                 break
         if not kept_messages:
-            # No human message found; keep the last message regardless
             kept_messages = messages[-1:]
             dropped_messages = messages[:-1]
 
@@ -755,8 +759,6 @@ def eagerly_initialize_static_budgets():
         from llm_provider.model_factory import get_provider_models
 
         model_ids = get_provider_models(provider)
-
-        # 1. Pre-compute and cache Bedrock tool specs
         for tool in ALL_TOOLS:
             _tool_to_bedrock_spec(tool)
 

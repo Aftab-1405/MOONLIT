@@ -59,10 +59,14 @@ export function useQueryExecution({
           // Keep rows as raw arrays — PerspectiveDashboard reads values by
           // numeric index (row[idx]) via toColumnar() and schema inference.
           const rows = queryData.result?.rows || [];
+          // Pass column_types through so PerspectiveDashboard can build an
+          // explicit schema instead of falling back to sample-based inference.
+          const column_types = queryData.result?.column_types || {};
 
           onQueryResults?.(
             {
               columns,
+              column_types,
               rows,
               row_count: queryData.row_count,
               total_rows: queryData.total_rows,

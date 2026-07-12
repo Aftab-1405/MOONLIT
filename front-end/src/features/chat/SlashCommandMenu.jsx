@@ -32,13 +32,7 @@
  *   text field.
  */
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import {
-  Box,
-  MenuItem,
-  Paper,
-  Popper,
-  Typography,
-} from '@mui/material';
+import { Box, MenuItem, Paper, Popper, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TASK_MODE_OPTIONS } from '@/config/userSettings';
@@ -55,7 +49,7 @@ import { TASK_MODE_OPTIONS } from '@/config/userSettings';
  *   - value: the backend task_mode value to apply
  *   - group: "Task Mode" (used for the section header)
  */
-export function buildSlashCommands(currentTaskMode) {
+function buildSlashCommands(currentTaskMode) {
   const commands = [];
 
   // One command per actionable task-mode option. "Auto" is omitted
@@ -65,11 +59,7 @@ export function buildSlashCommands(currentTaskMode) {
     if (option.value === 'auto') continue;
 
     const shorthand =
-      option.value === 'normal'
-        ? 'standard'
-        : option.value === 'tool_task'
-          ? 'tool'
-          : 'long';
+      option.value === 'normal' ? 'standard' : option.value === 'tool_task' ? 'tool' : 'long';
     commands.push({
       id: `mode-${option.value}`,
       label: option.label,
@@ -124,18 +114,13 @@ const SlashCommandMenu = memo(function SlashCommandMenu({
   const [highlightedIndex, setHighlightedIndex] = useState(0);
   const listRef = useRef(null);
 
-  const allCommands = useMemo(
-    () => buildSlashCommands(currentTaskMode),
-    [currentTaskMode],
-  );
+  const allCommands = useMemo(() => buildSlashCommands(currentTaskMode), [currentTaskMode]);
 
   // Filter by the typed query. Empty query shows everything.
   const filteredCommands = useMemo(() => {
     if (!query) return allCommands;
     return allCommands.filter((cmd) => {
-      const tokens = [cmd.command, ...(cmd.aliases || [])].map((t) =>
-        t.toLowerCase(),
-      );
+      const tokens = [cmd.command, ...(cmd.aliases || [])].map((t) => t.toLowerCase());
       return tokens.some((t) => t.includes(query));
     });
   }, [allCommands, query]);
@@ -148,9 +133,7 @@ const SlashCommandMenu = memo(function SlashCommandMenu({
   // Scroll the highlighted item into view.
   useEffect(() => {
     if (!listRef.current) return;
-    const item = listRef.current.querySelector(
-      `[data-slash-index="${highlightedIndex}"]`,
-    );
+    const item = listRef.current.querySelector(`[data-slash-index="${highlightedIndex}"]`);
     if (item && typeof item.scrollIntoView === 'function') {
       item.scrollIntoView({ block: 'nearest' });
     }
@@ -176,9 +159,7 @@ const SlashCommandMenu = memo(function SlashCommandMenu({
       if (e.key === 'ArrowDown') {
         e.preventDefault();
         e.stopPropagation();
-        setHighlightedIndex((prev) =>
-          Math.min(prev + 1, filteredCommands.length - 1),
-        );
+        setHighlightedIndex((prev) => Math.min(prev + 1, filteredCommands.length - 1));
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
         e.stopPropagation();
@@ -268,9 +249,7 @@ const SlashCommandMenu = memo(function SlashCommandMenu({
                   flexDirection: 'column',
                   alignItems: 'flex-start',
                   gap: 0.25,
-                  bgcolor: isHighlighted
-                    ? alpha(theme.palette.primary.main, 0.08)
-                    : 'transparent',
+                  bgcolor: isHighlighted ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
                   '&:hover': {
                     bgcolor: alpha(theme.palette.primary.main, 0.12),
                   },
@@ -296,15 +275,10 @@ const SlashCommandMenu = memo(function SlashCommandMenu({
                     {cmd.label}
                   </Typography>
                   {cmd.isCurrent && (
-                    <CheckCircleOutlineRoundedIcon
-                      sx={{ fontSize: 14, color: 'primary.main' }}
-                    />
+                    <CheckCircleOutlineRoundedIcon sx={{ fontSize: 14, color: 'primary.main' }} />
                   )}
                 </Box>
-                <Typography
-                  variant="caption"
-                  sx={{ color: 'text.secondary', pl: 0.5 }}
-                >
+                <Typography variant="caption" sx={{ color: 'text.secondary', pl: 0.5 }}>
                   {cmd.description}
                 </Typography>
               </MenuItem>

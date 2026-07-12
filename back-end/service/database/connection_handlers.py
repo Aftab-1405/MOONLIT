@@ -44,9 +44,7 @@ Config = get_config()
 _LOOPBACK = frozenset(Config.BLOCKED_DB_HOSTS)
 
 
-# =============================================================================
 # HELPER FUNCTIONS
-# =============================================================================
 
 
 def _clear_cache():
@@ -82,8 +80,6 @@ def _validate_host(host: str) -> dict | None:
     """
     if not host:
         return {"status": "error", "message": "Host is required."}
-
-    # First simple text check
     if host.strip().lower() in _LOOPBACK or host.strip().lower() == "[::1]":
         return {
             "status": "error",
@@ -150,7 +146,6 @@ def _parse_connection_string(connection_string: str) -> Dict[str, str]:
     from urllib.parse import urlparse
 
     try:
-        # standard urlparse
         parsed = urlparse(connection_string)
         host = parsed.hostname
         if not host:
@@ -176,10 +171,8 @@ def _parse_connection_string(connection_string: str) -> Dict[str, str]:
         }
 
 
-# =============================================================================
 # HOST/PORT CONNECTION FUNCTIONS
 # These support any remote host. Loopback addresses are rejected.
-# =============================================================================
 
 
 def connect_mysql(
@@ -239,7 +232,7 @@ def connect_mysql(
             return {
                 "status": "connected",
                 "message": f"Connected to MySQL at {host}:{port}",
-                "schemas": dbs_result["databases"],
+                "databases": dbs_result["databases"],
                 "db_type": "mysql",
                 "db_config": db_config,
                 "selectedDatabase": database,
@@ -248,7 +241,7 @@ def connect_mysql(
         return {
             "status": "connected",
             "message": "Connected, but failed to fetch databases",
-            "schemas": [],
+            "databases": [],
             "db_type": "mysql",
             "db_config": db_config,
         }
@@ -308,7 +301,7 @@ def connect_postgresql(
             return {
                 "status": "connected",
                 "message": f"Connected to PostgreSQL at {host}:{port}",
-                "schemas": dbs_result["databases"],
+                "databases": dbs_result["databases"],
                 "db_type": "postgresql",
                 "db_config": db_config,
                 "selectedDatabase": database,
@@ -317,7 +310,7 @@ def connect_postgresql(
         return {
             "status": "connected",
             "message": "Connected, but failed to fetch databases",
-            "schemas": [],
+            "databases": [],
             "db_type": "postgresql",
             "db_config": db_config,
         }
@@ -386,7 +379,7 @@ def connect_sqlserver(
         return {
             "status": "connected",
             "message": f"Connected to SQL Server at {host}:{port}",
-            "schemas": databases,
+            "databases": databases,
             "db_type": "sqlserver",
             "db_config": db_config,
             "selectedDatabase": database,
@@ -455,7 +448,14 @@ def connect_oracle(
         return {
             "status": "connected",
             "message": f"Connected to Oracle at {host}:{port}/{service_name}",
-            "schemas": schemas,
+            # Oracle schemas are tied to user accounts. We expose them under
+            # `databases` so the frontend's "Available Databases" list shows
+            # them as switchable accounts (consistent with how the frontend
+            # treats MySQL database/schema synonyms). `schemas` is left empty
+            # because the frontend reserves that field for PostgreSQL/SQL
+            # Server schemas — mixing them here would re-introduce the bug.
+            "databases": schemas,
+            "schemas": [],
             "db_type": "oracle",
             "db_config": db_config,
             "selectedDatabase": schema_name,
@@ -465,9 +465,7 @@ def connect_oracle(
         return {"status": "error", "message": str(err)}
 
 
-# =============================================================================
 # CONNECTION STRING FUNCTIONS (remote only)
-# =============================================================================
 
 
 def connect_remote_postgresql(connection_string: str) -> dict:
@@ -515,10 +513,7 @@ def connect_remote_postgresql(connection_string: str) -> dict:
         # always returned to the pool (see connect_mysql for full rationale).
         with manager.get_connection_context(db_config) as conn:
             if not adapter.validate_connection(conn):
-                return {
-                    "status": "error",
-                    "message": "Failed to connect to remote PostgreSQL",
-                }
+                return {"status": "error", "message": "Failed to connect to remote PostgreSQL"}
 
         logger.info(f"Connected to remote PostgreSQL: {db_name} at {host}")
 
@@ -546,7 +541,7 @@ def connect_remote_postgresql(connection_string: str) -> dict:
         return {
             "status": "connected",
             "message": message,
-            "schemas": all_databases,
+            "databases": all_databases,
             "selectedDatabase": db_name,
             "is_remote": True,
             "tables": tables,
@@ -602,10 +597,7 @@ def connect_remote_mysql(connection_string: str) -> dict:
         # always returned to the pool (see connect_mysql for full rationale).
         with manager.get_connection_context(db_config) as conn:
             if not adapter.validate_connection(conn):
-                return {
-                    "status": "error",
-                    "message": "Failed to connect to remote MySQL",
-                }
+                return {"status": "error", "message": "Failed to connect to remote MySQL"}
 
         logger.info(f"Connected to remote MySQL: {db_name} at {host}")
 
@@ -641,7 +633,7 @@ def connect_remote_mysql(connection_string: str) -> dict:
         return {
             "status": "connected",
             "message": message,
-            "schemas": all_databases,
+            "databases": all_databases,
             "selectedDatabase": db_name,
             "is_remote": True,
             "tables": tables,
@@ -729,10 +721,7 @@ def connect_remote_oracle(connection_string: str) -> dict:
         # rationale).
         with manager.get_connection_context(db_config) as conn:
             if not adapter.validate_connection(conn):
-                return {
-                    "status": "error",
-                    "message": "Failed to connect to remote Oracle",
-                }
+                return {"status": "error", "message": "Failed to connect to remote Oracle"}
 
         logger.info(f"Connected to remote Oracle: {schema_name}")
 
@@ -760,7 +749,10 @@ def connect_remote_oracle(connection_string: str) -> dict:
         return {
             "status": "connected",
             "message": message,
-            "schemas": schemas,
+            # Oracle schemas == users; expose under `databases` for the
+            # frontend's switcher (see connect_oracle for full rationale).
+            "databases": schemas,
+            "schemas": [],
             "selectedDatabase": schema_name,
             "is_remote": True,
             "tables": tables,
@@ -822,10 +814,7 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
         # always closed (see connect_mysql for full rationale).
         with manager.get_connection_context(db_config) as conn:
             if not adapter.validate_connection(conn):
-                return {
-                    "status": "error",
-                    "message": "Failed to connect to remote SQL Server",
-                }
+                return {"status": "error", "message": "Failed to connect to remote SQL Server"}
 
         logger.info(f"Connected to remote SQL Server: {db_name} at {host}")
 
@@ -855,7 +844,7 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
         return {
             "status": "connected",
             "message": message,
-            "schemas": all_databases,
+            "databases": all_databases,
             "selectedDatabase": db_name,
             "is_remote": True,
             "tables": tables,
@@ -867,9 +856,7 @@ def connect_remote_sqlserver(connection_string: str) -> dict:
         return {"status": "error", "message": str(err)}
 
 
-# =============================================================================
 # DATABASE SELECTION
-# =============================================================================
 
 
 def select_database(db_config: dict, db_name: str) -> dict:

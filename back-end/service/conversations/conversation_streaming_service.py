@@ -141,7 +141,6 @@ class ConversationStreamingService:
         last_usage_metrics = None
 
         try:
-            # Load conversation history for the checkpointer
             conv_data = await run_in_threadpool(ConversationRepository.get, conversation_id)
             if conv_data and conv_data.get("user_id") != user_id:
                 raise PermissionError("User does not own this conversation")
@@ -189,8 +188,6 @@ class ConversationStreamingService:
             # Establish the conversation and persist the user turn before
             # orchestration touches task/checkpoint state.
             await store_prompt_once()
-
-            # Persist task_mode to Firestore conversation
             if prompt_stored or conv_data:
                 task_mode_stored = (
                     (conv_data.get("task_mode", "normal") if conv_data else None) or task_mode or "normal"
@@ -207,8 +204,6 @@ class ConversationStreamingService:
                     )
                 except Exception as e:
                     logger.warning("Failed to save task_mode in Firestore: %s", e)
-
-            # Stream from the LangGraph agent
             agent_streamer = get_default_agent_streamer()
             async for sse_line in agent_streamer.stream(
                 conversation_id,
@@ -225,7 +220,6 @@ class ConversationStreamingService:
                 resume=resume,
                 task_mode=task_mode,
             ):
-                # Parse the SSE data line to track content/tools for persistence
                 event = _parse_sse_event(sse_line)
                 if event is None:
                     yield sse_line
@@ -260,7 +254,6 @@ class ConversationStreamingService:
 
                 elif event_type == "tool_start":
                     await store_prompt_once()
-                    # Mark any open thinking blocks as complete
                     for item in ordered_timeline:
                         if item["type"] == "thinking":
                             item["is_complete"] = True
@@ -412,7 +405,6 @@ class ConversationStreamingService:
                 (prompt_stored or resume is not None) and not response_stored and not has_fatal_error
             )
             if should_store_response:
-                # Mark all open thinking blocks complete before persisting
                 for item in ordered_timeline:
                     if item["type"] == "thinking":
                         item["is_complete"] = True
@@ -421,8 +413,6 @@ class ConversationStreamingService:
                         if item["type"] == "text":
                             item["content"] = item["content"].rstrip()
                     ordered_timeline.append({"type": "text", "content": "\n\n_(Response stopped by user)_"})
-
-                # Derive flat content for Firestore storage
                 response_text = "".join(item["content"] for item in ordered_timeline if item["type"] == "text").strip()
                 tools_used = [item for item in ordered_timeline if item["type"] == "tool"]
 
@@ -474,6 +464,7 @@ class ConversationStreamingService:
 
     @staticmethod
     def get_streaming_headers(conversation_id: str) -> dict:
+        """Return SSE-friendly HTTP headers for a streaming chat response."""
         return {
             "X-Conversation-Id": conversation_id,
             "Cache-Control": "no-cache, no-transform",
@@ -484,5 +475,6 @@ class ConversationStreamingService:
 
     @staticmethod
     def check_quota_error(error_message: str) -> bool:
+        """Return True if the error message indicates a quota or rate-limit failure."""
         lower = error_message.lower()
         return "quota" in lower or "429" in lower or "rate" in lower

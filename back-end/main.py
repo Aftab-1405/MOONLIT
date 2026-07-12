@@ -1,4 +1,4 @@
-"""FastAPI application entry point"""
+"""FastAPI application entry point: lifespan, middleware, error handlers, and router registration."""
 
 import asyncio
 import logging
@@ -28,11 +28,9 @@ from langgraph_orchestration.checkpointing import (
 from service.firestore.firestore_service import FirestoreService
 from service.quota import create_rate_limiter, create_user_quota_service
 
-# Get environment-specific configuration
 AppConfig = get_config()
 configure_runtime_ports()
 
-# Configure logging
 logging.basicConfig(
     level=getattr(logging, AppConfig.LOG_LEVEL, logging.INFO),
     format=AppConfig.LOG_FORMAT,
@@ -44,67 +42,59 @@ third_party_log_level = getattr(logging, AppConfig.THIRD_PARTY_LOG_LEVEL, loggin
 for noisy_logger in AppConfig.NOISY_LOGGER_NAMES:
     logging.getLogger(noisy_logger).setLevel(third_party_log_level)
 
-# Rate limiter - imported from controller.rate_limiter (shared instance)
 # ENH [RL-HTTP]: The limiter instance is now created in controller/rate_limiter.py
 # so controllers can import it for @limiter.limit decorators.
-
-# Redis client for sessions (initialized in lifespan)
 from service.redis_service import get_redis_client, set_redis_client
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifecycle management."""
+    """Initialize and tear down application state (Firebase, Redis, checkpointer, VAMP).
+
+    Args:
+        app: The FastAPI application instance.
+    """
 
     logger.info(f"🚀 Starting application in {AppConfig.APP_ENV.upper()} mode")
     logger.info(f"   Debug: {AppConfig.DEBUG}, Testing: {AppConfig.TESTING}")
 
-    # Production-specific validation
     if isinstance(AppConfig, type) and issubclass(AppConfig, ProductionConfig):
         ProductionConfig.validate_production_settings()
 
-    # Validate Firebase configuration consistency
     try:
         AppConfig.validate_firebase_project_consistency()
     except ValueError as e:
         logger.error(f"Firebase configuration error: {e}")
         raise
 
-    # Initialize Firebase/Firestore
     FirestoreService.initialize()
 
-    # Initialize Redis for sessions
-    redis_url = AppConfig.UPSTASH_REDIS_URL
+    redis_url = AppConfig.REDIS_URL
     env = (AppConfig.APP_ENV or "development").lower()
     is_prod_like = env in ("staging", "production")
 
     if is_prod_like:
         if not redis_url:
-            logger.error("UPSTASH_REDIS_URL is required for staging/production (multi-worker safe sessions)")
-            raise RuntimeError("UPSTASH_REDIS_URL must be set for staging/production")
+            logger.error("REDIS_URL is required for staging/production (multi-worker safe sessions)")
+            raise RuntimeError("REDIS_URL must be set for staging/production")
         if AppConfig.RATELIMIT_ENABLED and str(AppConfig.RATELIMIT_STORAGE_URL).lower().startswith("memory"):
             logger.error("RATELIMIT_STORAGE_URL must not use memory storage in staging/production")
             raise RuntimeError("RATELIMIT_STORAGE_URL must be a shared backend (e.g., Redis) in staging/production")
     checkpoint_redis_url: str | None = None
     if redis_url:
-        # Convert redis:// to rediss:// for TLS (Upstash requires TLS)
-        if redis_url.startswith("redis://"):
-            redis_url = redis_url.replace("redis://", "rediss://", 1)
-
         checkpoint_redis_url = redis_url
         client = redis.from_url(redis_url, decode_responses=True)
         set_redis_client(client)
-        logger.info("✅ Redis application state storage enabled (Upstash)")
+        logger.info("✅ Redis application state storage enabled")
     else:
-        logger.warning("⚠️ UPSTASH_REDIS_URL not set, using in-memory application state")
+        logger.warning("⚠️ REDIS_URL not set, using in-memory application state")
 
-    # LangGraph thread persistence (Redis in staging/production; in-memory in dev)
+    # LangGraph thread persistence: Redis in staging/production, in-memory in dev.
     await init_checkpointer(
         app_env=env,
         redis_url=checkpoint_redis_url if is_prod_like else None,
     )
 
-    # Initialize per-user quota service (needs Redis)
     app.state.user_quota = create_user_quota_service(get_redis_client(), AppConfig)
     logger.info(f"User quota: {AppConfig.USER_QUOTA_PER_MINUTE}/min, enabled={AppConfig.USER_QUOTA_ENABLED}")
 
@@ -122,7 +112,6 @@ async def lifespan(app: FastAPI):
             "LLM rate limiter using in-process per-worker counters (no Redis) — dev mode only; do not use in production"
         )
 
-    # Eagerly pre-compute static budgets and tool schemas
     from llm_provider.token_budget import eagerly_initialize_static_budgets
 
     logger.info("Initializing static token budgets...")
@@ -154,7 +143,6 @@ async def lifespan(app: FastAPI):
 
     yield
 
-    # Shutdown
     if vamp_task is not None:
         vamp_stop.set()
         vamp_task.cancel()
@@ -192,7 +180,7 @@ async def lifespan(app: FastAPI):
 
 
 def create_app() -> FastAPI:
-    """Application factory pattern."""
+    """Build the FastAPI app: OpenAPI tags, middleware stack, rate limiter, routers."""
     openapi_tags = [
         {
             "name": "Authentication & Authorization",
@@ -231,7 +219,6 @@ def create_app() -> FastAPI:
         openapi_tags=openapi_tags,
     )
 
-    # Configure CORS
     if AppConfig.CORS_ORIGINS:
         app.add_middleware(
             CORSMiddleware,
@@ -244,6 +231,7 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def log_requests(request: Request, call_next):
+        """Log every inbound request and its response, redacting sensitive headers/bodies."""
         should_log_request = request.url.path not in AppConfig.REQUEST_LOG_EXCLUDED_PATHS
         if should_log_request:
             logger.debug(f"Incoming request: {request.method} {request.url}")
@@ -269,6 +257,7 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def add_security_headers(request: Request, call_next):
+        """Attach standard security headers (X-Content-Type-Options, HSTS, etc.) to every response."""
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = AppConfig.SECURITY_HEADER_CONTENT_TYPE_OPTIONS
         response.headers["X-Frame-Options"] = AppConfig.SECURITY_HEADER_FRAME_OPTIONS
@@ -286,6 +275,7 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def csrf_middleware(request: Request, call_next):
+        """Enforce double-submit CSRF tokens on every state-mutating request."""
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             if request.url.path not in AppConfig.CSRF_EXEMPT_PATHS:
                 try:
@@ -304,7 +294,6 @@ def create_app() -> FastAPI:
 
         return await call_next(request)
 
-    # Configure rate limiting
     if AppConfig.RATELIMIT_ENABLED:
         app.state.limiter = limiter
         app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
@@ -326,13 +315,11 @@ def create_app() -> FastAPI:
         f"enabled={AppConfig.LLM_RATELIMIT_ENABLED}"
     )
 
-    # Note: UserQuotaService is initialized in lifespan() after Redis connects
-    app.state.user_quota = None  # Placeholder, set in lifespan
+    # UserQuotaService is initialized in lifespan() after Redis connects.
+    app.state.user_quota = None
 
-    # Register error handlers
     _register_error_handlers(app)
 
-    # Register routers
     from api_router import combined_router as api_router
     from controller.auth_controller import router as auth_router
 
@@ -343,7 +330,11 @@ def create_app() -> FastAPI:
 
 
 def _register_error_handlers(app: FastAPI):
-    """Register centralized error handlers for consistent JSON responses."""
+    """Register centralized error handlers for consistent JSON error envelopes.
+
+    Args:
+        app: The FastAPI application instance.
+    """
 
     def error_code_for_status(status_code: int) -> str:
         return {
@@ -377,6 +368,7 @@ def _register_error_handlers(app: FastAPI):
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException):
+        """Translate HTTPException into the standard ApiError JSON envelope."""
         detail = exc.detail
         error = error_code_for_status(exc.status_code)
         message = str(detail) if detail else error.replace("_", " ").title()
@@ -399,6 +391,7 @@ def _register_error_handlers(app: FastAPI):
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        """Translate Pydantic validation errors into the standard ApiError JSON envelope."""
         return api_error_response(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             error="VALIDATION_ERROR",
@@ -408,6 +401,7 @@ def _register_error_handlers(app: FastAPI):
 
     @app.exception_handler(Exception)
     async def internal_error_handler(request: Request, exc: Exception):
+        """Catch unhandled exceptions and return a 500 ApiError without leaking details."""
         logger.exception(f"Internal server error: {exc}")
         return api_error_response(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -416,7 +410,6 @@ def _register_error_handlers(app: FastAPI):
         )
 
 
-# Application instance
 app = create_app()
 
 

@@ -20,16 +20,17 @@ logger = logging.getLogger(__name__)
 class ConversationService:
     """Service for managing conversations and AI interactions (facade)."""
 
-    # ── Conversation CRUD ────────────────────────────────────────────
 
     @staticmethod
     def create_or_get_conversation_id(provided_id: Optional[str] = None) -> str:
+        """Return the provided conversation id or mint a fresh UUID."""
         if provided_id:
             return provided_id
         return str(uuid.uuid4())
 
     @staticmethod
     def get_conversation_data(conversation_id: str, user_id: str) -> Optional[dict]:
+        """Fetch a conversation if it exists and is owned by ``user_id``."""
         from service.conversations.conversation_repository import (
             ConversationRepository,
         )
@@ -38,6 +39,7 @@ class ConversationService:
 
     @staticmethod
     def verify_conversation_owner(conversation_id: str, user_id: str) -> bool:
+        """Return True if ``user_id`` owns the given conversation."""
         from service.conversations.conversation_repository import (
             ConversationRepository,
         )
@@ -46,6 +48,7 @@ class ConversationService:
 
     @staticmethod
     def delete_user_conversation(conversation_id: str, user_id: str) -> None:
+        """Delete a conversation and best-effort clean up its external vector memory."""
         from service.conversations.conversation_repository import (
             ConversationRepository,
         )
@@ -71,6 +74,7 @@ class ConversationService:
 
     @staticmethod
     def retry_external_memory_cleanups() -> int:
+        """Retry pending Qdrant cleanups recorded as cleanup-retry records."""
         from service.conversations.conversation_repository import (
             ConversationRepository,
         )
@@ -82,6 +86,7 @@ class ConversationService:
 
     @staticmethod
     def rename_user_conversation(conversation_id: str, user_id: str, title: str) -> str:
+        """Rename a conversation (verifies ownership) and return the new title."""
         from service.conversations.conversation_repository import (
             ConversationRepository,
         )
@@ -90,13 +95,13 @@ class ConversationService:
 
     @staticmethod
     def get_user_conversations(user_id: str) -> list:
+        """List all conversations owned by ``user_id``."""
         from service.conversations.conversation_repository import (
             ConversationRepository,
         )
 
         return ConversationRepository.get_by_user(user_id)
 
-    # ── AI Streaming Delegation ──────────────────────────────────────
 
     @staticmethod
     def create_streaming_generator(
@@ -114,6 +119,7 @@ class ConversationService:
         resume: dict | None = None,
         task_mode: str = "normal",
     ) -> AsyncGenerator[str, None]:
+        """Facade over ConversationStreamingService.create_streaming_generator."""
         return ConversationStreamingService.create_streaming_generator(
             conversation_id=conversation_id,
             prompt=prompt,
@@ -132,13 +138,14 @@ class ConversationService:
 
     @staticmethod
     def get_streaming_headers(conversation_id: str) -> dict:
+        """Return SSE-friendly HTTP headers for a streaming response."""
         return ConversationStreamingService.get_streaming_headers(conversation_id)
 
     @staticmethod
     def check_quota_error(error_message: str) -> bool:
+        """Return True if the error message indicates a quota/rate-limit failure."""
         return ConversationStreamingService.check_quota_error(error_message)
 
-    # ── AI History Compaction Delegation ─────────────────────────────
 
     @staticmethod
     async def check_and_summarize(
@@ -148,6 +155,7 @@ class ConversationService:
         *,
         pressure_budget_tokens: int | None = None,
     ) -> dict:
+        """Facade over ConversationCompactionService.check_and_summarize."""
         return await ConversationCompactionService.check_and_summarize(
             conversation_id=conversation_id,
             user_id=user_id,

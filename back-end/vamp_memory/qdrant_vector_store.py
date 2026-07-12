@@ -50,6 +50,15 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         collection_name: str,
         vector_size: int,
     ):
+        """Initialize the Qdrant client and store collection/vector configuration.
+
+        Args:
+            url: Qdrant cluster URL (cloud or local).
+            api_key: Optional Qdrant API key (``None`` for local deployments).
+            collection_name: Name of the Qdrant collection to read/write.
+            vector_size: Expected embedding dimensionality. ``_ensure_collection_sync``
+                raises if the existing collection uses a different size.
+        """
         from qdrant_client import QdrantClient, models
 
         self.client = QdrantClient(url=url, api_key=api_key or None)
@@ -116,6 +125,7 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
             self._ready_lock = None
 
     def _ensure_collection_sync(self) -> None:
+        """Create the Qdrant collection if missing and validate its vector size + payload indexes."""
         exists = self.client.collection_exists(self.collection_name)
         if not exists:
             try:
@@ -201,6 +211,20 @@ class QdrantVectorMemoryStore(VectorMemoryStore):
         pointer_type: str | None = None,
         score_threshold: float | None = None,
     ) -> list[dict]:
+        """Search the collection for the top-``k`` points matching ``query_vector``.
+
+        Args:
+            conversation_id: Required filter — restricts the search to one conversation.
+            query_vector: Embedding vector to search against.
+            k: Maximum number of hits to return.
+            user_id: Optional multi-tenant filter; restricts to one owner.
+            pointer_type: Optional filter (e.g. ``"memory_bullet"``).
+            score_threshold: Optional minimum similarity score.
+
+        Returns:
+            List of hit dicts (``summary_id``, ``idx``, ``score``, ``bullet_id``,
+            ``pointer_type``), ordered by descending score from Qdrant.
+        """
         await self.ensure_ready()
         must = [
             self.models.FieldCondition(

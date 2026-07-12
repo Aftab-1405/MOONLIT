@@ -6,6 +6,8 @@ from typing import Protocol, runtime_checkable
 
 @dataclass(frozen=True)
 class TaskRunAcquisition:
+    """Result of attempting to acquire a conversation's task-run execution lease."""
+
     acquired: bool
     previous_status: str = ""
     previous_task_mode: str = "normal"

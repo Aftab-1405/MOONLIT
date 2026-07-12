@@ -29,6 +29,7 @@ class ConnectDBRequest(BaseModel):
     @field_validator("database")
     @classmethod
     def sanitize_database(cls, v):
+        """Strip SQL-injection markers from an optional database name."""
         if v:
             return v.replace(";", "").replace("--", "").strip()
         return v
@@ -36,6 +37,7 @@ class ConnectDBRequest(BaseModel):
     @field_validator("connection_string")
     @classmethod
     def sanitize_connection_string(cls, v):
+        """Trim surrounding whitespace and quote characters from a connection string."""
         if v:
             return v.strip(" \"'")
         return v
@@ -49,6 +51,7 @@ class SwitchDatabaseRequest(BaseModel):
     @field_validator("database")
     @classmethod
     def sanitize_database(cls, v):
+        """Require a non-empty database name and strip SQL-injection markers."""
         if not v or not v.strip():
             raise ValueError("Database name is required")
         return v.replace(";", "").replace("--", "").strip()
@@ -62,6 +65,7 @@ class SelectSchemaRequest(BaseModel):
     @field_validator("schema_name")
     @classmethod
     def sanitize_schema(cls, v):
+        """Require a non-empty schema name matching a safe identifier pattern."""
         if not v or not v.strip():
             raise ValueError("Schema name is required")
         import re
@@ -79,6 +83,7 @@ class GetTableSchemaRequest(BaseModel):
     @field_validator("table_name")
     @classmethod
     def sanitize_table_name(cls, v):
+        """Require a non-empty table name and strip SQL-injection markers."""
         if not v or not v.strip():
             raise ValueError("Table name is required")
         return v.replace(";", "").replace("--", "").strip()
@@ -98,6 +103,7 @@ class RunQueryRequest(BaseModel):
     @field_validator("sql_query")
     @classmethod
     def validate_query(cls, v):
+        """Reject blank SQL queries and return the trimmed query text."""
         if not v or not v.strip():
             raise ValueError("SQL query cannot be empty")
         return v.strip()

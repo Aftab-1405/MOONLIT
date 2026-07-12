@@ -50,10 +50,7 @@ const dotPulse = keyframes`
   50%      { opacity: 0.5; transform: scale(0.85); }
 `;
 
-export const StepsAccordion = memo(function StepsAccordion({
-  steps,
-  isStreaming,
-}) {
+export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming }) {
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));

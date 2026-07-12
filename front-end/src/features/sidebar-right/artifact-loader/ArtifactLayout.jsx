@@ -9,11 +9,7 @@ import {
   getArtifactActionButtonSx,
   useArtifactActions,
 } from '@/features/sidebar-right/artifact-loader/artifactLayoutUtils';
-import {
-  getAppBarSurfaceSx,
-  getAppDividerColor,
-  getAppPanelSurfaceSx,
-} from '@/features/styles/interfaceChrome';
+import { getAppBarSurfaceSx, getAppDividerColor } from '@/features/styles/interfaceChrome';
 import { getScrollbarStyles } from '@/styles/shared';
 
 /**
@@ -270,7 +266,6 @@ function ArtifactShell({
   bodyScroll = 'hidden',
   bodySx = {},
 }) {
-  const theme = useTheme();
   const isStandalone = chrome === 'standalone';
   const requestClose = onRequestClose || onClose;
   const handleFullscreenClick = isFullscreen
@@ -309,7 +304,9 @@ function ArtifactShell({
         borderRadius: 0,
         border: 0,
         borderColor: 'transparent',
-        ...getAppPanelSurfaceSx(theme),
+        // No surface paint here — the artifact column already painted it
+        // (AppShell owns the column surface). Painting again would create a
+        // redundant layer that interferes with theme switching.
         boxShadow: 'none',
       }}
     >
@@ -329,7 +326,6 @@ function ArtifactShell({
       sx={{
         ...ARTIFACT_ROOT_SX,
         boxSizing: 'border-box',
-        ...getAppPanelSurfaceSx(theme),
       }}
     >
       {panel}

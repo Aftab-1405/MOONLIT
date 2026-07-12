@@ -67,6 +67,7 @@ class QuotaUsage:
     day: dict
 
     def to_dict(self) -> dict:
+        """Return a plain-dict view of the usage windows for JSON serialization."""
         return {"minute": self.minute, "hour": self.hour, "day": self.day}
 
 
@@ -81,6 +82,7 @@ class UserQuotaService:
     """
 
     def __init__(self, redis_client, config: UserQuotaConfig):
+        """Initialize the service with a Redis client and quota configuration."""
         self.redis = redis_client
         self.config = config
 
@@ -117,7 +119,6 @@ class UserQuotaService:
             - allowed=False: Quota exceeded (counters already reverted)
         """
         if not self.config.enabled:
-            # Quota disabled - always allow
             return True, QuotaUsage(
                 minute={"used": 0, "limit": self.config.per_minute, "resets_in": 0},
                 hour={"used": 0, "limit": self.config.per_hour, "resets_in": 0},
@@ -145,7 +146,6 @@ class UserQuotaService:
             try:
                 count = await self.redis.eval(_INCR_WITH_EXPIRE, 1, key, ttl)
             except Exception:
-                # Fallback for synchronous mock redis (in tests) which doesn't
                 # implement eval(); emulate the same atomic semantics inline.
                 count = await self.redis.incr(key)
                 if count == 1:
@@ -162,7 +162,6 @@ class UserQuotaService:
             }
 
         if exceeded_timeframe:
-            # Revert the increments since the request is denied
             await self.refund(user_id)
             logger.warning(f"User {user_id} exceeded {exceeded_timeframe} quota")
             # We don't have exact TTLs here for the rejected payload, but 0 is fine
@@ -246,7 +245,6 @@ return current
         try:
             await pipe.execute()
         except Exception:
-            # Fallback for synchronous mock redis (in tests) or pipeline
             # failure. Re-try each key individually with the same Lua
             # script; if the redis client does not support eval, fall
             # back to a plain DECR (preserves prior behavior for tests).

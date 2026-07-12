@@ -66,33 +66,75 @@ function withTimeout(promise, timeoutMs, stage) {
   });
 }
 
+/**
+ * Build a Perspective schema object from the data's column_types (or fall
+ * back to sample-based inference). Returns `{ schema, columns, types }`.
+ */
+function buildSchema(data) {
+  const schema = {};
+  if (data.column_types && Object.keys(data.column_types).length > 0) {
+    data.columns.forEach((col) => {
+      schema[col] = data.column_types[col] || 'string';
+    });
+  } else {
+    // Fallback to sample-based inference for backward compatibility
+    const sampleSize = Math.min(data.rows.length, 100);
+    const sampleRows = data.rows.slice(0, sampleSize);
+    data.columns.forEach((col, colIdx) => {
+      const sampleValues = sampleRows.map((row) => row[colIdx]);
+      schema[col] = inferColumnType(sampleValues);
+    });
+  }
+  return { schema, columns: [...data.columns], types: { ...schema } };
+}
+
+/**
+ * Check whether two schemas are equivalent (same column names in the same
+ * order, same types). Used to decide between `table.replace()` (fast path)
+ * and creating a new table (schema changed).
+ */
+function schemaEquals(a, b) {
+  if (!a || !b) return false;
+  if (a.columns.length !== b.columns.length) return false;
+  for (let i = 0; i < a.columns.length; i++) {
+    if (a.columns[i] !== b.columns[i]) return false;
+    if (a.types[a.columns[i]] !== b.types[b.columns[i]]) return false;
+  }
+  return true;
+}
+
 const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
   { data, storageKey, onReadyChange, onSelectionChange },
   ref,
 ) {
   const theme = useTheme();
   const viewerRef = useRef(null);
-  const previousInputRef = useRef({ data, storageKey });
-  const viewerVersionRef = useRef(0);
+
+  // ── Refs for Perspective resources ────────────────────────────────────────
+  // These persist across data changes. The worker is created once on mount
+  // and terminated on unmount. The table is recreated only when the schema
+  // changes; otherwise `table.replace()` is used for efficient data updates.
+  const workerRef = useRef(null);
+  const tableRef = useRef(null);
+  const schemaRef = useRef(null); // { columns: string[], types: { [col]: type } }
+  const prevStorageKeyRef = useRef(storageKey);
   const configSaveTimerRef = useRef(null);
+
+  // ── State ─────────────────────────────────────────────────────────────────
   const [status, setStatus] = useState('idle');
   const [error, setError] = useState(null);
   const [loadingMessage, setLoadingMessage] = useState('');
+  // `initialized` flips to true once the worker + Perspective modules are
+  // loaded. The data-loading effect waits for this before proceeding.
+  const [initialized, setInitialized] = useState(false);
+
   const perspectiveTheme = theme.palette.mode === 'dark' ? 'Pro Dark' : 'Pro Light';
   const perspectiveThemeRef = useRef(perspectiveTheme);
   perspectiveThemeRef.current = perspectiveTheme;
 
   const hasData = Boolean(data?.columns?.length && data?.rows?.length);
 
-  if (
-    previousInputRef.current.data !== data ||
-    previousInputRef.current.storageKey !== storageKey
-  ) {
-    previousInputRef.current = { data, storageKey };
-    viewerVersionRef.current += 1;
-  }
-  const viewerVersion = viewerVersionRef.current;
-
+  // ── Config persistence ────────────────────────────────────────────────────
   const persistConfig = useCallback(async () => {
     const viewer = viewerRef.current;
     if (!viewer?.save || !storageKey) return false;
@@ -100,6 +142,7 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
     return saveAnalysisConfig(storageKey, config);
   }, [storageKey]);
 
+  // ── Imperative handle (toolbar actions) ───────────────────────────────────
   useImperativeHandle(
     ref,
     () => ({
@@ -120,10 +163,12 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
     [persistConfig, perspectiveTheme, storageKey],
   );
 
+  // ── Notify parent of ready state ──────────────────────────────────────────
   useEffect(() => {
     onReadyChange?.(status === 'ready');
   }, [onReadyChange, status]);
 
+  // ── Event listeners on the viewer element ─────────────────────────────────
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer) return undefined;
@@ -148,7 +193,10 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
     };
   }, [onSelectionChange, persistConfig]);
 
-  // Handle parent container resizing
+  // ── Resize observer ───────────────────────────────────────────────────────
+  // `hasData` is in the deps so the observer re-attaches when the viewer
+  // element first mounts (it's only rendered when hasData is true).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: hasData controls viewer element mount
   useEffect(() => {
     const viewer = viewerRef.current;
     if (!viewer || typeof ResizeObserver === 'undefined') return undefined;
@@ -177,23 +225,30 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
       if (frameId) cancelAnimationFrame(frameId);
       observer.disconnect();
     };
-  }, []);
+  }, [hasData]);
 
+  // ── Theme sync ────────────────────────────────────────────────────────────
   useEffect(() => {
     const viewer = viewerRef.current;
-    if (viewer) {
-      if (viewer.setAttribute) {
-        viewer.setAttribute('theme', perspectiveTheme);
-      }
-      if (viewer.restore) {
-        Promise.resolve(viewer.restore({ theme: perspectiveTheme })).catch(() => {});
-      }
-      if (viewer.restyleElement) {
-        Promise.resolve(viewer.restyleElement()).catch(() => {});
-      }
+    if (!viewer) return;
+    if (viewer.setAttribute) {
+      viewer.setAttribute('theme', perspectiveTheme);
+    }
+    if (viewer.restore) {
+      Promise.resolve(viewer.restore({ theme: perspectiveTheme })).catch(() => {});
+    }
+    if (viewer.restyleElement) {
+      Promise.resolve(viewer.restyleElement()).catch(() => {});
     }
   }, [perspectiveTheme]);
 
+  // ── Phase 1: One-time initialization (load modules + create worker) ───────
+  // Runs once on mount. The worker persists across data changes — it is only
+  // terminated on unmount. This eliminates the ~500ms-1s worker-creation cost
+  // on every subsequent query. hasData is intentionally excluded: if data
+  // arrives after mount, the init effect has already run and the worker is
+  // ready. The data effect (Phase 2) handles the actual data loading.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: one-time init, hasData excluded by design
   useEffect(() => {
     if (!hasData) {
       setStatus('idle');
@@ -202,11 +257,8 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
     }
 
     let cancelled = false;
-    let table = null;
-    let worker = null;
-    let viewer = null;
 
-    async function loadPerspective() {
+    async function initPerspective() {
       setStatus('loading');
       setError(null);
       setLoadingMessage('Loading Perspective modules');
@@ -227,16 +279,15 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
         if (cancelled) return;
 
         await customElements.whenDefined('perspective-viewer');
-
         if (cancelled) return;
 
-        viewer = viewerRef.current;
+        const viewer = viewerRef.current;
         if (!viewer?.load) {
           throw new Error('Perspective viewer element is not ready.');
         }
 
         setLoadingMessage('Creating Perspective worker');
-        worker = await withTimeout(
+        const worker = await withTimeout(
           perspective.worker(),
           PERSPECTIVE_INIT_TIMEOUT_MS,
           'creating the Perspective worker',
@@ -247,30 +298,109 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
           return;
         }
 
-        // 1. Build the explicit schema
-        const schema = {};
-        if (data.column_types) {
-          data.columns.forEach((col) => {
-            schema[col] = data.column_types[col] || 'string';
-          });
-        } else {
-          // Fallback to sample-based inference for backward compatibility
-          const sampleSize = Math.min(data.rows.length, 100);
-          const sampleRows = data.rows.slice(0, sampleSize);
-          data.columns.forEach((col, colIdx) => {
-            const sampleValues = sampleRows.map((row) => row[colIdx]);
-            schema[col] = inferColumnType(sampleValues);
-          });
+        workerRef.current = worker;
+        setInitialized(true);
+        // Don't set status to 'ready' here — the data-loading effect (Phase 2)
+        // will do that after loading data into the table.
+      } catch (initError) {
+        cleanupPerspectiveResources({
+          viewer: viewerRef.current,
+          table: tableRef.current,
+          worker: workerRef.current,
+        });
+        if (!cancelled) {
+          setError(initError);
+          setStatus('error');
+        }
+      }
+    }
+
+    initPerspective();
+
+    return () => {
+      cancelled = true;
+      // Full cleanup only on unmount — NOT on data changes.
+      // The worker and table persist across data changes for performance.
+      cleanupPerspectiveResources({
+        viewer: viewerRef.current,
+        table: tableRef.current,
+        worker: workerRef.current,
+      });
+      workerRef.current = null;
+      tableRef.current = null;
+      schemaRef.current = null;
+      setInitialized(false);
+    };
+  }, []);
+
+  // ── Phase 2: Load / replace data ──────────────────────────────────────────
+  // Runs when `data` or `storageKey` changes, AFTER the worker is initialized.
+  // Two paths:
+  //   - Schema changed (or first load): create new table, load into viewer,
+  //     restore saved config. ~200-500ms.
+  //   - Schema unchanged: `table.replace(newData)` on the existing table.
+  //     The viewer auto-updates without losing its configuration. ~50-100ms.
+  useEffect(() => {
+    if (!hasData) {
+      setStatus('idle');
+      setError(null);
+      return undefined;
+    }
+
+    // Wait for Phase 1 to complete.
+    if (!initialized) return undefined;
+
+    let cancelled = false;
+
+    async function loadData() {
+      const worker = workerRef.current;
+      const viewer = viewerRef.current;
+      if (!worker || !viewer) return;
+
+      // Build the explicit schema from column_types (or fall back to inference)
+      const { schema, columns, types } = buildSchema(data);
+      const newSchemaInfo = { columns, types };
+
+      // Detect whether the schema changed (different columns or types).
+      const schemaChanged = !schemaRef.current || !schemaEquals(schemaRef.current, newSchemaInfo);
+
+      // Detect whether the storageKey changed (different query/database).
+      const storageKeyChanged = prevStorageKeyRef.current !== storageKey;
+      prevStorageKeyRef.current = storageKey;
+
+      // Convert data to Perspective's columnar format with type-aware coercion.
+      const columnar = toColumnar(data.columns, data.rows, data.column_types || {});
+
+      if (schemaChanged || !tableRef.current) {
+        // ── Slow path: schema changed (or first load) ───────────────────────
+        // Create a new table with the new schema, load it into the viewer,
+        // and restore the saved config for the new storageKey.
+        setStatus('loading');
+        setLoadingMessage(`Loading ${data.rows.length.toLocaleString()} rows`);
+
+        // Delete the old table if it exists (different schema).
+        if (tableRef.current) {
+          try {
+            await tableRef.current.delete();
+          } catch (e) {
+            console.warn('Warning deleting old table:', e);
+          }
+          tableRef.current = null;
         }
 
-        setLoadingMessage(`Loading ${data.rows.length.toLocaleString()} rows`);
-        table = await withTimeout(
+        // Create new table with explicit schema.
+        const table = await withTimeout(
           worker.table(schema),
           PERSPECTIVE_LOAD_TIMEOUT_MS,
           'creating the Perspective table',
         );
 
-        const columnar = toColumnar(data.columns, data.rows);
+        if (cancelled) {
+          cleanupPerspectiveResources({ table });
+          return;
+        }
+
+        // Load data into the new table.
         await withTimeout(
           table.update(columnar),
           PERSPECTIVE_LOAD_TIMEOUT_MS,
@@ -278,10 +408,14 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
         );
 
         if (cancelled) {
-          cleanupPerspectiveResources({ table, worker });
+          cleanupPerspectiveResources({ table });
           return;
         }
 
+        tableRef.current = table;
+        schemaRef.current = newSchemaInfo;
+
+        // Load the table into the viewer (associates table ↔ viewer).
         setLoadingMessage('Rendering analytics workspace');
         await withTimeout(
           viewer.load(table),
@@ -291,6 +425,7 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
 
         if (cancelled) return;
 
+        // Restore saved config (or default to Datagrid).
         if (viewer.restore) {
           const savedConfig = loadAnalysisConfig(storageKey);
           try {
@@ -304,29 +439,60 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
             await viewer.restore({ plugin: 'Datagrid', theme: perspectiveThemeRef.current });
           }
         }
-        if (viewer.flush) {
-          await viewer.flush();
-        }
-        if (viewer.resize) {
-          await viewer.resize();
-        }
+        if (viewer.flush) await viewer.flush();
+        if (viewer.resize) await viewer.resize();
+
         if (!cancelled) setStatus('ready');
-      } catch (loadError) {
-        cleanupPerspectiveResources({ viewer, table, worker });
-        if (!cancelled) {
-          setError(loadError);
-          setStatus('error');
+      } else {
+        // ── Fast path: schema unchanged ─────────────────────────────────────
+        // Replace data in the existing table. The viewer auto-updates without
+        // losing its current configuration (sort, filter, pivot, column
+        // widths, scroll position). This is the key performance win: no
+        // worker recreation, no table recreation, no viewer recreation.
+        setLoadingMessage(`Updating ${data.rows.length.toLocaleString()} rows`);
+
+        try {
+          await withTimeout(
+            tableRef.current.replace(columnar),
+            PERSPECTIVE_LOAD_TIMEOUT_MS,
+            'replacing rows in the Perspective table',
+          );
+          if (viewer.flush) await viewer.flush();
+
+          // If the storageKey changed (different query, same schema), restore
+          // the saved config for the new key. If the storageKey is the same
+          // (re-ran the same query), preserve the current view — the user's
+          // in-progress analysis is uninterrupted.
+          if (storageKeyChanged && viewer.restore) {
+            const savedConfig = loadAnalysisConfig(storageKey);
+            try {
+              await viewer.restore(
+                savedConfig
+                  ? { ...savedConfig, theme: perspectiveThemeRef.current }
+                  : { plugin: 'Datagrid', theme: perspectiveThemeRef.current },
+              );
+            } catch {
+              clearAnalysisConfig(storageKey);
+              await viewer.restore({ plugin: 'Datagrid', theme: perspectiveThemeRef.current });
+            }
+          }
+
+          if (!cancelled) setStatus('ready');
+        } catch (replaceError) {
+          if (!cancelled) {
+            setError(replaceError);
+            setStatus('error');
+          }
         }
       }
     }
 
-    loadPerspective();
+    loadData();
 
     return () => {
       cancelled = true;
-      cleanupPerspectiveResources({ viewer, table, worker });
     };
-  }, [data, hasData, storageKey]);
+  }, [data, hasData, storageKey, initialized]);
 
   if (!hasData) {
     return (
@@ -363,8 +529,12 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
         },
       }}
     >
+      {/* The <perspective-viewer> element is NEVER remounted across data
+          changes. It stays in the DOM for the lifetime of the component,
+          preserving all UI-ephemeral state (column widths, scroll position,
+          expanded groups). Data updates flow through table.replace() which
+          the viewer picks up automatically. */}
       <perspective-viewer
-        key={viewerVersion}
         ref={viewerRef}
         theme={perspectiveTheme}
         style={{

@@ -179,7 +179,8 @@ function extractToolSubject(step) {
     case 'get_table_row_count': {
       const count = r.row_count;
       const table = r.table ? ` in ${r.table}` : '';
-      if (typeof count === 'number') return `${count.toLocaleString()} row${count !== 1 ? 's' : ''}${table}`;
+      if (typeof count === 'number')
+        return `${count.toLocaleString()} row${count !== 1 ? 's' : ''}${table}`;
       return null;
     }
     case 'execute_query': {
@@ -298,9 +299,7 @@ export function buildStepsSummary(normalizedSteps) {
   // Try to find the most informative subject across all completed tools.
   // Prefer execute_query row counts, then schema/table counts, then
   // anything else extractable.
-  const subjects = completedTools
-    .map(extractToolSubject)
-    .filter(Boolean);
+  const subjects = completedTools.map(extractToolSubject).filter(Boolean);
   const uniqueSubjects = [...new Set(subjects)];
 
   const toolCountSuffix = ` · ${completedTools.length} tool${completedTools.length !== 1 ? 's' : ''} used`;

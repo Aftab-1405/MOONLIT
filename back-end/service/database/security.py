@@ -1,4 +1,3 @@
-# File: database/security.py
 """Database security utilities — read-only query validation and identifier rules.
 
 This module provides:

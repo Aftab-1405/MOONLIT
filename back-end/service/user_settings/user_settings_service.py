@@ -39,10 +39,12 @@ _ENUMS = {
 
 
 def _normalize_user_id(user: Any) -> str:
+    """Normalize a user id (string or dict) to a stable Firestore document id."""
     return ContextRepository._normalize_user_id(user)
 
 
 def _coerce_value(key: str, value: Any) -> Any:
+    """Coerce a raw preference value to the expected type for ``key``, returning None on invalid input."""
     if value is None:
         return None
 
@@ -105,6 +107,7 @@ class UserSettingsService:
 
     @staticmethod
     def get_merged(user_id: Any) -> dict[str, Any]:
+        """Return the user's preferences merged on top of DEFAULT_PREFERENCES."""
         uid = _normalize_user_id(user_id)
         doc = ContextRepository.get(uid) or {}
         stored = doc.get("preferences") if isinstance(doc.get("preferences"), dict) else {}
@@ -137,6 +140,7 @@ class UserSettingsService:
 
     @staticmethod
     def save(user_id: Any, patch: dict[str, Any]) -> dict[str, Any]:
+        """Sanitize and persist a preference patch, returning the merged preferences."""
         uid = _normalize_user_id(user_id)
         sanitized = _sanitize_patch(patch)
         if not sanitized:
@@ -150,6 +154,7 @@ class UserSettingsService:
 
     @staticmethod
     def connection_persistence_minutes(prefs: dict[str, Any]) -> int:
+        """Return the connection persistence minutes from ``prefs`` (0 on invalid)."""
         try:
             return int(prefs.get("connectionPersistence", 0))
         except (TypeError, ValueError):

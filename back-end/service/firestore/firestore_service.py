@@ -37,6 +37,7 @@ _EXECUTION_CHUNK_BYTES = 700_000
 
 
 def _chunk_rows(rows: list[dict], max_bytes: int) -> list[list[dict]]:
+    """Split ``rows`` into byte-bounded chunks no larger than ``max_bytes``."""
     chunks: list[list[dict]] = []
     current: list[dict] = []
     current_bytes = 2
@@ -302,24 +303,30 @@ class FirestoreService:
 
     @classmethod
     def initialize(cls):
+        """Initialize the Firebase Admin SDK (idempotent)."""
         _initialize_firebase()
 
     @classmethod
     def get_db(cls):
+        """Return the singleton Firestore client, initializing on first use."""
         return get_firestore_db()
 
     @staticmethod
     def store_conversation(conversation_id, sender, message, user_id, tools=None):
+        """Delegate to :func:`store_conversation` (appends a message to a conversation)."""
         return store_conversation(conversation_id, sender, message, user_id, tools)
 
     @staticmethod
     def get_conversations(user_id):
+        """Delegate to :func:`get_conversations` (lists conversations for a user)."""
         return get_conversations(user_id)
 
     @staticmethod
     def get_conversation(conversation_id):
+        """Delegate to :func:`get_conversation` (fetch a single conversation by id)."""
         return get_conversation(conversation_id)
 
     @staticmethod
     def delete_conversation(conversation_id, user_id):
+        """Delegate to :func:`delete_conversation` (delete after owner verification)."""
         return delete_conversation(conversation_id, user_id)

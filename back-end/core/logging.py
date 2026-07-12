@@ -39,7 +39,8 @@ _ROOT_LOGGER: logging.Logger = logging.getLogger()
 class _RequestIdFilter(logging.Filter):
     """Inject the current request ID into every log record."""
 
-    def filter(self, record: logging.LogRecord) -> bool:  # noqa: D401
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Attach the current request ID to ``record`` and accept it."""
         record.request_id = _request_id_var.get() or "-"
         return True
 

@@ -18,10 +18,12 @@ class LLMOptionsService:
 
     @staticmethod
     def supported_providers() -> set[str]:
+        """Return the set of LLM provider names enabled in configuration."""
         return set(get_supported_providers())
 
     @staticmethod
     def build_provider_options() -> tuple[list[dict], str]:
+        """Build the list of provider option dicts and the default provider name."""
         config = get_config()
         options = []
         for provider_name in get_supported_providers():
@@ -49,4 +51,5 @@ class LLMOptionsService:
 
     @staticmethod
     def default_model(provider: str) -> str:
+        """Return the configured default model id for ``provider``."""
         return get_default_model(provider)

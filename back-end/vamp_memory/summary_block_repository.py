@@ -54,6 +54,7 @@ MAX_VECTOR_ATTEMPTS = 10
 
 
 def _fast_firestore_retry():
+    """Return a short-deadline retry policy for low-latency Firestore reads."""
     from google.api_core.retry import Retry
 
     return Retry(deadline=2.0)
@@ -94,6 +95,7 @@ def _encode_summary_payload_chunks(
     memory_bullets: list[dict],
     max_bytes: int,
 ) -> list[str]:
+    """JSON-encode a summary's text+bullets and split into ``max_bytes``-bounded UTF-8 chunks."""
     payload = json.dumps(
         {"text": text, "memory_bullets": memory_bullets},
         ensure_ascii=False,
@@ -104,6 +106,7 @@ def _encode_summary_payload_chunks(
 
 
 def _decode_summary_payload_chunks(chunks: list[str]) -> dict:
+    """Reassemble and JSON-decode a summary payload from its stored chunks."""
     return json.loads("".join(chunks))
 
 
@@ -116,6 +119,7 @@ class SummaryBlockRepository:
 
     @staticmethod
     def _conversation_ref(conversation_id: str):
+        """Return the Firestore document reference for ``conversations/{conversation_id}``."""
         from service.firestore.firestore_service import FirestoreService
 
         db = FirestoreService.get_db()
@@ -123,6 +127,7 @@ class SummaryBlockRepository:
 
     @staticmethod
     def _summary_ref(conversation_id: str, summary_id: str):
+        """Return the Firestore document reference for one summary block under a conversation."""
         return (
             SummaryBlockRepository._conversation_ref(conversation_id)
             .collection(SummaryBlockRepository.SUMMARY_COLLECTION)
@@ -131,6 +136,7 @@ class SummaryBlockRepository:
 
     @staticmethod
     def get_conversation(conversation_id: str) -> Optional[dict]:
+        """Return the conversation metadata dict, or ``None`` if the conversation doc doesn't exist."""
         doc = SummaryBlockRepository._conversation_ref(conversation_id).get(
             retry=_fast_firestore_retry(),
             timeout=2.0,
@@ -359,6 +365,7 @@ class SummaryBlockRepository:
 
     @staticmethod
     def get_blocks_by_ids(conversation_id: str, summary_ids: list[str]) -> list[dict]:
+        """Bulk-fetch and hydrate summary blocks by id; returns ``[]`` when ``summary_ids`` is empty."""
         if not summary_ids:
             return []
         from service.firestore.firestore_service import FirestoreService

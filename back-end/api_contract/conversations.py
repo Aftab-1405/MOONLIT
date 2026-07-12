@@ -23,6 +23,7 @@ class BaseConversationRequest(BaseModel):
     @field_validator("provider")
     @classmethod
     def sanitize_provider(cls, v):
+        """Normalize the LLM provider to a trimmed lowercase value."""
         if v is None:
             return None
         provider = v.strip().lower()
@@ -31,6 +32,7 @@ class BaseConversationRequest(BaseModel):
     @field_validator("model")
     @classmethod
     def sanitize_model(cls, v):
+        """Normalize the LLM model to a trimmed value."""
         if v is None:
             return None
         model = v.strip()
@@ -46,6 +48,7 @@ class ChatRequest(BaseConversationRequest):
     @field_validator("prompt")
     @classmethod
     def prompt_not_empty(cls, v):
+        """Reject blank prompts and return the trimmed value."""
         if not v or not v.strip():
             raise ValueError("Prompt cannot be empty")
         return v.strip()
@@ -64,6 +67,7 @@ class AgentResumeRequest(BaseConversationRequest):
     @field_validator("resume")
     @classmethod
     def resume_not_empty(cls, v):
+        """Reject empty resume payloads and enforce a serialized size cap."""
         if not isinstance(v, dict) or not v:
             raise ValueError("Resume payload cannot be empty")
         # Defense-in-depth: cap the serialized size to protect against
@@ -86,6 +90,7 @@ class RenameConversationRequest(BaseModel):
     @field_validator("title")
     @classmethod
     def title_not_empty(cls, v):
+        """Reject blank conversation titles and return the trimmed value."""
         title = v.strip()
         if not title:
             raise ValueError("Conversation title cannot be empty")

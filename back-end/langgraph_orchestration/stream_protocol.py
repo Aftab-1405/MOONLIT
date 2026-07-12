@@ -76,8 +76,10 @@ def sse_encode(event: Dict[str, Any]) -> str:
 
 
 def sse_error(message: str) -> str:
+    """Encode a recoverable ``error`` SSE event with the given message."""
     return sse_encode({"type": "error", "message": message})
 
 
 def sse_done() -> str:
+    """Encode the terminal ``done`` SSE event that closes the stream."""
     return sse_encode({"type": "done"})

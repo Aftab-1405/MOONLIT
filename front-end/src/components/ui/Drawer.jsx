@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import { alpha, Box, IconButton, Typography } from '@mui/material';
+import { alpha, Box, IconButton } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { AnimatePresence, motion } from 'framer-motion';
 import React, { createContext, useContext, useEffect } from 'react';
@@ -28,7 +28,7 @@ import React, { createContext, useContext, useEffect } from 'react';
 
 const DrawerContext = createContext(undefined);
 
-export const useDrawerContext = () => {
+const useDrawerContext = () => {
   const context = useContext(DrawerContext);
   if (!context) {
     throw new Error('useDrawerContext must be used within a DrawerProvider');
@@ -201,62 +201,3 @@ export const DrawerContent = React.forwardRef(
   },
 );
 DrawerContent.displayName = 'DrawerContent';
-
-export const DrawerHeader = ({ sx, ...props }) => (
-  <Box
-    sx={{
-      display: 'flex',
-      flexDirection: 'column',
-      gap: 0.75,
-      p: 3,
-      textAlign: 'left',
-      ...sx,
-    }}
-    {...props}
-  />
-);
-DrawerHeader.displayName = 'DrawerHeader';
-
-export const DrawerFooter = ({ sx, ...props }) => (
-  <Box
-    sx={{
-      mt: 'auto',
-      display: 'flex',
-      flexDirection: { xs: 'column-reverse', sm: 'row' },
-      justifyContent: 'flex-end',
-      gap: 1.5,
-      p: 3,
-      ...sx,
-    }}
-    {...props}
-  />
-);
-DrawerFooter.displayName = 'DrawerFooter';
-
-export const DrawerTitle = React.forwardRef(({ sx, ...props }, ref) => (
-  <Typography
-    ref={ref}
-    variant="h6"
-    sx={{
-      fontWeight: 600,
-      lineHeight: 1,
-      letterSpacing: '-0.015em',
-      ...sx,
-    }}
-    {...props}
-  />
-));
-DrawerTitle.displayName = 'DrawerTitle';
-
-export const DrawerDescription = React.forwardRef(({ sx, ...props }, ref) => (
-  <Typography
-    ref={ref}
-    variant="body2"
-    sx={{
-      color: 'text.secondary',
-      ...sx,
-    }}
-    {...props}
-  />
-));
-DrawerDescription.displayName = 'DrawerDescription';

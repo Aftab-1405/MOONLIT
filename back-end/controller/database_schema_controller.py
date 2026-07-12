@@ -1,4 +1,3 @@
-# File: api/routes/schema.py
 """Schema and table related API routes."""
 
 import logging
@@ -29,6 +28,7 @@ router = APIRouter(tags=["Database Operations End Points"])
 
 
 def _raise_service_error(result: dict) -> None:
+    """Raise an ``HTTPException`` if the schema-service result carries an error status."""
     if result.get("status") == "error":
         raise HTTPException(
             status_code=400,
@@ -40,6 +40,7 @@ def _raise_service_error(result: dict) -> None:
 
 
 def _bool_from_nullable(value: Any) -> bool | None:
+    """Coerce a nullable database-driver nullability value (``'YES'``/``'NO'``/bool/None) into a tri-state bool."""
     if value is None:
         return None
     if isinstance(value, bool):
@@ -50,6 +51,7 @@ def _bool_from_nullable(value: Any) -> bool | None:
 
 
 def _column_at(raw_column: Any, index: int, default: Any = None) -> Any:
+    """Safely index a tuple/list/dict column descriptor, returning ``default`` on out-of-range or wrong-type access."""
     try:
         return raw_column[index]
     except (IndexError, KeyError, TypeError):
@@ -57,6 +59,7 @@ def _column_at(raw_column: Any, index: int, default: Any = None) -> Any:
 
 
 def _normalize_column(raw_column: Any) -> TableColumnData:
+    """Normalize a heterogeneous column descriptor (dict or positional tuple/list) into the ``TableColumnData`` model."""
     if isinstance(raw_column, dict):
         name = raw_column.get("name") or raw_column.get("column_name") or raw_column.get("COLUMN_NAME")
         data_type = (
@@ -97,6 +100,7 @@ def _normalize_column(raw_column: Any) -> TableColumnData:
 
 
 def _normalize_table_schema_response(result: dict, db_config: dict) -> TableSchemaData:
+    """Shape a raw table-schema service result into the public ``TableSchemaData`` response model."""
     return TableSchemaData(
         table_name=result.get("table_name", ""),
         columns=[_normalize_column(column) for column in result.get("schema", [])],
@@ -110,6 +114,7 @@ def _normalize_select_schema_response(
     result: dict,
     schema_metadata: dict[str, Any] | None = None,
 ) -> SelectSchemaData:
+    """Shape a raw select-schema service result into the public ``SelectSchemaData`` response model."""
     db_config = result.get("db_config") or {}
     metadata = schema_metadata or {}
     return SelectSchemaData(
@@ -130,9 +135,7 @@ def _normalize_select_schema_response(
     )
 
 
-# =============================================================================
 # SCHEMA ROUTES
-# =============================================================================
 
 
 @router.get(
@@ -168,8 +171,6 @@ async def select_schema(
     user_id = user.get("uid") or user
 
     result = await run_in_threadpool(DatabaseService.select_schema, db_config, data.schema_name, user_id)
-
-    # Update session with new db_config containing schema
     if result.get("status") == "success" and "db_config" in result:
         await update_session_data(
             request,
@@ -202,9 +203,7 @@ async def select_schema(
     )
 
 
-# =============================================================================
 # TABLE ROUTES
-# =============================================================================
 
 
 @router.get(

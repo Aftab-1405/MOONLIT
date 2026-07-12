@@ -49,6 +49,7 @@ class TaskRunLease:
         self._stream_task: asyncio.Task | None = None
 
     async def acquire(self) -> TaskRunAcquisition:
+        """Acquire the task-run lease and start the background renew loop."""
         store = get_conversation_task_state_store()
         worker = asyncio.create_task(
             asyncio.to_thread(
@@ -98,13 +99,20 @@ class TaskRunLease:
         return result
 
     async def reset_checkpoint(self) -> bool:
+        """Reset the active checkpoint under the current ownership."""
         return await self._owned_transition("reset_task_checkpoint", self.task_mode, self.run_id)
 
     async def change_task_mode(self, task_mode: str) -> bool:
+        """Update the active task mode on the owned lease.
+
+        Args:
+            task_mode: New task mode to persist (``normal|tool_task|long_task``).
+        """
         self.task_mode = task_mode
         return await self._owned_transition("update_task_mode", self.task_mode, self.run_id)
 
     async def pause(self) -> bool:
+        """Mark the active task as paused and stop the renew loop."""
         updated = await self._owned_transition("save_paused_task", self.task_mode, self.run_id)
         if updated:
             self.acquired = False
@@ -112,6 +120,11 @@ class TaskRunLease:
         return updated
 
     async def interrupt(self, reason: str) -> bool:
+        """Persist an interrupted task state and stop the renew loop.
+
+        Args:
+            reason: Short machine-readable reason for the interruption.
+        """
         updated = await self._owned_transition("save_interrupted_task", self.task_mode, reason, self.run_id)
         if updated:
             self.acquired = False
@@ -119,6 +132,7 @@ class TaskRunLease:
         return updated
 
     async def complete(self) -> bool:
+        """Clear the active task status, marking the run as completed."""
         updated = await self._owned_transition("clear_task_status", self.task_mode, self.run_id)
         if updated:
             self.acquired = False
@@ -126,6 +140,7 @@ class TaskRunLease:
         return updated
 
     async def close(self) -> None:
+        """Stop the renew loop and cancel its background task if running."""
         self._stop_renewal.set()
         if self._renew_task is not None:
             self._renew_task.cancel()
@@ -136,10 +151,12 @@ class TaskRunLease:
             self._renew_task = None
 
     def ensure_owned(self) -> None:
+        """Raise ``RuntimeError`` if the lease was lost mid-stream."""
         if self._ownership_lost.is_set():
             raise RuntimeError("Task execution lease was lost; stream aborted safely.")
 
     async def _owned_transition(self, method_name: str, *args) -> bool:
+        """Invoke a task-state mutation only while ownership is still held."""
         store = get_conversation_task_state_store()
         method = getattr(store, method_name)
         updated = await _await_thread_call(method, self.conversation_id, *args)
@@ -150,6 +167,7 @@ class TaskRunLease:
         return True
 
     async def _renew_loop(self) -> None:
+        """Periodically renew the lease until stopped or ownership is lost."""
         store = get_conversation_task_state_store()
         while not self._stop_renewal.is_set():
             try:

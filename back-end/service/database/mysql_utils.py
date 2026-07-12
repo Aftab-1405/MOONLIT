@@ -35,7 +35,6 @@ def parse_mysql_connection_string(connection_string: str) -> Dict:
     Returns:
         Dict with keys: host, port, user, password, database, ssl_params
     """
-    # Normalize connection string prefix
     cs = connection_string
     if cs.startswith("mysql+pymysql://"):
         cs = cs.replace("mysql+pymysql://", "mysql://")
@@ -43,16 +42,11 @@ def parse_mysql_connection_string(connection_string: str) -> Dict:
         cs = "mysql://" + cs
 
     parsed = urlparse(cs)
-
-    # Extract query parameters for SSL
     query_params = parse_qs(parsed.query)
-
-    # Determine SSL settings
     ssl_enabled = False
     ssl_params = {}
     if any(key.lower() in ["ssl", "sslmode", "ssl_ca", "ssl-mode", "ssl_disabled"] for key in query_params.keys()):
         ssl_enabled = True
-        # Extract specific SSL params if provided
         if "ssl_ca" in query_params:
             ssl_params["ca"] = query_params["ssl_ca"][0]
     elif parsed.hostname and parsed.hostname.lower() not in Config.BLOCKED_DB_HOSTS:
@@ -92,7 +86,6 @@ def get_mysql_connect_kwargs(db_config: Dict, for_pool: bool = False) -> Dict:
     connection_string = db_config.get("connection_string")
 
     if connection_string:
-        # Parse connection string
         parsed = parse_mysql_connection_string(connection_string)
 
         kwargs = {
@@ -108,8 +101,6 @@ def get_mysql_connect_kwargs(db_config: Dict, for_pool: bool = False) -> Dict:
 
         if parsed["database"]:
             kwargs["database"] = parsed["database"]
-
-        # Handle SSL for remote connections
         if parsed["ssl_enabled"]:
             kwargs["ssl_disabled"] = False
 
@@ -119,7 +110,6 @@ def get_mysql_connect_kwargs(db_config: Dict, for_pool: bool = False) -> Dict:
             kwargs["autocommit"] = False
             kwargs["buffered"] = True
     else:
-        # Individual parameters
         host = db_config.get("host")
 
         # Windows named-pipe guard: if host is empty or local-looking, force TCP/IP

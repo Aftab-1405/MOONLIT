@@ -1,4 +1,3 @@
-# File: api/routes/conversation.py
 """
 Conversation/chat API routes.
 

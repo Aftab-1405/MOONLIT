@@ -22,6 +22,8 @@ SKILL_NAME_PATTERN = re.compile(r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$")
 
 @dataclass(frozen=True)
 class SkillDefinition:
+    """Immutable metadata + body for a single discovered SKILL.md asset."""
+
     name: str
     description: str
     when_to_use: str
@@ -48,6 +50,7 @@ class SkillRegistryError(ValueError):
 
 
 def _parse_frontmatter(raw: str, path: pathlib.Path) -> tuple[dict[str, str], str]:
+    """Split a SKILL.md file into its YAML frontmatter dict and markdown body."""
     lines = raw.splitlines()
     if not lines or lines[0].strip() != FRONTMATTER_DELIMITER:
         raise SkillRegistryError(f"{path} must start with YAML frontmatter")
@@ -76,6 +79,7 @@ def _parse_frontmatter(raw: str, path: pathlib.Path) -> tuple[dict[str, str], st
 
 
 def _discover_skill_files() -> list[pathlib.Path]:
+    """Return sorted ``SKILL.md`` paths under sibling non-underscore skill dirs."""
     skills_dir = pathlib.Path(__file__).parent
     skill_files: list[pathlib.Path] = []
     for skill_dir in skills_dir.iterdir():
@@ -88,6 +92,7 @@ def _discover_skill_files() -> list[pathlib.Path]:
 
 
 def _load_skills() -> list[SkillDefinition]:
+    """Discover, parse, and validate every SKILL.md asset into a list."""
     skills: list[SkillDefinition] = []
     seen_names: set[str] = set()
 
@@ -146,6 +151,7 @@ class SkillRegistry:
     """Read-only catalog of available SKILL.md assets."""
 
     def __init__(self) -> None:
+        """Load all skills eagerly and index them by name for O(1) lookup."""
         self._skills = _load_skills()
         self._skill_map = {skill.name: skill for skill in self._skills}
 
@@ -198,10 +204,12 @@ class SkillRegistry:
         return "\n\n" + "\n".join(lines)
 
     def get_skill(self, name: str) -> SkillDefinition | None:
+        """Return the skill with ``name``, or ``None`` if it is not registered."""
         return self._skill_map.get(name)
 
     @property
     def all_skill_names(self) -> list[str]:
+        """Return the names of every registered skill."""
         return [skill.name for skill in self._skills]
 
 
@@ -209,6 +217,7 @@ _registry_instance: SkillRegistry | None = None
 
 
 def get_skill_registry() -> SkillRegistry:
+    """Return the process-wide singleton :class:`SkillRegistry`, lazily built."""
     global _registry_instance
     if _registry_instance is None:
         _registry_instance = SkillRegistry()

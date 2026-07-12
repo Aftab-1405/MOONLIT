@@ -193,9 +193,7 @@ class BaseDatabaseAdapter(ABC):
         """
         pass
 
-    # =========================================================================
     # Schema Caching Methods (for AI context)
-    # =========================================================================
 
     def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> str:
         """
@@ -304,9 +302,7 @@ class BaseDatabaseAdapter(ABC):
         # Default: not supported, return empty
         return None, []
 
-    # =========================================================================
     # Schema Metadata Methods (for AI tools)
-    # =========================================================================
 
     def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
         """
@@ -340,9 +336,7 @@ class BaseDatabaseAdapter(ABC):
         """
         return None, ()  # Default: not supported
 
-    # =========================================================================
     # EXPLAIN / Query-plan Methods (added for the explain_query AI tool)
-    # =========================================================================
     #
     # The explain_query tool exposes the DBMS query optimizer's plan for a
     # read-only SELECT/WITH statement so the AI can diagnose slow queries.
@@ -406,9 +400,7 @@ class BaseDatabaseAdapter(ABC):
         cursor.execute(self.get_explain_sql(query))
         return cursor.fetchall()
 
-    # =========================================================================
     # Table-details Methods (added for the get_table_details AI tool)
-    # =========================================================================
     #
     # ``get_table_details_query`` returns a richer schema query than the
     # existing ``get_table_schema_query``: in addition to column name /
@@ -437,9 +429,7 @@ class BaseDatabaseAdapter(ABC):
         """
         return None, ()  # Default: not supported
 
-    # =========================================================================
     # Views Introspection Methods (added for the list_views AI tool)
-    # =========================================================================
     #
     # ``get_views`` returns the (sql, params) to list regular views in the
     # connected schema/database. ``get_materialized_views`` returns the
@@ -476,10 +466,8 @@ class BaseDatabaseAdapter(ABC):
         """
         return None  # Default: materialized views not supported
 
-    # =========================================================================
     # Identifier quoting & connection-string parsing
     # (FIX [AUDIT-2-B]: promoted from per-adapter code to the base class)
-    # =========================================================================
     #
     # ``quote_identifier`` returns the DBMS-specific quoted form of a SQL
     # identifier. Centralizing this on the adapter removes a class of

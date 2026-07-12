@@ -523,9 +523,11 @@ class ProviderRateLimiter:
             limiter.release()
 
     def configured_provider_count(self) -> int:
+        """Return the number of configured providers known to the limiter."""
         return len(get_supported_providers())
 
     def get_stats(self) -> dict:
+        """Return per-key stats for the in-process fallback limiters (dev-mode visibility)."""
         # Per-user stats are not aggregated here; callers should query Redis
         # directly for live per-user counters. The in-process fallbacks are
         # included for dev-mode visibility.

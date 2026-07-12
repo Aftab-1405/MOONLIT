@@ -8,7 +8,10 @@ import { getExecutionResult } from '@/api/conversations';
 
 const MIN_COLUMN_SIZE = 112;
 const MAX_COLUMN_SIZE = 360;
-const ROW_NUMBER_COLUMN_SIZE = 48;
+// Serial-number (row-numbers) column has been removed entirely — the
+// MarkdownRenderer tables don't have one, so keeping it here would break
+// visual parity. Data rows still render in source order, which is sufficient
+// for query results.
 
 function formatCellValue(value) {
   if (value === null || value === undefined) return 'NULL';
@@ -109,14 +112,14 @@ function LoadingTable() {
       <Box
         sx={{
           display: 'grid',
-          gridTemplateColumns: '48px repeat(3, minmax(112px, 1fr))',
+          // No row-number column — parity with MarkdownRenderer tables.
+          gridTemplateColumns: 'repeat(3, minmax(112px, 1fr))',
           px: { xs: 1.25, sm: 2 },
           py: { xs: 0.85, sm: 1 },
           bgcolor: headerBg,
           borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
         }}
       >
-        <Skeleton variant="text" width={12} height={16} sx={{ mx: 'auto' }} />
         {skeletonColumns.map((_, index) => (
           <Skeleton
             key={`header-${index}`}
@@ -133,14 +136,14 @@ function LoadingTable() {
           sx={{
             minHeight: 38,
             display: 'grid',
-            gridTemplateColumns: '48px repeat(3, minmax(112px, 1fr))',
+            // No row-number column — parity with MarkdownRenderer tables.
+            gridTemplateColumns: 'repeat(3, minmax(112px, 1fr))',
             alignItems: 'center',
             px: { xs: 1.25, sm: 2 },
             py: { xs: 0.85, sm: 1 },
             borderTop: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.055 : 0.045)}`,
           }}
         >
-          <Skeleton variant="text" width={14} height={16} sx={{ mx: 'auto' }} />
           {skeletonColumns.map((_, columnIndex) => (
             <Skeleton
               key={`cell-${rowIndex}-${columnIndex}`}
@@ -288,14 +291,6 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
       size: 160,
       grow: true,
     },
-    displayColumnDefOptions: {
-      'mrt-row-numbers': {
-        minSize: ROW_NUMBER_COLUMN_SIZE,
-        maxSize: ROW_NUMBER_COLUMN_SIZE,
-        size: ROW_NUMBER_COLUMN_SIZE,
-        grow: false,
-      },
-    },
     enableBottomToolbar: false,
     enableColumnActions: false,
     enableColumnDragging: false,
@@ -308,13 +303,14 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
     enableHiding: false,
     enablePagination: false,
     enablePinning: false,
-    enableRowNumbers: true,
+    // Row numbers (serial-number column) are disabled — the MarkdownRenderer
+    // tables don't have one, so keeping it here would break visual parity.
+    enableRowNumbers: false,
     enableRowVirtualization: shouldVirtualizeRows,
     enableSorting: false,
     enableStickyHeader: true,
     enableTopToolbar: false,
     initialState: { density: 'compact' },
-    localization: { rowNumber: '#' },
     mrtTheme: {
       baseBackgroundColor: 'rgba(0, 0, 0, 0)',
       cellNavigationOutlineColor: theme.palette.primary.main,
@@ -349,16 +345,16 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
     muiTableHeadRowProps: {
       sx: { boxShadow: 'none' },
     },
-    muiTableHeadCellProps: ({ column }) => ({
-      align: column.id === 'mrt-row-numbers' ? 'center' : 'left',
+    muiTableHeadCellProps: () => ({
+      align: 'left',
       sx: {
         // ── Header style matches MarkdownRenderer `th` ──
         // Same bgcolor, fontWeight, typography, padding, border.
         minHeight: 39,
-        px: column.id === 'mrt-row-numbers' ? 0.5 : { xs: 1.25, sm: 2 },
+        px: { xs: 1.25, sm: 2 },
         py: { xs: 0.85, sm: 1 },
         borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
-        color: column.id === 'mrt-row-numbers' ? 'text.disabled' : 'text.secondary',
+        color: 'text.secondary',
         bgcolor: headerBg,
         // Use the same typography as markdown table headers.
         ...theme.typography.uiCaptionMd,
@@ -376,7 +372,7 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
         },
       },
     }),
-    muiTableBodyRowProps: ({ row }) => ({
+    muiTableBodyRowProps: () => ({
       sx: {
         // No zebra striping — markdown table doesn't have it.
         bgcolor: 'transparent',
@@ -390,18 +386,18 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
         '&:last-of-type > td': { borderBottom: 0 },
       },
     }),
-    muiTableBodyCellProps: ({ column }) => ({
-      align: column.id === 'mrt-row-numbers' ? 'center' : 'left',
+    muiTableBodyCellProps: () => ({
+      align: 'left',
       sx: {
         // ── Body cell style matches MarkdownRenderer `td` ──
         // Same padding, border, typography. Keeps tabular-nums for data
         // alignment (query results need numeric alignment).
         minHeight: 38,
-        px: column.id === 'mrt-row-numbers' ? 0.5 : { xs: 1.25, sm: 2 },
+        px: { xs: 1.25, sm: 2 },
         py: { xs: 0.85, sm: 1 },
         overflow: 'hidden',
         borderBottom: `1px solid ${rowDivider}`,
-        color: column.id === 'mrt-row-numbers' ? 'text.disabled' : 'text.primary',
+        color: 'text.primary',
         bgcolor: 'inherit',
         // Use the same typography as markdown table body cells.
         ...theme.typography.uiBodyTable,

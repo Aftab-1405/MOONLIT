@@ -123,7 +123,6 @@ class ConnectionManager:
         ``_pools`` — and we re-check that no other thread won the race
         while we were connecting. The loser discards its own pool.
         """
-        # Fast path: pool already exists
         if pool_key in self._pools:
             return self._pools[pool_key]
 
@@ -162,13 +161,8 @@ class ConnectionManager:
         db_type = config.get("db_type", "mysql").lower()
 
         try:
-            # Get the appropriate database adapter
             adapter = get_adapter(db_type)
-
-            # Create pool using the adapter
             pool = adapter.create_connection_pool(config)
-
-            # Store adapter reference for this pool
             self._adapters[pool_key] = adapter
 
             if adapter.requires_server:
@@ -216,16 +210,12 @@ class ConnectionManager:
         # Get or create pool (creates outside the global lock — see
         # _get_or_create_pool).
         self._get_or_create_pool(config, pool_key)
-
-        # Update last used time
         self._pool_last_used[pool_key] = time.time()
 
         # FIX [M16]: mark this borrow as in-flight BEFORE acquiring so the
         # cleanup thread cannot close the pool out from under us.
         with self._global_lock:
             self._pool_in_use[pool_key] = self._pool_in_use.get(pool_key, 0) + 1
-
-        # Get connection from pool using the appropriate adapter
         try:
             adapter = self._adapters[pool_key]
             connection = adapter.get_connection_from_pool(self._pools[pool_key])
@@ -358,7 +348,6 @@ class ConnectionManager:
         conn = self.get_connection(config)
 
         try:
-            # Use adapter's cursor context manager
             with adapter.get_cursor(conn, dictionary=dictionary, buffered=buffered) as cursor:
                 yield cursor
         except Exception:
@@ -460,7 +449,6 @@ class ConnectionManager:
                     finally:
                         self._global_lock.acquire()
             try:
-                # Use adapter to close the pool
                 adapter = self._adapters[pool_key]
                 adapter.close_pool(self._pools[pool_key])
 

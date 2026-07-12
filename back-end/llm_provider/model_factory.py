@@ -47,6 +47,23 @@ def _reasoning_request_fields(
     enable_reasoning: bool,
     reasoning_effort: str,
 ) -> dict:
+    """Build provider-specific reasoning request fields for the model.
+
+    GPT-OSS models expose reasoning via an ``openai_effort`` style knob and
+    have no fully-disabled mode (``low`` is the documented minimum); other
+    models return an empty dict so the caller skips reasoning configuration.
+
+    Args:
+        model: Bedrock model ID used to look up ``reasoning_type``.
+        enable_reasoning: When ``False``, clamp GPT-OSS effort to ``low``.
+        reasoning_effort: One of ``"low"``, ``"medium"``, ``"high"``.
+
+    Returns:
+        A dict of additional model request fields (possibly empty).
+
+    Raises:
+        ValueError: If ``reasoning_effort`` is not a supported level.
+    """
     from llm_provider.model_capabilities import model_capability
 
     effort = str(reasoning_effort or "medium").lower()
@@ -108,7 +125,36 @@ def get_chat_model(
     temperature: float = 0.2,
     max_tokens: int | None = None,
 ) -> BaseChatModel:
-    """Return a reusable LangChain chat model for the requested configuration."""
+    """Return a reusable LangChain chat model for the requested configuration.
+
+    Only the ``bedrock`` provider is supported; other names log a warning and
+    fall back to Bedrock. The selected model is resolved via
+    :func:`get_default_model` when ``model`` is omitted, and the requested
+    ``max_tokens`` is clamped to the model's ``max_output_tokens`` capability.
+    The underlying client is cached by :func:`_get_cached_chat_model` so
+    repeated calls with the same configuration reuse one
+    ``ChatBedrockConverse`` instance.
+
+    Args:
+        provider: Provider name (case-insensitive); only ``"bedrock"`` is
+            supported. Other values are coerced to ``bedrock`` with a warning.
+        model: Optional explicit model ID. Defaults to the provider's first
+            configured model.
+        api_key: Unused — Bedrock uses the AWS credential provider chain.
+            Deliberately consumed and discarded (see inline comment).
+        enable_reasoning: Whether to enable reasoning for models that support it.
+        reasoning_effort: Reasoning effort level (``low``/``medium``/``high``).
+        temperature: Sampling temperature passed to the chat model.
+        max_tokens: Requested output-token cap. Clamped to the model's
+            ``max_output_tokens`` capability and to ``RESERVED_OUTPUT_TOKENS``
+            when ``None``.
+
+    Returns:
+        A cached :class:`BaseChatModel` (``ChatBedrockConverse`) instance.
+
+    Raises:
+        ValueError: If no model is configured for the requested provider.
+    """
     del api_key  # Bedrock uses the AWS credential provider chain.
     provider = provider.strip().lower()
     if provider != "bedrock":
@@ -139,10 +185,23 @@ def get_chat_model(
 
 @lru_cache(maxsize=1)
 def get_supported_providers() -> tuple[str, ...]:
+    """Return the tuple of supported LLM provider names."""
     return ("bedrock",)
 
 
 def get_provider_models(provider: str) -> list[str]:
+    """Return the list of model IDs configured for ``provider``.
+
+    Reads the ``{PROVIDER}_MODELS`` config attribute (falling back to
+    :func:`get_default_model` when unset) and strips/normalizes each entry.
+
+    Args:
+        provider: Provider name (case-insensitive).
+
+    Returns:
+        A list of non-empty, stripped model IDs (possibly empty when no
+        models are configured).
+    """
     config = get_config()
     provider = provider.strip().lower()
     models = getattr(config, f"{provider.upper()}_MODELS", []) or []

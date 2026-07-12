@@ -15,8 +15,6 @@ from typing import Any, Dict, List, Optional
 from config import get_config
 
 logger = logging.getLogger(__name__)
-
-# Get configuration
 _config = get_config()
 
 
@@ -125,9 +123,7 @@ class ContextService:
     COLLECTION_NAME = "user_context"
     MAX_RECENT_QUERIES = 10
 
-    # =========================================================================
     # Firestore Access (delegated to repository)
-    # =========================================================================
 
     @staticmethod
     def _normalize_user_id(user_id) -> str:
@@ -182,9 +178,7 @@ class ContextService:
 
         return ContextRepository.get_ref(user_id).on_snapshot(on_snapshot)
 
-    # =========================================================================
     # Connection State Management
-    # =========================================================================
 
     @staticmethod
     def set_connection(
@@ -262,9 +256,7 @@ class ContextService:
         connection["schema"] = schema_name
         return ContextService._update_context(user_id, {"current_connection": connection})
 
-    # =========================================================================
     # Schema Caching
-    # =========================================================================
 
     @staticmethod
     def compute_schema_hash(tables: List[str], columns: Dict[str, List]) -> str:
@@ -274,12 +266,9 @@ class ContextService:
             """Normalize column list for consistent hashing."""
             if not col_list:
                 return []
-            # Check if columns are dicts (new format) or strings (old format)
             if isinstance(col_list[0], dict):
-                # Sort by column name for consistency
                 return sorted([c.get("name", "") for c in col_list])
             else:
-                # Old string format
                 return sorted(col_list)
 
         schema_str = json.dumps(
@@ -308,22 +297,16 @@ class ContextService:
         if not cached:
             ContextMetrics.record_miss(user_id)
             return None
-
-        # Check TTL using config value
         cached_at = cached.get("cached_at")
         if cached_at:
             try:
-                # Handle both ISO string and Firestore Timestamp objects
                 if hasattr(cached_at, "isoformat"):
                     # It's a datetime or Firestore Timestamp - convert to datetime
                     if hasattr(cached_at, "timestamp"):
-                        # Firestore Timestamp has .timestamp() method
                         cache_time = datetime.fromtimestamp(cached_at.timestamp())
                     else:
-                        # Regular datetime object
                         cache_time = cached_at
                 else:
-                    # It's a string - parse as ISO format
                     cache_time = datetime.fromisoformat(str(cached_at).replace("Z", "+00:00"))
 
                 if cache_time.tzinfo:
@@ -389,9 +372,7 @@ class ContextService:
             logger.info(f"Cleared schema context for {database}")
         return success
 
-    # =========================================================================
     # Query History
-    # =========================================================================
 
     @staticmethod
     def add_query(
@@ -422,9 +403,7 @@ class ContextService:
         """Clear query history."""
         return ContextService._update_context(user_id, {"recent_queries": []})
 
-    # =========================================================================
     # Full Context for AI
-    # =========================================================================
 
     @staticmethod
     def get_full_context(user_id: str) -> Dict:

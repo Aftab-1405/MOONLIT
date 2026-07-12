@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 
 def _is_transient_firestore_error(exc: Exception) -> bool:
+    """Return ``True`` for Firestore errors that warrant a retry/backoff."""
     try:
         from google.api_core import exceptions as google_exceptions
 
@@ -60,6 +61,7 @@ def _is_transient_firestore_error(exc: Exception) -> bool:
 
 
 def _log_job_failure(job: str, exc: Exception) -> None:
+    """Log a maintenance-job failure, downgrading transient Firestore errors to warning."""
     if _is_transient_firestore_error(exc):
         logger.warning("VAMP %s deferred after transient Firestore error: %s", job, exc)
     else:
@@ -96,6 +98,7 @@ async def run_vamp_maintenance_pass(memory_service, cleanup_callback) -> tuple[i
 
 
 async def _wait_or_stop(stop: asyncio.Event, seconds: float) -> bool:
+    """Sleep for ``seconds`` unless ``stop`` is set first; return ``True`` if stopped."""
     try:
         await asyncio.wait_for(stop.wait(), timeout=max(0.0, seconds))
         return True

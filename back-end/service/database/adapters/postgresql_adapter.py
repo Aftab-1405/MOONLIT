@@ -28,6 +28,8 @@ except ImportError:
 
 
 class PostgreSQLAdapter(BaseDatabaseAdapter):
+    """PostgreSQL database adapter (psycopg2-based)."""
+
     def _sanitize_schema(self, schema: str) -> str:
         if not schema:
             return "public"
@@ -36,8 +38,6 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", schema):
             raise ValueError(f"Invalid schema name: {schema}")
         return schema
-
-    """PostgreSQL database adapter."""
 
     def __init__(self):
         if not POSTGRESQL_AVAILABLE:
@@ -67,12 +67,10 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         Connection strings support remote databases with SSL (Neon, Supabase, etc.)
         """
         try:
-            # Check if connection string is provided
             connection_string = config.get("connection_string")
 
             if connection_string:
                 # Use connection string directly - supports SSL, remote DBs
-                # Parse to get database name for logging
                 import re
 
                 db_match = re.search(r"/([^/?]+)(\?|$)", connection_string)
@@ -90,7 +88,6 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                 logger.info(f"Created PostgreSQL connection pool using connection string for database: {db_name}")
                 return connection_pool
             else:
-                # Use individual parameters for local connections
                 pool_config = {
                     "host": config["host"],
                     "port": config.get("port", Config.DEFAULT_POSTGRESQL_PORT),
@@ -103,12 +100,8 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                     ),
                     "connect_timeout": Config.DB_CONNECT_TIMEOUT_SECONDS,
                 }
-
-                # Add SSL mode if specified (for remote DBs)
                 if config.get("sslmode"):
                     pool_config["sslmode"] = config["sslmode"]
-
-                # Add database if specified
                 if config.get("database"):
                     pool_config["database"] = config["database"]
                 else:
@@ -284,9 +277,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
                     pass
         return False
 
-    # =========================================================================
     # Schema Caching Methods (for AI context)
-    # =========================================================================
 
     def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> tuple:
         """Return SQL query and params to get all tables for schema caching.
@@ -369,9 +360,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         """).format(_pg_sql.Literal(schema), _pg_sql.Literal(schema))
         return query, (tables,)
 
-    # =========================================================================
     # Schema Metadata Methods (for AI tools)
-    # =========================================================================
 
     def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
         """Return SQL query and params to get indexes for a PostgreSQL table.
@@ -444,9 +433,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
             """).format(_pg_sql.Literal(schema))
             return query, ()
 
-    # =========================================================================
     # EXPLAIN / Query-plan Methods (added for the explain_query AI tool)
-    # =========================================================================
     #
     # PostgreSQL's ``EXPLAIN (FORMAT JSON, VERBOSE)`` returns one row whose
     # first column is a JSON array describing the full plan tree with per-node
@@ -474,9 +461,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         """
         return f"EXPLAIN (FORMAT JSON, VERBOSE) {query}"
 
-    # =========================================================================
     # Table-details Method (added for the get_table_details AI tool)
-    # =========================================================================
 
     def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
         """Return SQL query and params for a rich per-column PostgreSQL schema dump.
@@ -531,9 +516,7 @@ class PostgreSQLAdapter(BaseDatabaseAdapter):
         # main WHERE) — psycopg2 fills them positionally from the tuple.
         return query, (table_name, table_name, table_name)
 
-    # =========================================================================
     # Views Introspection Methods (added for the list_views AI tool)
-    # =========================================================================
 
     def get_views(self, schema: str = None, db_name: str = None) -> tuple:
         """Return SQL query and params to list PostgreSQL views in ``schema``.

@@ -1,6 +1,6 @@
 import { alpha } from '@mui/material/styles';
-import { getAppPanelSurfaceSx, getSidebarChromeSx } from '@/features/styles/interfaceChrome';
-import { getInteractionColors, UI_LAYOUT } from '@/styles/shared';
+import { getAppPanelSurfaceSx } from '@/features/styles/interfaceChrome';
+import { getInteractionColors } from '@/styles/shared';
 
 /**
  * Sidebar styling primitives.
@@ -17,8 +17,6 @@ import { getInteractionColors, UI_LAYOUT } from '@/styles/shared';
  *   - `ROW_HEIGHT` (36px) is the consistent height for every row.
  */
 
-const EXPANDED_WIDTH = UI_LAYOUT.sidebarExpandedWidth; // 260
-const _COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth; // 52
 const SIDEBAR_RADIUS = '10px';
 
 // ─── Shared token ────────────────────────────────────────────────────────────
@@ -151,17 +149,18 @@ export function buildConversationRowSx(theme, { isActive = false, menuOpen = fal
 }
 
 // ─── Desktop nav element ──────────────────────────────────────────────────────
-export function buildDesktopNavSx(theme) {
+//
+// The desktop sidebar's outer column (including width animation, surface paint,
+// and right-edge divider) is owned by AppShell. The Sidebar feature fills its
+// slot — so this sx only needs to fill the parent and constrain overflow.
+export function buildDesktopNavSx(_theme) {
   return {
-    width: EXPANDED_WIDTH,
-    flexShrink: 0,
+    width: '100%',
     height: '100%',
     display: 'flex',
     flexDirection: 'column',
     overflow: 'hidden',
     boxSizing: 'border-box',
-    ...getAppPanelSurfaceSx(theme),
-    ...getSidebarChromeSx(theme),
   };
 }
 

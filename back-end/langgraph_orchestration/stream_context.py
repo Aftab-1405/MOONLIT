@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 def vamp_token_budget(model_id: str) -> int:
+    """Return the VAMP context-window token budget for the given model."""
     from llm_provider.token_budget import get_model_context_window
 
     config = get_config()
@@ -55,6 +56,7 @@ async def load_initial_stream_context(
     """Load independent durable state and semantic memory concurrently."""
 
     async def load_conversation() -> dict | None:
+        """Fetch the durable conversation record for the active conversation."""
         try:
             reader = get_default_conversation_state_reader()
             return await asyncio.to_thread(
@@ -66,6 +68,7 @@ async def load_initial_stream_context(
             return None
 
     async def load_historical_context() -> str | None:
+        """Retrieve VAMP historical context with a graceful 8s timeout."""
         if not message or str(selected_model).startswith("mock"):
             return None
         try:

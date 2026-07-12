@@ -91,25 +91,17 @@ def analyze_execution_result(
 ) -> dict:
     """Analyze a persisted SQL execution result.
 
-    Parameters
-    ----------
-    execution
-        The full execution result dict (columns + data + metadata) loaded from
-        Firestore.
-    operation
-        One of ``"profile"``, ``"data_quality"``, ``"correlation"``.
-    columns
-        Optional subset of columns to analyze. Defaults to all available columns.
+    Args:
+        execution: The full execution result dict (columns + data + metadata)
+            loaded from Firestore.
+        operation: One of ``"profile"``, ``"data_quality"``, ``"correlation"``.
+        columns: Optional subset of columns to analyze. Defaults to all
+            available columns.
 
-    Returns
-    -------
-    dict
-        Analysis result with ``success`` flag and operation-specific metrics.
-
-    Raises
-    ------
-    None
-        All errors are returned as ``{"success": False, "error": ...}``.
+    Returns:
+        Analysis result dict with ``success`` flag and operation-specific
+        metrics. All errors are returned as ``{"success": False, "error": ...}``
+        rather than raised.
     """
     rows = execution.get("data") or []
     if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):

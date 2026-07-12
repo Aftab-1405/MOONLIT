@@ -127,6 +127,7 @@ class ConnectionService:
 
     @staticmethod
     def _context_database(result: dict, db_config: dict, db_type: str) -> str:
+        """Resolve the database name to sync into context, falling back to per-DBMS defaults."""
         selected_database = (
             result.get("selected_database") or result.get("selectedDatabase") or db_config.get("database")
         )
@@ -143,6 +144,7 @@ class ConnectionService:
 
     @staticmethod
     def _context_host(db_type: str, db_config: dict) -> str:
+        """Resolve the host to sync into context, parsing it from the connection string if missing."""
         host = db_config.get("host")
         if host:
             return host

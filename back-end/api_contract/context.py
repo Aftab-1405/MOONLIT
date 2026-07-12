@@ -34,6 +34,7 @@ class SaveUserSettingsRequest(BaseModel):
     @field_validator("llmProvider")
     @classmethod
     def sanitize_llm_provider(cls, v):
+        """Normalize the LLM provider to a trimmed lowercase value."""
         if v is None:
             return None
         provider = v.strip().lower()
@@ -42,6 +43,7 @@ class SaveUserSettingsRequest(BaseModel):
     @field_validator("llmModel")
     @classmethod
     def sanitize_llm_model(cls, v):
+        """Normalize the LLM model to a trimmed value."""
         if v is None:
             return None
         model = v.strip()

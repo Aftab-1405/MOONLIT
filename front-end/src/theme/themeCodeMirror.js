@@ -141,10 +141,9 @@ export function getCodeMirrorTheme(mode, transparent = false) {
     '.cm-cursor, .cm-dropCursor': {
       borderLeftColor: p.cursorForeground,
     },
-    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection':
-      {
-        backgroundColor: p.selectionBackground,
-      },
+    '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': {
+      backgroundColor: p.selectionBackground,
+    },
     '.cm-gutters': {
       backgroundColor: 'transparent',
       color: p.lineNumberForeground,

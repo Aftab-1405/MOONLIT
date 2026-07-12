@@ -21,10 +21,3 @@ export const MOBILE_SM_QUERY = '@media (max-width:599.95px)';
 /** Browsers without backdrop-filter support — fallback to solid backgrounds. */
 export const BACKDROP_FILTER_FALLBACK_QUERY =
   '@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)))';
-
-/**
- * Viewport query that respects mobile browser chrome (address bar / toolbars).
- * `dvh` = dynamic viewport height which adjusts as the browser chrome shows/hides.
- * Falls back to vh on browsers without support.
- */
-export const DYNAMIC_VIEWPORT_QUERY = '@supports (height: 100dvh)';

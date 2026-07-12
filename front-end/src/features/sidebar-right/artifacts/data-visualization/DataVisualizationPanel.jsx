@@ -40,7 +40,14 @@ function DataVisualizationPanel({
   const [selection, setSelection] = useState(null);
   const columns = useMemo(() => data?.columns || [], [data?.columns]);
   const rows = useMemo(() => data?.rows || [], [data?.rows]);
-  const memoizedData = useMemo(() => ({ columns, rows }), [columns, rows]);
+  // Preserve column_types so PerspectiveDashboard can build an explicit schema
+  // instead of falling back to sample-based inference. Without this, every
+  // query result loses its type information at this boundary.
+  const column_types = useMemo(() => data?.column_types || {}, [data?.column_types]);
+  const memoizedData = useMemo(
+    () => ({ columns, rows, column_types }),
+    [columns, rows, column_types],
+  );
 
   const storageKey = useMemo(
     () =>

@@ -1,12 +1,11 @@
 import { Box, Chip, Fade, Typography } from '@mui/material';
-import { alpha, keyframes, useTheme } from '@mui/material/styles';
+import { keyframes, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useMemo } from 'react';
 import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import SchemaIcon from '@/components/icons/SchemaIcon';
 import ChatInput from '@/features/chat/ChatInput';
 import { getWelcomeHeroSx } from '@/features/styles/interfaceChrome';
-import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { getInteractionColors, getPillSx, UI_LAYOUT } from '@/styles/shared';
 import { BRAND } from '@/theme/tokens';
 

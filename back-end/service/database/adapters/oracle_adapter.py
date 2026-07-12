@@ -42,8 +42,6 @@ Config = get_config()
 from .base_adapter import BaseDatabaseAdapter
 
 logger = logging.getLogger(__name__)
-
-# Check if oracledb is available
 try:
     import oracledb
 
@@ -121,7 +119,6 @@ class OracleAdapter(BaseDatabaseAdapter):
             connection_string = config.get("connection_string")
 
             if connection_string:
-                # Parse connection string to extract user/password/dsn
                 parsed = self._parse_connection_string(connection_string)
                 user = parsed["user"]
                 password = parsed["password"]
@@ -129,7 +126,6 @@ class OracleAdapter(BaseDatabaseAdapter):
 
                 logger.info(f"Creating Oracle connection pool using connection string for DSN: {dsn}")
             else:
-                # Local connection via individual parameters
                 host = config.get("host", Config.DEFAULT_ORACLE_HOST)
                 port = config.get("port", Config.DEFAULT_ORACLE_PORT)
                 user = config.get("user", "")
@@ -140,8 +136,6 @@ class OracleAdapter(BaseDatabaseAdapter):
                 dsn = f"{host}:{port}/{service_name}"
 
                 logger.info(f"Creating Oracle connection pool for {user}@{host}:{port}/{service_name}")
-
-            # Create TRUE connection pool with oracledb
             pool = oracledb.create_pool(
                 user=user,
                 password=password,
@@ -301,9 +295,7 @@ class OracleAdapter(BaseDatabaseAdapter):
                     pass
         return False
 
-    # =========================================================================
     # Schema Caching Methods (for AI context)
-    # =========================================================================
 
     def get_all_tables_for_cache(self, db_name: str, schema: str = None) -> tuple:
         """Return SQL query and params to get all tables for schema caching."""
@@ -432,9 +424,7 @@ class OracleAdapter(BaseDatabaseAdapter):
         params = [db_name.upper()] + [t.upper() for t in tables]
         return query, params
 
-    # =========================================================================
     # Schema Metadata Methods (for AI tools)
-    # =========================================================================
 
     def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = None) -> tuple:
         """Return SQL query and params to get indexes for an Oracle table."""
@@ -487,9 +477,7 @@ class OracleAdapter(BaseDatabaseAdapter):
             """
             return query, (owner,)
 
-    # =========================================================================
     # EXPLAIN / Query-plan Methods (added for the explain_query AI tool)
-    # =========================================================================
     #
     # Oracle's EXPLAIN flow is two-statement:
     #   1. ``EXPLAIN PLAN SET STATEMENT_ID = 'agent' FOR <query>`` writes the
@@ -535,17 +523,12 @@ class OracleAdapter(BaseDatabaseAdapter):
         info, predicate info, and column projections — the richest
         non-executing plan Oracle offers.
         """
-        # Step 1: compute and store the plan.
         cursor.execute(self.get_explain_sql(query))
-
-        # Step 2: retrieve the formatted plan text.
         display_query = "SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY(NULL, 'agent', 'ALL'))"
         cursor.execute(display_query)
         return cursor.fetchall()
 
-    # =========================================================================
     # Table-details Method (added for the get_table_details AI tool)
-    # =========================================================================
 
     def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = None) -> tuple:
         """Return SQL query and params for a rich per-column Oracle schema dump.
@@ -599,9 +582,7 @@ class OracleAdapter(BaseDatabaseAdapter):
             table_name.upper(),
         )
 
-    # =========================================================================
     # Views Introspection Methods (added for the list_views AI tool)
-    # =========================================================================
 
     def get_views(self, schema: str = None, db_name: str = None) -> tuple:
         """Return SQL query and params to list Oracle views owned by ``db_name``.

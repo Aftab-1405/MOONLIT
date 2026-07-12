@@ -48,6 +48,7 @@ def _run_firestore_transaction(db, work):
 
 
 def _get_doc_in_transaction(doc_ref, transaction):
+    """Read a document inside a transaction, falling back to a plain read for mocks."""
     try:
         return doc_ref.get(transaction=transaction)
     except TypeError:
@@ -55,6 +56,7 @@ def _get_doc_in_transaction(doc_ref, transaction):
 
 
 def _update_doc_in_transaction(doc_ref, transaction, updates: dict) -> None:
+    """Apply an update inside a transaction, or directly if ``transaction`` is None."""
     if transaction is not None:
         transaction.update(doc_ref, updates)
     else:
@@ -62,6 +64,7 @@ def _update_doc_in_transaction(doc_ref, transaction, updates: dict) -> None:
 
 
 def _summary_claim_is_stale(pending: dict, ttl_seconds: int) -> bool:
+    """Return True if a pending summary claim is missing or older than its TTL."""
     claimed_at = pending.get("claimed_at") if isinstance(pending, dict) else None
     if not claimed_at:
         return True
@@ -186,6 +189,7 @@ async def _run_summary_claim_heartbeat(
     stop: asyncio.Event,
     ttl_seconds: int,
 ) -> None:
+    """Periodically renew a summary claim until ``stop`` is set or the claim is lost."""
     interval = max(5, min(60, int(ttl_seconds) // 3))
     while not stop.is_set():
         try:
@@ -587,6 +591,7 @@ def _message_countable_text(msg: dict) -> str:
 
 
 def _turn_is_complete(turn: list[int], messages: list) -> bool:
+    """Return True if the message indices in ``turn`` form a complete user+AI exchange."""
     has_user = any(str(messages[idx].get("sender", "")).lower() == "user" for idx in turn)
     has_ai = any(str(messages[idx].get("sender", "")).lower() == "ai" for idx in turn)
     has_final_ai = any(messages[idx].get("is_final_assistant_response") is True for idx in turn)
@@ -606,6 +611,30 @@ class ConversationCompactionService:
         *,
         pressure_budget_tokens: int | None = None,
     ) -> dict:
+        """Run a compaction/summarization pass over the conversation.
+
+        Reads the conversation document, computes the unsummarized tail's
+        token pressure, and — once the 90% threshold is exceeded — claims a
+        summary range via a Firestore transaction, summarizes all complete
+        unsummarized turns through an LLM call (with a truncation-retry
+        loop), persists the resulting summary block, and advances
+        ``last_summarized_idx``. Loops until every complete unsummarized
+        turn has been summarized so the summarization boundary and the
+        active-context boundary always match (FIX [CTX-BOUNDARY-MATCH]).
+
+        Args:
+            conversation_id: Target conversation id.
+            user_id: Owner uid used for the claim-ownership check.
+            model: Override model id; falls back to the provider default.
+            pressure_budget_tokens: Active context budget used to derive
+                the trigger threshold. If ``None``, computed from the
+                summarization context provider's system prompt + tools.
+
+        Returns:
+            Dict describing the outcome with keys ``created``, ``reason``,
+            ``start_idx``, ``end_idx``, ``tail_tokens`` and
+            ``threshold_tokens`` (plus ``error`` on failure paths).
+        """
         result = {
             "created": False,
             "reason": "not_started",
@@ -674,7 +703,6 @@ class ConversationCompactionService:
                 active_context_budget = int(budget_info["active_context_budget"])
             summary_trigger_tokens = int(float(active_context_budget) * 0.90)
             result["threshold_tokens"] = summary_trigger_tokens
-            max(1, active_context_budget // 2)
 
             db = FirestoreService.get_db()
             doc_ref = db.collection(ConversationRepository.COLLECTION_NAME).document(conversation_id)
@@ -781,7 +809,6 @@ class ConversationCompactionService:
                 # covers ALL summarized turns, so the active context only
                 # contains turns created AFTER summarization.
                 chunk_turns = complete_unsummarized_turns
-                sum(_get_message_tokens_cheap(messages[idx], model_id=model) for turn in chunk_turns for idx in turn)
 
                 chunk_end_msg_idx = chunk_turns[-1][-1]
                 end_idx = chunk_end_msg_idx + 1

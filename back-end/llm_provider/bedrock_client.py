@@ -90,6 +90,7 @@ def _retry_config():
 
 
 def _strip_geography_prefix(model: str) -> str:
+    """Strip a leading geography prefix (``us.``/``eu.``/``apac.``/``ap.``) from ``model``."""
     for prefix in _GEOGRAPHY_PREFIXES:
         if model.startswith(prefix):
             return model[len(prefix) :]
@@ -97,10 +98,12 @@ def _strip_geography_prefix(model: str) -> str:
 
 
 def _model_suffix_from_arn(value: str) -> str:
+    """Return the model-suffix segment after the last ``/`` in an ARN (identity when no slash)."""
     return value.rsplit("/", 1)[-1] if "/" in value else value
 
 
 def _model_match_key(model: str) -> str:
+    """Build a normalized comparison key for matching model IDs against inference profiles."""
     return _model_suffix_from_arn(_strip_geography_prefix(str(model or "").strip()))
 
 
@@ -181,6 +184,7 @@ def _list_inference_profiles(region: str) -> tuple[dict, ...]:
 
 
 def _profile_matches_model(profile: dict, requested_model: str) -> bool:
+    """Return whether ``profile`` exposes an ID/name/ARN or member model matching ``requested_model``."""
     requested_key = _model_match_key(requested_model)
     if not requested_key:
         return False
@@ -203,6 +207,7 @@ def _profile_matches_model(profile: dict, requested_model: str) -> bool:
 
 
 def _find_inference_profile_id(model: str) -> str | None:
+    """Discover the Bedrock inference-profile ID for ``model`` in the configured region (``None`` if not found)."""
     region = Config.AWS_REGION
     if not region:
         return None

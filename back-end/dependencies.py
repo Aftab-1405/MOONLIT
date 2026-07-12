@@ -48,8 +48,6 @@ from firebase_admin.auth import (
 )
 
 from config import get_config
-from core.audit import audit_log
-from core.security import constant_time_eq
 
 logger = logging.getLogger(__name__)
 Config = get_config()
@@ -58,13 +56,13 @@ _memory_state: dict[str, tuple[dict, float]] = {}
 
 
 async def get_redis():
-    """Get Redis client from application state."""
+    """Return the active Redis client from application state (or None in dev)."""
     from service.redis_service import get_redis_client
-
     return get_redis_client()
 
 
 def _state_key_from_cookie(request: Request) -> Optional[str]:
+    """Derive the per-session Redis state key from the request's session cookie."""
     session_cookie = request.cookies.get(Config.SESSION_COOKIE_NAME)
     if not session_cookie:
         return None
@@ -73,11 +71,13 @@ def _state_key_from_cookie(request: Request) -> Optional[str]:
 
 
 def state_key_from_session_cookie(session_cookie: str) -> str:
+    """Return the deterministic ``session_state:<sha256>`` key for a Firebase session cookie."""
     digest = hashlib.sha256(session_cookie.encode("utf-8")).hexdigest()
     return f"session_state:{digest}"
 
 
 def _user_from_decoded_session(decoded: dict) -> dict:
+    """Project a decoded Firebase session cookie into the internal user payload dict."""
     return {
         "uid": decoded["uid"],
         "email": decoded.get("email"),
@@ -88,7 +88,14 @@ def _user_from_decoded_session(decoded: dict) -> dict:
 
 
 def verify_session_cookie_value(session_cookie: str) -> dict:
-    """Verify a Firebase session cookie and return the app user payload."""
+    """Verify a Firebase session cookie and return the app user payload.
+
+    Args:
+        session_cookie: The Firebase session cookie string from the request jar.
+
+    Returns:
+        User dict with uid, email, name, picture, verified flag.
+    """
     decoded = auth.verify_session_cookie(
         session_cookie,
         check_revoked=Config.FIREBASE_SESSION_CHECK_REVOKED,
@@ -99,37 +106,21 @@ def verify_session_cookie_value(session_cookie: str) -> dict:
 def verify_csrf_token(request: Request) -> None:
     """Validate the double-submit CSRF token for state-mutating requests.
 
-    Compares the CSRF token stored in the client's cookie with the token sent in
-    the request headers using a constant-time comparison. If either value is
-    missing, or the two values do not match, a 403 Forbidden exception is
-    raised to protect endpoints against Cross-Site Request Forgery attacks.
-
-    The double-submit pattern works because an attacker on a third-party origin
-    cannot read the user's ``csrf_token`` cookie (it is not ``HttpOnly`` but it
-    IS ``SameSite=lax``) and therefore cannot forge a matching header value.
+    Compares the CSRF token stored in the client's cookie with the token sent in the
+    request headers. The double-submit pattern works because an attacker on a third-party
+    origin cannot read the user's ``csrf_token`` cookie (it's not ``HttpOnly`` but it IS
+    ``SameSite=lax``) and therefore cannot forge a matching header value.
 
     Args:
-        request: Inbound FastAPI request.
+        request: The incoming FastAPI request.
 
     Raises:
-        HTTPException: 403 Forbidden if the CSRF cookie or header is missing,
-            or if the two tokens do not match.
+        HTTPException: 403 Forbidden if the cookie/header tokens are missing or mismatched.
     """
     cookie_token = request.cookies.get(Config.CSRF_COOKIE_NAME)
     header_token = request.headers.get(Config.CSRF_HEADER_NAME)
 
-    # Constant-time comparison defeats timing oracles that could otherwise
-    # recover a valid CSRF token byte-by-byte.
-    if not cookie_token or not header_token or not constant_time_eq(cookie_token, header_token):
-        audit_log(
-            actor="anonymous",
-            action="csrf.verify",
-            resource="csrf_token",
-            outcome="denied",
-            details={"path": request.url.path, "method": request.method},
-            request_id=request.headers.get("X-Request-ID"),
-            actor_ip=request.client.host if request.client else None,
-        )
+    if not cookie_token or not header_token or cookie_token != header_token:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid CSRF token",
@@ -137,15 +128,7 @@ def verify_csrf_token(request: Request) -> None:
 
 
 async def _read_state(key: str) -> Optional[dict]:
-    """Read per-session state from Redis (or in-memory fallback).
-
-    Args:
-        key: Redis key for the session state.
-
-    Returns:
-        Deserialized session dict, or ``None`` if the key does not exist
-        or has expired.
-    """
+    """Read per-session state from Redis (or in-memory fallback)."""
     redis_client = await get_redis()
     if redis_client:
         raw = await redis_client.get(key)
@@ -162,48 +145,8 @@ async def _read_state(key: str) -> Optional[dict]:
     return dict(data)
 
 
-# Lua script for atomic read-merge-write on Redis. Using EVAL keeps the
-# read-modify-write inside a single Redis atomic operation, eliminating the
-# race where two concurrent requests from the same session both read the
-# old state, both merge their updates, and the second write clobbers the
-# first. The script also refreshes TTL on every write.
-#
-# FIX [BUG-LUA]: ARGV[2] is a JSON-encoded string (Python dicts cannot be
-# passed as native Lua tables via redis-py). The previous version tried
-# ``pairs(ARGV[2])`` directly, which raised
-# ``bad argument #1 to pairs (table expected, got string)``. We now
-# decode the JSON inside Lua with ``cjson.decode`` before iterating.
-_ATOMIC_MERGE_LUA = """
-local current = redis.call('GET', KEYS[1])
-local data = {}
-if current then
-  local ok, parsed = pcall(cjson.decode, current)
-  if ok and type(parsed) == 'table' then data = parsed end
-end
-local updates_ok, updates = pcall(cjson.decode, ARGV[2])
-if not updates_ok or type(updates) ~= 'table' then
-  return redis.error_reply('updates payload is not valid JSON')
-end
-for k, v in pairs(updates) do
-  data[k] = v
-end
-local ttl = tonumber(ARGV[1])
-if not ttl then
-  return redis.error_reply('ttl must be a number')
-end
-redis.call('SETEX', KEYS[1], ttl, cjson.encode(data))
-return redis.call('GET', KEYS[1])
-"""
-
-
 async def _write_state(key: str, data: dict, expire_seconds: int) -> None:
-    """Write per-session state, replacing the previous value atomically.
-
-    Args:
-        key: Redis key for the session state.
-        data: Full state dict to persist.
-        expire_seconds: TTL in seconds.
-    """
+    """Write per-session state to Redis (or in-memory fallback) with a TTL."""
     redis_client = await get_redis()
     if redis_client:
         await redis_client.set(key, json.dumps(data), ex=expire_seconds)
@@ -212,84 +155,8 @@ async def _write_state(key: str, data: dict, expire_seconds: int) -> None:
     _memory_state[key] = (dict(data), time.time() + expire_seconds)
 
 
-async def _merge_state(key: str, updates: dict, expire_seconds: int) -> Optional[dict]:
-    """Atomically merge ``updates`` into the existing session state.
-
-    On Redis this is a single Lua EVAL (read-merge-write-setex) so concurrent
-    requests from the same session cannot lose updates. If the Lua EVAL
-    fails for any reason (script error, Redis version without cjson,
-    network hiccup), the method falls back to a non-atomic
-    read-merge-write so the request still succeeds — the race window is
-    tiny (sub-millisecond) and only matters under concurrent same-session
-    writes, which are rare. The in-memory fallback acquires a per-process
-    lock (single-worker dev only).
-
-    Args:
-        key: Redis key for the session state.
-        updates: Partial dict to merge into the existing state.
-        expire_seconds: TTL in seconds (refreshed on every write).
-
-    Returns:
-        The new merged session dict, or ``None`` if the key was not written.
-    """
-    redis_client = await get_redis()
-    if redis_client:
-        # ARGV[1] = TTL (int); ARGV[2] = updates as a JSON string.
-        # The Lua script decodes the JSON inside Redis so the merge is
-        # atomic. If EVAL fails, we fall back to a non-atomic
-        # read-merge-write so the request never breaks.
-        try:
-            merged_json = await redis_client.eval(
-                _ATOMIC_MERGE_LUA,
-                1,
-                key,
-                int(expire_seconds),
-                json.dumps(updates),
-            )
-            return json.loads(merged_json) if merged_json else None
-        except Exception as exc:
-            logger.warning(
-                "Atomic Lua merge failed for key %s, falling back to non-atomic read-merge-write: %s",
-                key[:32],
-                exc,
-            )
-            # Non-atomic fallback: read, merge, write. This has a tiny
-            # race window under concurrent same-session writes, but it
-            # is strictly better than failing the request.
-            try:
-                raw = await redis_client.get(key)
-                existing = json.loads(raw) if raw else {}
-            except Exception:
-                existing = {}
-            if not isinstance(existing, dict):
-                existing = {}
-            existing.update(updates)
-            await redis_client.set(key, json.dumps(existing), ex=int(expire_seconds))
-            return existing
-
-    # In-memory fallback (single-worker dev only). The lock is reentrant
-    # within the same event loop because there is no real concurrency
-    # across requests without threads.
-    import threading
-
-    _memory_lock = getattr(_merge_state, "_lock", None)
-    if _memory_lock is None:
-        _memory_lock = threading.Lock()
-        setattr(_merge_state, "_lock", _memory_lock)
-
-    with _memory_lock:
-        existing = _memory_state.get(key)
-        if existing:
-            data, _ = existing
-            data = dict(data)
-        else:
-            data = {}
-        data.update(updates)
-        _memory_state[key] = (data, time.time() + expire_seconds)
-        return dict(data)
-
-
 async def _delete_state(key: str) -> None:
+    """Delete per-session state from Redis (or in-memory fallback)."""
     redis_client = await get_redis()
     if redis_client:
         await redis_client.delete(key)
@@ -299,11 +166,11 @@ async def _delete_state(key: str) -> None:
 
 
 async def get_session_data(request: Request) -> Optional[dict]:
-    """
-    Get per-Firebase-session application state.
+    """Return per-Firebase-session application state (not an auth source).
 
-    This is not an authentication source. Authentication is always verified from
-    the Firebase session cookie by get_current_user().
+    Authentication is always verified from the Firebase session cookie by
+    :func:`get_current_user`. This function only reads per-session application state
+    (db_config, settings, heartbeat timestamps) keyed by the cookie's SHA-256.
     """
     key = _state_key_from_cookie(request)
     if not key:
@@ -317,6 +184,7 @@ async def get_session_data(request: Request) -> Optional[dict]:
 
 
 def _get_connection_persistence_minutes(session_data: dict) -> Optional[int]:
+    """Return the user's connection-persistence window (minutes) or None if unset/invalid."""
     value = session_data.get("connectionPersistenceMinutes")
     if value is None:
         return None
@@ -327,6 +195,13 @@ def _get_connection_persistence_minutes(session_data: dict) -> Optional[int]:
 
 
 async def _expire_db_config(request: Request, db_config: dict, reason: str) -> None:
+    """Disconnect the cached DB pool and clear db_config from session state.
+
+    Args:
+        request: The inbound request (used to derive the session key).
+        db_config: The cached connection config to disconnect.
+        reason: Short label for why the config is being expired (used in logs).
+    """
     try:
         user = getattr(request.state, "user", None)
         user_id = user.get("uid") if isinstance(user, dict) else None
@@ -354,19 +229,20 @@ async def _expire_db_config(request: Request, db_config: dict, reason: str) -> N
 
 
 async def get_current_user(request: Request) -> dict:
-    """
-    Authenticate request via Firebase Admin session cookie.
+    """Authenticate the request via Firebase Admin session cookie.
+
+    Args:
+        request: The incoming FastAPI request.
 
     Returns:
-        User dict with uid, email, name, picture, verified flag
+        User dict with uid, email, name, picture, verified flag.
 
     Raises:
-        HTTPException 401 if no cookie is present (or the cookie is
-            expired/invalid/revoked) and dev-bypass is disabled.
-        HTTPException 503 if a cookie IS present but Firebase raised an
-            infrastructure error (network, backend down, malformed JWT).
-            FIX [M17] prevents a Firebase outage from silently authenticating
-            callers as the dev user.
+        HTTPException 401: No cookie present (or the cookie is expired/invalid/revoked)
+            and dev-bypass is disabled.
+        HTTPException 503: A cookie IS present but Firebase raised an infrastructure
+            error (network, backend down, malformed JWT). FIX [M17] prevents a Firebase
+            outage from silently authenticating callers as the dev user.
     """
     session_cookie = request.cookies.get(Config.SESSION_COOKIE_NAME)
     if session_cookie:
@@ -411,13 +287,15 @@ async def get_current_user(request: Request) -> dict:
         logger.debug("Development auth bypass for user: %s", user["uid"])
         return user
 
-    raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+    raise HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required"
+    )
 
 
 async def get_current_user_optional(request: Request) -> Optional[dict]:
-    """
-    Like get_current_user but returns None instead of raising exception.
-    Useful for routes that work with or without authentication.
+    """Like :func:`get_current_user` but returns None instead of raising on no-auth.
+
+    Useful for routes that work with or without authentication (e.g. health checks).
     """
     try:
         return await get_current_user(request)
@@ -433,11 +311,23 @@ async def get_db_config(request: Request) -> Optional[dict]:
     :func:`_state_key_from_cookie`). Persistence is governed by
     ``connectionPersistenceMinutes`` in the session state:
 
-    - If the tab is closed (no recent ``session_active_at`` heartbeat) and
-      no persistence was configured, the connection is closed eagerly and
-      the cached config is dropped.
+    - If the tab is closed (explicit ``/user/session/close`` call or
+      extended heartbeat inactivity exceeding
+      ``SESSION_IMPLICIT_CLOSE_GRACE_SECONDS``) and no persistence was
+      configured, the connection is closed eagerly and the cached config
+      is dropped.
     - If persistence was configured, the connection stays alive for that
       many minutes after the tab closes, then is closed automatically.
+
+    IMPORTANT: The "implicit close" detection (heartbeat inactivity) uses
+    a generous grace period (default 5 minutes) to avoid false positives
+    from browser timer throttling. Browser JavaScript timers are
+    aggressively throttled in background tabs (Chrome: once per minute
+    after 5 min; mobile Safari: fully suspended). A 45-second grace period
+    (the previous value) caused false-positive disconnects for users who
+    briefly switched tabs. The persistence setting is documented as
+    "keep alive after closing tab" — it must NOT affect an actively open
+    tab, even if the browser temporarily throttled the heartbeat.
 
     Returns ``None`` when there is no cached config or the cached config
     has expired.
@@ -456,10 +346,27 @@ async def get_db_config(request: Request) -> Optional[dict]:
         active_at = session_data.get("session_active_at")
         now = time.time()
 
-        # If no explicit close event and heartbeat stopped, treat as implicit close.
+        # ── Implicit close detection (fallback only) ───────────────────────
+        # Only treat heartbeat inactivity as an implicit tab close if the
+        # inactivity exceeds the GENEROUS grace period. This is a FALLBACK for
+        # cases where the explicit close event (beforeunload/pagehide →
+        # /user/session/close) didn't fire — e.g., browser crash, mobile tab
+        # swipe, OS kill. The previous 45-second grace was too aggressive and
+        # caused false-positive disconnects when browsers throttled
+        # background-tab timers.
+        #
+        # The generous grace period (default 5 minutes) ensures that an
+        # actively open tab never gets disconnected just because the browser
+        # temporarily throttled the heartbeat. If the user actually closed the
+        # tab, the explicit /user/session/close call (fired by beforeunload)
+        # sets db_config_last_closed_at immediately — no need for this
+        # fallback to catch it.
         if closed_at is None and active_at is not None:
             try:
-                if now - float(active_at) > Config.SESSION_ACTIVITY_GRACE_SECONDS:
+                grace_seconds = getattr(
+                    Config, "SESSION_IMPLICIT_CLOSE_GRACE_SECONDS", 300
+                )
+                if now - float(active_at) > grace_seconds:
                     closed_at = float(active_at)
                     await update_session_data(
                         request,
@@ -479,6 +386,9 @@ async def get_db_config(request: Request) -> Optional[dict]:
                 await _expire_db_config(request, db_config, "tab_closed_expired")
                 return None
 
+            # Within the persistence window — clear the close marker and
+            # refresh activity timestamps. The tab is back (or persistence
+            # is keeping the connection alive).
             await update_session_data(
                 request,
                 {
@@ -488,6 +398,7 @@ async def get_db_config(request: Request) -> Optional[dict]:
                 },
             )
         else:
+            # No close event — tab is open. Refresh activity timestamp.
             await update_session_data(
                 request,
                 {
@@ -503,8 +414,8 @@ async def get_db_config(request: Request) -> Optional[dict]:
 
 
 async def require_db_config(db_config: Optional[dict] = Depends(get_db_config)) -> dict:
-    """
-    Like get_db_config but raises exception if not configured.
+    """Return the cached db_config or raise 400 if none is configured.
+
     Use for routes that require a database connection.
     """
     if not db_config:
@@ -515,44 +426,48 @@ async def require_db_config(db_config: Optional[dict] = Depends(get_db_config)) 
     return db_config
 
 
-async def update_session_data(request: Request, updates: dict, expire_seconds: int | None = None) -> bool:
-    """Update per-Firebase-session application state (atomic read-merge-write).
+async def update_session_data(
+    request: Request, updates: dict, expire_seconds: int | None = None
+) -> bool:
+    """
+    Update per-Firebase-session application state (read-modify-write merge).
 
     Always refreshes ``session_active_at`` so :func:`get_db_config` can use
     it as a heartbeat to detect closed tabs.
 
-    Args:
-        request: Inbound FastAPI request.
-        updates: Partial dict to merge into the existing session state.
-        expire_seconds: Optional TTL override. Defaults to
-            ``Config.SESSION_EXPIRE_SECONDS``.
-
     Returns:
-        True if the state was updated, False if no Firebase session cookie
-        exists (i.e. the caller is not authenticated).
+        True if updated, False if no Firebase session cookie exists
     """
     key = _state_key_from_cookie(request)
     if not key:
         return False
 
     expire_seconds = expire_seconds or Config.SESSION_EXPIRE_SECONDS
-    merged_updates = dict(updates)
-    merged_updates["session_active_at"] = time.time()
-    await _merge_state(key, merged_updates, expire_seconds)
+    session_data = await get_session_data(request) or {}
+    session_data.update(updates)
+    session_data["session_active_at"] = time.time()
+
+    await _write_state(key, session_data, expire_seconds)
     return True
 
 
-async def replace_session_data_for_cookie(session_cookie: str, data: dict, expire_seconds: int | None = None) -> None:
+async def replace_session_data_for_cookie(
+    session_cookie: str, data: dict, expire_seconds: int | None = None
+) -> None:
     """Write application state for a freshly issued Firebase session cookie."""
     expire_seconds = expire_seconds or Config.SESSION_EXPIRE_SECONDS
     session_data = dict(data)
     session_data["session_active_at"] = time.time()
-    await _write_state(state_key_from_session_cookie(session_cookie), session_data, expire_seconds)
+    await _write_state(
+        state_key_from_session_cookie(session_cookie), session_data, expire_seconds
+    )
 
 
 async def clear_session_state(request: Request) -> bool:
-    """
-    Clear per-Firebase-session application state.
+    """Clear per-Firebase-session application state.
+
+    Returns:
+        True if state was cleared; False if no session cookie was present.
     """
     key = _state_key_from_cookie(request)
     if not key:

@@ -154,6 +154,7 @@ export const ThinkingStep = memo(function ThinkingStep({
         shadowColor: theme.palette.text.secondary,
         animation: isActive ? `${pulse} 2s ease-in-out infinite` : undefined,
         theme,
+        top: { xs: 18.5, sm: 21 },
       }),
     [isActive, isCurrent, isDark, nodeColor, theme],
   );
@@ -295,6 +296,7 @@ export const SkillStep = memo(function SkillStep({
         shadowColor: BRAND.main,
         animation: isStreaming ? `${pulse} 2s ease-in-out infinite` : undefined,
         theme,
+        top: { xs: 22, sm: 23 },
       }),
     [isStreaming, isDark, nodeColor, theme],
   );
@@ -428,6 +430,7 @@ export const ToolStep = memo(function ToolStep({
             : theme.palette.success.main,
         animation: isRunning ? `${spin} 1s linear infinite` : undefined,
         theme,
+        top: { xs: 22, sm: 23 },
       }),
     [isCurrent, isDark, isError, isRunning, nodeColor, theme],
   );

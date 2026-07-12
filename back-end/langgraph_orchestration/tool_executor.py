@@ -154,6 +154,14 @@ class ToolExecutor:
     ) -> tuple[Dict[str, Any], str]:
         """
         Create structured summaries of the tool result.
+
+        Args:
+            tool_name: Name of the tool whose result is being summarized.
+            result: Raw tool result dict produced by the executor method.
+            include_query_preview: When ``True`` (and ``tool_name ==
+                "execute_query"``), keep the bounded ``preview`` field in the
+                LLM-context payload; otherwise only metadata is emitted.
+
         Returns:
             tuple: (ui_result_dict, llm_summary_json_string)
         """

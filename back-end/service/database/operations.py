@@ -103,8 +103,6 @@ class DatabaseOperations:
                 cursor.execute(query)
                 raw_rows = cursor.fetchall()
                 databases = adapter.extract_database_names(raw_rows)
-
-            # Filter out system databases using adapter
             system_dbs = adapter.get_system_databases()
             user_databases = [db for db in databases if db.lower() not in system_dbs]
 
@@ -351,8 +349,6 @@ def execute_sql_query(
                 "status": "error",
                 "message": f"Query too long. Maximum: {MAX_QUERY_LENGTH} characters.",
             }
-
-        # Analyze query for security
         analysis = DatabaseSecurity.analyze_sql_query(sql_query)
 
         if not analysis["is_safe"]:
@@ -360,8 +356,6 @@ def execute_sql_query(
                 "status": "error",
                 "message": f"Query blocked: {', '.join(analysis['warnings'])}",
             }
-
-        # Only allow SELECT and WITH (CTE) queries
         if analysis["query_type"] not in ("SELECT", "WITH"):
             return {
                 "status": "error",
@@ -459,13 +453,9 @@ def execute_sql_query(
             truncated = len(raw_rows) > actual_max_rows
             if truncated:
                 raw_rows = raw_rows[:actual_max_rows]
-
-            # Convert rows to simple lists for JSON serialization
-            # This handles sqlite3.Row objects and other cursor row types
             rows = []
             for row in raw_rows:
                 if hasattr(row, "keys"):
-                    # sqlite3.Row or similar dict-like object
                     rows.append(list(row))
                 elif isinstance(row, (list, tuple)):
                     rows.append(list(row))
@@ -476,8 +466,6 @@ def execute_sql_query(
             execution_time = round((end_time - start_time) * 1000, 2)
 
             column_names = adapter.get_column_names_from_cursor(cursor)
-
-            # Determine column types
             import datetime
             import decimal
 
@@ -501,8 +489,6 @@ def execute_sql_query(
                             else:
                                 detected_type = "string"
                             break
-
-                # Fallback to cursor.description type_code metadata if all values are null
                 if detected_type is None and cursor.description and col_idx < len(cursor.description):
                     desc = cursor.description[col_idx]
                     type_code = desc[1]

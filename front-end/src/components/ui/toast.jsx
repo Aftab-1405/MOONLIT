@@ -1,8 +1,7 @@
 'use client';
 import { alpha, useTheme } from '@mui/material/styles';
-import { motion } from 'framer-motion'; // eslint-disable-line no-unused-vars
+import { motion } from 'framer-motion';
 import { useMemo } from 'react';
-import { DARK, LIGHT } from '@/theme/tokens';
 
 /**
  * Notification (toast) — transient status message.
@@ -13,8 +12,8 @@ import { DARK, LIGHT } from '@/theme/tokens';
  *   - Auto-dismisses after `duration` ms (if provided) with a thin progress bar.
  *   - Has a manual close button with visible focus ring.
  *
- * The toast pulls colours directly from the LIGHT/DARK token objects so it
- * looks identical regardless of which MUI theme is currently mounted.
+ * The toast pulls colors directly from the active theme palette so it
+ * dynamically adapts to the current theme mode (light/dark).
  */
 
 // Information Icon SVG
@@ -131,44 +130,38 @@ const LoadingSpinner = ({ style }) => (
 const Notification = ({ type, title, message, showIcon = true, duration, onClose }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const tokens = isDark ? DARK : LIGHT;
 
-  // Resolve config styling and icons dynamically based on mode tokens
+  // Resolve config styling and icons dynamically based on theme palette
   const config = useMemo(() => {
     const iconSize = { width: '20px', height: '20px' };
     switch (type) {
       case 'success':
         return {
-          iconColor: tokens.success000,
+          iconColor: theme.palette.success.main,
           icon: <SuccessIcon style={iconSize} />,
-          gradientBg: `linear-gradient(135deg, ${alpha(tokens.success000, 0.12)} 0%, transparent 100%)`,
         };
       case 'error':
         return {
-          iconColor: tokens.danger000,
+          iconColor: theme.palette.error.main,
           icon: <ErrorIcon style={iconSize} />,
-          gradientBg: `linear-gradient(135deg, ${alpha(tokens.danger000, 0.12)} 0%, transparent 100%)`,
         };
       case 'warning':
         return {
-          iconColor: tokens.warning000,
+          iconColor: theme.palette.warning.main,
           icon: <WarningIcon style={iconSize} />,
-          gradientBg: `linear-gradient(135deg, ${alpha(tokens.warning000, 0.12)} 0%, transparent 100%)`,
         };
       case 'loading':
         return {
-          iconColor: tokens.text400,
+          iconColor: theme.palette.text.secondary,
           icon: <LoadingSpinner style={iconSize} />,
-          gradientBg: `linear-gradient(135deg, ${alpha(tokens.text400, 0.12)} 0%, transparent 100%)`,
         };
       default:
         return {
-          iconColor: tokens.info000,
+          iconColor: theme.palette.info.main,
           icon: <InfoIcon style={iconSize} />,
-          gradientBg: `linear-gradient(135deg, ${alpha(tokens.info000, 0.12)} 0%, transparent 100%)`,
         };
     }
-  }, [type, tokens]);
+  }, [type, theme]);
 
   return (
     <motion.div
@@ -183,30 +176,16 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
         padding: '14px 16px',
         backdropFilter: 'blur(20px)',
         WebkitBackdropFilter: 'blur(20px)',
-        backgroundColor: alpha(tokens.bg100, 0.8),
-        border: `1px solid ${alpha(tokens.border200, 0.08)}`,
+        backgroundColor: alpha(theme.palette.background.paper, 0.8),
+        border: `1px solid ${theme.palette.border?.subtle || alpha(theme.palette.text.primary, 0.08)}`,
         boxShadow: isDark
-          ? `0 10px 30px -5px ${alpha(tokens.bg000, 0.6)}, 0 8px 12px -6px ${alpha(tokens.bg000, 0.6)}`
-          : `0 10px 25px -5px ${alpha(tokens.text000, 0.08)}, 0 8px 10px -6px ${alpha(tokens.text000, 0.04)}`,
+          ? `0 10px 30px -5px ${alpha(theme.palette.background.default, 0.6)}, 0 8px 12px -6px ${alpha(theme.palette.background.default, 0.6)}`
+          : `0 10px 25px -5px ${alpha(theme.palette.text.primary, 0.08)}, 0 8px 10px -6px ${alpha(theme.palette.text.primary, 0.04)}`,
         overflow: 'hidden',
         pointerEvents: 'auto',
         transition: 'transform 0.15s ease-in-out',
       }}
     >
-      {/* Dynamic Background Gradient Overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          width: '100%',
-          height: '100%',
-          background: config.gradientBg,
-          opacity: 0.65,
-          zIndex: 1,
-          pointerEvents: 'none',
-        }}
-      />
 
       <div
         style={{
@@ -237,7 +216,7 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
             style={{
               fontWeight: 600,
               fontSize: '14px',
-              color: tokens.text000,
+              color: theme.palette.text.primary,
               lineHeight: 1.45,
             }}
           >
@@ -247,7 +226,7 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
             <span
               style={{
                 fontSize: '12px',
-                color: tokens.text200,
+                color: theme.palette.text.secondary,
                 lineHeight: 1.4,
                 wordBreak: 'break-word',
                 marginTop: '1px',
@@ -269,22 +248,22 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
             padding: '4px',
             cursor: 'pointer',
             borderRadius: '50%',
-            color: tokens.text400,
+            color: theme.palette.text.disabled,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             transition: 'background-color 0.2s, color 0.2s',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = alpha(tokens.text000, 0.06);
-            e.currentTarget.style.color = tokens.text000;
+            e.currentTarget.style.backgroundColor = alpha(theme.palette.text.primary, 0.06);
+            e.currentTarget.style.color = theme.palette.text.primary;
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.backgroundColor = 'transparent';
-            e.currentTarget.style.color = tokens.text400;
+            e.currentTarget.style.color = theme.palette.text.disabled;
           }}
           onFocus={(e) => {
-            e.currentTarget.style.boxShadow = `0 0 0 2px ${alpha(tokens.text000, 0.4)}`;
+            e.currentTarget.style.boxShadow = `0 0 0 2px ${alpha(theme.palette.text.primary, 0.4)}`;
           }}
           onBlur={(e) => {
             e.currentTarget.style.boxShadow = 'none';
@@ -302,7 +281,7 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
             left: 0,
             height: '3px',
             width: '100%',
-            backgroundColor: alpha(tokens.border200, 0.05),
+            backgroundColor: alpha(theme.palette.text.primary, 0.05),
             zIndex: 2,
           }}
         >

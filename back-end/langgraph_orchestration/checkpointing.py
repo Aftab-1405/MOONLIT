@@ -36,9 +36,9 @@ async def init_checkpointer(*, app_env: str, redis_url: str | None) -> None:
         if not redis_url:
             raise RuntimeError("Redis-backed LangGraph checkpointing is required in production/staging")
         try:
-            saver = AsyncRedisSaver.from_conn_info(redis_url=redis_url)
-            await saver.__aenter__()
-            _redis_saver = saver
+            cm = AsyncRedisSaver.from_conn_string(redis_url=redis_url)
+            saver = await cm.__aenter__()
+            _redis_saver = cm
             _checkpointer = saver
             logger.info("LangGraph checkpointer: AsyncRedisSaver (Redis-backed)")
             return
@@ -54,7 +54,7 @@ async def init_checkpointer(*, app_env: str, redis_url: str | None) -> None:
 
 
 async def shutdown_checkpointer() -> None:
-    """Close Redis connections if we own an AsyncRedisSaver."""
+    """Close connections if we own an AsyncRedisSaver."""
     global _checkpointer, _redis_saver
 
     if _redis_saver is not None:

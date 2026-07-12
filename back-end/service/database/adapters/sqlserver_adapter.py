@@ -70,7 +70,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         1. Connection string (for Azure SQL, AWS RDS, etc.)
         2. Individual parameters (host, port, user, password, database)
 
-        Note: pyodbc doesn't have built-in pooling, so we create a connection factory.
+        Note: pymssql doesn't have built-in pooling, so we create a connection factory.
 
         FIX [L9]: the returned "pool" is the config dict augmented with an
         ``_open_connections`` set (protected by ``_lock``) so that
@@ -84,7 +84,6 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             connection_string = config.get("connection_string")
 
             if connection_string:
-                # Remote connection via connection string
                 logger.info("Parsing SQL Server connection string for pymssql")
 
                 db_match = re.search(
@@ -102,7 +101,6 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                 config["password"] = pwd_match.group(1).strip() if pwd_match else ""
 
             else:
-                # Local connection via individual parameters
                 logger.info(
                     "Creating SQL Server config for %s@%s:%s",
                     "***",
@@ -113,7 +111,6 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             # FIX [L9]: track open connections so close_pool can close them.
             config["_open_connections"] = set()
             config["_lock"] = threading.Lock()
-            # Return config as "pool" - we'll create connections on demand
             return config
 
         except Exception as err:
@@ -276,9 +273,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                     pass
         return False
 
-    # =========================================================================
     # Schema Caching Methods (for AI context)
-    # =========================================================================
 
     def get_all_tables_for_cache(self, db_name: str, schema: str = "dbo") -> tuple:
         """Return SQL query and params to get all tables for schema caching."""
@@ -376,9 +371,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         params = [db_name, db_name] + list(tables)
         return query, params
 
-    # =========================================================================
     # Schema Metadata Methods (for AI tools)
-    # =========================================================================
 
     def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = "dbo") -> tuple:
         """Return SQL query and params to get indexes for a SQL Server table."""
@@ -425,9 +418,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
             """
             return query, ()
 
-    # =========================================================================
     # EXPLAIN / Query-plan Methods (added for the explain_query AI tool)
-    # =========================================================================
     #
     # SQL Server has no ``EXPLAIN`` statement. The correct mechanism is
     # ``SET SHOWPLAN_TEXT ON`` (or ``SET SHOWPLAN_XML ON`` for structured
@@ -492,9 +483,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
                     teardown_err,
                 )
 
-    # =========================================================================
     # Table-details Method (added for the get_table_details AI tool)
-    # =========================================================================
 
     def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = "dbo") -> tuple:
         """Return SQL query and params for a rich per-column SQL Server schema dump.
@@ -541,9 +530,7 @@ class SQLServerAdapter(BaseDatabaseAdapter):
         # Order: (catalog_pk, table_pk, catalog_uq, table_uq, catalog, table).
         return query, (db_name, table_name, db_name, table_name, db_name, table_name)
 
-    # =========================================================================
     # Views Introspection Methods (added for the list_views AI tool)
-    # =========================================================================
 
     def get_views(self, schema: str = None, db_name: str = None) -> tuple:
         """Return SQL query and params to list SQL Server views.

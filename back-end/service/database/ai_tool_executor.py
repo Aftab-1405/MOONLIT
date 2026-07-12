@@ -29,9 +29,7 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
-# =============================================================================
 # CONNECTION HELPER (Reusable for all tools)
-# =============================================================================
 
 
 @contextmanager
@@ -46,7 +44,7 @@ def get_tool_connection(db_config: dict):
     Supports all database types via the adapter pattern:
     - PostgreSQL (psycopg2)
     - MySQL (mysql-connector)
-    - SQL Server (pyodbc)
+    - SQL Server (pymssql)
     - Oracle (oracledb)
 
     Usage:
@@ -63,17 +61,13 @@ def get_tool_connection(db_config: dict):
         yield conn
 
 
-# =============================================================================
 # TOOL EXECUTOR
-# =============================================================================
 
 
 class AIToolExecutor:
     """Database tool implementations called directly by LangGraph @tool functions."""
 
-    # =========================================================================
     # Tool Implementations
-    # =========================================================================
 
     @staticmethod
     def _get_connection_status(user_id: str) -> Dict:
@@ -124,8 +118,6 @@ class AIToolExecutor:
         connection = context_sync.get_connection(user_id)
         if not connection.get("connected"):
             return {"error": "Not connected to any database server"}
-
-        # If db_config is available, query databases directly
         if db_config:
             try:
                 databases = AIToolExecutor._query_databases_with_config(db_config)
@@ -136,9 +128,6 @@ class AIToolExecutor:
                 }
             except Exception as e:
                 logger.warning(f"Failed to query databases: {e}")
-                # Fall back to context-based response
-
-        # Fallback: return current database from context
         current_db = connection.get("database")
         return {
             "databases": [current_db] if current_db else [],
@@ -158,13 +147,9 @@ class AIToolExecutor:
             cursor = None
             try:
                 cursor = conn.cursor()
-
-                # Use adapter for DBMS-agnostic database query
                 query, params = adapter.get_databases_for_cache()
                 cursor.execute(query, params) if params else cursor.execute(query)
                 all_databases = [row[0] for row in cursor.fetchall()]
-
-                # Filter out system databases using adapter
                 system_dbs = adapter.get_system_databases()
                 databases = [db for db in all_databases if db.lower() not in system_dbs]
 
@@ -216,7 +201,6 @@ class AIToolExecutor:
         Returns:
             tuple: (tables list, columns dict with {name, is_primary_key} objects)
         """
-        # Fetch tables
         tables = AIToolExecutor._fetch_tables_with_config(db_config, db_type, db_name)
 
         # Fetch columns with primary key info
@@ -251,8 +235,6 @@ class AIToolExecutor:
             cursor = None
             try:
                 cursor = conn.cursor()
-
-                # Use adapter for DBMS-agnostic batch column query
                 query, params = adapter.get_batch_columns_for_tables(effective_db_name, tables, schema=schema)
 
                 if query is None:
@@ -261,15 +243,12 @@ class AIToolExecutor:
                 cursor.execute(query, params)
 
                 for row in cursor.fetchall():
-                    # Query now returns (table_name, column_name, column_key)
                     table_name = row[0]
                     column_name = row[1]
                     column_key = row[2] if len(row) > 2 else ""
 
                     if table_name not in columns:
                         columns[table_name] = []
-
-                    # Build column object with primary key info
                     columns[table_name].append({"name": column_name, "is_primary_key": column_key == "PRI"})
             finally:
                 # FIX [H5]: close the cursor even when execute/fetch raises.
@@ -278,8 +257,6 @@ class AIToolExecutor:
                         cursor.close()
                     except Exception:
                         pass
-
-        # Ensure all tables have entries (even if empty)
         for table in tables:
             if table not in columns:
                 columns[table] = []
@@ -304,14 +281,11 @@ class AIToolExecutor:
             return {"error": "Not connected to any database"}
 
         try:
-            # Execute query with db_config (required in FastAPI)
             if db_config:
                 logger.debug("Executing query with explicit db_config")
                 result = AIToolExecutor._execute_query_with_db_config(db_config, connection, query, max_rows)
             else:
                 return {"error": "No database config available. Please re-connect to the database."}
-
-            # Log query to history
             database = connection.get("database")
             row_count = result.get("row_count", 0)
             status = "success" if result.get("status") == "success" else "error"
@@ -505,8 +479,6 @@ class AIToolExecutor:
                                 "Could not set AI-tool statement timeout: %s",
                                 timeout_err,
                             )
-
-                    # Set schema for PostgreSQL if specified
                     if db_type == "postgresql":
                         schema = connection.get("schema", "public")
                         # Validate schema name to prevent SQL injection
@@ -527,15 +499,11 @@ class AIToolExecutor:
                             # regex-validated interpolation. The regex above
                             # ensures the schema is a safe identifier.
                             cursor.execute(f"SET search_path TO {schema}")
-
-                    # Execute the query
                     cursor.execute(query)
                     rows = cursor.fetchmany(actual_max_rows + 1)
 
                     end_time = time.time()
                     execution_time = round((end_time - start_time) * 1000, 2)
-
-                    # Get column names using adapter (DBMS-agnostic)
                     column_names = adapter.get_column_names_from_cursor(cursor)
                 finally:
                     # FIX [H5]: close the cursor even when execute/fetch raises.
@@ -544,14 +512,10 @@ class AIToolExecutor:
                             cursor.close()
                         except Exception:
                             pass
-
-            # Process results outside connection context
             fetched_count = len(rows)
             truncated = fetched_count > actual_max_rows
             if truncated:
                 rows = rows[:actual_max_rows]
-
-            # Convert rows to list of dicts
             result_data = AIToolExecutor._serialize_rows(rows, column_names)
             row_count = len(result_data)
 
@@ -829,16 +793,11 @@ class AIToolExecutor:
         db_type = connection.get("db_type", "postgresql")
 
         try:
-            # 1. Try to get from stored context cache first (with TTL check)
             schema_context = context_sync.get_schema_context(user_id, database)
             if schema_context:
                 cached_tables = schema_context.get("tables", [])
                 cached_columns = dict(schema_context.get("columns", {}))
-
-                # Determine tables to process
                 tables = target_tables if target_tables else cached_tables
-
-                # Safety checks
                 if len(tables) > 50:
                     # FIX [EC7]: truncate the available_tables list so a
                     # database with 10,000+ tables does not produce a
@@ -910,8 +869,6 @@ class AIToolExecutor:
                     else:
                         columns[t] = []
                         unrefreshed_missing.append(t)
-
-                # Fetch foreign keys
                 all_foreign_keys_result = AIToolExecutor._get_foreign_keys(user_id, db_config=db_config)
                 fks = all_foreign_keys_result.get("foreign_keys", [])
                 if target_tables:
@@ -938,8 +895,6 @@ class AIToolExecutor:
                     response["unrefreshed_missing_tables"] = unrefreshed_missing
                     response["schema_partial"] = bool(unrefreshed_missing)
                 return response
-
-            # 2. If not cached or stale, fetch fresh (and store in context cache)
             all_tables = AIToolExecutor._fetch_tables_with_config(db_config, db_type, db_name=database)
 
             if not all_tables:
@@ -988,8 +943,6 @@ class AIToolExecutor:
                     "Stale-table detection failed (non-blocking): %s",
                     stale_err,
                 )
-
-            # Determine tables to process
             if target_tables:
                 tables = target_tables
                 if len(tables) > 50:
@@ -1032,14 +985,8 @@ class AIToolExecutor:
                         "truncated_table_list": _total > len(_list),
                     }
                 tables = all_tables
-
-            # Get Columns
             columns = AIToolExecutor._batch_fetch_columns(db_config, tables, db_type, db_name=database)
-
-            # Store fresh tables and columns in context cache (this will also record a store operation)
             context_sync.store_schema_context(user_id, database, all_tables, columns)
-
-            # Get Foreign Keys
             all_foreign_keys_result = AIToolExecutor._get_foreign_keys(user_id, db_config=db_config)
             fks = all_foreign_keys_result.get("foreign_keys", [])
             if target_tables:
@@ -1119,13 +1066,11 @@ class AIToolExecutor:
             logger.exception("Error getting foreign keys")
             return {"error": str(e)}
 
-    # =========================================================================
     # New AI tools: explain_query, get_table_details, get_table_row_count,
     # list_views. (get_foreign_keys already exists above and is reused as
     # the backing implementation for the new standalone get_foreign_keys
     # @tool function — it already supports the optional ``table_name``
     # filter.)
-    # =========================================================================
 
     @staticmethod
     def _explain_query(
@@ -1136,8 +1081,6 @@ class AIToolExecutor:
     ) -> Dict:
         """Get the query execution plan for a read-only SQL statement.
 
-        Purpose
-        -------
         Lets the AI inspect the optimizer's plan for a SELECT/WITH query so
         it can diagnose slow queries, missing indexes, full-table scans, and
         bad join orderings. The system prompt advertises "performance"
@@ -1161,10 +1104,9 @@ class AIToolExecutor:
             multi-statement orchestration (SQL Server SET SHOWPLAN_TEXT
             ON/OFF, Oracle EXPLAIN PLAN + DBMS_XPLAN.DISPLAY).
 
-        Returns
-        -------
-        ``{"success": True, "plan": rows, "plan_format": <str>,
-        "query": <str>}`` on success, or ``{"error": ...}`` on failure.
+        Returns:
+            ``{"success": True, "plan": rows, "plan_format": <str>,
+            "query": <str>}`` on success, or ``{"error": ...}`` on failure.
         """
         from service.database.adapters import get_adapter
         from service.database.context_sync import get_default_context_sync
@@ -1268,8 +1210,6 @@ class AIToolExecutor:
         """Get detailed per-column schema for one table (types, defaults,
         PK, uniqueness, max_length).
 
-        Purpose
-        -------
         ``get_schema_overview`` only returns column names + PK flag. The AI
         needs data types, nullability, defaults, uniqueness, and max length
         to write type-correct SQL (e.g. choosing CAST vs CONVERT, knowing
@@ -1277,11 +1217,10 @@ class AIToolExecutor:
         truncation). This tool fills that gap without forcing the AI to run
         a separate ``SELECT * FROM information_schema.columns`` query.
 
-        Returns
-        -------
-        ``{"success": True, "table": <name>, "columns": [...],
-        "constraints": [...], "column_count": N}`` on success, or
-        ``{"error": ...}`` on failure.
+        Returns:
+            ``{"success": True, "table": <name>, "columns": [...],
+            "constraints": [...], "column_count": N}`` on success, or
+            ``{"error": ...}`` on failure.
         """
         from service.database.adapters import get_adapter
         from service.database.context_sync import get_default_context_sync
@@ -1366,8 +1305,6 @@ class AIToolExecutor:
     def _get_table_row_count(user_id: str, db_config: dict, table_name: str) -> Dict:
         """Get the row count for a table.
 
-        Purpose
-        -------
         ``DatabaseOperations.get_table_row_count`` already exists in
         ``operations.py`` but is only exposed via the UI. The AI currently
         has to run ``SELECT COUNT(*) FROM <table>`` via execute_query,
@@ -1375,12 +1312,11 @@ class AIToolExecutor:
         statement timeouts, etc.) and consumes the per-conversation row
         budget. This tool exposes the existing fast path directly.
 
-        Returns
-        -------
-        ``{"success": True, "table": <name>, "row_count": N,
-        "is_estimate": False}`` on success, or ``{"error": ...}`` on
-        failure. The count is exact (not a pg_class estimate) because the
-        underlying operation runs ``SELECT COUNT(*)``.
+        Returns:
+            ``{"success": True, "table": <name>, "row_count": N,
+            "is_estimate": False}`` on success, or ``{"error": ...}`` on
+            failure. The count is exact (not a pg_class estimate) because the
+            underlying operation runs ``SELECT COUNT(*)``.
         """
         from service.database.context_sync import get_default_context_sync
         from service.database.operations import DatabaseOperations
@@ -1414,18 +1350,15 @@ class AIToolExecutor:
         """List all views (and materialized views where supported) in the
         connected database / schema.
 
-        Purpose
-        -------
         ``get_schema_overview`` and ``get_tables_query`` filter
         ``table_type = 'BASE TABLE'`` only, leaving views invisible to the
         AI. This tool lets the AI discover view definitions so it can
         reason about derived tables and avoid generating redundant queries
         that duplicate an existing view's logic.
 
-        Returns
-        -------
-        ``{"success": True, "views": [...], "materialized_views": [...],
-        "count": N}`` on success, or ``{"error": ...}`` on failure.
+        Returns:
+            ``{"success": True, "views": [...], "materialized_views": [...],
+            "count": N}`` on success, or ``{"error": ...}`` on failure.
         """
         from service.database.adapters import get_adapter
         from service.database.context_sync import get_default_context_sync
@@ -1449,8 +1382,6 @@ class AIToolExecutor:
                 cursor = None
                 try:
                     cursor = conn.cursor()
-
-                    # Regular views.
                     v_query, v_params = adapter.get_views(schema=schema, db_name=database)
                     if v_query:
                         cursor.execute(v_query, v_params) if v_params else cursor.execute(v_query)

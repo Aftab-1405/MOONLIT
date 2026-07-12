@@ -26,9 +26,7 @@ import re
 import secrets
 from typing import Any, Mapping
 
-# ---------------------------------------------------------------------------
 # PII / secret redaction
-# ---------------------------------------------------------------------------
 
 #: Keys (case-insensitive) whose values are scrubbed from log payloads.
 SENSITIVE_KEY_NAMES: frozenset[str] = frozenset(
@@ -166,9 +164,7 @@ def redact_connection_config(config: Mapping[str, Any]) -> dict[str, Any]:
     return safe
 
 
-# ---------------------------------------------------------------------------
 # Constant-time comparisons
-# ---------------------------------------------------------------------------
 
 
 def constant_time_eq(a: str | None, b: str | None) -> bool:
@@ -191,9 +187,7 @@ def constant_time_eq(a: str | None, b: str | None) -> bool:
     return secrets.compare_digest(a, b)
 
 
-# ---------------------------------------------------------------------------
 # Identifier validation
-# ---------------------------------------------------------------------------
 
 #: Strict identifier rule: ``[A-Za-z_][A-Za-z0-9_]*`` optionally qualified
 #: with a single ``.`` separator (``schema.table``).  Hyphens, leading

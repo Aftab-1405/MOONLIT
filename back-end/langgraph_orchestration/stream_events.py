@@ -227,6 +227,7 @@ class ThinkTagParser:
 
 
 def _delimiter_suffix_length(value: str, delimiter: str) -> int:
+    """Return the length of the trailing ``value`` suffix that prefixes ``delimiter``."""
     for length in range(min(len(delimiter) - 1, len(value)), 0, -1):
         if value.endswith(delimiter[:length]):
             return length
@@ -261,17 +262,14 @@ def build_usage_metrics(budget_info: dict, **kwargs) -> dict:
 
     event = {
         "type": "usage_metrics",
-        # Pre-computed percentages — front-end renders these directly
         "activePercent": active_pct,
         "modelPercent": model_pct,
-        # Raw values for the tooltip / advanced display
         "inputPayloadTokens": input_payload,
         "pressureTriggerTokens": budget_info.get("pressure_trigger_tokens"),
         "modelContextWindow": budget_info.get("model_context_window"),
         "activeContextBudget": budget_info.get("active_context_budget"),
         "hotHistoryBudget": budget_info.get("hot_history_budget"),
         "contextPhase": budget_info.get("context_phase"),
-        # Component breakdown for the tooltip
         "systemPromptTokens": budget_info.get("system_prompt_tokens"),
         "toolSchemaTokens": budget_info.get("tool_schema_tokens"),
         "vampMemoryTokens": budget_info.get("vamp_memory_tokens"),
@@ -414,10 +412,12 @@ def _translate_message(
 
 
 def _text_events(text: str, parser: ThinkTagParser) -> list[dict]:
+    """Translate one text chunk into ``token``/``thinking_token`` events."""
     return [{"type": token_type, "content": content} for token_type, content in parser.process_chunk(text)]
 
 
 def extract_interrupt_event(data) -> dict | None:
+    """Extract the first ``agent_interrupt`` event from a LangGraph updates part."""
     if not isinstance(data, dict) or "__interrupt__" not in data:
         return None
     interrupts = data.get("__interrupt__") or []
@@ -432,6 +432,7 @@ def extract_interrupt_event(data) -> dict | None:
 
 
 def friendly_error(raw: str) -> str:
+    """Map a raw provider error string to a user-facing recovery message."""
     lower = raw.lower()
     if "model_context_window_exceeded" in lower or "context window" in lower:
         # WENH [2]: Updated message to be accurate — compaction runs in the

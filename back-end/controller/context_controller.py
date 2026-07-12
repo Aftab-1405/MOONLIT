@@ -1,4 +1,3 @@
-# File: api/routes/context.py
 """User context and settings related API routes."""
 
 import asyncio
@@ -30,10 +29,12 @@ router = APIRouter(tags=["User Context & Settings"])
 
 
 def _user_id(user: dict) -> str:
+    """Extract the user identifier from a user dict (falling back to the raw value if already a string)."""
     return user.get("uid") or user
 
 
 def _parse_cache_time(cached_at):
+    """Coerce a heterogeneous cached-at value (datetime/struct_time/ISO string) into a timezone-aware UTC datetime."""
     if hasattr(cached_at, "timestamp"):
         return datetime.fromtimestamp(cached_at.timestamp(), tz=timezone.utc)
     if hasattr(cached_at, "isoformat"):
@@ -42,6 +43,7 @@ def _parse_cache_time(cached_at):
 
 
 def _build_context_metrics_payload(context: dict) -> dict:
+    """Build the per-user context-cache telemetry payload (hit/miss counts, TTL, active tables) from a raw context dict."""
     from config import get_config
 
     config = get_config()
@@ -99,6 +101,7 @@ def _build_context_metrics_payload(context: dict) -> dict:
 
 
 async def _sync_persistence_to_session(request: Request, prefs: dict) -> None:
+    """Mirror the resolved connection-persistence-minutes value from user prefs into the session store."""
     minutes = UserSettingsService.connection_persistence_minutes(prefs)
     await update_session_data(request, {"connectionPersistenceMinutes": minutes})
 
@@ -108,6 +111,7 @@ async def _resolve_connection_persistence_minutes(
     user: dict,
     explicit: int | None = None,
 ) -> int:
+    """Resolve the effective connection-persistence-minutes value, preferring the explicit arg, then session, then user prefs."""
     if explicit is not None:
         return int(explicit)
 
@@ -123,9 +127,7 @@ async def _resolve_connection_persistence_minutes(
     return UserSettingsService.connection_persistence_minutes(prefs)
 
 
-# =============================================================================
 # USER CONTEXT ROUTES
-# =============================================================================
 
 
 @router.get("/user/context")
@@ -135,8 +137,6 @@ async def get_user_context(user: dict = Depends(get_current_user)):
 
     user_id = user.get("uid") or user
     context = await run_in_threadpool(ContextService.get_full_context, user_id)
-
-    # Convert schemas dict to array for frontend
     schemas_dict = context.get("schemas", {})
     schemas_list = []
     for db_name, schema_data in schemas_dict.items():
@@ -194,11 +194,8 @@ async def delete_all_schema_contexts(user: dict = Depends(get_current_user)):
     from service.context.context_service import ContextService
 
     user_id = user.get("uid") or user
-    # Get all schemas first
     context = await run_in_threadpool(ContextService.get_full_context, user_id)
     schemas = context.get("schemas", {})
-
-    # Delete each schema context
     for db_name in schemas.keys():
         await run_in_threadpool(ContextService.clear_schema_context, user_id, db_name)
 
@@ -218,9 +215,41 @@ async def clear_query_history(user: dict = Depends(get_current_user)):
     return {"status": "error", "message": "Failed to clear query history"}
 
 
-# =============================================================================
 # CONTEXT METRICS ROUTES
-# =============================================================================
+
+
+async def get_redis_info() -> dict:
+    """Fetch a lightweight health/info snapshot from the Redis client (version, memory, key counts)."""
+    from service.redis_service import get_redis_client
+
+    redis_client = get_redis_client()
+    if redis_client is None:
+        return {"connected": False}
+    try:
+        info = await redis_client.info()
+        total_keys = info.get("total_keys")
+        if total_keys is None:
+            total_keys = sum(
+                details.get("keys", 0) for key, details in info.items() if key.startswith("db") and isinstance(details, dict)
+            )
+
+        maxmemory = info.get("maxmemory_human")
+        if maxmemory == "0B":
+            maxmemory = "No limit"
+
+        return {
+            "connected": True,
+            "redis_version": info.get("redis_version"),
+            "upstash_version": info.get("upstash_version"),
+            "connected_clients": info.get("connected_clients"),
+            "used_memory_human": info.get("used_memory_human"),
+            "maxmemory_human": maxmemory,
+            "total_keys": total_keys,
+            "total_data_size_human": info.get("total_data_size_human"),
+        }
+    except Exception as e:
+        logger.error("Error fetching redis info: %s", e)
+        return {"connected": False, "error": str(e)}
 
 
 @router.get("/context/metrics")
@@ -235,6 +264,7 @@ async def get_context_metrics(user: dict = Depends(get_current_user)):
         - clears: Number of context clear operations
         - hit_rate_percent: Hit rate percentage
         - metrics_enabled: Whether metrics tracking is enabled
+        - redis: Redis telemetry details
     """
     from service.context.context_service import ContextService
 
@@ -243,6 +273,7 @@ async def get_context_metrics(user: dict = Depends(get_current_user)):
         return _build_context_metrics_payload(context)
 
     stats = await run_in_threadpool(build_metrics_payload, _user_id(user))
+    stats["redis"] = await get_redis_info()
     return {"status": "success", "metrics": stats}
 
 
@@ -269,7 +300,15 @@ async def stream_context_metrics(request: Request, user: dict = Depends(get_curr
             loop.call_soon_threadsafe(put_latest)
 
         def on_context(context: dict):
-            publish(_build_context_metrics_payload(context))
+            async def process_and_publish():
+                try:
+                    payload = _build_context_metrics_payload(context)
+                    payload["redis"] = await get_redis_info()
+                    publish(payload)
+                except Exception as ex:
+                    logger.error("Error in process_and_publish: %s", ex)
+
+            asyncio.run_coroutine_threadsafe(process_and_publish(), loop)
 
         watch = await run_in_threadpool(lambda: ContextService.watch_context_document(user_id, on_context))
 
@@ -313,9 +352,7 @@ async def reset_context_metrics(user: dict = Depends(get_current_user)):
     return {"status": "success", "message": "Context metrics reset"}
 
 
-# =============================================================================
 # USER SETTINGS ROUTES
-# =============================================================================
 
 
 @router.get("/user/settings")
@@ -371,8 +408,6 @@ async def save_user_settings(
 async def close_user_session(request: Request, data: CloseSessionRequest, user: dict = Depends(get_current_user)):
     """Mark session as closed to enforce connection persistence window."""
     now = time.time()
-
-    # Store the latest persistence setting in the session if provided
     if data.connectionPersistenceMinutes is not None:
         await update_session_data(request, {"connectionPersistenceMinutes": data.connectionPersistenceMinutes})
     if data.sessionInstanceId:

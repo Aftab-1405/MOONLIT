@@ -59,8 +59,15 @@ class SetSessionRequest(BaseModel):
     idToken: str = Field(..., min_length=1)
 
 
-# Helper to generate a secure random CSRF token and set it in the client cookie jar.
 def generate_and_set_csrf_cookie(response: Response) -> str:
+    """Generate a secure CSRF token and set it as a non-HttpOnly cookie on the response.
+
+    Args:
+        response: The outgoing FastAPI ``Response`` whose cookie jar will carry the token.
+
+    Returns:
+        The generated CSRF token string (also written to the response cookie).
+    """
     token = secrets.token_urlsafe(32)
     response.set_cookie(
         key=Config.CSRF_COOKIE_NAME,
@@ -75,6 +82,13 @@ def generate_and_set_csrf_cookie(response: Response) -> str:
 
 
 def _delete_cookie(response: Response, name: str, *, httponly: bool) -> None:
+    """Delete a cookie from the response by overwriting it with an expired, empty value.
+
+    Args:
+        response: The outgoing FastAPI ``Response`` to mutate.
+        name: The name of the cookie to clear.
+        httponly: Whether the original cookie was HttpOnly (must match for browsers to honor the deletion).
+    """
     response.delete_cookie(
         key=name,
         path="/",

@@ -73,7 +73,6 @@ class MySQLAdapter(BaseDatabaseAdapter):
 
             host = pool_config.get("host", "unknown")
             db = pool_config.get("database", "N/A")
-            pool_config.get("user", "unknown")
 
             if connection_string:
                 logger.info(f"Created MySQL connection pool using connection string for database: {db} at {host}")
@@ -254,9 +253,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
                     pass
         return False
 
-    # =========================================================================
     # Schema Caching Methods (for AI context)
-    # =========================================================================
 
     def get_all_tables_for_cache(self, db_name: str, schema: str = "public") -> tuple:
         """Return SQL query and params to get all tables for schema caching."""
@@ -311,9 +308,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
         params = [db_name] + list(tables)
         return query, params
 
-    # =========================================================================
     # Schema Metadata Methods (for AI tools)
-    # =========================================================================
 
     def get_indexes_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
         """Return SQL query and params to get indexes for a MySQL table."""
@@ -359,9 +354,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
             """
             return query, (db_name,)
 
-    # =========================================================================
     # EXPLAIN / Query-plan Methods (added for the explain_query AI tool)
-    # =========================================================================
     #
     # MySQL's ``EXPLAIN FORMAT=JSON`` returns one row whose first column is a
     # JSON document describing the full plan tree (scan type, keys used,
@@ -386,9 +379,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
         """
         return f"EXPLAIN FORMAT=JSON {query}"
 
-    # =========================================================================
     # Table-details Method (added for the get_table_details AI tool)
-    # =========================================================================
 
     def get_table_details_query(self, table_name: str, db_name: str = None, schema: str = "public") -> tuple:
         """Return SQL query and params for a rich per-column MySQL schema dump.
@@ -412,9 +403,7 @@ class MySQLAdapter(BaseDatabaseAdapter):
         """
         return query, (db_name, table_name)
 
-    # =========================================================================
     # Views Introspection Methods (added for the list_views AI tool)
-    # =========================================================================
 
     def get_views(self, schema: str = None, db_name: str = None) -> tuple:
         """Return SQL query and params to list MySQL views in ``db_name``.

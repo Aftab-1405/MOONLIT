@@ -122,18 +122,7 @@ def _proxy_aware_remote_address(request: Request) -> str:
     return peer
 
 
-# ENH [RL-HTTP-FIX]: In dev mode (DEBUG=True), force memory storage.
-# slowapi's synchronous Redis client doesn't work well with Upstash TLS.
-# The LLM rate limiter (Layer 3) uses redis.asyncio directly and is unaffected.
-if getattr(Config, "DEBUG", False):
-    storage_uri = "memory://"
-    logger.info(
-        "HTTP rate limiter using memory storage (dev mode). Set RATELIMIT_STORAGE_URL to a Redis URL for production."
-    )
-else:
-    storage_uri = Config.RATELIMIT_STORAGE_URL
-
-# Shared limiter instance — created once at import time.
+storage_uri = Config.RATELIMIT_STORAGE_URL
 limiter = Limiter(
     key_func=_proxy_aware_remote_address,
     storage_uri=storage_uri,

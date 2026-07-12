@@ -25,9 +25,7 @@ SUPPORTED_UI_ACTIONS = {
 
 SUPPORTED_DB_TYPES = {"mysql", "postgresql", "sqlserver", "oracle"}
 SUPPORTED_SETTINGS_SECTIONS = {"appearance", "ai", "database", "context"}
-# =============================================================================
 # TOOL ARGUMENT SCHEMAS (Input validation)
-# =============================================================================
 
 
 class BaseToolArgs(BaseModel):
@@ -102,9 +100,7 @@ class GetSchemaOverviewArgs(BaseToolArgs):
     )
 
 
-# -----------------------------------------------------------------------------
 # New tool arg schemas (added for the high-value DB tools expansion)
-# -----------------------------------------------------------------------------
 # Each new tool follows the same pattern as the existing tools above: a
 # Pydantic ``BaseToolArgs`` subclass with explicit ``Field`` metadata and,
 # where applicable, a ``field_validator`` for read-only enforcement. The
@@ -256,9 +252,6 @@ class RetrieveMemoryArgs(BaseToolArgs):
         if not query:
             raise ValueError("query must not be empty")
         return query
-
-
-# Mapping of tool names to their argument schemas
 TOOL_ARG_SCHEMAS = {
     "get_connection_status": GetConnectionStatusArgs,
     "get_database_list": GetDatabaseListArgs,
@@ -281,9 +274,7 @@ TOOL_ARG_SCHEMAS = {
 }
 
 
-# =============================================================================
 # TOOL RESULT SCHEMAS (Output structure for frontend)
-# =============================================================================
 
 
 class ToolResultBase(BaseModel):
@@ -355,9 +346,7 @@ class SchemaOverviewResult(ToolResultBase):
     foreign_keys: List[Dict[str, Any]] = Field(default_factory=list)
 
 
-# -----------------------------------------------------------------------------
 # New tool result schemas (added for the high-value DB tools expansion)
-# -----------------------------------------------------------------------------
 # Each result schema mirrors the dict shape returned by the matching
 # ``AIToolExecutor._<tool>`` method so ``structure_tool_result`` can coerce
 # the raw dict into a frontend-friendly payload. These schemas are also
@@ -425,9 +414,7 @@ class RetrieveMemoryResult(ToolResultBase):
     found: bool = False
 
 
-# =============================================================================
 # HELPER FUNCTIONS
-# =============================================================================
 
 
 def validate_tool_args(tool_name: str, args: Dict[str, Any]) -> BaseToolArgs:

@@ -42,6 +42,7 @@ _REST_READ_FALLBACK_LOCK = threading.Lock()
 
 
 def _is_transient_firestore_error(exc: Exception) -> bool:
+    """Return True if ``exc`` is a retryable/transient Firestore error."""
     from google.api_core import exceptions
 
     return isinstance(
@@ -56,6 +57,7 @@ def _is_transient_firestore_error(exc: Exception) -> bool:
 
 
 def _interactive_firestore_policy():
+    """Build a (retry, timeout) policy for interactive Firestore reads."""
     from google.api_core.retry import Retry
 
     from config import get_config
@@ -423,13 +425,10 @@ class ConversationRepository:
                     "title": title,
                     "preview": preview,
                 }
-
-            # If append is requested, modify the last message in-place if sender matches
             if append and snap.exists and conv_data.get("messages"):
                 messages_list = conv_data["messages"]
                 last_message = messages_list[-1]
                 if last_message.get("sender") == sender:
-                    # Append text content
                     orig_content = last_message.get("content", "")
                     new_content = (message or "").strip()
                     if orig_content and new_content:
@@ -440,8 +439,6 @@ class ConversationRepository:
                             last_message["content"] = orig_content + new_content
                     elif new_content:
                         last_message["content"] = new_content
-
-                    # Append thinking content
                     if thinking and thinking.strip():
                         orig_thinking = last_message.get("thinking", "")
                         new_thinking = thinking.strip()
@@ -449,22 +446,14 @@ class ConversationRepository:
                             last_message["thinking"] = orig_thinking + "\n" + new_thinking
                         else:
                             last_message["thinking"] = new_thinking
-
-                    # Append tools list
                     if tools:
                         orig_tools = last_message.get("tools", [])
                         last_message["tools"] = orig_tools + tools
-
-                    # Append timeline entries
                     if timeline:
                         orig_tl = last_message.get("timeline", [])
                         last_message["timeline"] = orig_tl + timeline
-
-                    # Update usage if provided
                     if usage:
                         last_message["usage"] = usage
-
-                    # Update turn fields if provided
                     if turn_id is not None:
                         last_message["turn_id"] = turn_id
                     if turn_index is not None:
@@ -574,8 +563,6 @@ class ConversationRepository:
             conv_data = conversation.to_dict()
             if conv_data["user_id"] != user_id:
                 raise PermissionError("User does not own this conversation")
-
-            # 1. Delete Firestore summary blocks subcollection
             try:
                 summary_blocks_ref = conversation_ref.collection("summary_blocks")
                 summary_docs = summary_blocks_ref.get()
@@ -589,8 +576,6 @@ class ConversationRepository:
                 )
             except Exception as blocks_err:
                 logger.warning("Failed to clean up Firestore summary blocks: %s", blocks_err)
-
-            # 2. Delete persisted query results and any chunk documents.
             try:
                 execution_results_ref = conversation_ref.collection("execution_results")
                 for execution_doc in execution_results_ref.get():
@@ -606,8 +591,6 @@ class ConversationRepository:
                     "Failed to clean up Firestore execution results: %s",
                     execution_err,
                 )
-
-            # 3. Delete the conversation document itself
             conversation_ref.delete()
             logger.info(f"Conversation {conversation_id} deleted successfully")
             return True

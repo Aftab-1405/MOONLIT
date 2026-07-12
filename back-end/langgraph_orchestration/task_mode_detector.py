@@ -45,9 +45,7 @@ logger = logging.getLogger(__name__)
 
 TaskMode = Literal["normal", "tool_task", "long_task"]
 
-# ---------------------------------------------------------------------------
 # Intent lexicons
-# ---------------------------------------------------------------------------
 #
 # These patterns are matched case-insensitively against the LOWER-CASED
 # prompt. Patterns are deliberately phrased to minimize false positives —
@@ -126,29 +124,24 @@ def classify_task_mode(
 ) -> dict:
     """Classify the user's prompt and return the effective task mode.
 
-    Parameters
-    ----------
-    prompt : str | None
-        The user's current prompt. ``None`` or empty string is treated as
-        ``normal`` (the caller will short-circuit before reaching here in
-        practice, but we defend against it anyway).
-    current_mode : TaskMode
-        The mode the caller would use if no auto-detection ran. This is
-        the user's explicit choice (or the default ``normal``). The
-        classifier will only UPGRADE this value, never downgrade it.
-    allow_auto : bool
-        Master switch. Set to ``False`` to skip auto-detection entirely
-        (e.g., when ``AGENT_AUTO_TASK_MODE=false``).
+    Args:
+        prompt: The user's current prompt. ``None`` or empty string is treated
+            as ``normal`` (the caller will short-circuit before reaching here
+            in practice, but we defend against it anyway).
+        current_mode: The mode the caller would use if no auto-detection ran.
+            This is the user's explicit choice (or the default ``normal``).
+            The classifier will only UPGRADE this value, never downgrade it.
+        allow_auto: Master switch. Set to ``False`` to skip auto-detection
+            entirely (e.g., when ``AGENT_AUTO_TASK_MODE=false``).
 
-    Returns
-    -------
-    dict with keys:
-        - ``task_mode``: the effective mode to use
-        - ``detected_intent``: ``"long_task"`` | ``"tool_task"`` | ``"none"``
-        - ``matched_pattern``: the regex pattern that matched (for logging),
-          or ``None`` if no match
-        - ``source``: ``"user"`` (explicit choice preserved) |
-          ``"auto"`` (auto-detected) | ``"default"`` (no escalation)
+    Returns:
+        dict with keys:
+            - ``task_mode``: the effective mode to use
+            - ``detected_intent``: ``"long_task"`` | ``"tool_task"`` | ``"none"``
+            - ``matched_pattern``: the regex pattern that matched (for logging),
+              or ``None`` if no match
+            - ``source``: ``"user"`` (explicit choice preserved) |
+              ``"auto"`` (auto-detected) | ``"default"`` (no escalation)
     """
     # If the user has already explicitly chosen a non-normal mode, respect it.
     if current_mode in ("tool_task", "long_task"):
@@ -215,6 +208,9 @@ def should_auto_classify() -> bool:
     Reads ``Config.AGENT_AUTO_TASK_MODE`` (env var ``AGENT_AUTO_TASK_MODE``).
     Defaults to True. Set to ``"false"`` to disable auto-detection entirely
     (operators who want strict manual control).
+
+    Returns:
+        ``True`` if the auto-classifier should run, ``False`` otherwise.
     """
     try:
         from config import get_config

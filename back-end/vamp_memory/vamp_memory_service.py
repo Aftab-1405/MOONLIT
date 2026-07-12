@@ -139,6 +139,19 @@ class VampMemoryService:
         embedding_model: str = DEFAULT_EMBEDDING_MODEL,
         context_budget_tokens: int = DEFAULT_CONTEXT_TOKEN_BUDGET,
     ):
+        """Initialize the VAMP service with optional dependency injection.
+
+        Args:
+            summary_repo: Summary-block repository class. Defaults to
+                :class:`SummaryBlockRepository` when ``None``.
+            vector_store: Vector store instance. Lazily resolved via
+                :func:`get_default_vector_store` when ``None``.
+            embedding_provider: Callable mapping text to its embedding vector.
+                Defaults to :func:`default_embedding_provider`.
+            embedding_model: Embedding model identifier persisted on each block
+                for drift detection.
+            context_budget_tokens: Default token budget for retrieved context.
+        """
         if summary_repo is None:
             from vamp_memory.summary_block_repository import SummaryBlockRepository
 
@@ -163,16 +176,19 @@ class VampMemoryService:
 
     @property
     def vector_store(self) -> VectorMemoryStore:
+        """Lazily resolve and return the process-wide vector store singleton."""
         if self._vector_store is None:
             self._vector_store = get_default_vector_store()
         return self._vector_store
 
     async def _call_maybe_async(self, func, /, *args, **kwargs):
+        """Invoke ``func`` awaiting it if coroutine, otherwise offloading to a worker thread."""
         if inspect.iscoroutinefunction(func):
             return await func(*args, **kwargs)
         return await asyncio.to_thread(func, *args, **kwargs)
 
     async def _embed(self, text: str) -> list[float]:
+        """Embed ``text`` via the configured provider, awaiting any deferred coroutine result."""
         result = await self._call_maybe_async(self.embedding_provider, text)
         if asyncio.iscoroutine(result):
             result = await result
@@ -240,6 +256,26 @@ class VampMemoryService:
         covers_message_ids: list | None = None,
         created_from_unsummarized_tail: bool = True,
     ) -> dict:
+        """Persist a summary block and schedule its bullets for vector indexing.
+
+        Args:
+            conversation_id: Owning conversation id.
+            user_id: Calling user id; must own the conversation.
+            text: Summary text body.
+            start_message_idx: Inclusive lower bound of the summarized message range.
+            end_message_idx: Inclusive upper bound of the summarized message range.
+            memory_bullets: Optional list of bullet dicts; deep-copied and
+                enriched with ``char_length`` before persistence.
+            covers_from_turn: Optional first turn covered by the summary.
+            covers_to_turn: Optional last turn covered by the summary.
+            covers_message_ids: Optional list of covered message ids.
+            created_from_unsummarized_tail: Whether the block summarizes the
+                previously-unsummarized trailing messages.
+
+        Returns:
+            The stored (or pre-existing) summary block dict, carrying a
+            ``created`` flag indicating whether vector indexing was scheduled.
+        """
         memory_bullets = copy.deepcopy(memory_bullets) if memory_bullets else None
         if memory_bullets:
             for bullet in memory_bullets:
@@ -631,6 +667,7 @@ class VampMemoryService:
         )
 
     async def retry_pending_indexes(self, limit: int = 25) -> int:
+        """Re-index up to ``limit`` due blocks; return the count that indexed successfully."""
         get_retry = getattr(self.summary_repo, "get_vector_retry_blocks", None)
         if not callable(get_retry):
             return 0
@@ -652,6 +689,7 @@ class VampMemoryService:
         model_id: str | None = None,
         token_budget: int | None = None,
     ) -> list[dict]:
+        """Degraded retrieval returning the most recent blocks when vector search is unavailable."""
         get_recent = getattr(self.summary_repo, "get_recent_blocks", None)
         if not callable(get_recent):
             return []
@@ -691,6 +729,20 @@ class VampMemoryService:
         model_id: str | None = None,
         token_budget: int | None = None,
     ) -> str | None:
+        """Retrieve and format historical context for the per-turn system prompt.
+
+        Args:
+            conversation_id: Conversation to retrieve from.
+            user_id: Calling user id; must own the conversation.
+            user_prompt: Prompt to embed and match against memory blocks.
+            k: Optional override for the number of blocks to retrieve.
+            model_id: Optional model id for token-budget aware retrieval.
+            token_budget: Optional token-budget cap on retrieved blocks.
+
+        Returns:
+            Formatted historical context string, or ``None`` if no memory is
+            available or retrieval failed (the failure is logged at warning).
+        """
         try:
             blocks = await self.retrieve_blocks(
                 conversation_id,

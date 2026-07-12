@@ -231,6 +231,7 @@ async def _count_tokens(
     cache_key: tuple | None = None,
     **kwargs,
 ) -> dict:
+    """Count Converse tokens for one payload section, with optional caching."""
     counter = count_converse_tokens_with_fallback
     if cache_key is not None:
 
@@ -247,6 +248,7 @@ async def _count_tokens(
 
 
 def _merge_count_results(*results: dict | int | None) -> tuple[str, str | None]:
+    """Collapse per-section count results into one ``(mode, reason)`` tuple."""
     for result in results:
         if isinstance(result, dict) and result.get("mode") == "estimated":
             return "estimated", result.get("reason") or "provider_unsupported"
@@ -254,6 +256,7 @@ def _merge_count_results(*results: dict | int | None) -> tuple[str, str | None]:
 
 
 def _token_value(result: dict | int | None) -> int:
+    """Return the integer token count from a count result of any shape."""
     if isinstance(result, dict):
         return int(result.get("tokens") or 0)
     return int(result or 0)

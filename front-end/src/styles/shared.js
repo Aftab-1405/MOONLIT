@@ -65,42 +65,6 @@ export const UI_POPOVER = Object.freeze({
 });
 
 /**
- * Standardised hairline border colour.
- *
- * We deliberately avoid `0.5px` borders (they vanish on non-retina screens).
- * Using `1px` with a low alpha gives a crisp-but-soft divider that renders
- * consistently across DPRs.
- *
- * @param {object} theme  MUI theme
- * @param {number} [opacity]  Override the default alpha (defaults to 0.07/0.09)
- */
-export const getHairlineBorder = (theme, opacity) => {
-  const isDark = theme.palette.mode === 'dark';
-  const o = opacity ?? (isDark ? 0.09 : 0.07);
-  return `1px solid ${alpha(theme.palette.text.primary, o)}`;
-};
-
-/**
- * Standardised focus ring for keyboard navigation.
- * Use as `&:focus-visible` outline or as a `box-shadow` for inset focus.
- *
- * @param {object} theme
- * @param {object} [opts]
- * @param {string} [opts.color]  Override colour (defaults to text.primary)
- * @param {number} [opts.width]  Ring width in px (default 2)
- * @param {number} [opts.offset] Outline offset in px (default 2)
- */
-export const getFocusRing = (theme, { color, width = 2, offset = 2 } = {}) => {
-  const isDark = theme.palette.mode === 'dark';
-  const ringColor = color || theme.palette.text.primary;
-  const alphaVal = isDark ? 0.4 : 0.32;
-  return {
-    outline: `${width}px solid ${alpha(ringColor, alphaVal)}`,
-    outlineOffset: offset,
-  };
-};
-
-/**
  * Scrollbar styling — hidden by default for a unibody look.
  *
  * The Moonlit design language intentionally hides scrollbars to reduce visual
@@ -537,10 +501,9 @@ export const getSecondaryActionButtonSx = (theme) => {
     color: 'text.secondary',
     borderColor: alpha(theme.palette.text.primary, isDark ? 0.16 : 0.12),
     backgroundColor: 'transparent',
-    transition: theme.transitions.create(
-      ['background-color', 'border-color', 'color'],
-      { duration: theme.transitions.duration.shorter },
-    ),
+    transition: theme.transitions.create(['background-color', 'border-color', 'color'], {
+      duration: theme.transitions.duration.shorter,
+    }),
     [HOVER_CAPABLE_QUERY]: {
       '&:hover': {
         color: 'text.primary',

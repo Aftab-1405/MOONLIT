@@ -148,8 +148,6 @@ TOOL_REQUIRED_SKILLS = {
     "list_views": ("database-querying",),
 }
 
-# ── internal helpers ─────────────────────────────────────────────────
-
 
 def _cfg(config: RunnableConfig) -> dict:
     """Shortcut to ``config["configurable"]``."""
@@ -472,8 +470,6 @@ async def _execute_tool(
     missing_skill = _required_skill_message(tool_name, config)
     if missing_skill:
         return missing_skill
-
-    # 1. Validate with Pydantic schemas
     try:
         validated = ToolExecutor.validate_and_parse_args(tool_name, raw_args)
     except ValueError as e:
@@ -502,11 +498,7 @@ async def _execute_tool(
     )
     if short_circuit is not None:
         return short_circuit
-
-    # 3. Emit tool_start
     writer({"type": "tool_start", "name": tool_name, "args": display_args})
-
-    # 4. Cache check
     cache = cfg.get("tool_cache", {})
     cache_key = None
     if tool_name in CACHEABLE_TOOLS:
@@ -517,7 +509,6 @@ async def _execute_tool(
         logger.info(f"Cache hit for {tool_name}")
         parsed = cache[cache_key]
     else:
-        # 5. Execute directly — no dispatcher
         # FIX [H2]: Wrap executor_fn in asyncio.wait_for(asyncio.to_thread(...))
         # with a per-tool timeout. A slow DB query or hung external API can
         # no longer block the SSE stream indefinitely; the LLM receives a
@@ -606,8 +597,6 @@ async def _execute_tool(
                 store_execution_result(conversation_id, execution_id, parsed)
             except Exception as e:
                 logger.error(f"Failed to store execution result: {e}")
-
-    # 6. Dual summarization
     ui_result, llm_summary = ToolExecutor.summarize(
         tool_name,
         parsed,
@@ -629,9 +618,6 @@ async def _execute_tool(
 
     # 8. Return LLM summary (becomes ToolMessage.content)
     return llm_summary
-
-
-# ── tool definitions ─────────────────────────────────────────────────
 
 
 @tool
@@ -1047,9 +1033,6 @@ async def web_search(query: str, *, config: RunnableConfig) -> str:
     return "\n".join(lines)
 
 
-# ── UI action tools ──────────────────────────────────────────────────
-
-
 @tool
 def open_sql_editor(
     query: Optional[str] = None,
@@ -1351,8 +1334,6 @@ async def retrieve_memory(query: str, *, config: RunnableConfig) -> str:
         _executor,
     )
 
-
-# ── public list ──────────────────────────────────────────────────────
 
 ALL_TOOLS = [
     read_skill,
