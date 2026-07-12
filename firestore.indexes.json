@@ -1,0 +1,19 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "summary_blocks",
+      "queryScope": "COLLECTION_GROUP",
+      "fields": [
+        {
+          "fieldPath": "vector_status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "vector_next_retry_at",
+          "order": "ASCENDING"
+        }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

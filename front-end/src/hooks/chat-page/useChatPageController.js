@@ -1,34 +1,46 @@
+// useChatPageController — thin composer that wires the chat page together.
+//
+// Previously a 750-line god hook, this controller now composes six focused
+// sub-hooks and merges their outputs into the single return value consumed by
+// MainInterface. Each sub-hook owns one cohesive slice of state:
+//
+//   useChatPageSidebar          — sidebar open/collapse, mobile drawer, profile menu
+//   useChatPageOverlays         — modal/snackbar state + mindmap + conversation dialogs
+//   useChatPageGuidedConfirm    — agent interrupt / step-limit / navigate-new-chat banner
+//   useChatPageCanvas           — workspace canvas + SQL-editor streaming injection
+//   useChatPageStreaming        — message streaming + interrupt handlers + usage metrics
+//   useChatPageLlmSelection     — LLM provider/model selection (already a separate hook)
+//
+// The controller is intentionally not a one-liner: the slices share state
+// (e.g. streaming needs the guided-confirm setter; the UI action dispatcher
+// needs canvas + overlay + guided-confirm handlers). The controller is the
+// single place where those wires cross.
+
 import { useTheme as useMuiTheme } from '@mui/material/styles';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useCallback, useMemo, useRef } from 'react';
 import { useDatabaseConnection } from '@/contexts/DatabaseContext';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
-import { useLocalStorage } from '@/hooks';
+import { useMindmapSchema } from '@/hooks';
 import useAutoScroll from '@/hooks/chat-page/useAutoScroll';
+import { useChatPageCanvas } from '@/hooks/chat-page/useChatPageCanvas';
+import { useChatPageGuidedConfirm } from '@/hooks/chat-page/useChatPageGuidedConfirm';
 import { useChatPageLlmSelection } from '@/hooks/chat-page/useChatPageLlmSelection';
 import { useChatPageSessionLifecycle } from '@/hooks/chat-page/useChatPageSessionLifecycle';
+import { useChatPageSidebar } from '@/hooks/chat-page/useChatPageSidebar';
+import { useChatPageStreaming } from '@/hooks/chat-page/useChatPageStreaming';
 import { useConversationDialogs } from '@/hooks/chat-page/useConversationDialogs';
 import { useConversations } from '@/hooks/chat-page/useConversations';
-import { useMessageStreaming } from '@/hooks/chat-page/useMessageStreaming';
 import { useOverlayState } from '@/hooks/chat-page/useOverlayState';
 import { useQueryExecution } from '@/hooks/chat-page/useQueryExecution';
 import { useResponsive } from '@/hooks/chat-page/useResponsive';
 import { useUiActionDispatcher } from '@/hooks/chat-page/useUiActionDispatcher';
-import { useWorkspaceCanvas } from '@/hooks/chat-page/useWorkspaceCanvas';
-import { UI_LAYOUT } from '@/styles/shared';
-import { isMessageActive } from '@/utils/chatMessages';
-
-const DRAWER_WIDTH = UI_LAYOUT.sidebarExpandedWidth;
-const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth;
 
 export function useChatPageController() {
-  // ── Infrastructure ─────────────────────────────────────────────────────────
+  // ── Infrastructure ────────────────────────────────────────────────────────
   const theme = useMuiTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
   const { isDesktop } = useResponsive();
   const isNarrowLayout = !isDesktop;
   const { settings, updateSetting, updateSettings } = useAppTheme();
-  const { user, logout } = useAuth();
   const {
     isConnected: isDbConnected,
     currentDatabase,
@@ -40,9 +52,10 @@ export function useChatPageController() {
     resetConnectionState,
     switchDatabase,
     selectSchema,
+    refreshStatus,
   } = useDatabaseConnection();
 
-  // ── Conversations ──────────────────────────────────────────────────────────
+  // ── Conversations ─────────────────────────────────────────────────────────
   const {
     messages,
     setMessages,
@@ -75,18 +88,10 @@ export function useChatPageController() {
     showSnackbar,
     handleCloseDbModal,
     handleCloseSettings,
-    handleCloseSnackbar,
-    addToast,
     removeToast,
-    success,
-    error,
-    warning,
-    info,
-    loading,
-    setNotifications,
   } = useOverlayState();
 
-  // ── Conversation dialogs (delete / rename) ─────────────────────────────────
+  // ── Conversation dialogs (delete / rename) ────────────────────────────────
   const {
     deleteConversationDialog,
     handleDeleteConversationRequest,
@@ -103,42 +108,37 @@ export function useChatPageController() {
     showSnackbar,
   });
 
-  // ── Sidebar / canvas / LLM ─────────────────────────────────────────────────
-  const [sidebarOpen, setSidebarOpen] = useLocalStorage('moonlit-sidebar-open', true);
-  const currentSidebarWidth = useMemo(
-    () => (sidebarOpen ? DRAWER_WIDTH : COLLAPSED_WIDTH),
-    [sidebarOpen],
-  );
-  const {
-    workspaceCanvasOpen,
-    workspaceCanvasArtifact,
-    workspaceCanvasWidth,
-    handleOpenCanvasArtifact,
-    handleOpenSqlEditor: openSqlEditorCanvas,
-    handleCloseWorkspaceCanvas,
-    handleCanvasResize,
-  } = useWorkspaceCanvas({ sidebarWidth: currentSidebarWidth });
-
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [usageMetrics, setUsageMetrics] = useState(null);
-
-  // ── Guided confirm dialog (agent interrupts / step limits) ─────────────────
-  const [guidedConfirmDialog, setGuidedConfirmDialog] = useState({
-    open: false,
-    title: '',
-    message: '',
-    confirmText: 'Confirm',
-    cancelText: 'Not now',
-    onCancel: null,
-    onConfirm: null,
+  // ── Sidebar + profile menu ────────────────────────────────────────────────
+  // The sidebar hook coordinates with overlays via onCloseModals — when the
+  // user opens settings from the profile menu, we want to close any open DB
+  // modal (and vice versa).
+  const sidebar = useChatPageSidebar({
+    isDesktop,
+    onCloseModals: useCallback(() => {
+      setDbModalOpen(false);
+      setSettingsOpen(true);
+    }, [setDbModalOpen, setSettingsOpen]),
   });
 
-  const resumeAgentRef = useRef(null);
-  const continueTaskRef = useRef(null);
-  const stepLimitEventRef = useRef(null);
-  const messagesRef = useRef(messages);
+  // Extract stable methods from the sidebar hook so they can be used in
+  // useCallback deps WITHOUT putting the entire `sidebar` object (which is a
+  // new object literal every render) in the deps array. This keeps the
+  // sidebar-driven callbacks stable, which is critical for the Sidebar's
+  // arePropsEqual memoization to work.
+  const {
+    user: sidebarUser,
+    setMobileOpen: setSidebarMobileOpen,
+    handleMenuOpen: openProfileMenu,
+  } = sidebar;
 
+  // ── Schema mindmap (global overlay) ───────────────────────────────────────
+  // The mindmap dialog is mounted at the shell level (GlobalOverlays). The
+  // controller owns the open/close + schema-fetch state because it already
+  // has access to the database connection context.
+  const { mindmapOpen, schemaData, schemaLoading, handleOpenMindmap, handleCloseMindmap } =
+    useMindmapSchema({ isConnected: isDbConnected, currentDatabase });
+
+  // ── LLM selection ─────────────────────────────────────────────────────────
   const llmSelection = useChatPageLlmSelection({ settings, updateSetting, updateSettings });
   const {
     providerOptions,
@@ -148,33 +148,133 @@ export function useChatPageController() {
     handleLlmSelection,
   } = llmSelection;
 
-  // ── Derived / computed ─────────────────────────────────────────────────────
-  const isCurrentlyStreaming = useMemo(() => {
-    if (messages.length === 0) return false;
-    const lastMessage = messages[messages.length - 1];
-    return lastMessage?.role === 'assistant' && isMessageActive(lastMessage);
-  }, [messages]);
+  // ── Guided confirm dialog (agent interrupts / step limits) ────────────────
+  const { guidedConfirmDialog, setGuidedConfirmDialog, handleGuidedCancel, handleGuidedConfirm } =
+    useChatPageGuidedConfirm();
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleOpenSqlEditor = useCallback(
-    (query = '', results = null) => {
-      if (!isDbConnected) {
-        setSettingsOpen(false);
-        setDbModalOpen(true);
-        showSnackbar('Connect a database to use the SQL editor.', 'info');
-        return;
-      }
-      openSqlEditorCanvas(query, results);
+  // ── Sidebar-driven handlers ───────────────────────────────────────────────
+  // These callbacks use the extracted stable methods (setSidebarMobileOpen,
+  // openProfileMenu) instead of the `sidebar` object, so they remain stable
+  // across renders. This is critical: if these callbacks change identity on
+  // every render, the Sidebar's arePropsEqual memoization fails and the
+  // Sidebar re-renders unnecessarily.
+  const handleSidebarNewChat = useCallback(() => {
+    setSidebarMobileOpen(false);
+    setSettingsOpen(false);
+    setDbModalOpen(false);
+    navigate('/chat');
+  }, [navigate, setDbModalOpen, setSettingsOpen, setSidebarMobileOpen]);
+
+  const handleSidebarSelectConversation = useCallback(
+    (id) => {
+      setSidebarMobileOpen(false);
+      setSettingsOpen(false);
+      setDbModalOpen(false);
+      navigate(`/chat/${id}`);
     },
-    [isDbConnected, openSqlEditorCanvas, setDbModalOpen, setSettingsOpen, showSnackbar],
+    [navigate, setDbModalOpen, setSettingsOpen, setSidebarMobileOpen],
   );
 
+  const handleSidebarOpenDbModal = useCallback(() => {
+    setSidebarMobileOpen(false);
+    setSettingsOpen(false);
+    setDbModalOpen(true);
+  }, [setDbModalOpen, setSettingsOpen, setSidebarMobileOpen]);
+
+  const handleSidebarMenuOpen = useCallback(
+    (e) => {
+      setSidebarMobileOpen(false);
+      openProfileMenu(e);
+    },
+    [setSidebarMobileOpen, openProfileMenu],
+  );
+
+  // ── Canvas (artifact panel) + SQL editor streaming ────────────────────────
+  // The canvas hook needs `isCurrentlyStreaming` from the streaming slice,
+  // and the streaming slice needs `handleOpenSqlEditor` from the canvas slice
+  // (transitively, via the UI action dispatcher). We break the cycle with two
+  // refs that the controller keeps up-to-date on every render:
+  //   - dispatchUiActionRef       — updated after the dispatcher is built
+  //   - handleOpenSqlEditorRef    — updated after the canvas hook returns
+  // The streaming hook reads from these refs inside its closures so they
+  // remain stable without needing to be in any deps array.
+  const dispatchUiActionRef = useRef(null);
+  const handleOpenSqlEditorRef = useRef(null);
+
+  // Streaming must be created BEFORE canvas because canvas needs
+  // `isCurrentlyStreaming`. The streaming hook receives the refs (which are
+  // still empty at this point) — they'll be populated below before any
+  // event handler actually fires.
+  const streaming = useChatPageStreaming({
+    messages,
+    setMessages,
+    currentConversationId,
+    setCurrentConversationId,
+    setConversations,
+    navigate,
+    fetchConversations,
+    registerStreamingConversation,
+    routeConversationId,
+    settings,
+    selectedProvider,
+    selectedModel,
+    dispatchUiActionRef,
+    handleOpenSqlEditorRef,
+    setGuidedConfirmDialog,
+    showSnackbar,
+    handleSidebarNewChat,
+  });
+
+  const canvas = useChatPageCanvas({
+    sidebarWidth: sidebar.currentSidebarWidth,
+    isDbConnected,
+    isCurrentlyStreaming: streaming.isCurrentlyStreaming,
+    messages,
+    setSettingsOpen,
+    setDbModalOpen,
+    showSnackbar,
+  });
+
+  // ── UI action dispatcher ──────────────────────────────────────────────────
+  // Wires agent-driven UI actions (open SQL editor, open DB modal, navigate
+  // to a new chat, report usage metrics) to the controller's handlers.
+  const dispatchUiAction = useUiActionDispatcher({
+    open_sql_editor: (payload) => canvas.handleOpenSqlEditor(payload?.query || ''),
+    write_sql_editor_query: (payload) => {
+      if (!payload?.query) return;
+      canvas.handleOpenSqlEditor(payload.query);
+    },
+    open_database_modal: (payload) => {
+      setSettingsOpen(false);
+      setDbModalOpen(true);
+      if (payload?.db_type) setDbModalInitialType(payload.db_type);
+    },
+    open_settings_modal: (payload) => {
+      setDbModalOpen(false);
+      setSettingsOpen(true);
+      if (payload?.section) setSettingsInitialSection(payload.section);
+    },
+    navigate_new_chat: (payload) => streaming.onNavigateNewChatGuided(payload),
+    complete_navigate_new_chat: (payload) => streaming.onCompleteNavigateNewChat(payload),
+    usage_metrics: (payload) => streaming.onUsageMetricsEvent(payload),
+    onInvalidAction: ({ reason }) => {
+      if (reason) showSnackbar(reason, 'warning');
+    },
+  });
+
+  // Sync the cycle-breaking refs on every render so the streaming hook's
+  // closures always read the latest dispatcher + SQL editor handler.
+  dispatchUiActionRef.current = dispatchUiAction;
+  handleOpenSqlEditorRef.current = canvas.handleOpenSqlEditor;
+
+  // ── Query execution ───────────────────────────────────────────────────────
+  const { handleOpenCanvasArtifact } = canvas;
   const handleQueryResults = useCallback(
     (data, sourceQuery) => {
       handleOpenCanvasArtifact({
         type: 'visualization',
         title: 'Query results',
-        props: { data, sourceQuery, sourceType: 'sql-editor' },
+        props: { data, sourceQuery, sourceType: 'chat-code-block' },
       });
     },
     [handleOpenCanvasArtifact],
@@ -188,265 +288,19 @@ export function useChatPageController() {
     onQueryResults: handleQueryResults,
   });
 
-  const handleSidebarNewChat = useCallback(() => {
-    setMobileOpen(false);
-    setSettingsOpen(false);
-    setDbModalOpen(false);
-    navigate('/chat');
-  }, [navigate, setDbModalOpen, setSettingsOpen]);
-
-  const closeGuidedConfirmDialog = useCallback(() => {
-    setGuidedConfirmDialog({
-      open: false,
-      title: '',
-      message: '',
-      confirmText: 'Confirm',
-      cancelText: 'Not now',
-      onCancel: null,
-      onConfirm: null,
-    });
-  }, []);
-
-  const handleGuidedCancel = useCallback(async () => {
-    const action = guidedConfirmDialog.onCancel;
-    closeGuidedConfirmDialog();
-    await action?.();
-  }, [closeGuidedConfirmDialog, guidedConfirmDialog.onCancel]);
-
-  const handleGuidedConfirm = useCallback(async () => {
-    const action = guidedConfirmDialog.onConfirm;
-    closeGuidedConfirmDialog();
-    await action?.();
-  }, [closeGuidedConfirmDialog, guidedConfirmDialog.onConfirm]);
-
-  const dispatchUiAction = useUiActionDispatcher({
-    open_sql_editor: (payload) => handleOpenSqlEditor(payload?.query || ''),
-    write_sql_editor_query: (payload) => {
-      if (!payload?.query) return;
-      handleOpenSqlEditor(payload.query);
-    },
-    open_database_modal: (payload) => {
-      setSettingsOpen(false);
-      setDbModalOpen(true);
-      if (payload?.db_type) setDbModalInitialType(payload.db_type);
-    },
-    open_settings_modal: (payload) => {
-      setDbModalOpen(false);
-      setSettingsOpen(true);
-      if (payload?.section) setSettingsInitialSection(payload.section);
-    },
-    navigate_new_chat: (payload) => {
-      setGuidedConfirmDialog({
-        open: true,
-        title: payload?.title || 'Start a new chat?',
-        message: payload?.message || 'This will leave the current conversation.',
-        confirmText: payload?.confirmText || 'New Chat',
-        cancelText: payload?.cancelText || 'Not now',
-        onCancel: () => showSnackbar('Action cancelled.', 'info'),
-        onConfirm: () => showSnackbar('Please wait for the agent to resume.', 'info'),
-      });
-    },
-    complete_navigate_new_chat: (payload) => {
-      window.setTimeout(() => {
-        handleSidebarNewChat();
-      }, Number(payload?.delayMs) || 900);
-    },
-    usage_metrics: (payload) => {
-      if (payload) setUsageMetrics(payload);
-    },
-    onInvalidAction: ({ reason }) => {
-      if (reason) showSnackbar(reason, 'warning');
-    },
-  });
-
-  useEffect(() => {
-    messagesRef.current = messages;
-
-    let nextUsage = null;
-    let foundUsage = false;
-
-    if (messages && messages.length > 0) {
-      for (let i = messages.length - 1; i >= 0; i--) {
-        const isAssistant = messages[i].role === 'assistant' || messages[i].sender === 'ai';
-        if (isAssistant && messages[i].usage) {
-          nextUsage = messages[i].usage;
-          foundUsage = true;
-          break;
-        }
-      }
-    }
-
-    const isLastUser =
-      messages &&
-      messages.length === 1 &&
-      (messages[0].role === 'user' || messages[0].sender === 'user');
-
-    if (foundUsage) {
-      setTimeout(() => {
-        setUsageMetrics(nextUsage);
-      }, 0);
-    } else if (!isLastUser || !messages || messages.length === 0) {
-      setTimeout(() => {
-        setUsageMetrics(null);
-      }, 0);
-    }
-  }, [messages]);
-
-  const handleAgentStepLimitReached = useCallback(
-    (event, assistantMessageId = null) => {
-      stepLimitEventRef.current = event;
-      const stepsUsed = event?.steps_used ?? '?';
-      const taskMode = event?.task_mode || 'normal';
-      const message =
-        event?.message ||
-        `The agent paused after ${stepsUsed} steps to avoid runaway execution. The task context has been saved.`;
-
-      setGuidedConfirmDialog({
-        open: true,
-        title: '⏸ Task Paused',
-        message,
-        confirmText: 'Continue Task',
-        cancelText: 'Stop Here',
-        onCancel: () => {
-          stepLimitEventRef.current = null;
-        },
-        onConfirm: () => {
-          const storedEvent = stepLimitEventRef.current;
-          stepLimitEventRef.current = null;
-          continueTaskRef.current?.(storedEvent, assistantMessageId, {
-            provider: selectedProvider || null,
-            model: selectedModel || null,
-            taskMode,
-          });
-        },
-      });
-    },
-    [selectedModel, selectedProvider],
-  );
-
-  const handleAgentInterrupt = useCallback(
-    (event, assistantMessageId = null) => {
-      const payload = event?.payload || {};
-      const action = payload.action || payload.sourceTool;
-      const resumeWith = (approved) => {
-        const resumePayload = {
-          approved,
-          action,
-          interrupt_id: event?.id || null,
-        };
-        resumeAgentRef.current?.(resumePayload, {
-          provider: selectedProvider || null,
-          model: selectedModel || null,
-          assistantMessageId,
-        });
-      };
-
-      if (action === 'execute_query' && payload.query) {
-        handleOpenSqlEditor(payload.query);
-      }
-
-      setGuidedConfirmDialog({
-        open: true,
-        title: payload.title || 'Confirm action',
-        message: payload.message || 'Please confirm before I continue.',
-        confirmText: payload.confirmText || 'Confirm',
-        cancelText: payload.cancelText || 'Not now',
-        onCancel: () => resumeWith(false),
-        onConfirm: () => resumeWith(true),
-      });
-    },
-    [handleOpenSqlEditor, selectedModel, selectedProvider],
-  );
-
-  const { handleSendMessage, handleResumeAgent, handleStopStreaming, handleContinueTask } =
-    useMessageStreaming({
-      currentConversationId,
-      setCurrentConversationId,
-      setMessages,
-      setConversations,
-      navigate,
-      fetchConversations,
-      registerStreamingConversation,
-      settings,
-      dispatchUiAction,
-      onAgentInterrupt: handleAgentInterrupt,
-      onAgentStepLimitReached: handleAgentStepLimitReached,
-      getMessages: () => messagesRef.current,
-    });
-
-  useEffect(() => {
-    resumeAgentRef.current = handleResumeAgent;
-    continueTaskRef.current = handleContinueTask;
-  }, [handleResumeAgent, handleContinueTask]);
-
+  // ── Session lifecycle ─────────────────────────────────────────────────────
+  // `refreshStatus` is passed so the lifecycle hook can re-sync the
+  // connection state when the tab becomes visible again (after being
+  // backgrounded). This prevents the "auto-disconnect while tab is open"
+  // bug where browser timer throttling caused the backend to think the
+  // tab was closed.
   useChatPageSessionLifecycle({
     isDbConnected,
     connectionPersistenceMinutes: settings.connectionPersistence ?? 0,
+    onVisibilityRestored: refreshStatus,
   });
 
-  // ── Derived view state ─────────────────────────────────────────────────────
-  const isRouteConversationHydrating = routeConversationLoadState === 'loading';
-  const isConversationViewLoading = isConversationLoading || isRouteConversationHydrating;
-  const showWelcomeState =
-    !routeConversationId && messages.length === 0 && !isConversationViewLoading;
-  const showConversationPanel =
-    Boolean(routeConversationId) || messages.length > 0 || isConversationViewLoading;
-
-  const streamActivityKey = useMemo(() => {
-    const lastMessage = messages[messages.length - 1];
-    if (!lastMessage) return 'empty';
-    const textLen = (lastMessage.text || '').length;
-    const stepsLen = (lastMessage.steps || []).length;
-    return `${lastMessage.id}|${lastMessage.status}|${textLen}|${stepsLen}|${messages.length}`;
-  }, [messages]);
-
-  const handleSendMessageWithModel = useCallback(
-    (message) => {
-      return handleSendMessage(message, {
-        provider: selectedProvider || null,
-        model: selectedModel || null,
-      });
-    },
-    [handleSendMessage, selectedProvider, selectedModel],
-  );
-
-  const { setScrollContainerRef } = useAutoScroll({
-    messageCount: messages.length,
-    isStreaming: isCurrentlyStreaming,
-    isConversationLoading,
-    activityKey: streamActivityKey,
-  });
-
-  const handleMobileDrawerOpen = useCallback(() => {
-    setMobileOpen(true);
-  }, []);
-  const handleMobileDrawerClose = useCallback(() => {
-    setMobileOpen(false);
-  }, []);
-  const effectiveMobileOpen = isDesktop ? false : mobileOpen;
-
-  const handleSidebarToggle = useCallback(() => {
-    setSidebarOpen((prev) => !prev);
-  }, [setSidebarOpen]);
-
-  const handleMenuOpen = useCallback((e) => {
-    setAnchorEl(e.currentTarget);
-  }, []);
-  const handleMenuClose = useCallback(() => {
-    setAnchorEl(null);
-  }, []);
-
-  const handleLogout = useCallback(async () => {
-    setAnchorEl(null);
-    await logout();
-  }, [logout]);
-
-  const handleOpenSettings = useCallback(() => {
-    handleMenuClose();
-    setDbModalOpen(false);
-    setSettingsOpen(true);
-  }, [handleMenuClose, setDbModalOpen, setSettingsOpen]);
-
+  // ── DB connection handlers ────────────────────────────────────────────────
   const handleDbConnect = useCallback(
     (data) => {
       if (data) {
@@ -478,18 +332,56 @@ export function useChatPageController() {
       if (result.success) {
         showSnackbar(`Switched to ${dbName}`, 'success');
         return { success: true };
-      } else {
-        const errorMsg = result.error || 'Failed to switch database';
-        showSnackbar(errorMsg, 'error');
-        return { success: false, error: errorMsg };
       }
+      const errorMsg = result.error || 'Failed to switch database';
+      showSnackbar(errorMsg, 'error');
+      return { success: false, error: errorMsg };
     },
     [switchDatabase, showSnackbar],
   );
 
+  // ── Derived view state ────────────────────────────────────────────────────
+  const isRouteConversationHydrating = routeConversationLoadState === 'loading';
+  const isConversationViewLoading = isConversationLoading || isRouteConversationHydrating;
+  const showWelcomeState =
+    !routeConversationId && messages.length === 0 && !isConversationViewLoading;
+  const showConversationPanel =
+    Boolean(routeConversationId) || messages.length > 0 || isConversationViewLoading;
+
+  const streamActivityKey = useMemo(() => {
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage) return 'empty';
+    const textLen = (lastMessage.text || '').length;
+    const stepsLen = (lastMessage.steps || []).length;
+    return `${lastMessage.id}|${lastMessage.status}|${textLen}|${stepsLen}|${messages.length}`;
+  }, [messages]);
+
+  const { setScrollContainerRef } = useAutoScroll({
+    messageCount: messages.length,
+    isStreaming: streaming.isCurrentlyStreaming,
+    isConversationLoading,
+    activityKey: streamActivityKey,
+  });
+
+  // ── Aggregated props for chat input + sidebar ─────────────────────────────
+  // Destructure `streaming` and `canvas` into their individual values for the
+  // useMemo deps. Both `streaming` and `canvas` are new object literals on
+  // every render (they're hook return values); putting the whole object in
+  // deps would recompute this useMemo every render, causing ChatColumn to
+  // re-render unnecessarily. By depending on the individual primitive/stable
+  // values instead, the memo only recomputes when something actually changes.
+  const {
+    handleSendMessage,
+    handleStopStreaming,
+    isCurrentlyStreaming,
+    usageMetrics,
+    effectiveTaskMode,
+  } = streaming;
+  const { handleOpenSqlEditor: handleOpenSqlEditorFromCanvas } = canvas;
+
   const chatInputSharedProps = useMemo(
     () => ({
-      onSend: handleSendMessageWithModel,
+      onSend: handleSendMessage,
       onStop: handleStopStreaming,
       isStreaming: isCurrentlyStreaming,
       isConnected: isDbConnected,
@@ -500,16 +392,19 @@ export function useChatPageController() {
       currentSchema,
       onSchemaChange: selectSchema,
       onDatabaseSwitch: handleDatabaseSwitch,
-      onOpenSqlEditor: handleOpenSqlEditor,
+      onOpenSqlEditor: handleOpenSqlEditorFromCanvas,
       selectedProvider,
       selectedModel,
       providerOptions,
       llmOptionsLoading,
       onSelectLlm: handleLlmSelection,
       usageMetrics,
+      taskMode: settings.taskMode ?? 'auto',
+      onTaskModeChange: (value) => updateSetting('taskMode', value),
+      effectiveTaskMode,
     }),
     [
-      handleSendMessageWithModel,
+      handleSendMessage,
       handleStopStreaming,
       isCurrentlyStreaming,
       isDbConnected,
@@ -520,13 +415,16 @@ export function useChatPageController() {
       currentSchema,
       selectSchema,
       handleDatabaseSwitch,
-      handleOpenSqlEditor,
+      handleOpenSqlEditorFromCanvas,
       selectedProvider,
       selectedModel,
       providerOptions,
       llmOptionsLoading,
       handleLlmSelection,
       usageMetrics,
+      settings.taskMode,
+      updateSetting,
+      effectiveTaskMode,
     ],
   );
 
@@ -542,7 +440,7 @@ export function useChatPageController() {
       dbType,
       availableDatabases,
       onDatabaseSwitch: handleDatabaseSwitch,
-      user,
+      user: sidebarUser,
     }),
     [
       conversations,
@@ -555,54 +453,29 @@ export function useChatPageController() {
       dbType,
       availableDatabases,
       handleDatabaseSwitch,
-      user,
+      sidebarUser,
     ],
   );
 
-  const handleSidebarSelectConversation = useCallback(
-    (id) => {
-      setMobileOpen(false);
-      setSettingsOpen(false);
-      setDbModalOpen(false);
-      navigate(`/chat/${id}`);
-    },
-    [navigate, setDbModalOpen, setSettingsOpen],
-  );
-
-  const handleSidebarOpenDbModal = useCallback(() => {
-    setMobileOpen(false);
-    setSettingsOpen(false);
-    setDbModalOpen(true);
-  }, [setDbModalOpen, setSettingsOpen]);
-
-  const handleSidebarMenuOpen = useCallback(
-    (e) => {
-      setMobileOpen(false);
-      handleMenuOpen(e);
-    },
-    [handleMenuOpen],
-  );
-
-  // ── Return ─────────────────────────────────────────────────────────────────
+  // ── Return ────────────────────────────────────────────────────────────────
   return {
     theme,
-    isDarkMode,
     isNarrowLayout,
-    anchorEl,
-    user,
-    handleMenuClose,
-    handleOpenSettings,
-    handleLogout,
+    anchorEl: sidebar.anchorEl,
+    user: sidebarUser,
+    handleMenuClose: sidebar.handleMenuClose,
+    handleOpenSettings: sidebar.handleOpenSettings,
+    handleLogout: sidebar.handleLogout,
     commonSidebarProps,
     handleSidebarNewChat,
     handleSidebarSelectConversation,
     handleSidebarOpenDbModal,
-    sidebarOpen,
-    handleSidebarToggle,
+    sidebarOpen: sidebar.sidebarOpen,
+    handleSidebarToggle: sidebar.handleSidebarToggle,
     handleSidebarMenuOpen,
-    mobileOpen: effectiveMobileOpen,
-    handleMobileDrawerOpen,
-    handleMobileDrawerClose,
+    mobileOpen: sidebar.mobileOpen,
+    handleMobileDrawerOpen: sidebar.handleMobileDrawerOpen,
+    handleMobileDrawerClose: sidebar.handleMobileDrawerClose,
     showWelcomeState,
     setScrollContainerRef,
     showConversationPanel,
@@ -610,14 +483,13 @@ export function useChatPageController() {
     isConversationLoading: isConversationViewLoading,
     conversationLoadState: routeConversationLoadState,
     handleRunQuery,
-    handleOpenSqlEditor,
-    handleOpenCanvasArtifact,
+    handleOpenCanvasArtifact: canvas.handleOpenCanvasArtifact,
     chatInputSharedProps,
-    workspaceCanvasOpen,
-    workspaceCanvasArtifact,
-    workspaceCanvasWidth,
-    handleCanvasResize,
-    handleCloseWorkspaceCanvas,
+    workspaceCanvasOpen: canvas.workspaceCanvasOpen,
+    workspaceCanvasArtifact: canvas.workspaceCanvasArtifact,
+    workspaceCanvasWidth: canvas.workspaceCanvasWidth,
+    handleCanvasResize: canvas.handleCanvasResize,
+    handleCloseWorkspaceCanvas: canvas.handleCloseWorkspaceCanvas,
     isDbConnected,
     currentDatabase,
     dbModalOpen,
@@ -625,16 +497,7 @@ export function useChatPageController() {
     handleDbConnect,
     handleDbModalSelectDatabase,
     notifications,
-    showSnackbar,
-    handleCloseSnackbar,
-    addToast,
     removeToast,
-    success,
-    error,
-    warning,
-    info,
-    loading,
-    setNotifications,
     settingsOpen,
     handleCloseSettings,
     confirmDialog,
@@ -647,10 +510,15 @@ export function useChatPageController() {
     handleRenameConversationTitleChange,
     handleRenameConversationConfirm,
     guidedConfirmDialog,
-    closeGuidedConfirmDialog,
     handleGuidedCancel,
     handleGuidedConfirm,
     dbModalInitialType,
     settingsInitialSection,
+    // Schema mindmap (global overlay)
+    mindmapOpen,
+    handleCloseMindmap,
+    handleOpenMindmap,
+    schemaLoading,
+    schemaData,
   };
 }

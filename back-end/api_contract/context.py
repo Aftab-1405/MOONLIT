@@ -20,13 +20,9 @@ class SaveUserSettingsRequest(BaseModel):
         le=Config.QUERY_TIMEOUT_MAX_SECONDS,
     )
     maxRows: Optional[int] = Field(None, ge=0, le=Config.REQUEST_MAX_ROWS_LIMIT)
-    nullDisplay: Optional[str] = Field(
-        None, max_length=Config.USER_SETTINGS_NULL_DISPLAY_MAX_LENGTH
-    )
+    nullDisplay: Optional[str] = Field(None, max_length=Config.USER_SETTINGS_NULL_DISPLAY_MAX_LENGTH)
     rememberConnection: Optional[bool] = None
-    defaultDbType: Optional[
-        Literal["mysql", "postgresql", "sqlserver", "oracle"]
-    ] = None
+    defaultDbType: Optional[Literal["mysql", "postgresql", "sqlserver", "oracle"]] = None
     connectionPersistence: Optional[Literal[0, 5, 15, 30, 60]] = None
     connectionPersistenceMinutes: Optional[Literal[0, 5, 15, 30, 60]] = None
     enableReasoning: Optional[bool] = None
@@ -38,6 +34,7 @@ class SaveUserSettingsRequest(BaseModel):
     @field_validator("llmProvider")
     @classmethod
     def sanitize_llm_provider(cls, v):
+        """Normalize the LLM provider to a trimmed lowercase value."""
         if v is None:
             return None
         provider = v.strip().lower()
@@ -46,6 +43,7 @@ class SaveUserSettingsRequest(BaseModel):
     @field_validator("llmModel")
     @classmethod
     def sanitize_llm_model(cls, v):
+        """Normalize the LLM model to a trimmed value."""
         if v is None:
             return None
         model = v.strip()
@@ -56,14 +54,10 @@ class CloseSessionRequest(BaseModel):
     """Schema for closing a browser session."""
 
     connectionPersistenceMinutes: Optional[Literal[0, 5, 15, 30, 60]] = None
-    sessionInstanceId: Optional[str] = Field(
-        default=None, max_length=Config.SESSION_INSTANCE_ID_MAX_LENGTH
-    )
+    sessionInstanceId: Optional[str] = Field(default=None, max_length=Config.SESSION_INSTANCE_ID_MAX_LENGTH)
 
 
 class SessionActiveRequest(BaseModel):
     """Schema for browser-session heartbeat."""
 
-    sessionInstanceId: Optional[str] = Field(
-        default=None, max_length=Config.SESSION_INSTANCE_ID_MAX_LENGTH
-    )
+    sessionInstanceId: Optional[str] = Field(default=None, max_length=Config.SESSION_INSTANCE_ID_MAX_LENGTH)

@@ -34,17 +34,22 @@ class TaskRunLease:
         self.task_mode = task_mode
         self.run_id = uuid4().hex
         self.lease_seconds = lease_seconds
-        self.renew_interval_seconds = min(
-            renew_interval_seconds, max(1, lease_seconds // 2)
-        )
+        self.renew_interval_seconds = min(renew_interval_seconds, max(1, lease_seconds // 2))
         self.previous_status = ""
         self.previous_task_mode = "normal"
         self.acquired = False
         self._renew_task: asyncio.Task | None = None
         self._stop_renewal = asyncio.Event()
         self._ownership_lost = asyncio.Event()
+        # FIX [M2]: Track the active stream task so the renew loop can cancel it
+        # when ownership is lost. Previously, ensure_owned() was only called on
+        # part yield, so a long-running tool call could continue mutating state
+        # after another stream stole the lease. Now the renew loop cancels the
+        # stream task immediately on ownership loss.
+        self._stream_task: asyncio.Task | None = None
 
     async def acquire(self) -> TaskRunAcquisition:
+        """Acquire the task-run lease and start the background renew loop."""
         store = get_conversation_task_state_store()
         worker = asyncio.create_task(
             asyncio.to_thread(
@@ -86,9 +91,7 @@ class TaskRunLease:
                 )
             raise
         if not result.acquired:
-            raise ConcurrentTaskRunError(
-                "Another request is already running for this conversation."
-            )
+            raise ConcurrentTaskRunError("Another request is already running for this conversation.")
         self.previous_status = result.previous_status
         self.previous_task_mode = result.previous_task_mode
         self.acquired = True
@@ -96,44 +99,48 @@ class TaskRunLease:
         return result
 
     async def reset_checkpoint(self) -> bool:
-        return await self._owned_transition(
-            "reset_task_checkpoint", self.task_mode, self.run_id
-        )
+        """Reset the active checkpoint under the current ownership."""
+        return await self._owned_transition("reset_task_checkpoint", self.task_mode, self.run_id)
 
     async def change_task_mode(self, task_mode: str) -> bool:
+        """Update the active task mode on the owned lease.
+
+        Args:
+            task_mode: New task mode to persist (``normal|tool_task|long_task``).
+        """
         self.task_mode = task_mode
-        return await self._owned_transition(
-            "update_task_mode", self.task_mode, self.run_id
-        )
+        return await self._owned_transition("update_task_mode", self.task_mode, self.run_id)
 
     async def pause(self) -> bool:
-        updated = await self._owned_transition(
-            "save_paused_task", self.task_mode, self.run_id
-        )
+        """Mark the active task as paused and stop the renew loop."""
+        updated = await self._owned_transition("save_paused_task", self.task_mode, self.run_id)
         if updated:
             self.acquired = False
             self._stop_renewal.set()
         return updated
 
     async def interrupt(self, reason: str) -> bool:
-        updated = await self._owned_transition(
-            "save_interrupted_task", self.task_mode, reason, self.run_id
-        )
+        """Persist an interrupted task state and stop the renew loop.
+
+        Args:
+            reason: Short machine-readable reason for the interruption.
+        """
+        updated = await self._owned_transition("save_interrupted_task", self.task_mode, reason, self.run_id)
         if updated:
             self.acquired = False
             self._stop_renewal.set()
         return updated
 
     async def complete(self) -> bool:
-        updated = await self._owned_transition(
-            "clear_task_status", self.task_mode, self.run_id
-        )
+        """Clear the active task status, marking the run as completed."""
+        updated = await self._owned_transition("clear_task_status", self.task_mode, self.run_id)
         if updated:
             self.acquired = False
             self._stop_renewal.set()
         return updated
 
     async def close(self) -> None:
+        """Stop the renew loop and cancel its background task if running."""
         self._stop_renewal.set()
         if self._renew_task is not None:
             self._renew_task.cancel()
@@ -144,15 +151,15 @@ class TaskRunLease:
             self._renew_task = None
 
     def ensure_owned(self) -> None:
+        """Raise ``RuntimeError`` if the lease was lost mid-stream."""
         if self._ownership_lost.is_set():
             raise RuntimeError("Task execution lease was lost; stream aborted safely.")
 
     async def _owned_transition(self, method_name: str, *args) -> bool:
+        """Invoke a task-state mutation only while ownership is still held."""
         store = get_conversation_task_state_store()
         method = getattr(store, method_name)
-        updated = await _await_thread_call(
-            method, self.conversation_id, *args
-        )
+        updated = await _await_thread_call(method, self.conversation_id, *args)
         if not updated:
             self._ownership_lost.set()
             self.acquired = False
@@ -160,6 +167,7 @@ class TaskRunLease:
         return True
 
     async def _renew_loop(self) -> None:
+        """Periodically renew the lease until stopped or ownership is lost."""
         store = get_conversation_task_state_store()
         while not self._stop_renewal.is_set():
             try:
@@ -186,6 +194,12 @@ class TaskRunLease:
                         self.conversation_id,
                         self.run_id,
                     )
+                    # FIX [M2]: Cancel the active stream task so it stops mutating
+                    # checkpoint and Firestore state immediately. Without this, the
+                    # in-flight astream continues until the next part yield, by which
+                    # point a concurrent stream may have already overwritten state.
+                    if self._stream_task is not None and not self._stream_task.done():
+                        self._stream_task.cancel()
                     return
             except Exception:
                 # A transient renewal failure is safe while the current lease is

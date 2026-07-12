@@ -260,7 +260,6 @@ const components = {
     styleOverrides: {
       // Inject animation keyframes globally
 
-
       '*, *::before, *::after': { boxSizing: 'border-box' },
 
       '*': {
@@ -786,8 +785,25 @@ const components = {
     },
     styleOverrides: {
       root: {
-        backgroundColor: alpha(H.text200, 0.08),
+        // Layered skeleton treatment for light mode: warm gray base + subtle
+        // top-edge highlight to suggest a sunken surface. Reads as "this is
+        // a placeholder for content" rather than a flat gray rectangle.
+        backgroundColor: alpha(H.text200, 0.07),
+        backgroundImage: `linear-gradient(
+          180deg,
+          ${alpha(H.text000, 0.025)} 0%,
+          ${alpha(H.text000, 0.012)} 40%,
+          transparent 100%
+        )`,
         borderRadius: SHAPE.radius.sm,
+        '&::after': {
+          background: `linear-gradient(
+            90deg,
+            transparent 0%,
+            ${alpha(H.text000, 0.06)} 50%,
+            transparent 100%
+          )`,
+        },
       },
     },
   },
@@ -858,11 +874,12 @@ const components = {
           color: '#ffffff',
           '& + .MuiSwitch-track': {
             opacity: 1,
-            backgroundColor: H.brand000,
+            // Green = "on / enabled / active". Semantic color for switches.
+            backgroundColor: H.success000,
           },
         },
         '&.Mui-focusVisible + .MuiSwitch-track': {
-          boxShadow: `0 0 0 4px ${alpha(H.brand000, 0.18)}`,
+          boxShadow: `0 0 0 4px ${alpha(H.success000, 0.2)}`,
         },
       },
       thumb: { boxShadow: 'none', width: 16, height: 16 },

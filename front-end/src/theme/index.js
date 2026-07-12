@@ -16,4 +16,4 @@ export { createDarkTheme } from '@/theme/darkTheme';
 export { createLightTheme } from '@/theme/lightTheme';
 
 // ─── Style utilities ──────────────────────────────────────────────────────────
-export { getMoonlitGradient, TRANSITIONS } from '@/theme/themeEffects';
+export { TRANSITIONS } from '@/theme/themeEffects';

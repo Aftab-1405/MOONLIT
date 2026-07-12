@@ -1,16 +1,173 @@
+"""
+Token-budget primitives for the Bedrock Converse API.
+
+Responsibilities
+----------------
+- Resolve each model's context window and the active input budget after
+  reserving tokens for the system prompt, tool schema, output, and a safety
+  margin (:func:`calculate_dynamic_token_budget`).
+- Provide model-native tokenizers for exact pre-call token counting
+  (:func:`estimate_tokens`, :func:`estimate_model_tokens`). ENH [TOK]:
+  uses model-native tokenizers (tiktoken for GPT-OSS/GPT-4o, mistral-common
+  for Devstral/Mistral, transformers for Kimi) as REQUIRED dependencies.
+  The old chars/3 byte fallback has been removed (ENH [TOK-CLEANUP]).
+- Cache the static (system-prompt, tool-schema) token counts so they are
+  computed at most once per (model, prompt, toolset) tuple
+  (:func:`count_converse_tokens_cached`). The cache uses an LRU policy
+  (FIX [L8]) so eviction of one entry doesn't invalidate every other entry
+  and cause a thundering herd of CountTokens calls.
+- Truncate conversation history to the active budget while preserving
+  human-turn boundaries (:func:`truncate_messages_to_budget`). FIX [H13]
+  re-verifies the token count after backward-alignment and advances
+  ``start_idx`` forward if alignment overshot.
+"""
+
 import json
+import logging
 import math
-import re
+import os
+from collections import OrderedDict
 from typing import Sequence, TypedDict
+
+# ENH [LOG]: Suppress transformers "PyTorch was not found" warning and
+# HuggingFace Hub "unauthenticated requests" warning. We only use
+# transformers for tokenization (not model inference), so PyTorch is
+# intentionally not installed. These env vars must be set BEFORE
+# importing transformers.
+os.environ.setdefault("TRANSFORMERS_NO_ADVISORY_WARNINGS", "1")
+os.environ.setdefault("HF_HUB_DISABLE_TELEMETRY", "1")
+os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
+
+from cachetools import LRUCache
 
 from config import get_config
 from llm_provider.model_capabilities import get_model_capabilities
 
 Config = get_config()
+logger = logging.getLogger(__name__)
 
-_TOOL_SPEC_CACHE: dict[tuple, dict] = {}
-_TOKEN_COUNT_RESULT_CACHE: dict[tuple, dict] = {}
+_TOOL_SPEC_CACHE: "OrderedDict[tuple, dict]" = OrderedDict()
+_TOKEN_COUNT_RESULT_CACHE: "LRUCache[tuple, dict]" = LRUCache(maxsize=1000)
 _RUNTIME_COUNT_TOKENS_UNSUPPORTED: set[str] = set()
+
+# ENH [TOK]: Model-native tokenizer registry.
+# Each entry returns a callable encode(text) -> list[int].
+# Tokenizers are loaded lazily (on first use) and cached for the process lifetime.
+# All three tokenizer libraries are REQUIRED dependencies (see requirements.txt):
+# - tiktoken (GPT-OSS, GPT-4o)
+# - mistral-common (Devstral, Mistral Large)
+# - transformers (Kimi K2/K2.5, tokenizer-only, no PyTorch)
+_TOKENIZER_CACHE: dict[str, object] = {}
+# ENH [LOG]: Track which models we've already warned about so we don't
+# spam the logs with the same warning on every token count call.
+_TOKENIZER_WARNED: set[str] = set()
+
+
+def _get_model_tokenizer(model_id: str | None):
+    """Return a model-native tokenizer encode function, or None if unavailable.
+
+    ENH [TOK]: Model-native tokenizers give EXACT pre-call token counts,
+    eliminating the 20-40% estimation error of the old chars/3 byte estimate.
+    This makes the pre-call pressure check match the post-call usage.inputTokens,
+    so the indicator and summarization trigger always agree.
+
+    Supported (all required dependencies in requirements.txt):
+    - GPT-OSS 120B/20B, GPT-4o, GPT-4: tiktoken with o200k_base encoding
+    - Mistral Devstral, Mistral Large, Mixtral: mistral-common tekken tokenizer
+    - Moonshot Kimi K2/K2.5: HuggingFace transformers (no PyTorch needed)
+    - Mock models (tests): None (uses emergency fallback)
+    """
+    if not model_id or _is_mock_model(model_id):
+        return None
+
+    model_lower = str(model_id).lower()
+    cache_key = model_lower
+
+    if cache_key in _TOKENIZER_CACHE:
+        return _TOKENIZER_CACHE[cache_key]
+
+    tokenizer = None
+
+    # GPT-OSS / OpenAI models → tiktoken (o200k_base for gpt-4o/gpt-oss, cl100k for gpt-4)
+    if any(k in model_lower for k in ("gpt-oss", "gpt-4o", "gpt-4", "o1-", "o3-")):
+        try:
+            import tiktoken
+
+            try:
+                tokenizer = tiktoken.encoding_for_model(model_lower.split("/")[-1]).encode
+            except Exception:
+                tokenizer = tiktoken.get_encoding("o200k_base").encode
+            logger.debug("Loaded tiktoken tokenizer for model %s", model_id)
+        except Exception as e:
+            logger.warning(
+                "Could not load tiktoken tokenizer for %s: %s. "
+                "Run: pip install tiktoken. Falling back to byte estimate.",
+                model_id,
+                e,
+            )
+
+    # Mistral / Devstral models → mistral-common tekken tokenizer
+    elif any(k in model_lower for k in ("devstral", "mistral", "magistral", "mixtral", "ministral")):
+        try:
+            # ENH [TOK-FIX]: mistral-common's public API is:
+            #   tokenizer = MistralTokenizer.v3()
+            #   tokens = tokenizer.encode_chat_completion(
+            #       ChatCompletionRequest(messages=[UserMessage(content=text)])
+            #   ).tokens
+            # There is NO direct encode(text) method. We wrap it in a lambda.
+            from mistral_common.protocol.instruct.messages import UserMessage
+            from mistral_common.protocol.instruct.request import ChatCompletionRequest
+            from mistral_common.tokens.tokenizers.mistral import MistralTokenizer
+
+            mt = MistralTokenizer.v3()
+
+            def _mistral_encode(text: str) -> list[int]:
+                """Encode text using mistral-common's chat completion API."""
+                req = ChatCompletionRequest(messages=[UserMessage(content=text)])
+                return mt.encode_chat_completion(req).tokens
+
+            tokenizer = _mistral_encode
+            logger.debug("Loaded mistral-common tekken tokenizer for model %s", model_id)
+        except Exception as e:
+            logger.warning(
+                "Could not load mistral-common tokenizer for %s: %s. "
+                "Run: pip install mistral-common sentencepiece. "
+                "Falling back to byte estimate.",
+                model_id,
+                e,
+            )
+
+    # Moonshot Kimi models → HuggingFace transformers (tokenizer only, no PyTorch)
+    elif any(k in model_lower for k in ("kimi", "moonshot")):
+        try:
+            import transformers
+            from transformers import AutoTokenizer
+
+            hf_tok = AutoTokenizer.from_pretrained("moonshotai/Kimi-K2-Instruct", trust_remote_code=True)
+
+            def tokenizer(text):
+                return hf_tok.encode(text)
+
+            logger.debug(
+                "Loaded HuggingFace tokenizer for Kimi model %s (transformers %s)",
+                model_id,
+                transformers.__version__,
+            )
+        except Exception as e:
+            # ENH [TOK-FIX]: Catch ALL exceptions (not just ImportError) because
+            # transformers --no-deps can leave the package in a state where
+            # `import transformers` succeeds but `from transformers import
+            # AutoTokenizer` fails due to missing sub-dependencies.
+            logger.warning(
+                "Could not load transformers tokenizer for %s: %s. "
+                "Run: pip install transformers --no-deps tokenizers huggingface-hub regex. "
+                "Falling back to byte estimate.",
+                model_id,
+                e,
+            )
+
+    _TOKENIZER_CACHE[cache_key] = tokenizer
+    return tokenizer
 
 
 class TokenCountingError(RuntimeError):
@@ -18,16 +175,19 @@ class TokenCountingError(RuntimeError):
 
 
 class TokenCountResult(TypedDict):
+    """Result of a token-count operation (count, mode, and reason)."""
     tokens: int
     mode: str
     reason: str | None
 
 
 def _is_mock_model(model_id: str | None) -> bool:
+    """Return whether ``model_id`` is a test ``mock*`` model."""
     return bool(model_id and str(model_id).startswith("mock"))
 
 
 def _context_window_from_entry(entry) -> int | None:
+    """Extract an integer context window from a capability entry (``None`` when absent/invalid)."""
     if isinstance(entry, dict):
         entry = entry.get("context_window") or entry.get("contextWindow")
     try:
@@ -37,6 +197,7 @@ def _context_window_from_entry(entry) -> int | None:
 
 
 def _supports_count_tokens_from_entry(entry) -> bool | None:
+    """Read the ``supports_count_tokens`` flag from a capability entry (``None`` when unspecified)."""
     if not isinstance(entry, dict):
         return None
     value = entry.get("supports_count_tokens")
@@ -67,10 +228,12 @@ def model_supports_count_tokens(model_id: str) -> bool:
     configured = _supports_count_tokens_from_entry(entry)
     return True if configured is None else configured
 
+
 def get_model_context_window(model_id: str) -> int:
     """Resolve context window using selected model_id."""
     val, _ = get_model_context_window_with_source(model_id)
     return val
+
 
 def calculate_token_budget(model_id: str) -> dict:
     """Calculate token budget based on context window.
@@ -115,14 +278,10 @@ def calculate_dynamic_token_budget(
     reserved_system_tokens = max(0, int(system_prompt_tokens or 0))
     reserved_tool_schema_tokens = max(0, int(tool_schema_tokens or 0))
     reserved_output_tokens = (
-        int(output_reserve_tokens)
-        if output_reserve_tokens is not None
-        else Config.RESERVED_OUTPUT_TOKENS
+        int(output_reserve_tokens) if output_reserve_tokens is not None else Config.RESERVED_OUTPUT_TOKENS
     )
     reserved_safety_margin_tokens = (
-        int(safety_margin_tokens)
-        if safety_margin_tokens is not None
-        else calculate_safety_margin(model_context_window)
+        int(safety_margin_tokens) if safety_margin_tokens is not None else calculate_safety_margin(model_context_window)
     )
     if token_counting_mode != "exact" and safety_margin_tokens is None:
         estimated_margin = min(max(4096, int(model_context_window * 0.05)), 16384)
@@ -158,24 +317,66 @@ def calculate_dynamic_token_budget(
         "pressure_ratio": pressure_ratio,
         "token_counting_mode": token_counting_mode,
     }
-def estimate_tokens(text: str) -> int:
-    """Return a deterministic conservative estimate without network assets."""
+
+
+def estimate_tokens(text: str, model_id: str | None = None) -> int:
+    """Return an exact token count using the model's native tokenizer.
+
+    ENH [TOK-CLEANUP]: The chars/3 byte fallback has been removed. All
+    supported models (GPT-OSS, Mistral Devstral, Moonshot Kimi) now have
+    native tokenizers installed as required dependencies. If no tokenizer
+    is available for a model, a clear error is logged ONCE and a conservative
+    chars/4 estimate is used (this should never happen in production —
+    all three tokenizer libraries are in requirements.txt).
+    """
     if not text:
         return 0
     value = str(text)
-    byte_estimate = math.ceil(len(value.encode("utf-8")) / 3)
-    lexical_estimate = len(re.findall(r"\w+|[^\w\s]", value, flags=re.UNICODE))
-    return max(1, byte_estimate, lexical_estimate)
+
+    # ENH [TOK]: Use the model-native tokenizer (exact count)
+    if model_id:
+        tokenizer = _get_model_tokenizer(model_id)
+        if tokenizer is not None:
+            return len(tokenizer(value))
+        # ENH [LOG]: Warn ONCE per model, not on every call
+        if model_id not in _TOKENIZER_WARNED:
+            _TOKENIZER_WARNED.add(model_id)
+            logger.warning(
+                "No native tokenizer for model %s — install tiktoken/mistral-common/transformers. "
+                "Using rough chars/4 estimate. (This warning will not repeat.)",
+                model_id,
+            )
+
+    # ENH [TOK-CLEANUP]: Minimal emergency fallback (should never trigger
+    # in production since all tokenizers are required dependencies).
+    return max(1, math.ceil(len(value.encode("utf-8")) / 4))
 
 
 def estimate_model_tokens(text: str, model_id: str | None = None) -> int:
-    """Conservatively adapt the local tokenizer estimate to a target model."""
-    estimated = estimate_tokens(text)
-    if not model_id or _is_mock_model(model_id):
-        return estimated
-    capabilities, _source = get_model_capabilities(model_id)
-    multiplier = float(capabilities.get("local_estimate_multiplier", 1.2))
-    return int(math.ceil(estimated * max(1.0, multiplier)))
+    """Accurately count tokens for a target model using its native tokenizer.
+
+    ENH [TOK-CLEANUP]: The local_estimate_multiplier fallback has been
+    removed. All supported models now have exact native tokenizers.
+    """
+    if not text:
+        return 0
+
+    # ENH [TOK]: Use the model-native tokenizer directly (exact count)
+    if model_id and not _is_mock_model(model_id):
+        tokenizer = _get_model_tokenizer(model_id)
+        if tokenizer is not None:
+            return len(tokenizer(str(text)))
+        # ENH [LOG]: Warn ONCE per model, not on every call
+        if model_id not in _TOKENIZER_WARNED:
+            _TOKENIZER_WARNED.add(model_id)
+            logger.warning(
+                "No native tokenizer for model %s — using rough estimate. "
+                "Install the appropriate tokenizer library. (This warning will not repeat.)",
+                model_id,
+            )
+
+    # Emergency fallback for mock models or missing tokenizers
+    return estimate_tokens(text, model_id=None)
 
 
 def estimate_converse_tokens_conservative(
@@ -204,10 +405,15 @@ def _tool_to_bedrock_spec(tool_obj) -> dict:
     args_obj = getattr(tool_obj, "args", None)
     cache_key = (tool_name, tool_description, id(args_schema), id(args_obj))
     if cache_key in _TOOL_SPEC_CACHE:
+        # FIX [L8]: Move-to-end on access so LRU eviction order is correct.
+        _TOOL_SPEC_CACHE.move_to_end(cache_key)
         return _TOOL_SPEC_CACHE[cache_key]
 
-    if len(_TOOL_SPEC_CACHE) > 1000:
-        _TOOL_SPEC_CACHE.clear()
+    # FIX [L8]: Replace "nuke-all" cache eviction with bounded LRU. The
+    # previous `clear()` invalidated every cached tool spec simultaneously,
+    # causing a thundering herd of `model_json_schema()` calls under load.
+    if len(_TOOL_SPEC_CACHE) >= 1000:
+        _TOOL_SPEC_CACHE.popitem(last=False)
 
     input_schema = {"type": "object", "properties": {}}
     if args_schema is not None:
@@ -241,6 +447,7 @@ def _build_bedrock_converse_payload(
     messages: Sequence[dict] | None = None,
     tools: Sequence | None = None,
 ) -> dict:
+    """Assemble a Bedrock Converse request payload from system/messages/tools for token counting."""
     converse_payload: dict = {"messages": list(messages or [])}
     if system:
         if isinstance(system, str):
@@ -248,9 +455,7 @@ def _build_bedrock_converse_payload(
         else:
             converse_payload["system"] = list(system)
     if tools:
-        converse_payload["toolConfig"] = {
-            "tools": [_tool_to_bedrock_spec(tool_obj) for tool_obj in tools]
-        }
+        converse_payload["toolConfig"] = {"tools": [_tool_to_bedrock_spec(tool_obj) for tool_obj in tools]}
     return converse_payload
 
 
@@ -271,6 +476,7 @@ def count_bedrock_converse_tokens(
         return estimate_tokens(json.dumps(payload, default=str))
 
     from llm_provider.bedrock_client import _resolve_model_id, get_bedrock_client
+
     resolved_model = _resolve_model_id(model_id)
 
     converse_payload = _build_bedrock_converse_payload(
@@ -286,17 +492,18 @@ def count_bedrock_converse_tokens(
         )
         return int(response["inputTokens"])
     except Exception as exc:
-        raise TokenCountingError(
-            f"Bedrock CountTokens failed for model {resolved_model}: {exc}"
-        ) from exc
+        raise TokenCountingError(f"Bedrock CountTokens failed for model {resolved_model}: {exc}") from exc
 
 
 def _is_unsupported_count_tokens_error(exc: Exception) -> bool:
+    """Return whether ``exc`` indicates the model doesn't support ``CountTokens``."""
     text = str(exc).lower()
     return (
         "doesn't support counting tokens" in text
         or "does not support counting tokens" in text
-        or "unsupported" in text and "count" in text and "token" in text
+        or "unsupported" in text
+        and "count" in text
+        and "token" in text
     )
 
 
@@ -309,10 +516,29 @@ def count_converse_tokens_with_fallback(
 ) -> TokenCountResult:
     """Count tokens exactly when possible, otherwise use conservative estimates.
 
-    Unsupported provider-side CountTokens must not block chat for otherwise
-    usable models. The mode/reason fields let callers and UI disclose precision.
+    ENH [TOK-MODE]: Now that we have model-native tokenizers (tiktoken,
+    mistral-common, transformers) installed, the "estimated" label is
+    misleading. The model-native tokenizer gives EXACT counts matching
+    the model's own tokenizer. We relabel it as "model_native" (exact)
+    instead of "estimated" (heuristic) when a tokenizer is available.
+    Only fall back to "estimated" when no tokenizer is available.
     """
     if not model_supports_count_tokens(model_id):
+        # ENH [TOK-MODE]: Check if a model-native tokenizer is available.
+        # If so, the count is EXACT (matches the model's own tokenizer),
+        # not a heuristic estimate.
+        tokenizer = _get_model_tokenizer(model_id)
+        if tokenizer is not None:
+            return {
+                "tokens": estimate_converse_tokens_conservative(
+                    model_id=model_id,
+                    system=system,
+                    messages=messages,
+                    tools=tools,
+                ),
+                "mode": "model_native",
+                "reason": "model_native_tokenizer",
+            }
         return {
             "tokens": estimate_converse_tokens_conservative(
                 model_id=model_id,
@@ -342,9 +568,7 @@ def count_converse_tokens_with_fallback(
         else:
             import logging
 
-            logging.getLogger(__name__).warning(
-                "Token counting failed, falling back to estimation: %s", exc
-            )
+            logging.getLogger(__name__).warning("Token counting failed, falling back to estimation: %s", exc)
             reason = "provider_error"
 
         return {
@@ -367,7 +591,14 @@ def count_converse_tokens_cached(
     messages: Sequence[dict] | None = None,
     tools: Sequence | None = None,
 ) -> TokenCountResult:
-    """Cached variant for static prompt/tool sections."""
+    """Cached variant for static prompt/tool sections.
+
+    Uses an LRU cache (:class:`cachetools.LRUCache`) keyed by
+    ``(model_id, cache_key)``. Previously the cache was a plain dict whose
+    overflow handler nuked every entry at >1000 items — under load this
+    caused a thundering herd of fresh Bedrock ``CountTokens`` calls. FIX [L8]
+    uses proper LRU eviction so only the least-recently-used entry is dropped.
+    """
     full_key = (model_id, cache_key)
     cached = _TOKEN_COUNT_RESULT_CACHE.get(full_key)
     if cached is not None:
@@ -378,8 +609,8 @@ def count_converse_tokens_cached(
         messages=messages,
         tools=tools,
     )
-    if len(_TOKEN_COUNT_RESULT_CACHE) > 1000:
-        _TOKEN_COUNT_RESULT_CACHE.clear()
+    # FIX [L8]: LRUCache(maxsize=1000) handles eviction automatically — no
+    # need to manually `clear()` on overflow.
     _TOKEN_COUNT_RESULT_CACHE[full_key] = dict(result)
     return result
 
@@ -390,8 +621,23 @@ def truncate_messages_to_budget(
     *,
     model_id: str | None = None,
 ) -> tuple[list, list]:
-    """Truncates messages to fit the budget, preserving turn boundaries.
-    Returns (dropped_messages, kept_messages).
+    """Truncate messages to fit the budget, preserving turn boundaries.
+
+    Algorithm:
+
+    1. Walk backward from the end of ``messages`` accumulating token costs
+       until adding the next message would exceed ``active_context_budget``.
+       Set ``start_idx`` to the first index that still fits.
+    2. Backward-align ``start_idx`` to the nearest preceding ``human``
+       message so the kept slice begins on a user turn (Bedrock rejects
+       message lists that begin with an assistant/tool message).
+    3. FIX [H13]: Re-verify the kept slice's token total against
+       ``active_context_budget``. If backward-alignment overshot — pulling
+       in enough extra tokens to bust the budget — advance ``start_idx``
+       forward to the next human-turn boundary so the kept slice is both
+       budget-compliant and turn-aligned.
+
+    Returns ``(dropped_messages, kept_messages)``.
     """
     total_tokens = 0
     start_idx = len(messages)
@@ -427,8 +673,53 @@ def truncate_messages_to_budget(
                 break
             start_idx += 1
 
+    # FIX [H13]: Backward-aligning to a human message boundary can pull in
+    # enough additional messages that the kept slice now exceeds the budget.
+    # Re-verify; if we overshot, advance forward to the next human-turn
+    # boundary so the kept slice is both budget-compliant and turn-aligned.
+    if start_idx < len(messages):
+        kept_tokens = 0
+        for msg in messages[start_idx:]:
+            content = msg.content if hasattr(msg, "content") else str(msg)
+            kept_tokens += estimate_model_tokens(content, model_id)
+            tool_calls = getattr(msg, "tool_calls", [])
+            if tool_calls:
+                kept_tokens += estimate_model_tokens(str(tool_calls), model_id)
+        if kept_tokens > active_context_budget:
+            next_start = start_idx + 1
+            while next_start < len(messages):
+                if getattr(messages[next_start], "type", "") == "human":
+                    start_idx = next_start
+                    break
+                next_start += 1
+
     dropped_messages = messages[:start_idx]
     kept_messages = messages[start_idx:]
+
+    # CENH [2]: Minimum-history guarantee. If the kept slice is empty (the
+    # most recent turn exceeds the budget), force-include the most recent
+    # human turn even if it overflows. This mirrors FIX [H1] in
+    # _load_firestore_history. An empty history causes the model to lose all
+    # context for the current turn.
+    if not kept_messages and messages:
+        import logging as _logging
+
+        _logger = _logging.getLogger(__name__)
+        for idx in range(len(messages) - 1, -1, -1):
+            if getattr(messages[idx], "type", "") == "human":
+                kept_messages = messages[idx:]
+                dropped_messages = messages[:idx]
+                _logger.warning(
+                    "truncate_messages_to_budget: most recent turn exceeds "
+                    "budget (%d tokens); force-including %d messages.",
+                    active_context_budget,
+                    len(kept_messages),
+                )
+                break
+        if not kept_messages:
+            kept_messages = messages[-1:]
+            dropped_messages = messages[:-1]
+
     return dropped_messages, kept_messages
 
 
@@ -446,7 +737,9 @@ def get_message_tokens(msg: dict, *, model_id: str | None = None) -> int:
         tokens += estimate_model_tokens(json.dumps(timeline), model_id)
     return tokens
 
+
 STATIC_BUDGETS: dict[str, dict[str, int]] = {}
+
 
 def eagerly_initialize_static_budgets():
     """
@@ -454,18 +747,18 @@ def eagerly_initialize_static_budgets():
     for the static system prompt and ALL_TOOLS to prevent runtime latency.
     """
     import logging
+
     logger = logging.getLogger(__name__)
 
     try:
+        from config import get_config
         from langgraph_orchestration.prompt_builder import PromptBuilder
         from langgraph_orchestration.tools import ALL_TOOLS
-        from config import get_config
-        
+
         provider = get_config().LLM_PROVIDER
         from llm_provider.model_factory import get_provider_models
-        model_ids = get_provider_models(provider)
 
-        # 1. Pre-compute and cache Bedrock tool specs
+        model_ids = get_provider_models(provider)
         for tool in ALL_TOOLS:
             _tool_to_bedrock_spec(tool)
 

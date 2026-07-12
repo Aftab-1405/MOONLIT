@@ -1,4 +1,23 @@
-"""Provider-agnostic chat-model construction and configuration."""
+"""Provider-agnostic chat-model construction and configuration.
+
+Model caching
+-------------
+``_get_cached_chat_model`` is ``@lru_cache``-d on
+``(provider, model, reasoning flag, reasoning effort, temperature, max_tokens)``
+so repeated chat requests for the same configuration reuse a single
+``ChatBedrockConverse`` instance instead of rebuilding boto3 clients per
+request. FIX [M23] ensures the cached instance does NOT bake in static
+AWS credentials — when ``AWS_ACCESS_KEY_ID`` is not set in the
+environment, the underlying ``ChatBedrockConverse`` is constructed
+without explicit credential kwargs so boto3's default credential chain
+resolves (and rotates) credentials on each call.
+
+Prewarming
+----------
+``prewarm_chat_models`` is called from the application lifespan to
+construct the configured model clients before accepting traffic, so the
+first user request doesn't pay the boto3 init cost.
+"""
 
 import logging
 from functools import lru_cache
@@ -28,6 +47,23 @@ def _reasoning_request_fields(
     enable_reasoning: bool,
     reasoning_effort: str,
 ) -> dict:
+    """Build provider-specific reasoning request fields for the model.
+
+    GPT-OSS models expose reasoning via an ``openai_effort`` style knob and
+    have no fully-disabled mode (``low`` is the documented minimum); other
+    models return an empty dict so the caller skips reasoning configuration.
+
+    Args:
+        model: Bedrock model ID used to look up ``reasoning_type``.
+        enable_reasoning: When ``False``, clamp GPT-OSS effort to ``low``.
+        reasoning_effort: One of ``"low"``, ``"medium"``, ``"high"``.
+
+    Returns:
+        A dict of additional model request fields (possibly empty).
+
+    Raises:
+        ValueError: If ``reasoning_effort`` is not a supported level.
+    """
     from llm_provider.model_capabilities import model_capability
 
     effort = str(reasoning_effort or "medium").lower()
@@ -50,6 +86,20 @@ def _get_cached_chat_model(
     temperature: float,
     max_tokens: int,
 ) -> BaseChatModel:
+    """Construct (and cache) a chat model for the given config tuple.
+
+    Caching is keyed on the user-visible knobs (provider, model, reasoning
+    flag, reasoning effort, temperature, max_tokens) so two requests with
+    the same config reuse one ``ChatBedrockConverse`` instance and its
+    underlying boto3 clients.
+
+    FIX [M23]: The cached instance does NOT bake in static AWS credentials
+    when ``AWS_ACCESS_KEY_ID`` is unset. The underlying
+    :func:`llm_provider.bedrock_client.init_chat_bedrock` defers to
+    boto3's default credential chain in that case, so temporary
+    credentials (e.g. from ``aws sso login``) rotate automatically
+    without invalidating this cache entry.
+    """
     from llm_provider.bedrock_client import init_chat_bedrock
 
     request_fields = _reasoning_request_fields(
@@ -75,7 +125,36 @@ def get_chat_model(
     temperature: float = 0.2,
     max_tokens: int | None = None,
 ) -> BaseChatModel:
-    """Return a reusable LangChain chat model for the requested configuration."""
+    """Return a reusable LangChain chat model for the requested configuration.
+
+    Only the ``bedrock`` provider is supported; other names log a warning and
+    fall back to Bedrock. The selected model is resolved via
+    :func:`get_default_model` when ``model`` is omitted, and the requested
+    ``max_tokens`` is clamped to the model's ``max_output_tokens`` capability.
+    The underlying client is cached by :func:`_get_cached_chat_model` so
+    repeated calls with the same configuration reuse one
+    ``ChatBedrockConverse`` instance.
+
+    Args:
+        provider: Provider name (case-insensitive); only ``"bedrock"`` is
+            supported. Other values are coerced to ``bedrock`` with a warning.
+        model: Optional explicit model ID. Defaults to the provider's first
+            configured model.
+        api_key: Unused — Bedrock uses the AWS credential provider chain.
+            Deliberately consumed and discarded (see inline comment).
+        enable_reasoning: Whether to enable reasoning for models that support it.
+        reasoning_effort: Reasoning effort level (``low``/``medium``/``high``).
+        temperature: Sampling temperature passed to the chat model.
+        max_tokens: Requested output-token cap. Clamped to the model's
+            ``max_output_tokens`` capability and to ``RESERVED_OUTPUT_TOKENS``
+            when ``None``.
+
+    Returns:
+        A cached :class:`BaseChatModel` (``ChatBedrockConverse`) instance.
+
+    Raises:
+        ValueError: If no model is configured for the requested provider.
+    """
     del api_key  # Bedrock uses the AWS credential provider chain.
     provider = provider.strip().lower()
     if provider != "bedrock":
@@ -92,9 +171,7 @@ def get_chat_model(
 
     config = get_config()
     requested_output = int(max_tokens or config.RESERVED_OUTPUT_TOKENS)
-    model_output_limit = int(
-        model_capability(selected_model, "max_output_tokens", requested_output)
-    )
+    model_output_limit = int(model_capability(selected_model, "max_output_tokens", requested_output))
     bounded_output = max(1, min(requested_output, model_output_limit))
     return _get_cached_chat_model(
         provider,
@@ -108,10 +185,23 @@ def get_chat_model(
 
 @lru_cache(maxsize=1)
 def get_supported_providers() -> tuple[str, ...]:
+    """Return the tuple of supported LLM provider names."""
     return ("bedrock",)
 
 
 def get_provider_models(provider: str) -> list[str]:
+    """Return the list of model IDs configured for ``provider``.
+
+    Reads the ``{PROVIDER}_MODELS`` config attribute (falling back to
+    :func:`get_default_model` when unset) and strips/normalizes each entry.
+
+    Args:
+        provider: Provider name (case-insensitive).
+
+    Returns:
+        A list of non-empty, stripped model IDs (possibly empty when no
+        models are configured).
+    """
     config = get_config()
     provider = provider.strip().lower()
     models = getattr(config, f"{provider.upper()}_MODELS", []) or []
@@ -134,7 +224,16 @@ def get_provider_api_key(provider: str) -> str | None:
 
 
 def prewarm_chat_models() -> None:
-    """Construct reusable provider clients/models before accepting traffic."""
+    """Construct reusable provider clients/models before accepting traffic.
+
+    Called from the FastAPI lifespan so the first user request doesn't pay
+    the boto3 client init cost (~hundreds of ms for the first STS call).
+    Each model is constructed via :func:`get_chat_model`, which consults
+    :func:`_get_cached_chat_model`'s LRU cache. FIX [M23] ensures the
+    prewarmed instances don't bake in static AWS credentials — when
+    ``AWS_ACCESS_KEY_ID`` is unset the underlying boto3 clients resolve
+    credentials from the default chain on each call.
+    """
     for provider in get_supported_providers():
         for model in get_provider_models(provider):
             try:

@@ -10,7 +10,10 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
-import { logout as logoutBackend, setSession as setBackendSession } from '@/api';
+import {
+  logoutAuthenticatedUserSession as logoutBackend,
+  setAuthenticatedUserSession as setBackendSession,
+} from '@/api';
 import { queryClient } from '@/api/queryClient';
 import {
   getFirebaseAuth,
@@ -20,12 +23,22 @@ import {
 } from '@/config/firebase';
 import logger from '@/utils/logger';
 
+/**
+ * Helper utility to check if the app is running on a mobile device.
+ * Used to decide between popup and redirect auth methods since popups
+ * are often blocked or have bad UX on mobile screens.
+ */
 const isMobileDevice = () => {
   return (
     /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
     window.innerWidth <= 768
   );
 };
+
+/**
+ * Standard Firebase Auth error code mappings.
+ * Translates Firebase technical error codes into user-friendly UI messages.
+ */
 const ERROR_MESSAGES = {
   'auth/email-already-in-use': 'Email already registered.',
   'auth/invalid-email': 'Invalid email address.',
@@ -40,10 +53,18 @@ const ERROR_MESSAGES = {
   'auth/account-exists-with-different-credential': 'Email exists with different sign-in method.',
 };
 
+/**
+ * Helper to retrieve a mapped friendly error message or default to the raw error message.
+ */
 const getErrorMessage = (error) => ERROR_MESSAGES[error.code] || error.message;
 
+// The core React Context object used to share authentication state.
 const AuthContext = createContext(null);
 
+/**
+ * Normalizes user details by merging Firebase Authentication attributes
+ * with any extra user details retrieved from the backend API session response.
+ */
 const normalizeAuthUser = (firebaseUser, backendUser = {}) => ({
   uid: backendUser.uid || firebaseUser.uid,
   email: backendUser.email || firebaseUser.email,
@@ -55,10 +76,16 @@ const normalizeAuthUser = (firebaseUser, backendUser = {}) => ({
   photoURL: backendUser.photoURL || backendUser.picture || firebaseUser.photoURL,
 });
 
+/**
+ * Helper to safely extract user information from the backend session payload.
+ */
 const getSessionUser = (sessionResponse) =>
   sessionResponse?.data?.user || sessionResponse?.user || {};
 
-// eslint-disable-next-line react-refresh/only-export-components -- Hook export alongside Provider is valid React pattern
+/**
+ * Custom hook to easily consume the authentication context values in pages/components.
+ * Ensures the consumer is wrapped in an AuthProvider.
+ */
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
@@ -67,81 +94,43 @@ export const useAuth = () => {
   return context;
 };
 
+/**
+ * Main AuthProvider component that wraps the application.
+ * Manages Firebase state, local storage, API handshake, and auth callbacks.
+ */
 export const AuthProvider = ({ children }) => {
-  const isMock = typeof window !== 'undefined' && window.__MOCK_AUTH__;
+  const [user, setUser] = useState(null); // Holds the active normalized user object or null
+  const [loading, setLoading] = useState(true); // Indicates if session verification is in progress
+  const [error, setError] = useState(null); // Holds the current sign-in/up error messages to display in UI
+  const [initialized, setInitialized] = useState(false); // Flag showing if Firebase Client SDK has finished initializing
 
-  const [mockUser, setMockUser] = useState(() => {
-    if (!isMock) return null;
-    if (window.__MOCK_AUTH_FLOW__) return null;
-    const uid = window.__MOCK_AUTH_ADMIN__ ? 'arLB46aCTxSU4DNHvjrdvctBUjK2' : 'mock-user-123';
-    return { uid, email: 'mock@example.com', displayName: 'Mock User' };
-  });
-
-  const mockValue = useMemo(() => {
-    if (!isMock) return null;
-    return {
-      loading: false,
-      isAuthenticated: !!mockUser,
-      user: mockUser,
-      logout: () => {
-        setMockUser(null);
-        return Promise.resolve();
-      },
-      signInWithGoogle: () => {
-        const u = {
-          uid: 'mock-user-123',
-          email: 'google-mock@example.com',
-          displayName: 'Mock Google User',
-        };
-        setMockUser(u);
-        return Promise.resolve(u);
-      },
-      signInWithEmail: (email) => {
-        const isAdmin = email?.includes('admin');
-        const uid = isAdmin ? 'arLB46aCTxSU4DNHvjrdvctBUjK2' : 'mock-user-123';
-        const u = {
-          uid,
-          email: email || 'mock@example.com',
-          displayName: isAdmin ? 'Admin User' : 'Mock User',
-        };
-        setMockUser(u);
-        return Promise.resolve(u);
-      },
-      signUpWithEmail: (email, _password, displayName) => {
-        const u = {
-          uid: 'mock-user-123',
-          email: email || 'mock@example.com',
-          displayName: displayName || 'Mock User',
-        };
-        setMockUser(u);
-        return Promise.resolve(u);
-      },
-      resetPassword: () => Promise.resolve(true),
-    };
-  }, [isMock, mockUser]);
-
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [initialized, setInitialized] = useState(false);
-
+  /**
+   * Handshake function: Takes the Firebase user token, passes it to the backend's
+   * /set_authenticated_user_session route to establish a secure backend cookie session, and normalizes the output.
+   */
   const establishBackendSession = useCallback(async (firebaseUser) => {
     const idToken = await firebaseUser.getIdToken();
     const sessionResponse = await setBackendSession({ idToken });
     return normalizeAuthUser(firebaseUser, getSessionUser(sessionResponse));
   }, []);
 
+  /**
+   * Main authentication initialization and listener hook.
+   * Runs once on app mount to verify redirects and listen to login state changes.
+   */
   useEffect(() => {
     let active = true;
 
     const init = async () => {
       try {
+        // Step 1: Initialize Firebase Configuration
         await initializeFirebase();
         if (active) setInitialized(true);
 
         const auth = getFirebaseAuth();
         if (auth) {
           try {
+            // Step 2: Retrieve the result of a redirect login (for mobile OAuth login flows)
             await getRedirectResult(auth);
           } catch (redirectError) {
             logger.error('Redirect result error:', redirectError);
@@ -149,9 +138,12 @@ export const AuthProvider = ({ children }) => {
               if (active) setError(getErrorMessage(redirectError));
             }
           }
+
+          // Step 3: Listen for login/logout state transitions from Firebase Client
           const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
             if (firebaseUser) {
               try {
+                // If logged in on Firebase, sync the session with the backend API
                 const sessionUser = await establishBackendSession(firebaseUser);
                 if (active) setUser(sessionUser);
               } catch (err) {
@@ -160,6 +152,7 @@ export const AuthProvider = ({ children }) => {
                   setUser(null);
                   setError('Unable to start a secure session. Please sign in again.');
                 }
+                // If backend session fails, log out client to keep states synchronized
                 try {
                   await signOut(auth);
                   await logoutBackend();
@@ -168,6 +161,7 @@ export const AuthProvider = ({ children }) => {
                 }
               }
             } else {
+              // User has logged out or token has expired
               if (active) setUser(null);
             }
             if (active) setLoading(false);
@@ -195,6 +189,11 @@ export const AuthProvider = ({ children }) => {
       cleanupPromise.then((cleanup) => cleanup?.());
     };
   }, [establishBackendSession]);
+
+  /**
+   * Action: Register a new user using Email and Password.
+   * Calls Firebase Auth, optionally updates the user's display name, and triggers onAuthStateChanged.
+   */
   const signUpWithEmail = useCallback(async (email, password, displayName = '') => {
     setError(null);
     try {
@@ -217,6 +216,10 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   }, []);
+
+  /**
+   * Action: Log in an existing user using Email and Password.
+   */
   const signInWithEmail = useCallback(async (email, password) => {
     setError(null);
     try {
@@ -234,6 +237,10 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   }, []);
+
+  /**
+   * Action: Trigger a password reset email via Firebase.
+   */
   const resetPassword = useCallback(async (email) => {
     setError(null);
     try {
@@ -251,6 +258,11 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   }, []);
+
+  /**
+   * Action: Authenticate using Google OAuth.
+   * Chooses redirect flow for mobile screens and popup dialog for desktop screens.
+   */
   const signInWithGoogle = useCallback(async () => {
     setError(null);
     try {
@@ -276,6 +288,11 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   }, []);
+
+  /**
+   * Action: Authenticate using GitHub OAuth.
+   * Chooses redirect flow for mobile screens and popup dialog for desktop screens.
+   */
   const signInWithGitHub = useCallback(async () => {
     setError(null);
     try {
@@ -301,6 +318,12 @@ export const AuthProvider = ({ children }) => {
       throw err;
     }
   }, []);
+
+  /**
+   * Action: Log out the active session.
+   * Signs out from the Firebase client, calls the backend's /logout_authenticated_user_session endpoint to clear cookies,
+   * resets user state to null, and flushes React Query cache so data is not leaked.
+   */
   const logout = useCallback(async () => {
     try {
       const auth = getFirebaseAuth();
@@ -308,16 +331,18 @@ export const AuthProvider = ({ children }) => {
         await signOut(auth);
       }
       await logoutBackend();
-      // Clear the React Query cache so stale data from this user cannot
-      // be seen by the next user or after re-login with a different account.
-      queryClient.clear();
+      queryClient.clear(); // Reset React Query cache to prevent stale user data exposure
       setUser(null);
     } catch (err) {
       logger.error('Logout error:', err);
       setError(getErrorMessage(err));
     }
   }, []);
+
+  // Utility to clear UI auth errors.
   const clearError = useCallback(() => setError(null), []);
+
+  // Memoized context payload value to prevent redundant renders.
   const value = useMemo(
     () => ({
       user,
@@ -347,10 +372,6 @@ export const AuthProvider = ({ children }) => {
       clearError,
     ],
   );
-
-  if (isMock) {
-    return <AuthContext.Provider value={mockValue}>{children}</AuthContext.Provider>;
-  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

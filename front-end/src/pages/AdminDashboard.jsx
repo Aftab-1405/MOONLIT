@@ -1,10 +1,12 @@
 import {
   Box,
   CircularProgress,
+  Collapse,
   Container,
   Fade,
   IconButton,
   LinearProgress,
+  ListItemButton,
   Tooltip,
   Typography,
 } from '@mui/material';
@@ -13,6 +15,7 @@ import {
   Activity,
   BarChart3,
   Check,
+  ChevronDown,
   Database,
   RefreshCw,
   Save,
@@ -381,6 +384,7 @@ function AdminDashboard() {
   const [apiHealth, setApiHealth] = useState({ online: false, latency: null, checking: true });
   const [metricsError, setMetricsError] = useState(null);
   const [ttlRemaining, setTtlRemaining] = useState(null);
+  const [redisExpanded, setRedisExpanded] = useState(false);
   const { user } = useAuth();
 
   const applyMetrics = useCallback((nextMetrics) => {
@@ -583,6 +587,33 @@ function AdminDashboard() {
     ],
     [dashboardData],
   );
+
+  const redisStats = useMemo(() => {
+    const redis = metrics?.redis || { connected: false };
+    return [
+      {
+        label: 'Connection',
+        value: redis.connected ? 'Online' : 'Offline',
+        detail: redis.connected
+          ? (redis.upstash_version ? 'Upstash Redis Server' : 'Standard Redis Server')
+          : 'Checkpointer offline',
+        icon: Server,
+        tone: redis.connected ? 'good' : 'warning',
+      },
+      {
+        label: 'Keys Stored',
+        value: redis.connected ? formatNumber(redis.total_keys) : '0',
+        detail: 'Total active checkpointer keys',
+        icon: Database,
+      },
+      {
+        label: 'Storage Size',
+        value: redis.connected ? (redis.total_data_size_human || redis.used_memory_human || '0 B') : '0 B',
+        detail: `Max capacity: ${redis.maxmemory_human || '64.00MB'}`,
+        icon: Zap,
+      },
+    ];
+  }, [metrics]);
 
   return (
     <Box
@@ -797,33 +828,113 @@ function AdminDashboard() {
                     </Box>
                   </Card>
                 </Box>
-                <Card sx={{ gridColumn: '1 / -1' }}>
-                  <CardHeader label="Operations" title="Cache movement" icon={Activity} />
-                  <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
-                    {operationStats.map((stat, index) => (
-                      <Box
-                        key={stat.label}
-                        sx={{
-                          gridColumn: { xs: 'span 12', sm: 'span 6', lg: 'span 3' },
-                          px: { xs: 0, sm: `${SPACE[4]}px` },
-                          borderLeft: {
-                            sm: index % 2 === 0 ? 'none' : '1px solid',
-                            lg: index === 0 ? 'none' : '1px solid',
-                          },
-                          borderLeftColor: 'divider',
-                          borderTop: {
-                            xs: index === 0 ? 'none' : '1px solid',
-                            sm: index < 2 ? 'none' : '1px solid',
-                            lg: 'none',
-                          },
-                          borderTopColor: 'divider',
-                        }}
-                      >
-                        <MetricRow {...stat} />
+                <Box sx={{ gridColumn: { xs: '1 / -1', lg: 'span 8' } }}>
+                  <Card sx={{ height: '100%' }}>
+                    <CardHeader label="Operations" title="Cache movement" icon={Activity} />
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
+                      {operationStats.map((stat, index) => (
+                        <Box
+                          key={stat.label}
+                          sx={{
+                            gridColumn: { xs: 'span 12', sm: 'span 6', lg: 'span 3' },
+                            px: { xs: 0, sm: `${SPACE[4]}px` },
+                            borderLeft: {
+                              sm: index % 2 === 0 ? 'none' : '1px solid',
+                              lg: index === 0 ? 'none' : '1px solid',
+                            },
+                            borderLeftColor: 'divider',
+                            borderTop: {
+                              xs: index === 0 ? 'none' : '1px solid',
+                              sm: index < 2 ? 'none' : '1px solid',
+                              lg: 'none',
+                            },
+                            borderTopColor: 'divider',
+                          }}
+                        >
+                          <MetricRow {...stat} />
+                        </Box>
+                      ))}
+                    </Box>
+                  </Card>
+                </Box>
+                <Box sx={{ gridColumn: { xs: '1 / -1', lg: 'span 4' } }}>
+                  <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                    <CardHeader label="Memory State" title="Redis telemetry" icon={Server} />
+                    <Box
+                      sx={{
+                        '& > *:not(:last-child)': {
+                          borderBottom: '1px solid',
+                          borderColor: 'divider',
+                        },
+                      }}
+                    >
+                      {redisStats.map((stat) => (
+                        <MetricRow key={stat.label} {...stat} />
+                      ))}
+                    </Box>
+                    {metrics?.redis?.connected && (
+                      <Box sx={{ mt: 'auto', pt: `${SPACE[3]}px` }}>
+                        <ListItemButton
+                          onClick={() => setRedisExpanded(!redisExpanded)}
+                          sx={{
+                            py: `${SPACE[2]}px`,
+                            px: `${SPACE[3]}px`,
+                            borderRadius: '6px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            bgcolor: (theme) => alpha(theme.palette.text.primary, 0.02),
+                            '&:hover': {
+                              bgcolor: (theme) => alpha(theme.palette.text.primary, 0.04),
+                            },
+                          }}
+                        >
+                          <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>
+                            Advanced telemetry
+                          </Typography>
+                          <ChevronDown
+                            size={16}
+                            style={{
+                              transform: redisExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                              transition: 'transform 0.2s ease',
+                              color: 'var(--mui-palette-text-secondary)',
+                            }}
+                          />
+                        </ListItemButton>
+                        <Collapse in={redisExpanded} timeout={200}>
+                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${SPACE[2]}px`, mt: `${SPACE[2]}px` }}>
+                            {[
+                              { label: 'Client count', value: `${metrics.redis.connected_clients} active` },
+                              { label: 'Redis version', value: metrics.redis.redis_version },
+                              { label: 'Upstash version', value: metrics.redis.upstash_version || 'N/A' },
+                              { label: 'Max memory limit', value: metrics.redis.maxmemory_human || 'N/A' },
+                            ].map((item) => (
+                              <Box
+                                key={item.label}
+                                sx={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  p: 1,
+                                  backgroundColor: (theme) => alpha(theme.palette.text.primary, 0.01),
+                                  border: '1px solid',
+                                  borderColor: (theme) => alpha(theme.palette.text.primary, 0.04),
+                                  borderRadius: '6px',
+                                }}
+                              >
+                                <Typography sx={{ fontSize: 11.5, color: 'text.secondary', fontFamily: FONT_MONO }}>
+                                  {item.label}
+                                </Typography>
+                                <Typography sx={{ fontSize: 11.5, color: 'text.primary', fontWeight: 600, fontFamily: FONT_MONO }}>
+                                  {item.value}
+                                </Typography>
+                              </Box>
+                            ))}
+                          </Box>
+                        </Collapse>
                       </Box>
-                    ))}
-                  </Box>
-                </Card>
+                    )}
+                  </Card>
+                </Box>
               </Box>
             )}
           </Box>

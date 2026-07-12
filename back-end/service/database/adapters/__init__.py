@@ -7,9 +7,9 @@ SQL Server, Oracle) using the Adapter Pattern.
 
 from .base_adapter import BaseDatabaseAdapter
 from .mysql_adapter import MySQLAdapter
+from .oracle_adapter import OracleAdapter
 from .postgresql_adapter import PostgreSQLAdapter
 from .sqlserver_adapter import SQLServerAdapter
-from .oracle_adapter import OracleAdapter
 
 __all__ = [
     "BaseDatabaseAdapter",
@@ -42,8 +42,6 @@ def get_adapter(db_type: str) -> BaseDatabaseAdapter:
 
     db_type = db_type.lower()
     if db_type not in adapters:
-        raise ValueError(
-            f"Unsupported database type: {db_type}. Supported types: {', '.join(adapters.keys())}"
-        )
+        raise ValueError(f"Unsupported database type: {db_type}. Supported types: {', '.join(adapters.keys())}")
 
     return adapters[db_type]()

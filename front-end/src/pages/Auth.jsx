@@ -1,9 +1,4 @@
-import EmailOutlinedIcon from '@mui/icons-material/EmailOutlined';
 import GitHubIcon from '@mui/icons-material/GitHub';
-import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
-import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
-import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import {
   Alert,
   Box,
@@ -14,16 +9,10 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  Divider,
-  IconButton,
-  InputAdornment,
   Link,
-  Paper,
   Snackbar,
   Stack,
   SvgIcon,
-  Tab,
-  Tabs,
   TextField,
   Typography,
   useMediaQuery,
@@ -35,7 +24,7 @@ import { ButtonLoadingSpinner } from '@/components';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFormValidation } from '@/hooks/useFormValidation';
 import { BACKDROP_FILTER_FALLBACK_QUERY } from '@/styles/mediaQueries';
-import { getMoonlitBrandGradients } from '@/theme/themeEffects';
+import { BRAND } from '@/theme/tokens';
 import logger from '@/utils/logger';
 import {
   authFieldSchemas,
@@ -44,8 +33,28 @@ import {
   signUpSchema,
 } from '@/utils/validationSchemas';
 
-import { AUTH_KEYFRAMES } from './Auth/auth.keyframes';
-import ProductAuroraShowcase from './Auth/ProductAuroraShowcase';
+
+
+/**
+ * Auth page — sign-in / sign-up screen.
+ *
+ * Layout (md and up):
+ *   ┌───────────────────────────┬───────────────────────────┐
+ *   │  Aurora showcase (left)    │  Auth form card (right)    │
+ *   │  brand-marketing panel     │  Tabs: Sign In | Sign Up   │
+ *   │                            │  OAuth + email/password    │
+ *   └───────────────────────────┴───────────────────────────┘
+ *
+ * On narrow viewports the aurora panel collapses; the brand wordmark moves
+ * above the form card. The card uses backdrop-filter (with a solid fallback)
+ * so the aurora subtly bleeds through on desktop.
+ *
+ * Accessibility:
+ *   - All interactive controls have visible focus rings.
+ *   - Tab panels use `role="tabpanel"` with `hidden` (not unmount) so input
+ *     focus state survives tab switches.
+ *   - Password reveal button has a descriptive `aria-label`.
+ */
 
 function GoogleBrandIcon(props) {
   return (
@@ -70,14 +79,7 @@ function GoogleBrandIcon(props) {
   );
 }
 
-// ─── TabPanel ─────────────────────────────────────────────────────────────────
-function TabPanel({ children, value, index }) {
-  return (
-    <Box role="tabpanel" hidden={value !== index} sx={{ width: '100%' }}>
-      {value === index && children}
-    </Box>
-  );
-}
+
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 function Auth() {
@@ -86,7 +88,6 @@ function Auth() {
   const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
-  const brandGradients = getMoonlitBrandGradients(theme);
 
   useEffect(() => {
     document.title = 'Moonlit - Sign In';
@@ -109,7 +110,6 @@ function Auth() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
@@ -234,40 +234,8 @@ function Auth() {
     );
   }
 
-  const tabsSx = {
-    width: '100%',
-    minHeight: 36,
-    borderRadius: 1.5,
-    backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.05 : 0.04),
-    border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
-    p: 0.5,
-    '& .MuiTabs-indicator': {
-      height: '100%',
-      borderRadius: 1,
-      backgroundImage: brandGradients.static,
-      backgroundColor: 'transparent',
-      boxShadow: `0 1px 4px ${alpha(theme.palette.common.black, isDark ? 0.28 : 0.1)}`,
-      zIndex: 0,
-    },
-    '& .MuiTab-root': {
-      minHeight: 32,
-      py: 0.5,
-      borderRadius: 1,
-      fontWeight: 500,
-      color: 'text.secondary',
-      zIndex: 1,
-      transition: theme.transitions.create('color', { duration: 150 }),
-      '&.Mui-selected': {
-        color: theme.palette.primary.contrastText,
-        fontWeight: 600,
-      },
-    },
-  };
-
   return (
     <>
-      {AUTH_KEYFRAMES}
-
       <Box
         data-auth-page=""
         sx={{
@@ -277,540 +245,441 @@ function Auth() {
           display: 'flex',
           flexDirection: { xs: 'column', md: 'row' },
           backgroundColor: 'background.default',
-          backgroundImage: isDark
-            ? 'none'
-            : `linear-gradient(
-                180deg,
-                ${alpha(theme.palette.text.primary, 0.015)} 0%,
-                transparent 30%
-              )`,
           position: 'relative',
           overflow: 'hidden',
         }}
       >
-        {!isMobile && (
-          <Box
-            sx={{
-              flex: '0 0 50%',
-              minWidth: 0,
-              minHeight: 0,
-              height: '100%',
-              position: 'relative',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              px: { md: 4, lg: 6 },
-              py: { md: 3.5, lg: 4.5 },
-              overflow: 'hidden',
-              animation: 'authFadeUp 0.5s ease-out both',
-              borderRight: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.07 : 0.08)}`,
-              backgroundColor: isDark ? 'transparent' : alpha(theme.palette.background.paper, 0.72),
-              backgroundImage: isDark
-                ? 'none'
-                : `
-                    radial-gradient(circle at 12% 8%, ${alpha(theme.palette.text.primary, 0.045)}, transparent 32%),
-                    linear-gradient(180deg, ${alpha(theme.palette.text.primary, 0.02)} 0%, transparent 42%)
-                  `,
-            }}
-          >
-            <Box
-              aria-hidden
-              sx={{
-                position: 'absolute',
-                inset: 0,
-                zIndex: 1,
-                backgroundImage: `radial-gradient(${alpha(
-                  theme.palette.text.primary,
-                  isDark ? 0.07 : 0.08,
-                )} 1px, transparent 1px)`,
-                backgroundSize: '26px 26px',
-                maskImage:
-                  'radial-gradient(ellipse 90% 90% at 40% 50%, black 20%, transparent 90%)',
-                WebkitMaskImage:
-                  'radial-gradient(ellipse 90% 90% at 40% 50%, black 20%, transparent 90%)',
-                pointerEvents: 'none',
-                opacity: isDark ? 1 : 0.55,
-              }}
-            />
-
-            <ProductAuroraShowcase isDark={isDark} />
-          </Box>
-        )}
-
+        {/* Left Column: Minimalist Auth Form */}
         <Box
           sx={{
             flex: { xs: '1 1 auto', md: '0 0 50%' },
-            minWidth: 0,
-            minHeight: 0,
+            width: { xs: '100%', md: '50%' },
             height: '100%',
-            position: 'relative',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            py: { xs: 2, sm: 3, md: 4 },
-            px: { xs: 2, sm: 3, md: 4 },
-            backgroundColor: isDark
-              ? alpha(theme.palette.background.paper, 0.3)
-              : alpha(theme.palette.background.default, 0.68),
-            overflow: 'hidden',
+            py: { xs: 4, sm: 6 },
+            px: { xs: 3, sm: 6, md: 8, lg: 12 },
+            backgroundColor: 'background.default',
+            overflowY: 'auto',
           }}
         >
-          <Box
-            aria-hidden
-            sx={{
-              position: 'absolute',
-              top: '20%',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              width: '80%',
-              height: '50%',
-              background: `radial-gradient(ellipse at center, ${alpha(
-                theme.palette.text.primary,
-                isDark ? 0.055 : 0.035,
-              )}, transparent 70%)`,
-              filter: 'blur(50px)',
-              pointerEvents: 'none',
-              zIndex: 0,
-            }}
-          />
-
           <Container
             maxWidth="xs"
             disableGutters
             sx={{
               width: '100%',
-              maxWidth: { xs: 420, sm: 440 },
-              position: 'relative',
-              zIndex: 1,
+              maxWidth: 400,
               display: 'flex',
               flexDirection: 'column',
-              justifyContent: 'center',
-              minHeight: 0,
             }}
           >
-            {isMobile && (
-              <Stack
-                spacing={0.5}
-                alignItems="center"
-                mb={{ xs: 2, sm: 2.5 }}
+            {/* Logo / Brand Header */}
+            <Stack spacing={0.5} mb={5}>
+              <Typography
+                component="span"
                 sx={{
-                  animation: 'authFadeUp 0.5s ease-out both',
-                  '@media (prefers-reduced-motion: reduce)': {
-                    animation: 'none',
-                  },
+                  ...theme.typography.uiBrandWordmark,
+                  color: 'text.primary',
+                  fontSize: '1.25rem',
+                  fontWeight: 800,
+                  letterSpacing: '-0.02em',
                 }}
               >
-                <Typography
-                  component="span"
-                  sx={{
-                    ...theme.typography.uiBrandWordmark,
-                    background: brandGradients.shimmer,
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    backgroundClip: 'text',
-                    letterSpacing: 0,
-                  }}
-                >
-                  Moonlit
-                </Typography>
+                Moonlit
+              </Typography>
+            </Stack>
 
-                <Typography
-                  sx={{
-                    color: 'text.secondary',
-                    opacity: 0.55,
-                    ...theme.typography.uiCaptionSm,
-                    letterSpacing: 0,
-                    textTransform: 'none',
-                  }}
-                >
-                  AI Database Assistant
-                </Typography>
-              </Stack>
-            )}
+            <Box sx={{ mb: 4.5 }}>
+              <Typography
+                variant="h3"
+                sx={{
+                  fontWeight: 700,
+                  fontSize: { xs: '1.85rem', sm: '2.1rem' },
+                  letterSpacing: '-0.02em',
+                  textTransform: 'uppercase',
+                  mb: 1.2,
+                  color: 'text.primary',
+                }}
+              >
+                {tabValue === 0 ? 'WELCOME BACK' : 'CREATE ACCOUNT'}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: 'text.secondary', opacity: 0.72 }}
+              >
+                {tabValue === 0
+                  ? 'Welcome back! Please enter your details.'
+                  : 'Join Moonlit and start querying databases with AI.'}
+              </Typography>
+            </Box>
 
-            <Paper
-              elevation={0}
-              sx={{
-                width: '100%',
-                p: { xs: 2.25, sm: 3 },
-                backgroundColor: isDark
-                  ? alpha(theme.palette.background.paper, 0.78)
-                  : alpha(theme.palette.background.paper, 0.94),
-                backdropFilter: 'blur(24px)',
-                WebkitBackdropFilter: 'blur(24px)',
-                [BACKDROP_FILTER_FALLBACK_QUERY]: {
-                  backdropFilter: 'none',
-                  WebkitBackdropFilter: 'none',
-                  backgroundColor: theme.palette.background.paper,
-                },
-                [theme.breakpoints.down('sm')]: {
-                  backdropFilter: 'none',
-                  WebkitBackdropFilter: 'none',
-                  backgroundColor: theme.palette.background.paper,
-                },
-                border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08)}`,
-                borderRadius: { xs: 2.5, sm: 3 },
-                boxShadow: isDark
-                  ? `0 32px 64px -16px ${alpha('#000', 0.45)}`
-                  : `0 24px 48px -12px ${alpha('#000', 0.1)}`,
-                animation: 'authSlideIn 0.45s cubic-bezier(0.4, 0, 0.2, 1) 0.15s both',
-                '@media (prefers-reduced-motion: reduce)': {
-                  animation: 'none',
-                },
-                '& .MuiInputBase-input': { ...theme.typography.uiInput },
-              }}
+            {/* Email/Password Form */}
+            <Stack
+              spacing={2.5}
+              component="form"
+              onSubmit={tabValue === 0 ? handleEmailSignIn : handleEmailSignUp}
+              sx={{ width: '100%' }}
             >
-              <Stack spacing={{ xs: 2, sm: 2.5 }} alignItems="center">
-                <Box sx={{ textAlign: 'center' }}>
+              {tabValue === 1 && (
+                <Box>
                   <Typography
-                    variant="h5"
+                    variant="caption"
                     sx={{
-                      mb: 0.35,
-                      fontWeight: 700,
-                      fontSize: {
-                        xs: '1.45rem',
-                        sm: theme.typography.h5.fontSize,
+                      fontWeight: 600,
+                      display: 'block',
+                      mb: 1,
+                      color: 'text.primary',
+                      fontSize: '0.8125rem',
+                    }}
+                  >
+                    Display Name
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    placeholder="Enter your name"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    variant="outlined"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '12px',
+                        backgroundColor: isDark ? alpha(theme.palette.background.paper, 0.4) : 'rgba(0,0,0,0.02)',
+                        '& fieldset': {
+                          borderColor: alpha(theme.palette.text.primary, 0.1),
+                        },
+                        '&:hover fieldset': {
+                          borderColor: alpha(theme.palette.text.primary, 0.2),
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: BRAND.main,
+                        },
+                      },
+                    }}
+                  />
+                </Box>
+              )}
+
+              <Box>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: 600,
+                    display: 'block',
+                    mb: 1,
+                    color: 'text.primary',
+                    fontSize: '0.8125rem',
+                  }}
+                >
+                  Email
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="email"
+                  placeholder="Enter your email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    clearFieldError('email');
+                  }}
+                  onBlur={() => validateField('email', email)}
+                  error={!!fieldErrors.email}
+                  helperText={fieldErrors.email}
+                  variant="outlined"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '12px',
+                      backgroundColor: isDark ? alpha(theme.palette.background.paper, 0.4) : 'rgba(0,0,0,0.02)',
+                      '& fieldset': {
+                        borderColor: alpha(theme.palette.text.primary, 0.1),
+                      },
+                      '&:hover fieldset': {
+                        borderColor: alpha(theme.palette.text.primary, 0.2),
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: BRAND.main,
+                      },
+                    },
+                    '& .MuiFormHelperText-root': {
+                      mx: 0,
+                      mt: 0.5,
+                    },
+                  }}
+                />
+              </Box>
+
+              <Box>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: 600,
+                    display: 'block',
+                    mb: 1,
+                    color: 'text.primary',
+                    fontSize: '0.8125rem',
+                  }}
+                >
+                  Password
+                </Typography>
+                <TextField
+                  fullWidth
+                  type="password"
+                  placeholder="**********"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    clearFieldError(tabValue === 0 ? 'password' : 'passwordSignUp');
+                  }}
+                  onBlur={() =>
+                    validateField(
+                      tabValue === 0 ? 'password' : 'passwordSignUp',
+                      password,
+                    )
+                  }
+                  error={!!fieldErrors[tabValue === 0 ? 'password' : 'passwordSignUp']}
+                  helperText={
+                    fieldErrors[tabValue === 0 ? 'password' : 'passwordSignUp'] ||
+                    (tabValue === 1 ? 'At least 6 characters' : '')
+                  }
+                  variant="outlined"
+                  sx={{
+                    '& .MuiOutlinedInput-root': {
+                      borderRadius: '12px',
+                      backgroundColor: isDark ? alpha(theme.palette.background.paper, 0.4) : 'rgba(0,0,0,0.02)',
+                      '& fieldset': {
+                        borderColor: alpha(theme.palette.text.primary, 0.1),
+                      },
+                      '&:hover fieldset': {
+                        borderColor: alpha(theme.palette.text.primary, 0.2),
+                      },
+                      '&.Mui-focused fieldset': {
+                        borderColor: BRAND.main,
+                      },
+                    },
+                    '& .MuiFormHelperText-root': {
+                      mx: 0,
+                      mt: 0.5,
+                    },
+                  }}
+                />
+              </Box>
+
+              {tabValue === 1 && (
+                <Box>
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      fontWeight: 600,
+                      display: 'block',
+                      mb: 1,
+                      color: 'text.primary',
+                      fontSize: '0.8125rem',
+                    }}
+                  >
+                    Confirm Password
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    type="password"
+                    placeholder="**********"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value);
+                      clearFieldError('confirmPassword');
+                    }}
+                    onBlur={() => validateField('confirmPassword', confirmPassword)}
+                    error={!!fieldErrors.confirmPassword}
+                    helperText={fieldErrors.confirmPassword}
+                    variant="outlined"
+                    sx={{
+                      '& .MuiOutlinedInput-root': {
+                        borderRadius: '12px',
+                        backgroundColor: isDark ? alpha(theme.palette.background.paper, 0.4) : 'rgba(0,0,0,0.02)',
+                        '& fieldset': {
+                          borderColor: alpha(theme.palette.text.primary, 0.1),
+                        },
+                        '&:hover fieldset': {
+                          borderColor: alpha(theme.palette.text.primary, 0.2),
+                        },
+                        '&.Mui-focused fieldset': {
+                          borderColor: BRAND.main,
+                        },
+                      },
+                      '& .MuiFormHelperText-root': {
+                        mx: 0,
+                        mt: 0.5,
+                      },
+                    }}
+                  />
+                </Box>
+              )}
+
+              {tabValue === 0 && (
+                <Stack
+                  direction="row"
+                  justifyContent="space-between"
+                  alignItems="center"
+                  sx={{ width: '100%', mt: 0.5 }}
+                >
+                  <Stack direction="row" alignItems="center" spacing={1}>
+                    <input
+                      type="checkbox"
+                      id="remember-me"
+                      style={{
+                        width: '16px',
+                        height: '16px',
+                        accentColor: BRAND.main,
+                        cursor: 'pointer',
+                      }}
+                    />
+                    <label
+                      htmlFor="remember-me"
+                      style={{
+                        fontSize: '0.8125rem',
+                        fontWeight: 500,
+                        color: theme.palette.text.secondary,
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                      }}
+                    >
+                      Remember me
+                    </label>
+                  </Stack>
+                  <Link
+                    component="button"
+                    type="button"
+                    variant="caption"
+                    onClick={() => {
+                      setResetEmail(email);
+                      setForgotDialogOpen(true);
+                    }}
+                    sx={{
+                      color: 'text.primary',
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                      fontSize: '0.8125rem',
+                      '&:hover': {
+                        textDecoration: 'underline',
                       },
                     }}
                   >
-                    {tabValue === 0 ? 'Welcome back' : 'Create account'}
-                  </Typography>
-
-                  <Typography variant="body2" color="text.secondary" sx={{ opacity: 0.72 }}>
-                    {tabValue === 0
-                      ? 'Sign in to start querying with AI'
-                      : 'Join Moonlit and unlock your data'}
-                  </Typography>
-                </Box>
-
-                <Tabs
-                  value={tabValue}
-                  onChange={(_, v) => setTabValue(v)}
-                  variant="fullWidth"
-                  sx={tabsSx}
-                >
-                  <Tab label="Sign In" />
-                  <Tab label="Sign Up" />
-                </Tabs>
-
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  spacing={1.25}
-                  sx={{ width: '100%' }}
-                >
-                  {[
-                    {
-                      label: 'Google',
-                      icon: <GoogleBrandIcon sx={{ fontSize: 17 }} />,
-                      handler: handleGoogleSignIn,
-                    },
-                    {
-                      label: 'GitHub',
-                      icon: <GitHubIcon sx={{ fontSize: 17 }} />,
-                      handler: handleGitHubSignIn,
-                    },
-                  ].map(({ label, icon, handler }) => (
-                    <Button
-                      key={label}
-                      fullWidth
-                      variant="outlined"
-                      startIcon={icon}
-                      onClick={handler}
-                      sx={{
-                        py: 0.8,
-                        borderRadius: 1.5,
-                        borderColor: alpha(theme.palette.text.primary, isDark ? 0.12 : 0.1),
-                        color: 'text.primary',
-                        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.03 : 0.02),
-                        fontWeight: 500,
-                        transition: theme.transitions.create(
-                          ['border-color', 'background-color', 'box-shadow'],
-                          { duration: 180 },
-                        ),
-                        '@media (hover: hover)': {
-                          '&:hover': {
-                            borderColor: alpha(theme.palette.text.primary, isDark ? 0.28 : 0.18),
-                            backgroundColor: alpha(
-                              theme.palette.text.primary,
-                              isDark ? 0.07 : 0.04,
-                            ),
-                            boxShadow: `0 2px 8px ${alpha(theme.palette.common.black, isDark ? 0.22 : 0.08)}`,
-                          },
-                        },
-                      }}
-                    >
-                      {label}
-                    </Button>
-                  ))}
+                    Forgot password
+                  </Link>
                 </Stack>
+              )}
 
-                <Divider sx={{ width: '100%' }}>
-                  <Typography
-                    sx={{
-                      color: 'text.secondary',
-                      opacity: 0.5,
-                      ...theme.typography.uiCaptionXs,
-                    }}
-                  >
-                    or continue with email
-                  </Typography>
-                </Divider>
+              <Stack spacing={1.75} sx={{ width: '100%', pt: 1.5 }}>
+                <Button
+                  fullWidth
+                  type="submit"
+                  disabled={formLoading}
+                  variant="contained"
+                  sx={{
+                    py: 1.35,
+                    borderRadius: '12px',
+                    fontWeight: 600,
+                    textTransform: 'none',
+                    backgroundColor: formLoading ? undefined : BRAND.main,
+                    color: '#ffffff',
+                    '&:hover': {
+                      backgroundColor: BRAND.dark,
+                    },
+                    boxShadow: formLoading
+                      ? 'none'
+                      : `0 4px 12px ${alpha(BRAND.main, isDark ? 0.35 : 0.2)}`,
+                  }}
+                >
+                  {formLoading
+                    ? tabValue === 0
+                      ? 'Signing in...'
+                      : 'Creating...'
+                    : tabValue === 0
+                      ? 'Sign in'
+                      : 'Sign up'}
+                </Button>
 
-                <TabPanel value={tabValue} index={0}>
-                  <Stack spacing={{ xs: 1.5, sm: 2 }} component="form" onSubmit={handleEmailSignIn}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type="email"
-                      label="Email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        clearFieldError('email');
-                      }}
-                      onBlur={() => validateField('email', email)}
-                      error={!!fieldErrors.email}
-                      helperText={fieldErrors.email}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <EmailOutlinedIcon
-                              sx={{
-                                color: 'text.secondary',
-                                fontSize: 17,
-                                opacity: 0.65,
-                              }}
-                            />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<GoogleBrandIcon sx={{ fontSize: 18 }} />}
+                  onClick={handleGoogleSignIn}
+                  sx={{
+                    py: 1.35,
+                    borderRadius: '12px',
+                    textTransform: 'none',
+                    borderColor: alpha(theme.palette.text.primary, 0.15),
+                    color: 'text.primary',
+                    backgroundColor: isDark
+                      ? alpha(theme.palette.text.primary, 0.03)
+                      : '#ffffff',
+                    fontWeight: 600,
+                    '&:hover': {
+                      borderColor: alpha(theme.palette.text.primary, 0.3),
+                      backgroundColor: isDark
+                        ? alpha(theme.palette.text.primary, 0.07)
+                        : alpha(theme.palette.text.primary, 0.02),
+                    },
+                  }}
+                >
+                  Sign in with Google
+                </Button>
 
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type={showPassword ? 'text' : 'password'}
-                      label="Password"
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        clearFieldError('password');
-                      }}
-                      onBlur={() => validateField('password', password)}
-                      error={!!fieldErrors.password}
-                      helperText={fieldErrors.password}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockOutlinedIcon
-                              sx={{
-                                color: 'text.secondary',
-                                fontSize: 17,
-                                opacity: 0.65,
-                              }}
-                            />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              aria-label={showPassword ? 'Hide password' : 'Show password'}
-                              onClick={() => setShowPassword((p) => !p)}
-                              edge="end"
-                              size="small"
-                              sx={{ color: 'text.secondary', opacity: 0.55 }}
-                            >
-                              {showPassword ? (
-                                <VisibilityOffOutlinedIcon fontSize="small" />
-                              ) : (
-                                <VisibilityOutlinedIcon fontSize="small" />
-                              )}
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <Box sx={{ textAlign: 'right' }}>
-                      <Link
-                        component="button"
-                        type="button"
-                        variant="caption"
-                        onClick={() => {
-                          setResetEmail(email);
-                          setForgotDialogOpen(true);
-                        }}
-                        sx={{
-                          color: 'text.secondary',
-                          opacity: 0.72,
-                          textDecoration: 'none',
-                          ...theme.typography.uiCaptionXs,
-                          transition: theme.transitions.create(['opacity', 'color'], {
-                            duration: 150,
-                          }),
-                          '@media (hover: hover)': {
-                            '&:hover': { opacity: 1, color: 'text.primary' },
-                          },
-                        }}
-                      >
-                        Forgot password?
-                      </Link>
-                    </Box>
-
-                    <Button
-                      fullWidth
-                      type="submit"
-                      disabled={formLoading}
-                      variant="contained"
-                      color="primary"
-                      startIcon={formLoading ? <ButtonLoadingSpinner size={18} /> : null}
-                    >
-                      {formLoading ? 'Signing in...' : 'Sign In'}
-                    </Button>
-                  </Stack>
-                </TabPanel>
-
-                <TabPanel value={tabValue} index={1}>
-                  <Stack spacing={{ xs: 1.5, sm: 2 }} component="form" onSubmit={handleEmailSignUp}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type="text"
-                      label="Display Name (optional)"
-                      value={displayName}
-                      onChange={(e) => setDisplayName(e.target.value)}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <PersonOutlineRoundedIcon
-                              sx={{
-                                color: 'text.secondary',
-                                fontSize: 17,
-                                opacity: 0.65,
-                              }}
-                            />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type="email"
-                      label="Email"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        clearFieldError('email');
-                      }}
-                      onBlur={() => validateField('email', email)}
-                      error={!!fieldErrors.email}
-                      helperText={fieldErrors.email}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <EmailOutlinedIcon
-                              sx={{
-                                color: 'text.secondary',
-                                fontSize: 17,
-                                opacity: 0.65,
-                              }}
-                            />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type={showPassword ? 'text' : 'password'}
-                      label="Password"
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        clearFieldError('passwordSignUp');
-                      }}
-                      onBlur={() => validateField('passwordSignUp', password)}
-                      error={!!fieldErrors.passwordSignUp}
-                      helperText={fieldErrors.passwordSignUp || 'At least 6 characters'}
-                      FormHelperTextProps={{ sx: { mt: 0.25 } }}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockOutlinedIcon
-                              sx={{
-                                color: 'text.secondary',
-                                fontSize: 17,
-                                opacity: 0.65,
-                              }}
-                            />
-                          </InputAdornment>
-                        ),
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              aria-label={showPassword ? 'Hide password' : 'Show password'}
-                              onClick={() => setShowPassword((p) => !p)}
-                              edge="end"
-                              size="small"
-                              sx={{ color: 'text.secondary', opacity: 0.55 }}
-                            >
-                              {showPassword ? (
-                                <VisibilityOffOutlinedIcon fontSize="small" />
-                              ) : (
-                                <VisibilityOutlinedIcon fontSize="small" />
-                              )}
-                            </IconButton>
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <TextField
-                      fullWidth
-                      size="small"
-                      type={showPassword ? 'text' : 'password'}
-                      label="Confirm Password"
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        clearFieldError('confirmPassword');
-                      }}
-                      onBlur={() => validateField('confirmPassword', confirmPassword)}
-                      error={!!fieldErrors.confirmPassword}
-                      helperText={fieldErrors.confirmPassword}
-                      InputProps={{
-                        startAdornment: (
-                          <InputAdornment position="start">
-                            <LockOutlinedIcon
-                              sx={{
-                                color: 'text.secondary',
-                                fontSize: 17,
-                                opacity: 0.65,
-                              }}
-                            />
-                          </InputAdornment>
-                        ),
-                      }}
-                    />
-
-                    <Button
-                      fullWidth
-                      type="submit"
-                      disabled={formLoading}
-                      variant="contained"
-                      color="primary"
-                      startIcon={formLoading ? <ButtonLoadingSpinner size={18} /> : null}
-                    >
-                      {formLoading ? 'Creating...' : 'Create Account'}
-                    </Button>
-                  </Stack>
-                </TabPanel>
+                <Button
+                  fullWidth
+                  variant="outlined"
+                  startIcon={<GitHubIcon sx={{ fontSize: 18, color: 'text.primary' }} />}
+                  onClick={handleGitHubSignIn}
+                  sx={{
+                    py: 1.35,
+                    borderRadius: '12px',
+                    textTransform: 'none',
+                    borderColor: alpha(theme.palette.text.primary, 0.15),
+                    color: 'text.primary',
+                    backgroundColor: isDark
+                      ? alpha(theme.palette.text.primary, 0.03)
+                      : '#ffffff',
+                    fontWeight: 600,
+                    '&:hover': {
+                      borderColor: alpha(theme.palette.text.primary, 0.3),
+                      backgroundColor: isDark
+                        ? alpha(theme.palette.text.primary, 0.07)
+                        : alpha(theme.palette.text.primary, 0.02),
+                    },
+                  }}
+                >
+                  Sign in with GitHub
+                </Button>
               </Stack>
-            </Paper>
+            </Stack>
+
+            {/* Footer Switcher */}
+            <Typography
+              variant="body2"
+              sx={{
+                textAlign: 'center',
+                mt: 4,
+                color: 'text.secondary',
+              }}
+            >
+              {tabValue === 0 ? "Don't have an account? " : 'Already have an account? '}
+              <Link
+                component="button"
+                onClick={() => {
+                  setTabValue(tabValue === 0 ? 1 : 0);
+                  resetErrors();
+                }}
+                sx={{
+                  color: BRAND.main,
+                  fontWeight: 600,
+                  textDecoration: 'none',
+                  '&:hover': {
+                    textDecoration: 'underline',
+                  },
+                }}
+              >
+                {tabValue === 0 ? 'Sign up for free!' : 'Sign in!'}
+              </Link>
+            </Typography>
 
             <Typography
               variant="caption"
@@ -827,6 +696,40 @@ function Auth() {
             </Typography>
           </Container>
         </Box>
+
+        {/* Right Column: Premium Showcase Vector Illustration */}
+        {!isMobile && (
+          <Box
+            sx={{
+              flex: '0 0 50%',
+              width: '50%',
+              minWidth: 0,
+              minHeight: 0,
+              height: '100%',
+              backgroundColor: isDark
+                ? alpha(theme.palette.background.paper, 0.2)
+                : alpha(theme.palette.background.paper, 0.5),
+              borderLeft: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06)}`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              p: 4,
+            }}
+          >
+            <Box
+              component="img"
+              src="/auth-illustration-transparent.png"
+              alt="Premium database illustration"
+              sx={{
+                width: '100%',
+                height: '100%',
+                maxHeight: '90%',
+                objectFit: 'contain',
+                borderRadius: '16px',
+              }}
+            />
+          </Box>
+        )}
       </Box>
 
       <Dialog

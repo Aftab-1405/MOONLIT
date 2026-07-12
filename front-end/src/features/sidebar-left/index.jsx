@@ -1,5 +1,5 @@
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import { Avatar, Box, Collapse, Drawer, Tooltip, Typography, useMediaQuery } from '@mui/material';
+import { Avatar, Box, Collapse, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
@@ -8,6 +8,7 @@ import NewChatIcon from '@/components/icons/NewChatIcon';
 import RecentChatIcon from '@/components/icons/RecentChatIcon';
 import SearchIcon from '@/components/icons/SearchIcon';
 import SidebarPanelIcon from '@/components/icons/SidebarPanelIcon';
+import { Drawer as CustomDrawer, DrawerContent, DrawerOverlay } from '@/components/ui/Drawer';
 import SidebarOverlays from '@/features/sidebar-left/components/SidebarOverlays';
 import {
   ConversationItem,
@@ -24,10 +25,17 @@ import {
   ICON_COL,
   ROW_PX,
 } from '@/features/sidebar-left/styles/sidebarStyles';
-import { useMindmapSchema } from '@/hooks/chat-page/useMindmapSchema';
 import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 
 // ─── Main Sidebar component ───────────────────────────────────────────────────
+//
+// Layout ownership: AppShell owns the three-column layout, including the
+// sidebar's column-width animation. The Sidebar feature fills its slot
+// (100% × 100%) and paints no surface of its own — the column already did.
+//
+// On narrow viewports the Sidebar renders its own Drawer (portal-rendered)
+// which still needs its own surface paint because it lives outside the
+// column flow.
 function Sidebar({
   conversations = [],
   isConversationsLoading = false,
@@ -40,6 +48,7 @@ function Sidebar({
   currentDatabase,
   availableDatabases = [],
   onOpenDbModal,
+  onOpenMindmap,
   onDatabaseSwitch,
   open = true,
   onToggleOpen,
@@ -58,15 +67,11 @@ function Sidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const [recentsCollapsed, setRecentsCollapsed] = useState(false);
 
-  const { mindmapOpen, schemaData, schemaLoading, handleOpenMindmap, handleCloseMindmap } =
-    useMindmapSchema({ isConnected, currentDatabase });
-
   const scrollbarStyles = useMemo(() => getScrollbarStyles(theme), [theme]);
   const neutralInteraction = useMemo(() => getInteractionColors(theme), [theme]);
   const mobileDrawerPaperStyles = useMemo(() => buildMobileDrawerPaperStyles(theme), [theme]);
   const desktopNavSx = useMemo(() => buildDesktopNavSx(theme), [theme]);
   const railTooltipSlotProps = useMemo(() => getSidebarRailTooltipSlotProps(theme), [theme]);
-  const closeMindmapSurface = useCallback(() => handleCloseMindmap(), [handleCloseMindmap]);
 
   const userInitials = useMemo(() => {
     const name = user?.displayName?.trim();
@@ -84,39 +89,32 @@ function Sidebar({
   const handleDatabaseSelect = useCallback(
     (dbName) => {
       setDbPopoverAnchor(null);
-      closeMindmapSurface();
       if (dbName !== currentDatabase) onDatabaseSwitch?.(dbName);
     },
-    [closeMindmapSurface, currentDatabase, onDatabaseSwitch],
+    [currentDatabase, onDatabaseSwitch],
   );
 
   const handleDatabaseAction = useCallback(
     (event) => {
-      closeMindmapSurface();
       if (isConnected && availableDatabases.length > 0) {
         setDbPopoverAnchor(event.currentTarget);
       } else {
         onOpenDbModal?.();
       }
     },
-    [closeMindmapSurface, isConnected, availableDatabases.length, onOpenDbModal],
+    [isConnected, availableDatabases.length, onOpenDbModal],
   );
 
   const handleHistoryClick = useCallback(
     (event) => {
-      closeMindmapSurface();
       if (conversations.length > 0) setHistoryPopoverAnchor(event.currentTarget);
     },
-    [closeMindmapSurface, conversations.length],
+    [conversations.length],
   );
 
-  const handleSearchClick = useCallback(
-    (event) => {
-      closeMindmapSurface();
-      setSearchPopoverAnchor(event.currentTarget);
-    },
-    [closeMindmapSurface],
-  );
+  const handleSearchClick = useCallback((event) => {
+    setSearchPopoverAnchor(event.currentTarget);
+  }, []);
 
   const toggleRecentsCollapsed = useCallback(() => setRecentsCollapsed((p) => !p), []);
   const handleCloseDbPopover = useCallback(() => setDbPopoverAnchor(null), []);
@@ -127,27 +125,25 @@ function Sidebar({
   }, []);
   const handleProfileClick = useCallback(
     (e) => {
-      closeMindmapSurface();
       onMenuOpen?.(e);
     },
-    [closeMindmapSurface, onMenuOpen],
+    [onMenuOpen],
   );
   const handleOpenNewConnection = useCallback(() => {
     setDbPopoverAnchor(null);
-    closeMindmapSurface();
     onOpenDbModal?.();
-  }, [closeMindmapSurface, onOpenDbModal]);
+  }, [onOpenDbModal]);
   const handleSelectConversation = useCallback(
     (id) => {
-      closeMindmapSurface();
       onSelectConversation?.(id);
     },
-    [closeMindmapSurface, onSelectConversation],
+    [onSelectConversation],
   );
 
   // Close popovers when sidebar closes
   useEffect(() => {
     if ((isMobile && !mobileOpen) || (!isMobile && !open)) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDbPopoverAnchor(null);
       setHistoryPopoverAnchor(null);
       setSearchPopoverAnchor(null);
@@ -164,7 +160,6 @@ function Sidebar({
         tooltip: 'New chat',
         icon: <NewChatIcon sx={{ fontSize: 18 }} />,
         onClick: () => {
-          closeMindmapSurface();
           onNewChat?.();
         },
         shortcut: 'Ctrl+Shift+O',
@@ -178,7 +173,7 @@ function Sidebar({
         shortcut: 'Ctrl+K',
       },
     ],
-    [closeMindmapSurface, handleSearchClick, onNewChat],
+    [handleSearchClick, onNewChat],
   );
 
   const workspaceNavItems = useMemo(() => {
@@ -201,11 +196,11 @@ function Sidebar({
           ? 'Mindmap'
           : 'Connect a database to view the schema mindmap',
       icon: <MindmapIcon sx={{ fontSize: 18 }} />,
-      onClick: handleOpenMindmap,
+      onClick: onOpenMindmap,
       disabled: !isConnected || !currentDatabase,
     });
     return items;
-  }, [isConnected, currentDatabase, handleDatabaseAction, handleOpenMindmap]);
+  }, [isConnected, currentDatabase, handleDatabaseAction, onOpenMindmap]);
 
   // ── Shared overlay props ─────────────────────────────────────────────────────
   const overlayProps = useMemo(
@@ -231,10 +226,6 @@ function Sidebar({
       onSelectConversation: handleSelectConversation,
       onDeleteConversation,
       onRenameConversation,
-      mindmapOpen,
-      handleCloseMindmap,
-      schemaLoading,
-      schemaData,
       sidebarOpen: open,
     }),
     [
@@ -245,18 +236,14 @@ function Sidebar({
       dbPopoverAnchor,
       handleCloseDbPopover,
       handleCloseHistoryPopover,
-      handleCloseMindmap,
       handleCloseSearchPopover,
       handleDatabaseSelect,
       handleOpenNewConnection,
       handleSelectConversation,
       historyPopoverAnchor,
-      mindmapOpen,
       onDeleteConversation,
       onRenameConversation,
       open,
-      schemaData,
-      schemaLoading,
       searchPopoverAnchor,
       searchQuery,
       theme,
@@ -311,7 +298,10 @@ function Sidebar({
               <SidebarPanelIcon sx={{ fontSize: 18 }} />
             </Box>
 
-            {/* Title — fades + collapses when sidebar is collapsed */}
+            {/* Title — fades + collapses when sidebar is collapsed.
+                Solid text.primary — no gradient. Premium wordmarks (Linear,
+                Stripe, Vercel) are monochrome. Brand color is reserved for
+                primary actions, not identity text. */}
             <Box sx={getCollapsingLabelSx(theme, collapsed)}>
               <Typography
                 noWrap
@@ -701,18 +691,18 @@ function Sidebar({
   if (isMobile) {
     return (
       <>
-        <Drawer
-          variant="temporary"
+        <CustomDrawer
           open={mobileOpen}
-          onClose={onMobileClose}
-          SlideProps={{ mountOnEnter: true, unmountOnExit: true }}
-          PaperProps={{
-            'aria-label': 'Sidebar',
-            sx: mobileDrawerPaperStyles,
+          onOpenChange={(val) => {
+            if (!val) onMobileClose?.();
           }}
+          side="left"
         >
-          {mobileContent}
-        </Drawer>
+          <DrawerOverlay />
+          <DrawerContent sx={mobileDrawerPaperStyles} showCloseButton={false}>
+            {mobileContent}
+          </DrawerContent>
+        </CustomDrawer>
         <SidebarOverlays {...overlayProps} />
       </>
     );
@@ -720,27 +710,9 @@ function Sidebar({
 
   return (
     <>
-      <Collapse
-        orientation="horizontal"
-        in={open}
-        collapsedSize={52}
-        timeout={220}
-        easing="cubic-bezier(0.22, 1, 0.36, 1)"
-        sx={{
-          flexShrink: 0,
-          height: '100vh',
-          position: 'sticky',
-          top: 0,
-          zIndex: 2,
-          '& .MuiCollapse-wrapper, & .MuiCollapse-wrapperInner': {
-            height: '100%',
-          },
-        }}
-      >
-        <Box component="nav" aria-label="Sidebar" sx={desktopNavSx}>
-          {desktopContent}
-        </Box>
-      </Collapse>
+      <Box component="nav" aria-label="Sidebar" sx={desktopNavSx}>
+        {desktopContent}
+      </Box>
       <SidebarOverlays {...overlayProps} />
     </>
   );
@@ -778,6 +750,7 @@ function arePropsEqual(p, n) {
     p.onDeleteConversation === n.onDeleteConversation &&
     p.onRenameConversation === n.onRenameConversation &&
     p.onOpenDbModal === n.onOpenDbModal &&
+    p.onOpenMindmap === n.onOpenMindmap &&
     p.onDatabaseSwitch === n.onDatabaseSwitch &&
     p.onToggleOpen === n.onToggleOpen &&
     p.onMenuOpen === n.onMenuOpen &&

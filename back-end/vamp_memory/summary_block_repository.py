@@ -1,8 +1,39 @@
 """
 Firestore access for immutable VAMP summary blocks.
 
-Summary text is stored under a conversation subcollection instead of inside the
-conversation document. The vector database stores only pointers to these docs.
+Schema overview
+---------------
+Each summary block lives at:
+    conversations/{conversation_id}/summary_blocks/{summary_id}
+
+The ``summary_id`` is deterministic (``range-{start_idx:08d}-{end_idx:08d}``)
+so a re-summarization of the same message range is idempotent. Large blocks
+(> ``VAMP_SUMMARY_INLINE_MAX_BYTES``) spill their ``text`` + ``memory_bullets``
+JSON into a sibling ``payload_chunks/`` subcollection to stay under the 1 MiB
+Firestore document limit; ``_hydrate_blocks`` reassembles them on read.
+
+vector_status state machine
+---------------------------
+Each block carries a ``vector_status`` field that drives the maintenance loop
+(``vamp_memory/maintenance.py``) which re-embeds due blocks every ~30s:
+
+    pending  -- block created, never embedded. Always due.
+    partial  -- FIX [H10]: some but not all bullets embedded (transient
+                Bedrock failure or empty-text bullet). Always due.
+    failed   -- embedding failed; ``vector_next_retry_at`` holds the backoff
+                timestamp. Due when ``vector_next_retry_at <= now``.
+    dead     -- FIX [H11]: terminal state after ``MAX_VECTOR_ATTEMPTS``
+                retries. ``vector_next_retry_at`` is removed. Excluded from
+                every retry query.
+    indexed  -- every bullet embedded successfully.
+    no_bullets -- schema v1 or no memory bullets; nothing to embed.
+
+Retry backoff
+-------------
+``mark_vector_failed`` increments ``vector_attempts`` *atomically* inside a
+Firestore transaction (FIX [H12]). Backoff is ``15 * 2^(attempts-1)`` seconds
+capped at 1 hour. After ``MAX_VECTOR_ATTEMPTS`` (10) attempts the block
+transitions to ``dead`` (FIX [H11]).
 """
 
 from __future__ import annotations
@@ -15,8 +46,15 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# FIX [H11]: Permanent-failure circuit breaker. Un-embeddable blocks (e.g.
+# text exceeding Bedrock Titan's 8K-token cap) used to retry hourly forever,
+# consuming Bedrock quota and maintenance-loop capacity indefinitely. After
+# this many attempts the block transitions to the terminal ``dead`` state.
+MAX_VECTOR_ATTEMPTS = 10
+
 
 def _fast_firestore_retry():
+    """Return a short-deadline retry policy for low-latency Firestore reads."""
     from google.api_core.retry import Retry
 
     return Retry(deadline=2.0)
@@ -57,6 +95,7 @@ def _encode_summary_payload_chunks(
     memory_bullets: list[dict],
     max_bytes: int,
 ) -> list[str]:
+    """JSON-encode a summary's text+bullets and split into ``max_bytes``-bounded UTF-8 chunks."""
     payload = json.dumps(
         {"text": text, "memory_bullets": memory_bullets},
         ensure_ascii=False,
@@ -67,6 +106,7 @@ def _encode_summary_payload_chunks(
 
 
 def _decode_summary_payload_chunks(chunks: list[str]) -> dict:
+    """Reassemble and JSON-decode a summary payload from its stored chunks."""
     return json.loads("".join(chunks))
 
 
@@ -79,15 +119,15 @@ class SummaryBlockRepository:
 
     @staticmethod
     def _conversation_ref(conversation_id: str):
+        """Return the Firestore document reference for ``conversations/{conversation_id}``."""
         from service.firestore.firestore_service import FirestoreService
 
         db = FirestoreService.get_db()
-        return db.collection(SummaryBlockRepository.CONVERSATION_COLLECTION).document(
-            conversation_id
-        )
+        return db.collection(SummaryBlockRepository.CONVERSATION_COLLECTION).document(conversation_id)
 
     @staticmethod
     def _summary_ref(conversation_id: str, summary_id: str):
+        """Return the Firestore document reference for one summary block under a conversation."""
         return (
             SummaryBlockRepository._conversation_ref(conversation_id)
             .collection(SummaryBlockRepository.SUMMARY_COLLECTION)
@@ -96,6 +136,7 @@ class SummaryBlockRepository:
 
     @staticmethod
     def get_conversation(conversation_id: str) -> Optional[dict]:
+        """Return the conversation metadata dict, or ``None`` if the conversation doc doesn't exist."""
         doc = SummaryBlockRepository._conversation_ref(conversation_id).get(
             retry=_fast_firestore_retry(),
             timeout=2.0,
@@ -117,10 +158,24 @@ class SummaryBlockRepository:
         covers_message_ids: list | None = None,
         created_from_unsummarized_tail: bool = True,
     ) -> dict:
-        """
-        Append one immutable summary block safely using a Firestore transaction.
+        """Append one immutable summary block safely using a Firestore transaction.
+
+        Returns the stored (or pre-existing) block dict. The dict carries a
+        ``created`` boolean so callers can decide whether to schedule vector
+        indexing.
+
+        FIX [M28]: Previously, when a deterministic ``summary_id`` already
+        existed (re-summarization with different LLM output, or a retry that
+        lost its response), this method silently returned the *old* snapshot
+        with no signal. The caller had no way to distinguish "just created"
+        from "already existed" and would schedule indexing on a block whose
+        vectors may already be in flight — or skip indexing a block whose
+        content actually differed. Now the returned dict always carries
+        ``created=True`` for freshly written blocks and ``created=False``
+        for the existing-snapshot path.
         """
         from firebase_admin import firestore
+
         from service.firestore.firestore_service import FirestoreService
 
         db = FirestoreService.get_db()
@@ -134,7 +189,12 @@ class SummaryBlockRepository:
             conv_snapshot = conv_ref.get(transaction=transaction)
             if conv_snapshot.exists:
                 conv_data = conv_snapshot.to_dict() or {}
-                if conv_data.get("user_id") not in (None, user_id):
+                # FIX [AUDIT-2-C]: fail-closed ownership check. The
+                # previous ``not in (None, user_id)`` accepted
+                # conversations with no owner, allowing any caller to
+                # mutate their blocks.
+                conv_owner = conv_data.get("user_id")
+                if not conv_owner or conv_owner != user_id:
                     raise PermissionError("User does not own this conversation")
                 idx = int(conv_data.get("summary_count") or 0)
             else:
@@ -143,15 +203,16 @@ class SummaryBlockRepository:
             # A summary range is immutable. A deterministic document id makes
             # retries idempotent when vector indexing succeeds but the caller
             # loses its response, or when a summary claim changes ownership.
-            summary_id = (
-                f"range-{int(start_message_idx):08d}-{int(end_message_idx):08d}"
-            )
-            summary_ref = SummaryBlockRepository._summary_ref(
-                conversation_id, summary_id
-            )
+            summary_id = f"range-{int(start_message_idx):08d}-{int(end_message_idx):08d}"
+            summary_ref = SummaryBlockRepository._summary_ref(conversation_id, summary_id)
             existing_snapshot = summary_ref.get(transaction=transaction)
             if existing_snapshot.exists:
-                return existing_snapshot.to_dict()
+                # FIX [M28]: tag the returned snapshot so the caller can skip
+                # re-indexing. Defaults to True for blocks written by older
+                # code paths that don't set the field.
+                existing = existing_snapshot.to_dict() or {}
+                existing.setdefault("created", False)
+                return existing
 
             prepared_bullets = list(memory_bullets or [])
             for b in prepared_bullets:
@@ -183,6 +244,10 @@ class SummaryBlockRepository:
                 "covers_to_turn": covers_to_turn,
                 "covers_message_ids": covers_message_ids,
                 "created_from_unsummarized_tail": created_from_unsummarized_tail,
+                # FIX [M28]: signal to the caller that this is a fresh write
+                # (vs. the existing-snapshot branch above) so it can decide
+                # whether to schedule vector indexing.
+                "created": True,
             }
 
             if memory_bullets is not None:
@@ -205,9 +270,7 @@ class SummaryBlockRepository:
                             "payload_bytes": payload_bytes,
                         }
                     )
-                    chunk_collection = summary_ref.collection(
-                        SummaryBlockRepository.PAYLOAD_CHUNK_COLLECTION
-                    )
+                    chunk_collection = summary_ref.collection(SummaryBlockRepository.PAYLOAD_CHUNK_COLLECTION)
                     for chunk_index, chunk in enumerate(payload_chunks):
                         transaction.set(
                             chunk_collection.document(f"{chunk_index:06d}"),
@@ -244,8 +307,7 @@ class SummaryBlockRepository:
         chunked = [
             block
             for block in blocks
-            if block.get("payload_storage") == "chunks"
-            and int(block.get("payload_chunk_count", 0) or 0) > 0
+            if block.get("payload_storage") == "chunks" and int(block.get("payload_chunk_count", 0) or 0) > 0
         ]
         if not chunked:
             return blocks
@@ -257,9 +319,9 @@ class SummaryBlockRepository:
         for block in chunked:
             conversation_id = str(block["conversation_id"])
             summary_id = str(block["summary_id"])
-            collection = SummaryBlockRepository._summary_ref(
-                conversation_id, summary_id
-            ).collection(SummaryBlockRepository.PAYLOAD_CHUNK_COLLECTION)
+            collection = SummaryBlockRepository._summary_ref(conversation_id, summary_id).collection(
+                SummaryBlockRepository.PAYLOAD_CHUNK_COLLECTION
+            )
             for index in range(int(block["payload_chunk_count"])):
                 ref = collection.document(f"{index:06d}")
                 refs.append(ref)
@@ -276,9 +338,7 @@ class SummaryBlockRepository:
             if not doc.exists or metadata is None:
                 continue
             block_key, index = metadata
-            grouped.setdefault(block_key, {})[index] = str(
-                (doc.to_dict() or {}).get("data", "")
-            )
+            grouped.setdefault(block_key, {})[index] = str((doc.to_dict() or {}).get("data", ""))
 
         hydrated = []
         for block in blocks:
@@ -291,12 +351,9 @@ class SummaryBlockRepository:
             parts = grouped.get(block_key, {})
             if len(parts) != expected:
                 raise RuntimeError(
-                    f"Summary payload {summary_id} is incomplete: "
-                    f"expected {expected} chunks, found {len(parts)}"
+                    f"Summary payload {summary_id} is incomplete: expected {expected} chunks, found {len(parts)}"
                 )
-            payload = _decode_summary_payload_chunks(
-                [parts[index] for index in range(expected)]
-            )
+            payload = _decode_summary_payload_chunks([parts[index] for index in range(expected)])
             hydrated.append(
                 {
                     **block,
@@ -308,6 +365,7 @@ class SummaryBlockRepository:
 
     @staticmethod
     def get_blocks_by_ids(conversation_id: str, summary_ids: list[str]) -> list[dict]:
+        """Bulk-fetch and hydrate summary blocks by id; returns ``[]`` when ``summary_ids`` is empty."""
         if not summary_ids:
             return []
         from service.firestore.firestore_service import FirestoreService
@@ -321,9 +379,7 @@ class SummaryBlockRepository:
             retry=_fast_firestore_retry(),
             timeout=2.0,
         )
-        return SummaryBlockRepository._hydrate_blocks(
-            [doc.to_dict() for doc in docs if doc.exists]
-        )
+        return SummaryBlockRepository._hydrate_blocks([doc.to_dict() for doc in docs if doc.exists])
 
     @staticmethod
     def get_recent_blocks(conversation_id: str, limit: int = 5) -> list[dict]:
@@ -337,11 +393,7 @@ class SummaryBlockRepository:
             .limit(max(1, int(limit)))
             .get(retry=_fast_firestore_retry(), timeout=2.0)
         )
-        return SummaryBlockRepository._hydrate_blocks(
-            [doc.to_dict() for doc in docs if doc.exists]
-        )
-
-
+        return SummaryBlockRepository._hydrate_blocks([doc.to_dict() for doc in docs if doc.exists])
 
     @staticmethod
     def mark_vector_indexed(
@@ -349,63 +401,184 @@ class SummaryBlockRepository:
         summary_id: str,
         *,
         status: str = "indexed",
+        indexed_bullets: int | None = None,
+        total_bullets: int | None = None,
     ) -> None:
+        """Persist the post-indexing ``vector_status`` (and counts when partial).
+
+        ``status`` is one of ``indexed`` / ``partial`` / ``no_bullets``.
+        ``indexed_bullets`` and ``total_bullets`` are persisted when provided
+        so the maintenance loop can detect drift between expected and embedded
+        bullets for ``partial`` blocks (FIX [H10]).
+
+        FIX [M27]: Previously used a bare ``.update(payload)`` with no retry
+        policy. A transient Firestore error left the block stuck in
+        ``pending`` (the caller swallowed the exception with
+        ``except Exception: pass``). Now matches the rest of the file's
+        ``_maintenance_firestore_retry(timeout)`` policy so transient errors
+        are retried server-side.
+        """
         payload = {
             "vector_status": status,
             "vector_error": None,
             "vector_next_retry_at": None,
             "vector_updated_at": datetime.now(timezone.utc),
         }
-        SummaryBlockRepository._summary_ref(conversation_id, summary_id).update(payload)
+        if indexed_bullets is not None:
+            payload["indexed_bullets"] = int(indexed_bullets)
+        if total_bullets is not None:
+            payload["total_bullets"] = int(total_bullets)
+        timeout = 4.0
+        SummaryBlockRepository._summary_ref(conversation_id, summary_id).update(
+            payload,
+            retry=_maintenance_firestore_retry(timeout),
+            timeout=timeout,
+        )
 
     @staticmethod
     def mark_vector_failed(
         conversation_id: str,
         summary_id: str,
         *,
-        error: str,
-        attempts: int,
+        reason: str,
     ) -> None:
-        delay_seconds = min(3600, 15 * (2 ** min(max(attempts - 1, 0), 8)))
-        SummaryBlockRepository._summary_ref(conversation_id, summary_id).update(
-            {
-                "vector_status": "failed",
-                "vector_attempts": attempts,
-                "vector_error": str(error)[:1000],
-                "vector_next_retry_at": datetime.now(timezone.utc)
-                + timedelta(seconds=delay_seconds),
-                "vector_updated_at": datetime.now(timezone.utc),
-            }
-        )
+        """Atomically increment ``vector_attempts`` and either back off or mark dead.
+
+        FIX [H12]: Previously ``attempts`` was read from the stale in-memory
+        ``block`` dict the caller passed in. Two concurrent callers
+        (scheduled index path + maintenance retry) both computed the same
+        ``attempts`` value, both called ``mark_vector_failed(attempts=...)``,
+        and last-write-wins in Firestore. The counter was undercounted →
+        backoff was too short → retry storm. Now we read+increment inside a
+        Firestore transaction so the increment is atomic across concurrent
+        callers.
+
+        FIX [H11]: Previously the backoff capped at 1h but never terminated.
+        Un-embeddable blocks (e.g. text exceeding Titan's 8K-token cap)
+        retried hourly forever, consuming Bedrock quota indefinitely. After
+        ``MAX_VECTOR_ATTEMPTS`` retries we now transition to the terminal
+        ``dead`` state and remove ``vector_next_retry_at`` so
+        ``get_vector_retry_blocks`` will never pick the block up again.
+
+        The transaction itself provides built-in retry-on-contention (5
+        attempts by default) which satisfies the M27 retry-policy requirement
+        for this write path.
+        """
+        from firebase_admin import firestore
+
+        from service.firestore.firestore_service import FirestoreService
+
+        db = FirestoreService.get_db()
+        ref = SummaryBlockRepository._summary_ref(conversation_id, summary_id)
+        transaction = db.transaction()
+
+        @firestore.transactional
+        def _txn(txn, ref):
+            snap = ref.get(transaction=txn)
+            if not snap.exists:
+                return
+            data = snap.to_dict() or {}
+            # Read inside the transaction so concurrent callers cannot
+            # undercount (FIX [H12]).
+            attempts = int(data.get("vector_attempts") or 0) + 1
+            truncated_reason = str(reason)[:1000]
+            if attempts >= MAX_VECTOR_ATTEMPTS:
+                txn.update(
+                    ref,
+                    {
+                        "vector_status": "dead",
+                        "vector_attempts": attempts,
+                        "vector_failure_reason": truncated_reason,
+                        # Remove the backoff field so the block is excluded
+                        # from every retry query (FIX [H11]).
+                        "vector_next_retry_at": firestore.DELETE_FIELD,
+                        "vector_updated_at": datetime.now(timezone.utc),
+                    },
+                )
+                logger.error(
+                    "Summary block %s/%s marked dead after %s embedding attempts: %s",
+                    conversation_id,
+                    summary_id,
+                    attempts,
+                    reason,
+                )
+            else:
+                delay_seconds = min(3600, 15 * (2 ** min(attempts - 1, 8)))
+                txn.update(
+                    ref,
+                    {
+                        "vector_status": "failed",
+                        "vector_attempts": attempts,
+                        "vector_failure_reason": truncated_reason,
+                        "vector_next_retry_at": datetime.now(timezone.utc) + timedelta(seconds=delay_seconds),
+                        "vector_updated_at": datetime.now(timezone.utc),
+                    },
+                )
+
+        _txn(transaction, ref)
 
     @staticmethod
     def get_vector_retry_blocks(limit: int = 25) -> list[dict]:
-        """Return due pending/failed blocks across conversations."""
+        """Return due ``pending``/``partial``/``failed`` blocks across conversations.
+
+        ``pending`` and ``partial`` blocks are always due (no backoff).
+        ``failed`` blocks are due when ``vector_next_retry_at <= now``.
+        ``dead`` blocks are never returned (terminal state, FIX [H11]).
+
+        FIX [H9]: Previously this issued a single collection-group query
+        filtering on ``vector_status in ["pending", "failed"]`` with no
+        ``vector_next_retry_at`` filter, capped at ``limit * 3`` docs ordered
+        by document ID (i.e. by message range, NOT by retry time). The
+        Python loop then discarded every doc whose backoff hadn't elapsed.
+        Once ≥75 ``failed`` blocks were still in their backoff window, the
+        query returned 75 not-yet-due docs, Python filtered all of them out,
+        and the function returned ``[]`` — even if hundreds of genuinely-due
+        ``pending`` blocks existed later in the ordering. The retry pipeline
+        silently stalled until enough backoff windows expired.
+
+        Now Firestore does the due-window filtering server-side via two
+        queries: ``pending``+``partial`` (always due) and ``failed`` with
+        ``vector_next_retry_at <= now``. Requires a composite index on
+        ``(vector_status ASC, vector_next_retry_at ASC)``.
+        """
         from google.cloud.firestore_v1 import FieldFilter
+
         from config import get_config
         from service.firestore.firestore_service import FirestoreService
 
-        timeout = max(
-            4.0, float(get_config().VAMP_MAINTENANCE_QUERY_TIMEOUT_SECONDS)
-        )
-        docs = (
+        timeout = max(4.0, float(get_config().VAMP_MAINTENANCE_QUERY_TIMEOUT_SECONDS))
+        now = datetime.now(timezone.utc)
+        limit_int = max(1, int(limit))
+
+        # Always-due blocks: ``pending`` (never attempted) and ``partial``
+        # (some bullets indexed but not all — FIX [H10] lets the maintenance
+        # loop retry these). ``dead`` is excluded by omission (FIX [H11]).
+        pending_docs = (
             FirestoreService.get_db()
             .collection_group(SummaryBlockRepository.SUMMARY_COLLECTION)
-            .where(filter=FieldFilter("vector_status", "in", ["pending", "failed"]))
-            .limit(max(1, int(limit) * 3))
+            .where(filter=FieldFilter("vector_status", "in", ["pending", "partial"]))
+            .limit(limit_int)
             .get(
                 retry=_maintenance_firestore_retry(timeout),
                 timeout=timeout,
             )
         )
-        now = datetime.now(timezone.utc)
-        due = []
-        for doc in docs:
-            block = doc.to_dict() or {}
-            next_retry = block.get("vector_next_retry_at")
-            if next_retry is not None and next_retry > now:
-                continue
-            due.append(block)
-            if len(due) >= limit:
-                break
-        return SummaryBlockRepository._hydrate_blocks(due)
+
+        # Failed blocks whose backoff window has elapsed. The server-side
+        # ``vector_next_retry_at <= now`` filter is the heart of FIX [H9] —
+        # it prevents a backlog of not-yet-due ``failed`` blocks from
+        # starving out genuinely-due ``pending`` blocks.
+        failed_docs = (
+            FirestoreService.get_db()
+            .collection_group(SummaryBlockRepository.SUMMARY_COLLECTION)
+            .where(filter=FieldFilter("vector_status", "==", "failed"))
+            .where(filter=FieldFilter("vector_next_retry_at", "<=", now))
+            .limit(limit_int)
+            .get(
+                retry=_maintenance_firestore_retry(timeout),
+                timeout=timeout,
+            )
+        )
+
+        due = [doc.to_dict() for doc in [*pending_docs, *failed_docs] if doc.exists]
+        return SummaryBlockRepository._hydrate_blocks(due[:limit_int])

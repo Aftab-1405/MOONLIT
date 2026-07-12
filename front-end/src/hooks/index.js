@@ -5,3 +5,4 @@
  */
 
 export { useLocalStorage } from '@/hooks/useLocalStorage';
+export { useMindmapSchema } from '@/hooks/useMindmapSchema';

@@ -1,26 +1,33 @@
 /**
  * SqlEditorSurface — CodeMirror 6 SQL editor (read/write).
  *
- * Drop-in replacement for the removed MonacoEditorSurface.
- * The props interface is identical so QueryWorkspace.jsx only needs
- * an updated lazy-import path.
+ * Uses the Shiki-matched theme from themeCodeMirror.js so SQL in the editor
+ * looks identical to SQL in chat code blocks (both use dracula-soft / github-light
+ * color palettes).
+ *
+ * Streaming mode: when `isStreaming` is true, the editor is read-only and
+ * the query text arrives incrementally. CodeMirror's `dispatch` is used to
+ * append each delta, so the user sees the query being "typed" by the agent
+ * with live syntax highlighting.
  *
  * Props:
  *   query          {string}   current SQL text
  *   error          {string}   error message to show as a toast (falsy = hidden)
+ *   isStreaming    {boolean}  true when the agent is actively writing the query
  *   onQueryChange  {fn}       called with new string on every keystroke
  *   onQueryExecute {fn}       fallback run handler (used if onRunQuery absent)
  *   onRunQuery     {fn}       primary run handler (tied to the Run button in StatusBar)
+ *   onClearError   {fn}       called to dismiss the error toast
  */
 
 import { StandardSQL, sql } from '@codemirror/lang-sql';
 import { Prec } from '@codemirror/state';
 import { EditorView, keymap, placeholder } from '@codemirror/view';
-import { Box } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import CodeMirror from '@uiw/react-codemirror';
 import { AnimatePresence, motion } from 'framer-motion'; // eslint-disable-line no-unused-vars
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo, useRef } from 'react';
 import Notification from '@/components/ui/toast';
 import { getScrollbarStyles } from '@/styles/shared';
 import { getCodeMirrorHighlighting, getCodeMirrorTheme } from '@/theme/themeCodeMirror';
@@ -28,6 +35,7 @@ import { getCodeMirrorHighlighting, getCodeMirrorTheme } from '@/theme/themeCode
 function SqlEditorSurface({
   query,
   error,
+  isStreaming = false,
   onQueryChange,
   onQueryExecute,
   onRunQuery,
@@ -42,6 +50,12 @@ function SqlEditorSurface({
 
   const codeMirrorTheme = useMemo(
     () => getCodeMirrorTheme(theme.palette.mode, true),
+    [theme.palette.mode],
+  );
+
+  // Syntax highlighting — now uses Shiki-matched colors instead of empty array.
+  const highlighting = useMemo(
+    () => getCodeMirrorHighlighting(theme.palette.mode),
     [theme.palette.mode],
   );
 
@@ -62,12 +76,53 @@ function SqlEditorSurface({
           },
         ]),
       ),
-      getCodeMirrorHighlighting(theme.palette.mode),
+      highlighting,
     ],
-    [theme.palette.mode, runQuery],
+    [highlighting, runQuery],
   );
 
   const scrollbarSx = useMemo(() => getScrollbarStyles(theme), [theme]);
+
+  // ── Streaming: track the last-applied query length ─────────────────────
+  // When `isStreaming` is true, the `query` prop grows incrementally as the
+  // agent writes. We use a ref to track what we've already inserted into the
+  // CodeMirror document, and dispatch only the delta. This avoids replacing
+  // the entire document on every token (which would reset the cursor and
+  // undo history).
+  const lastStreamLengthRef = useRef(0);
+  const editorViewRef = useRef(null);
+
+  useEffect(() => {
+    if (!isStreaming) {
+      // Reset the stream-length tracker when streaming ends so the next
+      // streaming session starts fresh.
+      lastStreamLengthRef.current = 0;
+      return;
+    }
+
+    const view = editorViewRef.current;
+    if (!view) return;
+
+    // If the query is shorter than what we've already inserted, the stream
+    // was reset — replace the whole document.
+    if (query.length < lastStreamLengthRef.current) {
+      view.dispatch({
+        changes: { from: 0, to: view.state.doc.length, insert: query },
+      });
+      lastStreamLengthRef.current = query.length;
+      return;
+    }
+
+    // Append only the delta (new characters since last update).
+    const delta = query.slice(lastStreamLengthRef.current);
+    if (delta) {
+      view.dispatch({
+        changes: { from: view.state.doc.length, insert: delta },
+        scrollIntoView: true,
+      });
+      lastStreamLengthRef.current = query.length;
+    }
+  }, [query, isStreaming]);
 
   return (
     <Box
@@ -123,29 +178,80 @@ function SqlEditorSurface({
           extensions={extensions}
           theme={codeMirrorTheme}
           onChange={onQueryChange}
-          autoFocus
+          onCreateEditor={(view) => {
+            editorViewRef.current = view;
+          }}
+          editable={!isStreaming}
+          autoFocus={!isStreaming}
           basicSetup={{
             lineNumbers: true,
             foldGutter: false,
-            highlightActiveLine: true,
-            highlightActiveLineGutter: true,
+            highlightActiveLine: !isStreaming,
+            highlightActiveLineGutter: !isStreaming,
             autocompletion: true,
             bracketMatching: true,
             closeBrackets: true,
-            syntaxHighlighting: false, // provided by getCodeMirrorHighlighting
+            syntaxHighlighting: false, // provided by our getCodeMirrorHighlighting
             tabSize: 2,
             indentOnInput: true,
-            history: true,
+            history: !isStreaming, // disable undo/redo during streaming
             drawSelection: true,
             rectangularSelection: false,
             crosshairCursor: false,
-            highlightSelectionMatches: true,
-            searchKeymap: true,
-            historyKeymap: true,
+            highlightSelectionMatches: !isStreaming,
+            searchKeymap: !isStreaming,
+            historyKeymap: !isStreaming,
             defaultKeymap: true,
           }}
         />
       </Box>
+
+      {/* Streaming indicator — shown when the agent is writing the query */}
+      {isStreaming && (
+        <Box
+          sx={{
+            position: 'absolute',
+            top: 8,
+            right: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 0.75,
+            px: 1.5,
+            py: 0.5,
+            borderRadius: '8px',
+            backgroundColor: alpha(theme.palette.background.paper, 0.85),
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            border: '1px solid',
+            borderColor: alpha(theme.palette.text.primary, 0.08),
+            zIndex: 5,
+            pointerEvents: 'none',
+          }}
+        >
+          <Box
+            sx={{
+              width: 6,
+              height: 6,
+              borderRadius: '50%',
+              backgroundColor: 'primary.main',
+              animation: 'pulse 1.4s ease-in-out infinite',
+              '@keyframes pulse': {
+                '0%, 100%': { opacity: 1, transform: 'scale(1)' },
+                '50%': { opacity: 0.4, transform: 'scale(0.8)' },
+              },
+            }}
+          />
+          <Typography
+            sx={{
+              ...theme.typography.uiCaptionSm,
+              color: 'text.secondary',
+              fontWeight: 500,
+            }}
+          >
+            Agent is writing…
+          </Typography>
+        </Box>
+      )}
 
       {/* Error alert — auto-dismissed via parent after 5 s */}
       <AnimatePresence>
@@ -191,6 +297,7 @@ function areEditorPropsEqual(prev, next) {
   return (
     prev.query === next.query &&
     prev.error === next.error &&
+    prev.isStreaming === next.isStreaming &&
     prev.onQueryChange === next.onQueryChange &&
     prev.onQueryExecute === next.onQueryExecute &&
     prev.onRunQuery === next.onRunQuery &&

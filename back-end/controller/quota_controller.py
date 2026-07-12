@@ -1,22 +1,30 @@
-# File: api/routes/quota.py
 """User quota status API routes."""
 
 import logging
-from fastapi import APIRouter, Request, Depends
+
+from fastapi import APIRouter, Depends, Request
 
 from dependencies import get_current_user
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/quota", tags=["quota"])
+router = APIRouter(prefix="/quota", tags=["User Quota"])
 
 
 @router.get("/status")
 async def get_quota_status(request: Request, user: dict = Depends(get_current_user)):
-    """
-    Get current user's rate limit quota status.
+    """Return the authenticated user's current rate-limit quota usage across all timeframes.
 
-    Returns usage for minute, hour, and day timeframes with reset times.
-    Also returns 'enabled' flag so frontend knows whether to display quota UI.
+    Returns:
+        A dict with the following fields:
+
+            - ``status`` (str): Always ``"success"`` on a successful lookup.
+            - ``user_id`` (str): The Firebase UID the quota snapshot belongs to.
+            - ``enabled`` (bool): Whether the rate-limiter is active for this deployment
+              (the frontend uses this to decide whether to render the quota UI).
+            - ``quota`` (dict): Per-timeframe usage details as produced by
+              ``user_quota.get_usage(...).to_dict()`` — typically contains
+              ``minute``, ``hour``, and ``day`` windows, each with ``limit``,
+              ``remaining``, ``used``, and ``resets_at`` fields.
     """
     user_id = user.get("uid") or user
     user_quota = request.app.state.user_quota

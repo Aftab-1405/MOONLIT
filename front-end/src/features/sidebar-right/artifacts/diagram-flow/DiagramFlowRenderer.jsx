@@ -701,7 +701,25 @@ function DiagramFlowRenderer({
   const [stableCode, setStableCode] = useState(code);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
   const [viewportReadySignature, setViewportReadySignature] = useState('');
+  const [hasRenderedOnce, setHasRenderedOnce] = useState(false);
+  // Tracks whether the initial fitView has completed. The initial fit uses a
+  // 2-RAF defer to let react-flow measure node dimensions first. Subsequent
+  // resize-triggered fits (e.g. during the maximize animation) must NOT use
+  // that defer — they need to run immediately on every frame so the diagram
+  // tracks the container smoothly. Without this split, the 2-RAF defer gets
+  // canceled on every frame during a spring animation, so fitView only fires
+  // after the animation stops — causing the "diagram stays small during
+  // maximize, jumps big at the end" bug.
+  const hasInitialFitRef = useRef(false);
   const isReceiving = stableCode !== code;
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reset rendered once state when stableCode changes
+  useEffect(() => {
+    setHasRenderedOnce(false);
+    // Reset the initial-fit flag when a new diagram arrives so the 2-RAF
+    // defer runs again for the new node set.
+    hasInitialFitRef.current = false;
+  }, [stableCode]);
 
   useEffect(() => {
     if (settleTimeoutRef.current) clearTimeout(settleTimeoutRef.current);
@@ -782,8 +800,18 @@ function DiagramFlowRenderer({
   const viewportReady = viewportReadySignature === viewportSignature;
 
   useEffect(() => {
+    if (viewportReady) {
+      setHasRenderedOnce(true);
+    }
+  }, [viewportReady]);
+
+  useEffect(() => {
     if (isReceiving || parseResult.error || nodes.length === 0) return undefined;
     if (!viewportSize.width || !viewportSize.height || !flowReadyToken) return undefined;
+    // Once the initial fit has completed, subsequent viewport changes are
+    // handled by the resize-fit effect below — this effect is ONLY for the
+    // first fit (which needs the 2-RAF defer for node measurement).
+    if (hasInitialFitRef.current) return undefined;
 
     let firstFrame = null;
     let secondFrame = null;
@@ -796,6 +824,7 @@ function DiagramFlowRenderer({
         } catch {
           flowInstanceRef.current?.setViewport?.(initialViewport, { duration: 0 });
         }
+        hasInitialFitRef.current = true;
         revealFrame = requestAnimationFrame(() => {
           setViewportReadySignature(viewportSignature);
         });
@@ -818,6 +847,42 @@ function DiagramFlowRenderer({
     viewportSize.height,
     viewportSize.width,
   ]);
+
+  // ── Resize-fit effect ────────────────────────────────────────────────────
+  // After the initial fit, every viewport-size or fullscreen-state change
+  // triggers an IMMEDIATE fitView (no 2-RAF defer). This is what makes the
+  // diagram track the container smoothly during the maximize/minimize spring
+  // animation — previously, the 2-RAF defer was getting canceled on every
+  // frame, so fitView only fired after the animation stopped.
+  //
+  // We use a single rAF to batch multiple synchronous size updates into one
+  // fit call (e.g. if width and height both change in the same frame), but
+  // we do NOT cancel across effect re-runs — each frame's fit is allowed to
+  // execute. `duration: 0` means the viewport snaps to the new bounds
+  // instantly; since the container is animating smoothly via spring physics,
+  // the diagram appears to animate smoothly too (each frame it re-fits to
+  // the slightly-larger container).
+  useEffect(() => {
+    if (!hasInitialFitRef.current) return;
+    if (!flowInstanceRef.current || nodes.length === 0) return;
+    if (!viewportSize.width || !viewportSize.height) return;
+
+    let frame = null;
+    frame = requestAnimationFrame(() => {
+      try {
+        flowInstanceRef.current?.fitView({
+          padding: isFullscreen ? 0.16 : 0.12,
+          duration: 0,
+        });
+      } catch {
+        // ignore — fitView can throw if nodes haven't been measured yet
+      }
+    });
+
+    return () => {
+      if (frame) cancelAnimationFrame(frame);
+    };
+  }, [viewportSize, isFullscreen, nodes.length]);
 
   useEffect(() => {
     const viewport = flowViewportRef.current;
@@ -982,7 +1047,7 @@ function DiagramFlowRenderer({
               ...getReactFlowCanvasSx(theme),
               zIndex: 0,
               isolation: 'isolate',
-              opacity: viewportReady ? 1 : 0,
+              opacity: hasRenderedOnce || viewportReady ? 1 : 0,
               transition: 'none',
             }}
           >

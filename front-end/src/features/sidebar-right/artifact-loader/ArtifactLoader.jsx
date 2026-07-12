@@ -1,12 +1,104 @@
+// ArtifactLoader — host panel for canvas artifacts (right side of the workspace).
+//
+// Responsibilities:
+//   - Look up the correct renderer for `artifact.type` in `artifactRegistry`.
+//   - Manage per-artifact fullscreen state (user can pop a single artifact
+//     to fullscreen — this is internal to the artifact panel, distinct from
+//     the column-level open/close which is owned by AppShell).
+//   - Catch renderer errors via `ArtifactErrorBoundary` so one broken
+//     artifact doesn't take down the whole panel.
+//
+// Renderers (all lazy-loaded so they don't bloat the initial bundle):
+//   - `sql-editor`     → SqlWorkspace             (CodeMirror)
+//   - `visualization`  → DataVisualizationPanel   (Perspective — ~10MB)
+//   - `react-flow`     → DiagramFlowRenderer      (react-flow + dagre)
+//
+// Layout: ArtifactLoader no longer owns its column-width animation — that is
+// AppShell's responsibility. ArtifactLoader fills its slot (100% × 100%) and
+// paints no surface of its own (the column already did).
+//
+// Fullscreen behavior: a SINGLE ArtifactRenderer instance is rendered as a
+// child of one container Box. When `effectiveFullscreen` flips, only the CSS
+// on that container changes — `position: fixed` + inset 0 — so it breaks out
+// of the artifact column and covers the entire viewport. React never sees a
+// tree change, so the renderer fiber is preserved across the transition and
+// all internal state (SQL editor tabs, scroll position, CodeMirror cursor,
+// Perspective viewer config) survives.
+//
+// Previous bug: two separate ArtifactRenderer instances were mounted (one
+// in-flow, one in an absolute overlay). The overlay only covered the
+// artifact column — so the artifact didn't actually get bigger — AND the
+// duplicate instance lost all internal state on every toggle.
+
 import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
-import { Box } from '@mui/material';
-import { Component, memo, useCallback, useMemo, useState } from 'react';
+import { Box, Skeleton } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Component, lazy, memo, Suspense, useCallback, useMemo, useState } from 'react';
 import { ArtifactEmptyState } from '@/features/sidebar-right/artifact-loader/ArtifactLayout';
-import DataVisualizationPanel from '@/features/sidebar-right/artifacts/data-visualization';
-import DiagramFlowRenderer from '@/features/sidebar-right/artifacts/diagram-flow';
-import SqlWorkspace from '@/features/sidebar-right/artifacts/sql-workspace';
-import { getAppSunkenSurfaceSx, getArtifactPanelChromeSx } from '@/features/styles/interfaceChrome';
+import { getAppSunkenSurfaceSx } from '@/features/styles/interfaceChrome';
 import { UI_Z_INDEX } from '@/styles/shared';
+
+// ─── Lazy-loaded renderers ───────────────────────────────────────────────────
+const DataVisualizationPanel = lazy(
+  () => import('@/features/sidebar-right/artifacts/data-visualization'),
+);
+const DiagramFlowRenderer = lazy(() => import('@/features/sidebar-right/artifacts/diagram-flow'));
+const SqlWorkspace = lazy(() => import('@/features/sidebar-right/artifacts/sql-workspace'));
+
+/**
+ * Suspense fallback shown while a renderer chunk downloads. Mimics the
+ * structure of an actual artifact panel: a header row (icon + title bar),
+ * a toolbar row of action-button slots, and a large body placeholder.
+ */
+function RendererFallback() {
+  return (
+    <Box
+      role="status"
+      aria-label="Loading artifact"
+      sx={{
+        flex: 1,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
+      {/* Header row — icon slot + title bar + action-button slots */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 2,
+          py: 1.5,
+          borderBottom: '1px solid',
+          borderColor: 'divider',
+          flexShrink: 0,
+        }}
+      >
+        <Skeleton variant="rounded" width={30} height={30} sx={{ borderRadius: '8px' }} />
+        <Box sx={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.5 }}>
+          <Skeleton variant="rounded" width="55%" height={10} sx={{ borderRadius: 999 }} />
+          <Skeleton variant="rounded" width="32%" height={8} sx={{ borderRadius: 999 }} />
+        </Box>
+        <Box sx={{ display: 'flex', gap: 0.5, flexShrink: 0 }}>
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} variant="circular" width={28} height={28} animation="wave" />
+          ))}
+        </Box>
+      </Box>
+
+      {/* Body placeholder — large rounded rectangle fills remaining space */}
+      <Box sx={{ flex: 1, minHeight: 0, p: 2, display: 'flex' }}>
+        <Skeleton
+          variant="rounded"
+          animation="wave"
+          sx={{ width: '100%', height: '100%', borderRadius: 2 }}
+        />
+      </Box>
+    </Box>
+  );
+}
 
 const dataVisualizationRenderer = {
   loader: DataVisualizationPanel,
@@ -28,6 +120,7 @@ const artifactRegistry = {
       title: artifact.title,
       isConnected: common.isDbConnected,
       currentDatabase: common.currentDatabase,
+      isStreaming: artifact.props?.isStreaming ?? false,
     }),
   },
   visualization: dataVisualizationRenderer,
@@ -53,51 +146,6 @@ function getArtifactSignature(artifact) {
   if (artifact.type === 'sql-editor')
     return `${artifact.type}-${props.initialQuery || ''}-${props.initialResults?.row_count || 0}`;
   return `${artifact.type}-${props.data?.row_count || 0}-${props.data?.columns?.join('|') || ''}`;
-}
-
-function CanvasHost({ open, panelWidth, fullscreen = false, isResizing = false, children }) {
-  return (
-    <Box
-      component="aside"
-      sx={(theme) => ({
-        display: 'flex',
-        flexDirection: 'column',
-        flexShrink: 0,
-        minWidth: 0,
-        minHeight: 0,
-        width: fullscreen ? 'auto' : open ? panelWidth : 0,
-        height: '100%',
-        overflow: 'hidden',
-        boxSizing: 'border-box',
-        transition:
-          isResizing || fullscreen
-            ? 'none'
-            : theme.transitions.create('width', {
-                easing: theme.transitions.easing.easeInOut,
-                duration: 240,
-              }),
-        willChange: fullscreen ? 'auto' : 'width',
-        ...(open && !fullscreen ? getArtifactPanelChromeSx(theme) : {}),
-        ...(fullscreen
-          ? {
-              position: 'absolute',
-              left: 0,
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: 'auto !important',
-              height: 'auto !important',
-              zIndex: UI_Z_INDEX.artifactFullscreen,
-              ...getAppSunkenSurfaceSx(theme),
-              borderLeft: 'none',
-              boxShadow: 'none',
-            }
-          : {}),
-      })}
-    >
-      {children}
-    </Box>
-  );
 }
 
 class ArtifactErrorBoundary extends Component {
@@ -159,7 +207,7 @@ function ArtifactRenderer({
   onEnterFullscreen,
   onExitFullscreen,
   onToggleFullscreen,
-  workspaceContainerRef,
+  onNotify,
 }) {
   if (!artifact) return null;
 
@@ -179,13 +227,17 @@ function ArtifactRenderer({
       onEnterFullscreen,
       onExitFullscreen,
       onToggleFullscreen,
-      workspaceContainerRef,
       isDbConnected,
       currentDatabase,
+      onNotify,
     },
   });
 
-  return <Renderer {...rendererProps} />;
+  return (
+    <Suspense fallback={<RendererFallback />}>
+      <Renderer {...rendererProps} />
+    </Suspense>
+  );
 }
 
 function ArtifactLoader({
@@ -193,13 +245,15 @@ function ArtifactLoader({
   onOpenArtifact,
   onClose,
   isOpen = true,
-  panelWidth = 520,
-  fullscreen = false,
+  _panelWidth: _deprecatedPanelWidth,
+  _fullscreen: _deprecatedFullscreen,
   isDbConnected = false,
   currentDatabase = null,
-  isResizing = false,
-  workspaceContainerRef,
+  _isResizing: _deprecatedIsResizing,
+  _workspaceContainerRef: _deprecatedWorkspaceContainerRef,
+  onNotify,
 }) {
+  const theme = useTheme();
   const [isArtifactFullscreen, setIsArtifactFullscreen] = useState(false);
   const artifactSignature = useMemo(() => getArtifactSignature(artifact), [artifact]);
   const effectiveFullscreen = Boolean(isArtifactFullscreen && artifact && isOpen);
@@ -231,13 +285,77 @@ function ArtifactLoader({
     [isArtifactFullscreen, onOpenArtifact],
   );
 
+  // When the panel is closed, render nothing — AppShell animates the column
+  // width to 0 (so the layout still transitions smoothly).
+  if (!isOpen) return null;
+
+  // Single renderer instance, always rendered as a child of the SAME
+  // container element. When `effectiveFullscreen` flips, only the CSS on the
+  // container changes (position: fixed → fills viewport). React never
+  // unmounts the renderer, so internal state (SQL editor tabs, scroll
+  // position, CodeMirror cursor, Perspective viewer config, etc.) is
+  // preserved across the maximize/unmaximize transition.
+  //
+  // Previous bug: two separate ArtifactRenderer instances were mounted (one
+  // in-flow, one in an overlay) and the overlay only covered the artifact
+  // column — so the artifact didn't actually get bigger AND state was lost
+  // on every toggle.
   return (
-    <CanvasHost
-      open={isOpen}
-      panelWidth={panelWidth}
-      fullscreen={effectiveFullscreen || fullscreen}
-      isResizing={isResizing}
+    <Box
+      sx={{
+        // When NOT fullscreen: fill the artifact column (in-flow).
+        // When fullscreen: break out of the column via `position: fixed` and
+        // cover the entire viewport. This is a pure CSS transition — React
+        // doesn't see it, so the renderer instance is preserved.
+        ...(effectiveFullscreen
+          ? {
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: UI_Z_INDEX.artifactFullscreen,
+            // Smooth fade-in when entering fullscreen. The transition is
+            // one-shot (no exit animation) because we can't animate a
+            // position change from fixed → in-flow cleanly. The opacity
+            // transition is handled by Framer Motion below.
+          }
+          : {
+            position: 'relative',
+            flex: 1,
+            minWidth: 0,
+            minHeight: 0,
+          }),
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxSizing: 'border-box',
+        // Apply the sunken surface only in fullscreen so the in-flow state
+        // inherits the column's surface (painted by AppShell).
+        ...(effectiveFullscreen ? getAppSunkenSurfaceSx(theme) : {}),
+      }}
     >
+      <AnimatePresence>
+        {effectiveFullscreen && (
+          <motion.div
+            key="fullscreen-backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: 'easeOut' }}
+            style={{
+              position: 'absolute',
+              inset: 0,
+              pointerEvents: 'none',
+              // Subtle backdrop tint to visually separate the fullscreen
+              // artifact from the workspace beneath it.
+              backgroundColor:
+                theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.06)',
+            }}
+          />
+        )}
+      </AnimatePresence>
+
       <Box
         key={artifactSignature}
         sx={{
@@ -247,6 +365,8 @@ function ArtifactLoader({
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
+          position: 'relative',
+          zIndex: 1,
         }}
       >
         <ArtifactErrorBoundary resetKey={artifactSignature}>
@@ -262,11 +382,11 @@ function ArtifactLoader({
             onEnterFullscreen={handleEnterFullscreen}
             onExitFullscreen={handleExitFullscreen}
             onToggleFullscreen={handleToggleFullscreen}
-            workspaceContainerRef={workspaceContainerRef}
+            onNotify={onNotify}
           />
         </ArtifactErrorBoundary>
       </Box>
-    </CanvasHost>
+    </Box>
   );
 }
 

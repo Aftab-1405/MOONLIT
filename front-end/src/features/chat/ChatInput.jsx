@@ -1,3 +1,26 @@
+/**
+ * ChatInput — the message composer at the bottom of the chat workspace.
+ *
+ * Layout:
+ *   ┌────────────────────────────────────────────┐
+ *   │  multiline text field                       │
+ *   ├────────────────────────────────────────────┤
+ *   │  [Database] [Schema] [SQL Editor]   [Model] [→] │
+ *   └────────────────────────────────────────────┘
+ *
+ * Features:
+ *   - Enter sends; Shift+Enter inserts newline.
+ *   - Toolbar buttons open AppPopover menus for database/schema/model selection.
+ *   - Context-usage ring on the model button when `usageMetrics` is provided.
+ *   - Streaming state: send button becomes stop; input is disabled.
+ *   - Mobile: toolbar buttons shrink to icons (SQL Editor) or use smaller
+ *     maxWidth; all buttons stay accessible.
+ *
+ * The composer surface itself uses `getComposerSurfaceSx` (resting) and
+ * `getComposerHoverShadow` (hover/focus) from interfaceChrome — those are
+ * the single source of truth for the composer's elevation.
+ */
+
 import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
 import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import SendRoundedIcon from '@mui/icons-material/SendRounded';
@@ -14,11 +37,12 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { alpha, keyframes, useTheme } from '@mui/material/styles';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import { AppPopover } from '@/components';
 import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
 import DatabaseIcon from '@/components/icons/DatabaseIcon';
 import SchemaIcon from '@/components/icons/SchemaIcon';
+import SlashCommandMenu, { extractSlashQuery } from '@/features/chat/SlashCommandMenu';
 import { getComposerHoverShadow, getComposerSurfaceSx } from '@/features/styles/interfaceChrome';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import {
@@ -27,6 +51,7 @@ import {
   getSelectableMenuItemSx,
   UI_LAYOUT,
 } from '@/styles/shared';
+import { BRAND } from '@/theme/tokens';
 import logger from '@/utils/logger';
 
 const softReveal = keyframes`
@@ -99,15 +124,6 @@ const ContextProgressRing = ({ total, budget, theme }) => {
 const toFiniteNumber = (value) => {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
-};
-
-const percentOf = (used, budget) => {
-  const numericUsed = toFiniteNumber(used);
-  const numericBudget = toFiniteNumber(budget);
-  if (numericUsed == null || numericBudget == null || numericBudget <= 0) {
-    return null;
-  }
-  return Math.min(100, Math.max(0, (numericUsed / numericBudget) * 100));
 };
 
 const TruncatedLabel = ({ children, sx = {} }) => (
@@ -211,6 +227,12 @@ function ChatInput({
   llmOptionsLoading = false,
   onSelectLlm,
   usageMetrics = null,
+  // ENH [AUTO-TASK-MODE]: User's task-mode preference ('auto' | 'normal' |
+  // 'tool_task' | 'long_task') and the backend-reported effective mode for
+  // the current turn (null when not streaming / no turn yet).
+  taskMode = 'auto',
+  onTaskModeChange = null,
+  effectiveTaskMode = null,
   children,
 }) {
   const [message, setMessage] = useState('');
@@ -219,6 +241,10 @@ function ChatInput({
   const [schemaAnchor, setSchemaAnchor] = useState(null);
   const [dbAnchor, setDbAnchor] = useState(null);
   const [llmAnchor, setLlmAnchor] = useState(null);
+  // ENH [SLASH-COMMAND]: Ref to the composer wrapper so the slash command
+  // menu can anchor to it. The menu only opens when the message starts
+  // with "/" — zero chrome at rest.
+  const composerRef = useRef(null);
 
   const isPostgreSQL = useMemo(() => dbType?.toLowerCase() === 'postgresql', [dbType]);
 
@@ -248,7 +274,10 @@ function ChatInput({
       height: 30,
       minHeight: 30,
       minWidth: 32,
-      maxWidth: { xs: 'min(42vw, 152px)', sm: 208 },
+      // Mobile toolbar buttons get a bit more breathing room so labels don't
+      // truncate awkwardly. The previous `min(42vw, 152px)` was too tight —
+      // even short labels like "public" got clipped.
+      maxWidth: { xs: 'min(46vw, 168px)', sm: 208 },
       flexShrink: 0,
       borderRadius: '8px',
       px: { xs: 1, sm: 1.25 },
@@ -306,6 +335,11 @@ function ChatInput({
         backgroundColor: neutralInteraction.activeBackground,
         color: 'text.primary',
       },
+      // Visible focus ring for keyboard navigation — consistent with the rest of the app.
+      '&.Mui-focusVisible': {
+        outline: `2px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.32 : 0.22)}`,
+        outlineOffset: 2,
+      },
       '&.Mui-disabled': {
         opacity: 0.68,
         borderColor: 'transparent',
@@ -352,15 +386,18 @@ function ChatInput({
       height: 36,
       flexShrink: 0,
       borderRadius: '9px',
+      // Solid brand purple when there's text to send — the semantic "primary
+      // action" signal. Empty state is neutral monochrome. Streaming switches
+      // to the error tone (stop button).
       color: isStreaming
         ? theme.palette.error.main
         : hasText
-          ? theme.palette.primary.contrastText
+          ? '#ffffff'
           : alpha(theme.palette.text.primary, 0.28),
       backgroundColor: isStreaming
         ? errorInteraction.activeBackground
         : hasText
-          ? theme.palette.primary.main
+          ? BRAND.main
           : alpha(theme.palette.text.primary, 0.05),
       border: '1px solid',
       borderColor: isStreaming
@@ -368,7 +405,11 @@ function ChatInput({
         : hasText
           ? 'transparent'
           : alpha(theme.palette.text.primary, 0.07),
-      boxShadow: 'none',
+      // Subtle resting elevation on the active send button.
+      boxShadow:
+        hasText && !isStreaming
+          ? `0 1px 3px ${alpha(BRAND.main, theme.palette.mode === 'dark' ? 0.45 : 0.25)}`
+          : 'none',
       transition: theme.transitions.create(
         ['transform', 'background-color', 'color', 'box-shadow', 'border-color'],
         { duration: theme.transitions.duration.shorter },
@@ -379,16 +420,29 @@ function ChatInput({
           backgroundColor: isStreaming
             ? errorInteraction.activeHoverBackground
             : hasText
-              ? theme.palette.primary.dark
+              ? BRAND.dark
               : alpha(theme.palette.text.primary, 0.08),
-          boxShadow: 'none',
+          color: isStreaming
+            ? theme.palette.error.main
+            : hasText
+              ? '#ffffff'
+              : alpha(theme.palette.text.primary, 0.45),
+          boxShadow:
+            hasText && !isStreaming
+              ? `0 2px 8px ${alpha(BRAND.main, theme.palette.mode === 'dark' ? 0.55 : 0.32)}`
+              : 'none',
         },
       },
       '&:active': { transform: 'translateY(0) scale(0.97)' },
+      '&.Mui-focusVisible': {
+        outline: `2px solid ${alpha(BRAND.main, 0.6)}`,
+        outlineOffset: 2,
+      },
       '&.Mui-disabled': {
         backgroundColor: alpha(theme.palette.text.primary, 0.04),
         borderColor: alpha(theme.palette.text.primary, 0.06),
         color: alpha(theme.palette.text.primary, 0.2),
+        boxShadow: 'none',
       },
     }),
     [errorInteraction, hasText, isStreaming, theme],
@@ -409,8 +463,8 @@ function ChatInput({
   const inputPlaceholder = isStreaming
     ? 'Please wait for response to finish...'
     : isConnected
-      ? 'Ask about your database or anything else...'
-      : 'How can I help you today?';
+      ? 'Ask about your database… (type / for commands)'
+      : 'How can I help you today?… (type / for commands)';
 
   const selectedProviderOption = useMemo(() => {
     return providerOptions.find((provider) => provider.name === selectedProvider) || null;
@@ -428,36 +482,53 @@ function ChatInput({
   const hasLlmOptions = llmSections.length > 0;
   const contextUsage = useMemo(() => {
     if (!usageMetrics) return null;
-    const activeUsed = usageMetrics.inputPayloadTokens ?? usageMetrics.totalTokens;
-    const rawActiveBudget =
-      usageMetrics.contextPhase === 'pre_summary'
-        ? (usageMetrics.summaryThresholdTokens ??
-          usageMetrics.pressureTriggerTokens ??
-          usageMetrics.activeContextBudget)
-        : (usageMetrics.pressureTriggerTokens ?? usageMetrics.activeContextBudget);
-    const modelWindow = usageMetrics.modelContextWindow ?? usageMetrics.totalContextWindow;
-    const totalUsed =
-      activeUsed +
-      (usageMetrics.systemPromptTokens || 0) +
-      (usageMetrics.toolSchemaTokens || 0) +
-      (usageMetrics.vampMemoryTokens || 0) +
-      (usageMetrics.taskCheckpointTokens || 0);
-
-    const activePercent = percentOf(activeUsed, rawActiveBudget);
-    const modelPercent = percentOf(totalUsed, modelWindow);
+    // ENH [CTX-SINGLE-SOURCE]: The back-end now computes the percentages.
+    // The front-end does ZERO calculation — just renders the values.
+    // This eliminates all sync issues between the indicator and the
+    // summarization trigger, because both use the same formula in the
+    // same code (build_usage_metrics in stream_events.py).
+    //
+    // The back-end sends:
+    //   activePercent: 0-100 (when this hits 90, summarization triggers)
+    //   modelPercent:  0-100 (total payload vs. model's context window)
+    //
+    // Fallback: for OLD conversations (stored before the back-end computed
+    // percentages), compute from raw values so the indicator still works.
+    const activePercent =
+      usageMetrics.activePercent ??
+      (usageMetrics.inputPayloadTokens && usageMetrics.pressureTriggerTokens
+        ? Math.min(
+            100,
+            Math.max(
+              0,
+              Math.round(
+                (usageMetrics.inputPayloadTokens / usageMetrics.pressureTriggerTokens) * 100,
+              ),
+            ),
+          )
+        : null);
+    const modelPercent =
+      usageMetrics.modelPercent ??
+      (usageMetrics.inputPayloadTokens &&
+      (usageMetrics.modelContextWindow || usageMetrics.totalContextWindow)
+        ? Math.min(
+            100,
+            Math.max(
+              0,
+              Math.round(
+                (usageMetrics.inputPayloadTokens /
+                  (usageMetrics.modelContextWindow || usageMetrics.totalContextWindow)) *
+                  100,
+              ),
+            ),
+          )
+        : null);
     if (activePercent == null) return null;
     return {
-      activeUsed,
-      totalUsed,
-      activeBudget: rawActiveBudget,
-      modelWindow,
       activePercent,
       modelPercent,
-      indicatorUsed: activeUsed,
-      indicatorBudget: rawActiveBudget,
-      tokenCountingMode: usageMetrics.tokenCountingMode,
       contextPhase: usageMetrics.contextPhase,
-      summaryThresholdTokens: usageMetrics.summaryThresholdTokens,
+      tokenCountingMode: usageMetrics.tokenCountingMode,
     };
   }, [usageMetrics]);
 
@@ -487,6 +558,49 @@ function ChatInput({
     [currentDatabase, onDatabaseSwitch],
   );
 
+  // ENH [SLASH-COMMAND]: Detect slash commands typed at the start of the
+  // message. When the message starts with "/" and has no whitespace yet,
+  // we show the SlashCommandMenu anchored to the composer. The menu
+  // filters its options by the text after "/" (e.g., "/lon" → "Long Task").
+  // Typing a space, deleting the "/", or selecting a command closes it.
+  //
+  // NOTE: These must be declared BEFORE handleSubmit and handleKeyDown,
+  // because handleKeyDown references `isSlashMenuOpen` in its dependency
+  // array, which is evaluated immediately during render. Declaring it
+  // after would cause a temporal-dead-zone ReferenceError.
+  const slashQuery = useMemo(() => extractSlashQuery(message), [message]);
+  const isSlashMenuOpen = slashQuery !== null && !message.includes(' ');
+
+  const handleSlashCommandSelect = useCallback(
+    (command) => {
+      // Apply the task-mode change (if the command has a value).
+      if (command.value && onTaskModeChange) {
+        onTaskModeChange(command.value);
+      }
+      // Strip the slash text from the message so the user can continue
+      // typing their actual prompt. If the command was the picker
+      // ("/mode" with value=null), we still clear the slash so the menu
+      // closes and the user can type their prompt.
+      setMessage((prev) => {
+        // Remove the first token (the slash command) and any single
+        // trailing space, preserving the rest of the message.
+        const remainder = prev.split(/\s+(.*)/s, 2)[1] || '';
+        return remainder;
+      });
+    },
+    [onTaskModeChange],
+  );
+
+  const handleSlashCommandClose = useCallback(() => {
+    // Closing the menu without selecting: clear the slash so it doesn't
+    // reopen on the next keystroke. The user can retype "/" to reopen.
+    setMessage((prev) => {
+      if (!prev.startsWith('/')) return prev;
+      const remainder = prev.split(/\s+(.*)/s, 2)[1] || '';
+      return remainder;
+    });
+  }, []);
+
   const handleSubmit = useCallback(
     (e) => {
       e?.preventDefault();
@@ -498,14 +612,34 @@ function ChatInput({
     [message, disabled, isStreaming, onSend],
   );
 
+  // ENH [SLASH-COMMAND]: When the slash command menu is open, Enter and
+  // Tab are intercepted by the menu's document-level keydown listener
+  // (capture phase) to select the highlighted command. We also guard
+  // here so that even if the event reaches the input, we don't submit
+  // a half-typed slash command. ArrowUp/ArrowDown/Escape are handled
+  // the same way in the menu's listener.
   const handleKeyDown = useCallback(
     (e) => {
+      if (isSlashMenuOpen) {
+        // The slash menu's capture-phase listener will handle
+        // Enter/Tab/Arrow/Escape. For any other key, fall through so
+        // the user can keep typing to filter the menu.
+        if (
+          e.key === 'Enter' ||
+          e.key === 'Tab' ||
+          e.key === 'ArrowUp' ||
+          e.key === 'ArrowDown' ||
+          e.key === 'Escape'
+        ) {
+          return;
+        }
+      }
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         handleSubmit();
       }
     },
-    [handleSubmit],
+    [handleSubmit, isSlashMenuOpen],
   );
 
   const handleInputChange = useCallback((e) => {
@@ -703,9 +837,35 @@ function ChatInput({
         {/* Model list */}
         <Box role="menu" aria-label="Select model" sx={{ maxHeight: 280, overflowY: 'auto' }}>
           {llmOptionsLoading ? (
-            <Box sx={{ display: 'grid', gap: 0.5 }}>
+            // Model-list loading skeleton — mimics the structure of a real
+            // menu item: a 16px circular avatar-like slot + a 70%-width
+            // text bar. Reads as "model list is loading" rather than a
+            // generic gray block.
+            <Box sx={{ display: 'grid', gap: 0.5, p: 0.5 }}>
               {[0, 1, 2].map((i) => (
-                <Skeleton key={i} variant="rounded" height={44} sx={{ borderRadius: '8px' }} />
+                <Box
+                  key={i}
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: '16px minmax(0, 1fr)',
+                    alignItems: 'center',
+                    gap: 1,
+                    height: 44,
+                    px: 1,
+                    py: 0.75,
+                  }}
+                >
+                  <Skeleton variant="circular" width={16} height={16} animation="wave" />
+                  <Skeleton
+                    variant="rounded"
+                    animation="wave"
+                    sx={{
+                      width: `${78 - i * 12}%`,
+                      height: 11,
+                      borderRadius: 999,
+                    }}
+                  />
+                </Box>
               ))}
             </Box>
           ) : hasLlmOptions ? (
@@ -793,7 +953,9 @@ function ChatInput({
           )}
         </Box>
       </AppPopover>
+
       <Box
+        ref={composerRef}
         sx={{
           maxWidth: UI_LAYOUT.chatInputMaxWidth,
           mx: 'auto',
@@ -807,6 +969,10 @@ function ChatInput({
             '&:hover': {
               boxShadow: getComposerHoverShadow(theme),
             },
+          },
+          // Visible focus-within ring so keyboard users see the composer is active.
+          '&:focus-within': {
+            boxShadow: getComposerHoverShadow(theme),
           },
           cursor: isStreaming ? 'wait' : 'text',
         }}
@@ -1046,7 +1212,83 @@ function ChatInput({
             </Box>
           </Box>
         </Box>
+
+        {/*
+          ENH [SLASH-COMMAND]: Subtle effective-mode chip in the top-right
+          corner of the composer. Shows the backend-reported effective mode
+          when the agent is running (or just finished) a turn. Hidden when
+          there's no effective mode (resting state) so the composer stays
+          clean. The chip is non-interactive — it's a status indicator, not
+          a control. Mode selection happens via the slash command menu
+          (type "/" at the start of the input).
+        */}
+        {effectiveTaskMode && (
+          <Box
+            aria-label={`Effective task mode: ${effectiveTaskMode.label}`}
+            sx={{
+              position: 'absolute',
+              top: 6,
+              right: 6,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 0.5,
+              px: 0.85,
+              py: 0.25,
+              borderRadius: 0.75,
+              fontSize: 10,
+              fontWeight: 600,
+              letterSpacing: 0.3,
+              textTransform: 'uppercase',
+              lineHeight: 1.4,
+              bgcolor: alpha(theme.palette.primary.main, 0.12),
+              color: theme.palette.primary.main,
+              border: `1px solid ${alpha(theme.palette.primary.main, 0.28)}`,
+              pointerEvents: 'none',
+              opacity: isStreaming ? 0.95 : 0.7,
+              transition: theme.transitions.create('opacity', {
+                duration: theme.transitions.duration.shorter,
+              }),
+            }}
+          >
+            {effectiveTaskMode.label}
+            {effectiveTaskMode.recursion_limit ? ` · ${effectiveTaskMode.recursion_limit}` : ''}
+            {effectiveTaskMode.source === 'auto' && (
+              <Box
+                component="span"
+                sx={{
+                  fontSize: 8,
+                  px: 0.4,
+                  py: 0.1,
+                  borderRadius: 0.5,
+                  bgcolor: alpha(theme.palette.primary.main, 0.22),
+                  lineHeight: 1,
+                }}
+              >
+                Auto
+              </Box>
+            )}
+          </Box>
+        )}
       </Box>
+
+      {/*
+        ENH [SLASH-COMMAND]: Inline command menu. Opens when the user types
+        "/" at the start of the message. Lets them pick the task mode
+        (Auto / Standard / Tool Task / Long Task) without adding a button
+        to the toolbar. Filtered by the text after "/" — e.g., "/lon"
+        shows only "Long Task". Keyboard: ↑↓ navigate, ↵/Tab select,
+        Esc close. On select, the slash text is stripped from the message
+        and the mode is applied.
+      */}
+      {isSlashMenuOpen && composerRef.current && (
+        <SlashCommandMenu
+          anchorEl={composerRef.current}
+          query={slashQuery}
+          currentTaskMode={taskMode ?? 'auto'}
+          onSelect={handleSlashCommandSelect}
+          onClose={handleSlashCommandClose}
+        />
+      )}
       {children}
     </Box>
   );
@@ -1070,6 +1312,11 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.onSchemaChange !== nextProps.onSchemaChange) return false;
   if (prevProps.currentSchema !== nextProps.currentSchema) return false;
   if (prevProps.usageMetrics !== nextProps.usageMetrics) return false;
+  // ENH [AUTO-TASK-MODE]: Re-render when the task-mode setting or the
+  // backend-reported effective mode changes.
+  if (prevProps.taskMode !== nextProps.taskMode) return false;
+  if (prevProps.onTaskModeChange !== nextProps.onTaskModeChange) return false;
+  if (prevProps.effectiveTaskMode !== nextProps.effectiveTaskMode) return false;
   if (prevProps.children !== nextProps.children) return false;
   if (prevProps.availableDatabases?.length !== nextProps.availableDatabases?.length) return false;
   // Compare actual database identifiers, not just count, so a rename still

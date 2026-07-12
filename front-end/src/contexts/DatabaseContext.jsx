@@ -34,7 +34,6 @@ import { useQueryClient } from '@tanstack/react-query';
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
 import {
   disconnectDb,
-  getDbStatus,
   getSchemas as getSchemasApi,
   getTableSchema as getTableSchemaApi,
   getTables,
@@ -42,6 +41,7 @@ import {
   selectSchema as selectSchemaApi,
   sessionActive,
   switchDatabase as switchDatabaseApi,
+  syncConnectionState,
 } from '@/api';
 import { queryKeys } from '@/api/queryClient';
 import { useAuth } from '@/contexts/AuthContext';
@@ -185,25 +185,57 @@ function databaseReducer(state, action) {
 
 const DatabaseContext = createContext(null);
 
+/**
+ * Extract the list of available databases from a backend response.
+ *
+ * IMPORTANT: This must NOT fall back to `connectionData.schemas`. The
+ * PostgreSQL connect handler historically returned the database list under
+ * the `schemas` key (a backend bug), and the frontend's fallback masked it
+ * by displaying PostgreSQL schemas (e.g. `public`, `information_schema`)
+ * as if they were databases. After a page refresh, the `syncConnectionState`
+ * endpoint returns the correct `databases` field — which is why the bug
+ * only appeared immediately after connecting.
+ *
+ * Database engines and their hierarchy:
+ *   - PostgreSQL / SQL Server:  Database → Schema → Tables  (schemas are
+ *       a separate concept from databases)
+ *   - MySQL / MariaDB:          Database (== Schema) → Tables  (the two
+ *       terms are synonyms; the backend returns them under `databases`)
+ *   - Oracle:                   Schema == User → Tables  (schemas are tied
+ *       to user accounts; we don't expose a separate schema switcher)
+ *
+ * For PostgreSQL and SQL Server, schemas are surfaced separately via
+ * `getSchemaList` and rendered in their own UI affordance — never mixed
+ * into the database list.
+ */
 function getDatabaseList(connectionData = {}) {
-  const databases = connectionData.databases?.length
-    ? connectionData.databases
-    : connectionData.schemas;
-  if (databases?.length) return databases;
+  if (connectionData.databases?.length) return connectionData.databases;
 
-  // Use centralized helper to find the DB name across all field variants.
+  // No databases list provided — fall back to the single connected database
+  // (e.g. for remote/connection-string scenarios where the server doesn't
+  // expose a database list). Never fall back to `schemas`.
   const selectedDatabase = getSelectedDatabase(connectionData);
   return selectedDatabase ? [selectedDatabase] : [];
 }
 
+/**
+ * Extract the list of schemas for the current database.
+ *
+ * Only PostgreSQL and SQL Server have schemas as a distinct concept. For
+ * MySQL/MariaDB, "schema" is a synonym for "database" — so we deliberately
+ * return an empty list to avoid showing databases twice (once in the
+ * database switcher, once in a schema switcher). For Oracle, schemas are
+ * tied to user accounts and not exposed as a switchable concept here.
+ */
 function getSchemaList(connectionData = {}) {
-  return connectionData.db_type?.toLowerCase() === 'postgresql'
-    ? (connectionData.schemas ?? [])
-    : [];
+  const dbType = connectionData.db_type?.toLowerCase();
+  if (dbType !== 'postgresql' && dbType !== 'sqlserver') return [];
+  return connectionData.schemas ?? [];
 }
 
 function getCurrentSchema(connectionData = {}) {
-  if (connectionData.db_type?.toLowerCase() !== 'postgresql') return null;
+  const dbType = connectionData.db_type?.toLowerCase();
+  if (dbType !== 'postgresql' && dbType !== 'sqlserver') return null;
   return connectionData.current_schema || connectionData.db_config?.schema || null;
 }
 
@@ -315,11 +347,13 @@ export function DatabaseProvider({ children }) {
       try {
         const sessionInstanceId = getSessionInstanceId();
         if (sessionInstanceId) {
-          await sessionActive(sessionInstanceId);
+          sessionActive(sessionInstanceId).catch((err) => {
+            logger.warn('Failed to report active session:', err);
+          });
         }
         const response = await queryClient.fetchQuery({
           queryKey: queryKeys.dbStatus,
-          queryFn: getDbStatus,
+          queryFn: syncConnectionState,
           staleTime: 30 * 1000,
         });
         dispatch({ type: ActionTypes.SYNC_STATUS, payload: response.data });
@@ -485,7 +519,7 @@ export function DatabaseProvider({ children }) {
       await queryClient.invalidateQueries({ queryKey: queryKeys.dbStatus });
       const response = await queryClient.fetchQuery({
         queryKey: queryKeys.dbStatus,
-        queryFn: getDbStatus,
+        queryFn: syncConnectionState,
         staleTime: 30 * 1000,
       });
       queryClient.setQueryData(queryKeys.dbStatus, response);

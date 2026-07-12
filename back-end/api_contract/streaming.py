@@ -8,22 +8,30 @@ from api_contract.common import ApiError
 
 
 class TokenEvent(BaseModel):
+    """SSE event carrying one streamed assistant content token."""
+
     type: Literal["token"]
     content: str
 
 
 class ThinkingTokenEvent(BaseModel):
+    """SSE event carrying one streamed reasoning/thinking token."""
+
     type: Literal["thinking_token"]
     content: str
 
 
 class ToolStartEvent(BaseModel):
+    """SSE event signaling that an agent tool invocation has started."""
+
     type: Literal["tool_start"]
     name: str
     args: dict[str, Any] = Field(default_factory=dict)
 
 
 class ToolEndEvent(BaseModel):
+    """SSE event signaling that an agent tool invocation has completed."""
+
     type: Literal["tool_end"]
     name: str
     args: dict[str, Any] = Field(default_factory=dict)
@@ -31,27 +39,37 @@ class ToolEndEvent(BaseModel):
 
 
 class UiActionEvent(BaseModel):
+    """SSE event requesting a client-side UI action with optional payload."""
+
     type: Literal["ui_action"]
     action: str
     payload: dict[str, Any] | None = None
 
 
 class InterruptEvent(BaseModel):
+    """SSE event signaling an agent-initiated interruption of the stream."""
+
     type: Literal["agent_interrupt"]
     id: str | None = None
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
 class StreamErrorEvent(BaseModel):
+    """SSE event reporting an error encountered mid-stream."""
+
     type: Literal["error"]
     message: str
 
 
 class DoneEvent(BaseModel):
+    """SSE event marking the terminal frame of a completed stream."""
+
     type: Literal["done"]
 
 
 class AgentStepLimitEvent(BaseModel):
+    """SSE event warning the client that the agent reached its step limit."""
+
     type: Literal["agent_step_limit_reached"]
     task_id: str
     conversation_id: str
@@ -62,6 +80,8 @@ class AgentStepLimitEvent(BaseModel):
 
 
 class UsageMetricsEvent(BaseModel):
+    """SSE event reporting token/context-budget usage metrics for a turn."""
+
     model_config = ConfigDict(extra="allow")
 
     type: Literal["usage_metrics"]
@@ -86,6 +106,8 @@ class UsageMetricsEvent(BaseModel):
 
 
 class WorkflowStatusEvent(BaseModel):
+    """SSE event reporting the status of a workflow stage."""
+
     type: Literal["workflow_status"]
     stage: str
     status: Literal["running", "done", "failed"]
@@ -93,6 +115,8 @@ class WorkflowStatusEvent(BaseModel):
 
 
 class SkillsActivatedEvent(BaseModel):
+    """SSE event listing the skills activated for the current turn."""
+
     type: Literal["skills_activated"]
     skills: list[str]
 

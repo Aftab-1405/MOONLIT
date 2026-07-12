@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app';
 import { GithubAuthProvider, GoogleAuthProvider, getAuth } from 'firebase/auth';
-import { getFirebaseConfig } from '@/api';
+import { getFirebaseConfigAndCsrfToken } from '@/api';
 import logger from '@/utils/logger';
 
 let firebaseApp = null;
@@ -12,7 +12,7 @@ export const initializeFirebase = async () => {
   if (firebaseApp) return { auth, googleProvider, githubProvider };
 
   try {
-    const data = await getFirebaseConfig();
+    const data = await getFirebaseConfigAndCsrfToken();
 
     if (data.status !== 'success') {
       throw new Error('Failed to fetch Firebase config');

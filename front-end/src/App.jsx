@@ -1,29 +1,40 @@
 import { Box } from '@mui/material';
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { PageLoader } from '@/components';
 import AdminRoute from '@/guards/AdminRoute';
 import ProtectedRoute from '@/guards/ProtectedRoute';
+import AdminDashboard from '@/pages/AdminDashboard';
+import Auth from '@/pages/Auth';
+import Chat from '@/pages/Chat';
+import Landing from '@/pages/Landing';
 
-const Landing = lazy(() => import('@/pages/Landing'));
-const Auth = lazy(() => import('@/pages/Auth'));
-const Chat = lazy(() => import('@/pages/Chat'));
-const AdminDashboard = lazy(() => import('@/pages/AdminDashboard'));
-
+/**
+ * App root.
+ *
+ * Layout: a single 1fr grid row that fills the viewport. We use `100dvh`
+ * (with `100vh` fallback) so mobile browser chrome (address bar / toolbar)
+ * doesn't cause the layout to overflow and trigger a stray scroll.
+ *
+ * `overflow: hidden` on the root prevents body scroll — inner panels
+ * (sidebar, message list, artifact panel) own their own scroll containers.
+ */
 function App() {
   return (
     <Box
       id="app-root"
       sx={{
         display: 'grid',
-        gridTemplateRows: '0px 1fr',
-        height: '100vh',
+        // Single row that fills available height. We do NOT need a reserved
+        // 0px header row — there is no global app header.
+        gridTemplateRows: '1fr',
+        height: '100dvh',
+        // Fallback for browsers without dvh support
+        '@supports not (height: 100dvh)': { height: '100vh' },
         width: '100%',
         overflow: 'hidden',
       }}
     >
-      {/* Row 0: reserved header slot (0px) — mirrors Claude's grid-template-rows: 0px 1fr */}
-      <Box />
       <Suspense fallback={<PageLoader />}>
         <Routes>
           <Route path="/" element={<Landing />} />

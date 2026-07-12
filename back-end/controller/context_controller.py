@@ -1,39 +1,40 @@
-# File: api/routes/context.py
 """User context and settings related API routes."""
 
-import logging
-import time
 import asyncio
 import json
+import logging
+import time
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Request, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import StreamingResponse
 
-from dependencies import (
-    get_current_user,
-    require_db_config,
-    get_session_data,
-    update_session_data,
-    _expire_db_config,
-)
 from api_contract.context import (
-    SaveUserSettingsRequest,
     CloseSessionRequest,
+    SaveUserSettingsRequest,
     SessionActiveRequest,
+)
+from dependencies import (
+    _expire_db_config,
+    get_current_user,
+    get_session_data,
+    require_db_config,
+    update_session_data,
 )
 from service.user_settings.user_settings_service import UserSettingsService
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["context"])
+router = APIRouter(tags=["User Context & Settings"])
 
 
 def _user_id(user: dict) -> str:
+    """Extract the user identifier from a user dict (falling back to the raw value if already a string)."""
     return user.get("uid") or user
 
 
 def _parse_cache_time(cached_at):
+    """Coerce a heterogeneous cached-at value (datetime/struct_time/ISO string) into a timezone-aware UTC datetime."""
     if hasattr(cached_at, "timestamp"):
         return datetime.fromtimestamp(cached_at.timestamp(), tz=timezone.utc)
     if hasattr(cached_at, "isoformat"):
@@ -42,6 +43,7 @@ def _parse_cache_time(cached_at):
 
 
 def _build_context_metrics_payload(context: dict) -> dict:
+    """Build the per-user context-cache telemetry payload (hit/miss counts, TTL, active tables) from a raw context dict."""
     from config import get_config
 
     config = get_config()
@@ -69,11 +71,7 @@ def _build_context_metrics_payload(context: dict) -> dict:
                 if cached_at:
                     try:
                         cache_time = _parse_cache_time(cached_at)
-                        now = (
-                            datetime.now(cache_time.tzinfo)
-                            if cache_time.tzinfo
-                            else datetime.now(timezone.utc)
-                        )
+                        now = datetime.now(cache_time.tzinfo) if cache_time.tzinfo else datetime.now(timezone.utc)
                         age_seconds = (now - cache_time).total_seconds()
                         ttl_remaining = max(
                             0,
@@ -97,18 +95,15 @@ def _build_context_metrics_payload(context: dict) -> dict:
             "ttl_remaining": ttl_remaining,
             "active_table_count": active_table_count,
             "connected_database": connected_database,
-            "remaining_tables": max(
-                0, config.SCHEMA_CONTEXT_MAX_TABLES - active_table_count
-            ),
+            "remaining_tables": max(0, config.SCHEMA_CONTEXT_MAX_TABLES - active_table_count),
         },
     }
 
 
 async def _sync_persistence_to_session(request: Request, prefs: dict) -> None:
+    """Mirror the resolved connection-persistence-minutes value from user prefs into the session store."""
     minutes = UserSettingsService.connection_persistence_minutes(prefs)
-    await update_session_data(
-        request, {"connectionPersistenceMinutes": minutes}
-    )
+    await update_session_data(request, {"connectionPersistenceMinutes": minutes})
 
 
 async def _resolve_connection_persistence_minutes(
@@ -116,6 +111,7 @@ async def _resolve_connection_persistence_minutes(
     user: dict,
     explicit: int | None = None,
 ) -> int:
+    """Resolve the effective connection-persistence-minutes value, preferring the explicit arg, then session, then user prefs."""
     if explicit is not None:
         return int(explicit)
 
@@ -127,15 +123,11 @@ async def _resolve_connection_persistence_minutes(
         except (TypeError, ValueError):
             pass
 
-    prefs = await run_in_threadpool(
-        UserSettingsService.get_merged, _user_id(user)
-    )
+    prefs = await run_in_threadpool(UserSettingsService.get_merged, _user_id(user))
     return UserSettingsService.connection_persistence_minutes(prefs)
 
 
-# =============================================================================
 # USER CONTEXT ROUTES
-# =============================================================================
 
 
 @router.get("/user/context")
@@ -145,8 +137,6 @@ async def get_user_context(user: dict = Depends(get_current_user)):
 
     user_id = user.get("uid") or user
     context = await run_in_threadpool(ContextService.get_full_context, user_id)
-
-    # Convert schemas dict to array for frontend
     schemas_dict = context.get("schemas", {})
     schemas_list = []
     for db_name, schema_data in schemas_dict.items():
@@ -168,9 +158,7 @@ async def get_user_context(user: dict = Depends(get_current_user)):
 
 
 @router.post("/user/context/refresh")
-async def refresh_user_context(
-    db_config: dict = Depends(require_db_config), user: dict = Depends(get_current_user)
-):
+async def refresh_user_context(db_config: dict = Depends(require_db_config), user: dict = Depends(get_current_user)):
     """Refresh schema cache for current database."""
     from service.context.context_service import ContextService
 
@@ -190,9 +178,7 @@ async def delete_schema_context(database: str, user: dict = Depends(get_current_
     from service.context.context_service import ContextService
 
     user_id = user.get("uid") or user
-    success = await run_in_threadpool(
-        ContextService.clear_schema_context, user_id, database
-    )
+    success = await run_in_threadpool(ContextService.clear_schema_context, user_id, database)
 
     if success:
         return {
@@ -208,11 +194,8 @@ async def delete_all_schema_contexts(user: dict = Depends(get_current_user)):
     from service.context.context_service import ContextService
 
     user_id = user.get("uid") or user
-    # Get all schemas first
     context = await run_in_threadpool(ContextService.get_full_context, user_id)
     schemas = context.get("schemas", {})
-
-    # Delete each schema context
     for db_name in schemas.keys():
         await run_in_threadpool(ContextService.clear_schema_context, user_id, db_name)
 
@@ -232,9 +215,41 @@ async def clear_query_history(user: dict = Depends(get_current_user)):
     return {"status": "error", "message": "Failed to clear query history"}
 
 
-# =============================================================================
 # CONTEXT METRICS ROUTES
-# =============================================================================
+
+
+async def get_redis_info() -> dict:
+    """Fetch a lightweight health/info snapshot from the Redis client (version, memory, key counts)."""
+    from service.redis_service import get_redis_client
+
+    redis_client = get_redis_client()
+    if redis_client is None:
+        return {"connected": False}
+    try:
+        info = await redis_client.info()
+        total_keys = info.get("total_keys")
+        if total_keys is None:
+            total_keys = sum(
+                details.get("keys", 0) for key, details in info.items() if key.startswith("db") and isinstance(details, dict)
+            )
+
+        maxmemory = info.get("maxmemory_human")
+        if maxmemory == "0B":
+            maxmemory = "No limit"
+
+        return {
+            "connected": True,
+            "redis_version": info.get("redis_version"),
+            "upstash_version": info.get("upstash_version"),
+            "connected_clients": info.get("connected_clients"),
+            "used_memory_human": info.get("used_memory_human"),
+            "maxmemory_human": maxmemory,
+            "total_keys": total_keys,
+            "total_data_size_human": info.get("total_data_size_human"),
+        }
+    except Exception as e:
+        logger.error("Error fetching redis info: %s", e)
+        return {"connected": False, "error": str(e)}
 
 
 @router.get("/context/metrics")
@@ -249,6 +264,7 @@ async def get_context_metrics(user: dict = Depends(get_current_user)):
         - clears: Number of context clear operations
         - hit_rate_percent: Hit rate percentage
         - metrics_enabled: Whether metrics tracking is enabled
+        - redis: Redis telemetry details
     """
     from service.context.context_service import ContextService
 
@@ -257,13 +273,12 @@ async def get_context_metrics(user: dict = Depends(get_current_user)):
         return _build_context_metrics_payload(context)
 
     stats = await run_in_threadpool(build_metrics_payload, _user_id(user))
+    stats["redis"] = await get_redis_info()
     return {"status": "success", "metrics": stats}
 
 
 @router.get("/context/metrics/stream")
-async def stream_context_metrics(
-    request: Request, user: dict = Depends(get_current_user)
-):
+async def stream_context_metrics(request: Request, user: dict = Depends(get_current_user)):
     """Stream per-user context metrics whenever the Firestore context document changes."""
     from service.context.context_service import ContextService
 
@@ -285,11 +300,17 @@ async def stream_context_metrics(
             loop.call_soon_threadsafe(put_latest)
 
         def on_context(context: dict):
-            publish(_build_context_metrics_payload(context))
+            async def process_and_publish():
+                try:
+                    payload = _build_context_metrics_payload(context)
+                    payload["redis"] = await get_redis_info()
+                    publish(payload)
+                except Exception as ex:
+                    logger.error("Error in process_and_publish: %s", ex)
 
-        watch = await run_in_threadpool(
-            lambda: ContextService.watch_context_document(user_id, on_context)
-        )
+            asyncio.run_coroutine_threadsafe(process_and_publish(), loop)
+
+        watch = await run_in_threadpool(lambda: ContextService.watch_context_document(user_id, on_context))
 
         try:
             while not await request.is_disconnected():
@@ -316,8 +337,8 @@ async def stream_context_metrics(
 @router.post("/context/metrics/reset")
 async def reset_context_metrics(user: dict = Depends(get_current_user)):
     """Reset context metrics counters (for testing/monitoring)."""
-    from service.context.context_service import ContextMetrics
     from config import get_config
+    from service.context.context_service import ContextMetrics
 
     config = get_config()
     if not config.DEBUG and not config.TESTING:
@@ -331,9 +352,7 @@ async def reset_context_metrics(user: dict = Depends(get_current_user)):
     return {"status": "success", "message": "Context metrics reset"}
 
 
-# =============================================================================
 # USER SETTINGS ROUTES
-# =============================================================================
 
 
 @router.get("/user/settings")
@@ -367,49 +386,32 @@ async def save_user_settings(
 ):
     """Save per-user preferences to Firestore and mirror persistence into the session."""
     patch = data.model_dump(exclude_unset=True)
-    prefs = await run_in_threadpool(
-        UserSettingsService.save, _user_id(user), patch
-    )
+    prefs = await run_in_threadpool(UserSettingsService.save, _user_id(user), patch)
     await _sync_persistence_to_session(request, prefs)
 
     persistence_minutes = UserSettingsService.connection_persistence_minutes(prefs)
-    if (
-        data.connectionPersistence is not None
-        or data.connectionPersistenceMinutes is not None
-    ):
+    if data.connectionPersistence is not None or data.connectionPersistenceMinutes is not None:
         session = await get_session_data(request) or {}
         db_config = session.get("db_config")
         if db_config:
             closed_at = session.get("db_config_last_closed_at")
             if closed_at and persistence_minutes > 0:
-                if time.time() - float(closed_at) > (
-                    persistence_minutes * 60
-                ):
+                if time.time() - float(closed_at) > (persistence_minutes * 60):
                     await _expire_db_config(request, db_config, "settings_update")
             elif closed_at and persistence_minutes <= 0:
-                await _expire_db_config(
-                    request, db_config, "settings_update_no_persistence"
-                )
+                await _expire_db_config(request, db_config, "settings_update_no_persistence")
 
     return {"status": "success", "settings": prefs}
 
 
 @router.post("/user/session/close")
-async def close_user_session(
-    request: Request, data: CloseSessionRequest, user: dict = Depends(get_current_user)
-):
+async def close_user_session(request: Request, data: CloseSessionRequest, user: dict = Depends(get_current_user)):
     """Mark session as closed to enforce connection persistence window."""
     now = time.time()
-
-    # Store the latest persistence setting in the session if provided
     if data.connectionPersistenceMinutes is not None:
-        await update_session_data(
-            request, {"connectionPersistenceMinutes": data.connectionPersistenceMinutes}
-        )
+        await update_session_data(request, {"connectionPersistenceMinutes": data.connectionPersistenceMinutes})
     if data.sessionInstanceId:
-        await update_session_data(
-            request, {"session_instance_id": data.sessionInstanceId}
-        )
+        await update_session_data(request, {"session_instance_id": data.sessionInstanceId})
 
     session = await get_session_data(request) or {}
     db_config = session.get("db_config")
@@ -454,18 +456,12 @@ async def mark_user_session_active(
 
     if incoming_id and stored_id and incoming_id != stored_id and db_config:
         # Treat as a new session instance (e.g., browser reopened)
-        persistence_minutes = await _resolve_connection_persistence_minutes(
-            request, user, None
-        )
+        persistence_minutes = await _resolve_connection_persistence_minutes(request, user, None)
         last_active = session.get("session_active_at") or time.time()
         if persistence_minutes <= 0:
-            await _expire_db_config(
-                request, db_config, "session_instance_changed_no_persistence"
-            )
+            await _expire_db_config(request, db_config, "session_instance_changed_no_persistence")
         elif now - float(last_active) > (persistence_minutes * 60):
-            await _expire_db_config(
-                request, db_config, "session_instance_changed_expired"
-            )
+            await _expire_db_config(request, db_config, "session_instance_changed_expired")
         else:
             await update_session_data(
                 request,

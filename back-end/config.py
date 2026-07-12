@@ -1,16 +1,14 @@
-# File: config.py
-"""Application configuration settings"""
+"""Environment-driven application configuration for MOONLIT."""
 
 import os
 import logging
 from dotenv import load_dotenv
 
-# Load environment variables from .env file
 load_dotenv()
 
 
 class Config:
-    """Base configuration class with common settings"""
+    """Base configuration: reads every setting from environment variables with safe defaults."""
 
     # Application Environment
     # Options: development, staging, production
@@ -50,6 +48,15 @@ class Config:
                 "langchain_aws.chat_models.bedrock_converse",
                 "langchain_core",
                 "langgraph",
+                # ENH [LOG]: Suppress noisy HTTP/connection debug logs
+                "httpcore",
+                "httpcore.connection",
+                "httpcore.http11",
+                "httpx",
+                "huggingface_hub",
+                "transformers",
+                # ENH [LOG]: Suppress Qdrant client debug logs
+                "qdrant_client",
             )
         ),
     )
@@ -131,6 +138,11 @@ class Config:
     LLM_MAX_RPM_PER_KEY = int(os.getenv("LLM_MAX_RPM_PER_KEY", 25))
     LLM_MAX_CONCURRENT = int(os.getenv("LLM_MAX_CONCURRENT", 5))
     LLM_QUEUE_TIMEOUT = int(os.getenv("LLM_QUEUE_TIMEOUT", 60))
+    # ENH [RL-ACCOUNT]: Global account-level RPM guard. Set to your Bedrock
+    # account's total RPM limit to prevent account-level throttling when many
+    # users each stay under their per-user limit but the aggregate exceeds
+    # the account quota. 0 = disabled (Bedrock handles throttling itself).
+    LLM_ACCOUNT_MAX_RPM = int(os.getenv("LLM_ACCOUNT_MAX_RPM", 0))
 
     # Per-User Quota (Redis-based)
     USER_QUOTA_ENABLED = os.getenv("USER_QUOTA_ENABLED", "True").lower() == "true"
@@ -141,7 +153,14 @@ class Config:
     # Firebase credentials from environment variables
     @staticmethod
     def get_firebase_credentials():
-        """Get Firebase credentials from environment variables"""
+        """Build the Firebase service-account dict from FIREBASE_* env vars.
+
+        Returns:
+            The service-account credentials dict expected by ``firebase_admin.initialize_app``.
+
+        Raises:
+            ValueError: If any required FIREBASE_* env var is missing.
+        """
         required_env_vars = [
             "FIREBASE_TYPE",
             "FIREBASE_PROJECT_ID",
@@ -180,7 +199,12 @@ class Config:
     # Validation method to check Firebase credentials at startup
     @staticmethod
     def validate_firebase_credentials():
-        """Validate Firebase credentials are properly configured"""
+        """Sanity-check the Firebase service-account credentials at startup.
+
+        Returns:
+            True if the credentials pass basic format validation; False if validation
+            logs a warning and swallows the error. The caller decides whether to abort.
+        """
         logger = logging.getLogger(__name__)
         try:
             credentials = Config.get_firebase_credentials()
@@ -213,7 +237,7 @@ class Config:
     # Firebase Web/Client SDK Configuration (for frontend)
     @staticmethod
     def get_firebase_web_config():
-        """Get Firebase web client configuration from environment variables"""
+        """Return the Firebase Web SDK config dict (apiKey, authDomain, etc.) for the frontend."""
         return {
             "apiKey": os.getenv("FIREBASE_WEB_API_KEY", ""),
             "authDomain": os.getenv("FIREBASE_AUTH_DOMAIN", ""),
@@ -226,7 +250,12 @@ class Config:
     # Validation method to ensure Firebase project consistency
     @staticmethod
     def validate_firebase_project_consistency():
-        """Validate that Admin SDK and Client SDK use the same Firebase project"""
+        """Ensure Admin SDK and Client SDK reference the same Firebase project.
+
+        Returns:
+            True if both project IDs are present and equal; False if either is missing
+            (logs a warning). Raises ValueError if they are present but disagree.
+        """
         logger = logging.getLogger(__name__)
         admin_project_id = os.getenv("FIREBASE_PROJECT_ID", "")
         web_project_id = os.getenv("FIREBASE_WEB_PROJECT_ID", "")
@@ -258,9 +287,14 @@ class Config:
     # SQL Query Security Configuration
     MAX_QUERY_RESULTS = int(os.getenv("MAX_QUERY_RESULTS", 10000))  # Max rows to return
     QUERY_TIMEOUT_SECONDS = int(os.getenv("QUERY_TIMEOUT_SECONDS", 30))  # Query timeout
-    MAX_QUERY_LENGTH = int(
-        os.getenv("MAX_QUERY_LENGTH", 10000)
-    )  # Max characters in query
+    # FIX [L10]: unified query-length limit. Previously MAX_QUERY_LENGTH
+    # (10000) disagreed with SQL_QUERY_MAX_LENGTH (100000) below, so a
+    # 50k-char query passed the API layer and was rejected by the service
+    # layer. We now alias MAX_QUERY_LENGTH to the same env var as
+    # SQL_QUERY_MAX_LENGTH (the larger, user-facing limit) so every layer
+    # enforces the same maximum.
+    SQL_QUERY_MAX_LENGTH = int(os.getenv("SQL_QUERY_MAX_LENGTH", 100000))
+    MAX_QUERY_LENGTH = SQL_QUERY_MAX_LENGTH  # Backwards-compatible alias
 
     # AI Context Configuration (Firestore-based schema context for AI agent)
     SCHEMA_CONTEXT_TTL_SECONDS = int(
@@ -333,6 +367,11 @@ class Config:
     # Persist and compact long workflows in bounded graph segments. Reaching a
     # segment boundary is an internal checkpoint, not a user-visible failure.
     AGENT_STEP_SEGMENT_STEPS = int(os.getenv("AGENT_STEP_SEGMENT_STEPS", 50))
+    # ENH [AUTO-TASK-MODE]: When True (default), the backend auto-detects
+    # long / tool tasks from the user's prompt and elevates the task_mode
+    # so the agent gets a 100- or 200-step budget instead of the default
+    # 50-step ceiling. Set to "false" to require explicit user selection.
+    AGENT_AUTO_TASK_MODE = os.getenv("AGENT_AUTO_TASK_MODE", "true").lower() == "true"
 
     # Session/Cookie Configuration (base defaults)
     DEV_AUTH_BYPASS = os.getenv("DEV_AUTH_BYPASS", "False").lower() == "true"
@@ -349,10 +388,24 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "lax"
     SESSION_EXPIRE_SECONDS = int(os.getenv("SESSION_EXPIRE_SECONDS", 86400))  # 24 hours
+    # Legacy grace period — kept for backward compatibility but no longer used
+    # for implicit-close detection (use SESSION_IMPLICIT_CLOSE_GRACE_SECONDS
+    # instead). Was previously 45s, which caused false-positive disconnects
+    # when browsers throttled background-tab timers.
     SESSION_ACTIVITY_GRACE_SECONDS = int(
         os.getenv("SESSION_ACTIVITY_GRACE_SECONDS", 45)
     )
-    UPSTASH_REDIS_URL = os.getenv("UPSTASH_REDIS_URL")
+    # Implicit-close grace period: how long the heartbeat can be silent before
+    # the backend treats the tab as closed. Default 5 minutes — generous enough
+    # to survive browser timer throttling (Chrome throttles to 1/min after 5
+    # min; mobile Safari suspends entirely) without false-positiving on users
+    # who briefly switch tabs. The explicit close event (beforeunload →
+    # /user/session/close) is the PRIMARY close signal; this is only a fallback
+    # for crashes/force-quits where beforeunload doesn't fire.
+    SESSION_IMPLICIT_CLOSE_GRACE_SECONDS = int(
+        os.getenv("SESSION_IMPLICIT_CLOSE_GRACE_SECONDS", 300)
+    )
+    REDIS_URL = os.getenv("REDIS_URL")
     _csrf_exempt_paths_raw = os.getenv(
         "CSRF_EXEMPT_PATHS", "/api/v1/user/session/close"
     )
@@ -427,7 +480,10 @@ class Config:
     DB_CONNECTION_STRING_MAX_LENGTH = int(
         os.getenv("DB_CONNECTION_STRING_MAX_LENGTH", 2000)
     )
-    SQL_QUERY_MAX_LENGTH = int(os.getenv("SQL_QUERY_MAX_LENGTH", 100000))
+    # FIX [L10]: SQL_QUERY_MAX_LENGTH is defined once in the SQL Query
+    # Security Configuration block above (and aliased as MAX_QUERY_LENGTH).
+    # The duplicate definition that used to live here has been removed so
+    # there is a single source of truth.
     QUERY_TIMEOUT_DEFAULT_SECONDS = int(os.getenv("QUERY_TIMEOUT_DEFAULT_SECONDS", 30))
     QUERY_TIMEOUT_MIN_SECONDS = int(os.getenv("QUERY_TIMEOUT_MIN_SECONDS", 1))
     QUERY_TIMEOUT_MAX_SECONDS = int(os.getenv("QUERY_TIMEOUT_MAX_SECONDS", 300))
@@ -479,18 +535,14 @@ class Config:
 
 
 class DevelopmentConfig(Config):
-    """Development-specific configuration
-
-    Optimized for local development with:
-    - Debug mode enabled for detailed error pages
-    - Verbose logging for troubleshooting
-    - Relaxed security for localhost testing
-    - CORS allows localhost origins
-    """
+    """Development configuration: debug on, relaxed security, verbose logging."""
 
     DEBUG = True
     TESTING = False
-    LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
+    # ENH [LOG]: Changed from DEBUG to INFO. DEBUG level produced excessive
+    # noise from httpcore/httpx/uvicorn on every request. Set LOG_LEVEL=DEBUG
+    # in .env if you need to debug a specific issue.
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
 
     # Development-friendly settings
     SESSION_COOKIE_SECURE = False  # Allow HTTP for localhost
@@ -508,13 +560,7 @@ class DevelopmentConfig(Config):
 
 
 class StagingConfig(Config):
-    """Staging-specific configuration
-
-    Mirrors production but with:
-    - INFO logging for debugging deployed issues
-    - Same security settings as production
-    - Can connect to staging database
-    """
+    """Staging configuration: mirrors production with relaxed rate limits for QA."""
 
     DEBUG = False
     TESTING = False
@@ -540,15 +586,7 @@ class StagingConfig(Config):
 
 
 class ProductionConfig(Config):
-    """Production-specific configuration
-
-    Maximum security with:
-    - No debug information exposed
-    - Minimal logging (only warnings+)
-    - Strict cookie security
-    - Mandatory CORS restriction
-    - Strong secret key validation
-    """
+    """Production configuration: strict security, minimal logging, mandatory CORS."""
 
     DEBUG = False
     TESTING = False
@@ -578,7 +616,7 @@ class ProductionConfig(Config):
 
     @classmethod
     def validate_production_settings(cls):
-        """Validate production security requirements"""
+        """Validate production security requirements (SECRET_KEY length, explicit CORS, HTTPS cookies)."""
         logger = logging.getLogger(__name__)
 
         # Secret key strength
@@ -601,14 +639,7 @@ class ProductionConfig(Config):
 
 
 class TestingConfig(Config):
-    """Testing-specific configuration
-
-    Optimized for automated tests with:
-    - Fast timeouts for quick test runs
-    - Debug enabled for test failures
-    - Relaxed security for test frameworks
-    - Lower limits for predictable tests
-    """
+    """Testing configuration: fast timeouts, rate-limits disabled, relaxed security."""
 
     DEBUG = True
     TESTING = True
@@ -642,6 +673,6 @@ config = {
 
 
 def get_config():
-    """Get the appropriate configuration class based on APP_ENV"""
+    """Return the configuration class selected by ``APP_ENV`` (development/staging/production/testing)."""
     env = os.getenv("APP_ENV", "development")
     return config.get(env, config["default"])

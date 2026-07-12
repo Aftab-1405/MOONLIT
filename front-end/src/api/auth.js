@@ -13,32 +13,32 @@ import { get, post } from '@/api/client';
 import { AUTH } from '@/api/endpoints';
 
 /**
- * Fetch Firebase configuration from backend.
+ * Fetch Firebase configuration and initialize CSRF token from backend.
  *
- * @returns {Promise<Object>} Firebase config object
+ * @returns {Promise<Object>} Firebase config and CSRF token object
  */
-export async function getFirebaseConfig() {
+export async function getFirebaseConfigAndCsrfToken() {
   return get(AUTH.FIREBASE_CONFIG);
 }
 
 /**
- * Create a server session with Firebase ID token.
+ * Create a server session for the authenticated user with a Firebase ID token.
  *
  * @param {Object|string} payload - Either the idToken string or full payload object
  * @param {string} payload.idToken - Firebase ID token
  * @param {Object} [payload.user] - Optional user data
  * @returns {Promise<Object>} Session response
  */
-export async function setSession(payload) {
+export async function setAuthenticatedUserSession(payload) {
   const body = typeof payload === 'string' ? { idToken: payload } : payload;
   return post(AUTH.SET_SESSION, body);
 }
 
 /**
- * Logout and destroy server session.
+ * Terminate the user's active session and clear server session state.
  *
  * @returns {Promise<Object>} Logout response
  */
-export async function logout() {
+export async function logoutAuthenticatedUserSession() {
   return post(AUTH.LOGOUT);
 }

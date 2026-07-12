@@ -1,9 +1,33 @@
 """
 FastAPI dependencies for authentication and per-session application state.
 
-Authentication is backed by Firebase Admin session cookies. Redis stores only
-application state tied to the current Firebase session cookie, such as database
-connection metadata.
+Authentication
+--------------
+Authentication is backed by **Firebase Admin session cookies**. The web
+client exchanges a Firebase ID token for a stateless session cookie
+(valid up to 24h) via ``/set_authenticated_user_session``.
+:func:`get_current_user` verifies that cookie on every protected request
+using ``auth.verify_session_cookie(check_revoked=True)``.
+
+Dev bypass
+----------
+In development, ``Config.DEV_AUTH_BYPASS=True`` lets callers without a
+session cookie authenticate as the dev user. FIX [M17] restricts the
+bypass to ONLY the no-cookie case: if a cookie was presented but
+Firebase raised an infrastructure error (network, backend down,
+malformed), the request fails with 503 instead of silently dev-authing.
+Only the typed Firebase auth exceptions (``ExpiredSessionCookieError``,
+``InvalidSessionCookieError``, ``RevokedSessionCookieError``) fall
+through to a 401 / dev-bypass — those indicate the cookie itself is bad,
+not that the auth backend is broken.
+
+DB-config lifecycle
+-------------------
+``get_db_config`` reads per-session DB connection metadata from Redis
+and applies a configurable persistence policy: if the client closed the
+tab (no recent ``session_active_at`` heartbeat) and the user opted into
+``connectionPersistenceMinutes``, the cached pool connection is kept
+alive for that long; otherwise it is disconnected eagerly.
 """
 
 from __future__ import annotations
@@ -17,6 +41,11 @@ from typing import Optional
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 from firebase_admin import auth
+from firebase_admin.auth import (
+    ExpiredSessionCookieError,
+    InvalidSessionCookieError,
+    RevokedSessionCookieError,
+)
 
 from config import get_config
 
@@ -27,12 +56,13 @@ _memory_state: dict[str, tuple[dict, float]] = {}
 
 
 async def get_redis():
-    """Get Redis client from application state."""
+    """Return the active Redis client from application state (or None in dev)."""
     from service.redis_service import get_redis_client
     return get_redis_client()
 
 
 def _state_key_from_cookie(request: Request) -> Optional[str]:
+    """Derive the per-session Redis state key from the request's session cookie."""
     session_cookie = request.cookies.get(Config.SESSION_COOKIE_NAME)
     if not session_cookie:
         return None
@@ -41,11 +71,13 @@ def _state_key_from_cookie(request: Request) -> Optional[str]:
 
 
 def state_key_from_session_cookie(session_cookie: str) -> str:
+    """Return the deterministic ``session_state:<sha256>`` key for a Firebase session cookie."""
     digest = hashlib.sha256(session_cookie.encode("utf-8")).hexdigest()
     return f"session_state:{digest}"
 
 
 def _user_from_decoded_session(decoded: dict) -> dict:
+    """Project a decoded Firebase session cookie into the internal user payload dict."""
     return {
         "uid": decoded["uid"],
         "email": decoded.get("email"),
@@ -56,7 +88,14 @@ def _user_from_decoded_session(decoded: dict) -> dict:
 
 
 def verify_session_cookie_value(session_cookie: str) -> dict:
-    """Verify a Firebase session cookie and return the app user payload."""
+    """Verify a Firebase session cookie and return the app user payload.
+
+    Args:
+        session_cookie: The Firebase session cookie string from the request jar.
+
+    Returns:
+        User dict with uid, email, name, picture, verified flag.
+    """
     decoded = auth.verify_session_cookie(
         session_cookie,
         check_revoked=Config.FIREBASE_SESSION_CHECK_REVOKED,
@@ -64,8 +103,20 @@ def verify_session_cookie_value(session_cookie: str) -> dict:
     return _user_from_decoded_session(decoded)
 
 
-def verify_csrf(request: Request) -> None:
-    """Validate the double-submit CSRF token for cookie-authenticated writes."""
+def verify_csrf_token(request: Request) -> None:
+    """Validate the double-submit CSRF token for state-mutating requests.
+
+    Compares the CSRF token stored in the client's cookie with the token sent in the
+    request headers. The double-submit pattern works because an attacker on a third-party
+    origin cannot read the user's ``csrf_token`` cookie (it's not ``HttpOnly`` but it IS
+    ``SameSite=lax``) and therefore cannot forge a matching header value.
+
+    Args:
+        request: The incoming FastAPI request.
+
+    Raises:
+        HTTPException: 403 Forbidden if the cookie/header tokens are missing or mismatched.
+    """
     cookie_token = request.cookies.get(Config.CSRF_COOKIE_NAME)
     header_token = request.headers.get(Config.CSRF_HEADER_NAME)
 
@@ -77,6 +128,7 @@ def verify_csrf(request: Request) -> None:
 
 
 async def _read_state(key: str) -> Optional[dict]:
+    """Read per-session state from Redis (or in-memory fallback)."""
     redis_client = await get_redis()
     if redis_client:
         raw = await redis_client.get(key)
@@ -94,6 +146,7 @@ async def _read_state(key: str) -> Optional[dict]:
 
 
 async def _write_state(key: str, data: dict, expire_seconds: int) -> None:
+    """Write per-session state to Redis (or in-memory fallback) with a TTL."""
     redis_client = await get_redis()
     if redis_client:
         await redis_client.set(key, json.dumps(data), ex=expire_seconds)
@@ -103,6 +156,7 @@ async def _write_state(key: str, data: dict, expire_seconds: int) -> None:
 
 
 async def _delete_state(key: str) -> None:
+    """Delete per-session state from Redis (or in-memory fallback)."""
     redis_client = await get_redis()
     if redis_client:
         await redis_client.delete(key)
@@ -112,11 +166,11 @@ async def _delete_state(key: str) -> None:
 
 
 async def get_session_data(request: Request) -> Optional[dict]:
-    """
-    Get per-Firebase-session application state.
+    """Return per-Firebase-session application state (not an auth source).
 
-    This is not an authentication source. Authentication is always verified from
-    the Firebase session cookie by get_current_user().
+    Authentication is always verified from the Firebase session cookie by
+    :func:`get_current_user`. This function only reads per-session application state
+    (db_config, settings, heartbeat timestamps) keyed by the cookie's SHA-256.
     """
     key = _state_key_from_cookie(request)
     if not key:
@@ -130,6 +184,7 @@ async def get_session_data(request: Request) -> Optional[dict]:
 
 
 def _get_connection_persistence_minutes(session_data: dict) -> Optional[int]:
+    """Return the user's connection-persistence window (minutes) or None if unset/invalid."""
     value = session_data.get("connectionPersistenceMinutes")
     if value is None:
         return None
@@ -140,6 +195,13 @@ def _get_connection_persistence_minutes(session_data: dict) -> Optional[int]:
 
 
 async def _expire_db_config(request: Request, db_config: dict, reason: str) -> None:
+    """Disconnect the cached DB pool and clear db_config from session state.
+
+    Args:
+        request: The inbound request (used to derive the session key).
+        db_config: The cached connection config to disconnect.
+        reason: Short label for why the config is being expired (used in logs).
+    """
     try:
         user = getattr(request.state, "user", None)
         user_id = user.get("uid") if isinstance(user, dict) else None
@@ -167,14 +229,20 @@ async def _expire_db_config(request: Request, db_config: dict, reason: str) -> N
 
 
 async def get_current_user(request: Request) -> dict:
-    """
-    Authenticate request via Firebase Admin session cookie.
+    """Authenticate the request via Firebase Admin session cookie.
+
+    Args:
+        request: The incoming FastAPI request.
 
     Returns:
-        User dict with uid, email, name, picture, verified flag
+        User dict with uid, email, name, picture, verified flag.
 
     Raises:
-        HTTPException 401 if not authenticated
+        HTTPException 401: No cookie present (or the cookie is expired/invalid/revoked)
+            and dev-bypass is disabled.
+        HTTPException 503: A cookie IS present but Firebase raised an infrastructure
+            error (network, backend down, malformed JWT). FIX [M17] prevents a Firebase
+            outage from silently authenticating callers as the dev user.
     """
     session_cookie = request.cookies.get(Config.SESSION_COOKIE_NAME)
     if session_cookie:
@@ -183,9 +251,31 @@ async def get_current_user(request: Request) -> dict:
             request.state.user = user
             logger.debug(f"Firebase session auth for user: {user.get('uid')}")
             return user
-        except Exception as e:
+        except (
+            ExpiredSessionCookieError,
+            InvalidSessionCookieError,
+            RevokedSessionCookieError,
+        ) as e:
+            # FIX [M17]: These typed exceptions indicate the cookie itself is
+            # bad (expired, malformed, or revoked). They are safe to fall
+            # through to the 401 / dev-bypass path below.
             logger.debug(f"Invalid Firebase session cookie: {e}")
+        except Exception as e:
+            # FIX [M17]: Any OTHER exception (network error, Firebase backend
+            # down, malformed internal state) means the auth service itself is
+            # unhealthy. We must NOT silently dev-auth the request — that
+            # would grant full dev-user access to every unauthenticated
+            # request during a Firebase outage. Surface a 503 so the operator
+            # sees the outage and the client can retry.
+            logger.error(f"Firebase verification error (non-auth): {e}")
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Auth service temporarily unavailable",
+            )
 
+    # FIX [M17]: Only fall through to dev bypass when NO cookie was
+    # presented. A presented-but-invalid cookie must NOT be silently
+    # replaced with the dev identity.
     if Config.DEBUG and Config.DEV_AUTH_BYPASS:
         user = {
             "uid": Config.DEV_AUTH_USER_ID,
@@ -203,9 +293,9 @@ async def get_current_user(request: Request) -> dict:
 
 
 async def get_current_user_optional(request: Request) -> Optional[dict]:
-    """
-    Like get_current_user but returns None instead of raising exception.
-    Useful for routes that work with or without authentication.
+    """Like :func:`get_current_user` but returns None instead of raising on no-auth.
+
+    Useful for routes that work with or without authentication (e.g. health checks).
     """
     try:
         return await get_current_user(request)
@@ -216,6 +306,31 @@ async def get_current_user_optional(request: Request) -> Optional[dict]:
 async def get_db_config(request: Request) -> Optional[dict]:
     """
     Get database configuration from request state or per-session state.
+
+    The cached ``db_config`` is keyed per Firebase session cookie (via
+    :func:`_state_key_from_cookie`). Persistence is governed by
+    ``connectionPersistenceMinutes`` in the session state:
+
+    - If the tab is closed (explicit ``/user/session/close`` call or
+      extended heartbeat inactivity exceeding
+      ``SESSION_IMPLICIT_CLOSE_GRACE_SECONDS``) and no persistence was
+      configured, the connection is closed eagerly and the cached config
+      is dropped.
+    - If persistence was configured, the connection stays alive for that
+      many minutes after the tab closes, then is closed automatically.
+
+    IMPORTANT: The "implicit close" detection (heartbeat inactivity) uses
+    a generous grace period (default 5 minutes) to avoid false positives
+    from browser timer throttling. Browser JavaScript timers are
+    aggressively throttled in background tabs (Chrome: once per minute
+    after 5 min; mobile Safari: fully suspended). A 45-second grace period
+    (the previous value) caused false-positive disconnects for users who
+    briefly switched tabs. The persistence setting is documented as
+    "keep alive after closing tab" — it must NOT affect an actively open
+    tab, even if the browser temporarily throttled the heartbeat.
+
+    Returns ``None`` when there is no cached config or the cached config
+    has expired.
     """
     if hasattr(request.state, "db_config") and request.state.db_config:
         return request.state.db_config
@@ -231,10 +346,27 @@ async def get_db_config(request: Request) -> Optional[dict]:
         active_at = session_data.get("session_active_at")
         now = time.time()
 
-        # If no explicit close event and heartbeat stopped, treat as implicit close.
+        # ── Implicit close detection (fallback only) ───────────────────────
+        # Only treat heartbeat inactivity as an implicit tab close if the
+        # inactivity exceeds the GENEROUS grace period. This is a FALLBACK for
+        # cases where the explicit close event (beforeunload/pagehide →
+        # /user/session/close) didn't fire — e.g., browser crash, mobile tab
+        # swipe, OS kill. The previous 45-second grace was too aggressive and
+        # caused false-positive disconnects when browsers throttled
+        # background-tab timers.
+        #
+        # The generous grace period (default 5 minutes) ensures that an
+        # actively open tab never gets disconnected just because the browser
+        # temporarily throttled the heartbeat. If the user actually closed the
+        # tab, the explicit /user/session/close call (fired by beforeunload)
+        # sets db_config_last_closed_at immediately — no need for this
+        # fallback to catch it.
         if closed_at is None and active_at is not None:
             try:
-                if now - float(active_at) > Config.SESSION_ACTIVITY_GRACE_SECONDS:
+                grace_seconds = getattr(
+                    Config, "SESSION_IMPLICIT_CLOSE_GRACE_SECONDS", 300
+                )
+                if now - float(active_at) > grace_seconds:
                     closed_at = float(active_at)
                     await update_session_data(
                         request,
@@ -254,6 +386,9 @@ async def get_db_config(request: Request) -> Optional[dict]:
                 await _expire_db_config(request, db_config, "tab_closed_expired")
                 return None
 
+            # Within the persistence window — clear the close marker and
+            # refresh activity timestamps. The tab is back (or persistence
+            # is keeping the connection alive).
             await update_session_data(
                 request,
                 {
@@ -263,6 +398,7 @@ async def get_db_config(request: Request) -> Optional[dict]:
                 },
             )
         else:
+            # No close event — tab is open. Refresh activity timestamp.
             await update_session_data(
                 request,
                 {
@@ -278,8 +414,8 @@ async def get_db_config(request: Request) -> Optional[dict]:
 
 
 async def require_db_config(db_config: Optional[dict] = Depends(get_db_config)) -> dict:
-    """
-    Like get_db_config but raises exception if not configured.
+    """Return the cached db_config or raise 400 if none is configured.
+
     Use for routes that require a database connection.
     """
     if not db_config:
@@ -294,7 +430,10 @@ async def update_session_data(
     request: Request, updates: dict, expire_seconds: int | None = None
 ) -> bool:
     """
-    Update per-Firebase-session application state.
+    Update per-Firebase-session application state (read-modify-write merge).
+
+    Always refreshes ``session_active_at`` so :func:`get_db_config` can use
+    it as a heartbeat to detect closed tabs.
 
     Returns:
         True if updated, False if no Firebase session cookie exists
@@ -325,8 +464,10 @@ async def replace_session_data_for_cookie(
 
 
 async def clear_session_state(request: Request) -> bool:
-    """
-    Clear per-Firebase-session application state.
+    """Clear per-Firebase-session application state.
+
+    Returns:
+        True if state was cleared; False if no session cookie was present.
     """
     key = _state_key_from_cookie(request)
     if not key:

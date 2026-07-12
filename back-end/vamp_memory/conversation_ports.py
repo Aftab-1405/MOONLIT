@@ -10,9 +10,8 @@ from vamp_memory.vamp_memory_service import get_vamp_memory_service
 class VampConversationMemoryCleaner:
     """Conversation memory cleaner backed by VAMP memory."""
 
-    async def delete_conversation_pointers(
-        self, conversation_id: str, user_id: str
-    ) -> None:
+    async def delete_conversation_pointers(self, conversation_id: str, user_id: str) -> None:
+        """Delete all VAMP vector pointers for a conversation on conversation teardown."""
         await get_vamp_memory_service().delete_conversation_pointers(conversation_id, user_id)
 
 
@@ -33,6 +32,7 @@ class VampConversationSummaryMemoryWriter:
         covers_message_ids: list | None = None,
         created_from_unsummarized_tail: bool = True,
     ) -> dict:
+        """Persist a summary block and schedule its bullets for vector indexing."""
         return await get_vamp_memory_service().store_summary_block(
             conversation_id,
             user_id,
@@ -48,8 +48,10 @@ class VampConversationSummaryMemoryWriter:
 
 
 def create_conversation_memory_cleaner() -> ConversationMemoryCleaner:
+    """Factory for the VAMP-backed conversation memory cleaner."""
     return VampConversationMemoryCleaner()
 
 
 def create_conversation_summary_memory_writer() -> ConversationSummaryMemoryWriter:
+    """Factory for the VAMP-backed summary memory writer."""
     return VampConversationSummaryMemoryWriter()

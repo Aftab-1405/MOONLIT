@@ -16,6 +16,7 @@ class VampHistoricalContextProvider:
         model_id: str | None = None,
         token_budget: int | None = None,
     ) -> str:
+        """Retrieve formatted historical context from VAMP memory for ``user_prompt``."""
         return await get_vamp_memory_service().retrieve_context(
             conversation_id,
             user_id,
@@ -26,4 +27,5 @@ class VampHistoricalContextProvider:
 
 
 def create_historical_context_provider() -> HistoricalContextProvider:
+    """Factory for the VAMP-backed historical context provider."""
     return VampHistoricalContextProvider()

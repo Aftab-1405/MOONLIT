@@ -56,20 +56,18 @@ export function useQueryExecution({
         if (response.status === 'success') {
           const queryData = response.data;
           const columns = queryData.result?.columns || [];
+          // Keep rows as raw arrays — PerspectiveDashboard reads values by
+          // numeric index (row[idx]) via toColumnar() and schema inference.
           const rows = queryData.result?.rows || [];
-
-          const transformedResult = rows.map((row) => {
-            const obj = {};
-            columns.forEach((col, idx) => {
-              obj[col] = row[idx];
-            });
-            return obj;
-          });
+          // Pass column_types through so PerspectiveDashboard can build an
+          // explicit schema instead of falling back to sample-based inference.
+          const column_types = queryData.result?.column_types || {};
 
           onQueryResults?.(
             {
               columns,
-              result: transformedResult,
+              column_types,
+              rows,
               row_count: queryData.row_count,
               total_rows: queryData.total_rows,
               truncated: queryData.truncated,

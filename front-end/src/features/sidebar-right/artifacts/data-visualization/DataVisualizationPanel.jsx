@@ -6,13 +6,14 @@ import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
-import { Box, Button, Snackbar, Typography } from '@mui/material';
+import { Box, Button, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
 import { ArtifactEmptyState, ArtifactShell } from '@/features/sidebar-right/artifact-loader';
 import PerspectiveDashboard from '@/features/sidebar-right/artifacts/data-visualization/PerspectiveDashboard';
 import { createAnalysisStorageKey } from '@/features/sidebar-right/artifacts/data-visualization/perspectiveAnalysis';
+import { getSecondaryActionButtonSx } from '@/styles/shared';
 import { copyToClipboard } from '@/utils/clipboard';
 
 function DataVisualizationPanel({
@@ -31,15 +32,22 @@ function DataVisualizationPanel({
   sourceType,
   currentDatabase,
   workspaceContainerRef,
+  onNotify,
 }) {
   const theme = useTheme();
   const dashboardRef = useRef(null);
   const [viewerReady, setViewerReady] = useState(false);
   const [selection, setSelection] = useState(null);
-  const [notice, setNotice] = useState('');
   const columns = useMemo(() => data?.columns || [], [data?.columns]);
   const rows = useMemo(() => data?.rows || [], [data?.rows]);
-  const memoizedData = useMemo(() => ({ columns, rows }), [columns, rows]);
+  // Preserve column_types so PerspectiveDashboard can build an explicit schema
+  // instead of falling back to sample-based inference. Without this, every
+  // query result loses its type information at this boundary.
+  const column_types = useMemo(() => data?.column_types || {}, [data?.column_types]);
+  const memoizedData = useMemo(
+    () => ({ columns, rows, column_types }),
+    [columns, rows, column_types],
+  );
 
   const storageKey = useMemo(
     () =>
@@ -66,14 +74,18 @@ function DataVisualizationPanel({
     );
   }, [data, isFullscreen, requestOpenArtifact, sourceQuery]);
 
-  const runDashboardAction = useCallback(async (action, successMessage, ...args) => {
-    try {
-      await dashboardRef.current?.[action]?.(...args);
-      setNotice(successMessage);
-    } catch (actionError) {
-      setNotice(actionError?.message || 'The analysis action could not be completed.');
-    }
-  }, []);
+  const runDashboardAction = useCallback(
+    async (action, successMessage, ...args) => {
+      try {
+        await dashboardRef.current?.[action]?.(...args);
+        onNotify?.(successMessage, 'success');
+      } catch (actionError) {
+        const errMsg = actionError?.message || 'The analysis action could not be completed.';
+        onNotify?.(errMsg, 'error');
+      }
+    },
+    [onNotify],
+  );
 
   const applySelectionFilter = useCallback(async () => {
     if (!selection?.config) return;
@@ -82,8 +94,9 @@ function DataVisualizationPanel({
 
   const copySelection = useCallback(async () => {
     const copied = await copyToClipboard(JSON.stringify(selection?.row || {}, null, 2));
-    setNotice(copied ? 'Selected row copied.' : 'Selected row could not be copied.');
-  }, [selection]);
+    const msg = copied ? 'Selected row copied.' : 'Selected row could not be copied.';
+    onNotify?.(msg, copied ? 'success' : 'error');
+  }, [onNotify, selection]);
 
   if (!rows.length) {
     return (
@@ -185,13 +198,21 @@ function DataVisualizationPanel({
               {selection.config ? (
                 <Button
                   size="small"
+                  variant="outlined"
                   startIcon={<FilterAltRoundedIcon />}
                   onClick={applySelectionFilter}
+                  sx={getSecondaryActionButtonSx(theme)}
                 >
                   Filter to selection
                 </Button>
               ) : null}
-              <Button size="small" startIcon={<ContentCopyRoundedIcon />} onClick={copySelection}>
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<ContentCopyRoundedIcon />}
+                onClick={copySelection}
+                sx={getSecondaryActionButtonSx(theme)}
+              >
                 Copy row
               </Button>
             </Box>
@@ -234,12 +255,6 @@ function DataVisualizationPanel({
           />
         </Box>
       </ArtifactShell>
-      <Snackbar
-        open={Boolean(notice)}
-        autoHideDuration={2600}
-        onClose={() => setNotice('')}
-        message={notice}
-      />
     </Box>
   );
 }

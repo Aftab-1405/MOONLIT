@@ -5,8 +5,8 @@ High-level database operations. All methods accept db_config and user_id explici
 No Flask dependencies.
 """
 
-import re
 import logging
+import re
 from typing import List
 
 logger = logging.getLogger(__name__)
@@ -16,11 +16,13 @@ class DatabaseService:
     """Service for database operations - accepts config explicitly."""
 
     @staticmethod
-    def switch_remote_database(
-        db_config: dict, new_db_name: str, user_id: str = None
-    ) -> dict:
+    def switch_remote_database(db_config: dict, new_db_name: str, user_id: str = None) -> dict:
         """
-        Switch to different database on remote server.
+        Switch to a different database on an existing remote connection.
+
+        Substitutes the new database name into the existing connection
+        string, validates the resulting connection, then fetches and caches
+        the new database's tables.
 
         Args:
             db_config: Current database configuration
@@ -48,12 +50,20 @@ class DatabaseService:
 
         db_type = db_config.get("db_type", "postgresql")
 
-        # Modify connection string to use new database
+        # FIX [H8]: Previously, `re.sub(r"(/[^/?]+)(\?|$)", f"/{new_db_name}\\2",
+        # connection_string)` interpolated user-controlled `new_db_name` into a
+        # regex replacement string. In `re.sub` replacements, backslash escapes
+        # (e.g. ``\1``, ``\g<name>``) and ``&`` are interpreted, so a database
+        # name like ``\1`` would inject captured-group content, and a name
+        # containing ``?`` or ``&`` could corrupt the connection string and
+        # inject connection parameters. Using a lambda replacement disables
+        # all escape/sequence interpretation — the user's name is inserted
+        # verbatim as the new path segment.
         new_connection_string = re.sub(
-            r"(/[^/?]+)(\?|$)", f"/{new_db_name}\\2", connection_string
+            r"(/[^/?]+)(\?|$)",
+            lambda m: f"/{new_db_name}{m.group(2)}",
+            connection_string,
         )
-
-        # Create new config
         new_config = {
             "db_type": db_type,
             "connection_string": new_connection_string,
@@ -65,29 +75,30 @@ class DatabaseService:
             manager = get_connection_manager()
             adapter = get_adapter(db_type)
 
-            # Test new connection
-            conn = manager.get_connection(new_config)
+            # FIX [C2]: Previously, manager.get_connection() was called for
+            # validate_connection but the connection was NEVER returned to the
+            # pool. After ~5 switch attempts (or interleaved with other
+            # connect attempts), the pool was exhausted and every subsequent
+            # connect/switch/query hung. Now we use the context manager so
+            # the validation connection is always returned.
+            with manager.get_connection_context(new_config) as conn:
+                if not adapter.validate_connection(conn):
+                    return {
+                        "status": "error",
+                        "message": "Failed to connect to new database",
+                    }
+            tables = DatabaseService._fetch_tables(new_config, new_db_name, db_type)
+            if user_id:
+                DatabaseService._update_context(user_id, db_type, new_db_name, "remote", True)
 
-            if adapter.validate_connection(conn):
-                # Fetch tables
-                tables = DatabaseService._fetch_tables(new_config, new_db_name, db_type)
-
-                # Update context
-                if user_id:
-                    DatabaseService._update_context(
-                        user_id, db_type, new_db_name, "remote", True
-                    )
-
-                logger.info(f"Switched to {db_type} database: {new_db_name}")
-                return {
-                    "status": "success",
-                    "message": f"Switched to database: {new_db_name}",
-                    "selectedDatabase": new_db_name,
-                    "tables": tables,
-                    "db_config": new_config,
-                }
-
-            return {"status": "error", "message": "Failed to connect to new database"}
+            logger.info(f"Switched to {db_type} database: {new_db_name}")
+            return {
+                "status": "success",
+                "message": f"Switched to database: {new_db_name}",
+                "selectedDatabase": new_db_name,
+                "tables": tables,
+                "db_config": new_config,
+            }
         except Exception as err:
             logger.exception("Error switching database")
             return {"status": "error", "message": str(err)}
@@ -95,7 +106,11 @@ class DatabaseService:
     @staticmethod
     def select_schema(db_config: dict, schema_name: str, user_id: str = None) -> dict:
         """
-        Select PostgreSQL schema.
+        Select a PostgreSQL schema on the current connection.
+
+        Fetches the tables in the requested schema, updates the user's
+        connection context with the new schema, and returns the table list
+        for the frontend.
 
         Args:
             db_config: Database configuration
@@ -104,6 +119,15 @@ class DatabaseService:
 
         Returns:
             Dict with status, schema, tables
+
+        Error handling (FIX [M12]): Previously, if the table fetch failed
+        (permission denied, schema does not exist, transient connection
+        error), the exception was swallowed and the response returned
+        ``status:"success"`` with an empty table list. The AI agent would
+        then operate on a wrong/empty schema and persist the bad
+        ``db_config["schema"]`` to the session. We now return
+        ``status:"error"`` and do NOT update the context when the fetch
+        fails, so the bad schema is never persisted.
         """
         from service.database.adapters import get_adapter
         from service.database.connection_manager import get_connection_manager
@@ -120,12 +144,8 @@ class DatabaseService:
                 "status": "error",
                 "message": "Schema selection only for PostgreSQL",
             }
-
-        # Update config with schema
         new_config = db_config.copy()
         new_config["schema"] = schema_name
-
-        # Get tables in schema
         adapter = get_adapter(db_type)
         manager = get_connection_manager()
         tables = []
@@ -135,9 +155,19 @@ class DatabaseService:
                 cursor.execute(adapter.get_tables_query(schema_name))
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as err:
+            # FIX [M12]: do NOT swallow the fetch error. Surface it to the
+            # caller, do not update context, and do not persist the bad
+            # schema on the db_config.
             logger.error(f"Error fetching tables for schema {schema_name}: {err}")
+            return {
+                "status": "error",
+                "message": (f"Failed to select schema '{schema_name}': {err}. Schema has NOT been changed."),
+                "schema": schema_name,
+                "tables": [],
+                "db_config": db_config,
+            }
 
-        # Update context
+        # Update context — only reached on a successful fetch
         if user_id:
             try:
                 from service.database.context_sync import (
@@ -147,6 +177,34 @@ class DatabaseService:
                 get_default_context_sync().update_schema(user_id, schema_name)
             except Exception as e:
                 logger.warning(f"Failed to update schema context: {e}")
+
+            # FIX [EC4]: the schema cache key in
+            # ``ContextService.get_schema_context`` is ``database`` only
+            # (see ``context_service.py``). After switching ``public`` →
+            # ``analytics`` on the same database, the cached entry still
+            # holds the ``public`` table list and would serve stale data
+            # to the AI for up to ``SCHEMA_CONTEXT_TTL_SECONDS`` (24h).
+            # We invalidate the stale cache entry and trigger a fresh
+            # fetch+store with the new ``schema`` on the db_config so the
+            # AI immediately sees the new schema's tables. Both calls are
+            # best-effort: a cache-clear failure must not block the
+            # schema switch itself.
+            try:
+                from service.context.context_service import ContextService
+
+                ContextService.clear_schema_context(user_id, db_config.get("database"))
+                # Repopulate with the new schema's tables/columns.
+                ContextService.refresh_schema_context_from_database(user_id, new_config)
+                logger.info(
+                    "Invalidated + repopulated schema cache for %s after switching to schema %s",
+                    db_config.get("database"),
+                    schema_name,
+                )
+            except Exception as cache_err:
+                logger.warning(
+                    "Schema cache invalidation/refresh failed after schema switch (non-blocking): %s",
+                    cache_err,
+                )
 
         logger.info(f"Selected schema: {schema_name} with {len(tables)} tables")
 
@@ -226,9 +284,7 @@ class DatabaseService:
             return {"status": "error", "message": "No database selected"}
 
         schema = DatabaseOperations.get_table_schema(db_config, table_name, db_name)
-        row_count = DatabaseOperations.get_table_row_count(
-            db_config, table_name, db_name
-        )
+        row_count = DatabaseOperations.get_table_row_count(db_config, table_name, db_name)
 
         return {
             "status": "success",
@@ -249,8 +305,8 @@ class DatabaseService:
         Returns:
             Dict with status and message
         """
-        from service.database.operations import DatabaseOperations
         from service.database.connection_manager import get_connection_manager
+        from service.database.operations import DatabaseOperations
 
         try:
             manager = get_connection_manager()
@@ -298,11 +354,7 @@ class DatabaseService:
         """
         from service.database.operations import execute_sql_query
 
-        result = execute_sql_query(
-            db_config, sql_query, max_rows=max_rows, timeout_seconds=timeout
-        )
-
-        # Log query to context
+        result = execute_sql_query(db_config, sql_query, max_rows=max_rows, timeout_seconds=timeout)
         if user_id:
             try:
                 from service.database.context_sync import (
@@ -312,9 +364,7 @@ class DatabaseService:
                 db_name = db_config.get("database") if db_config else None
                 row_count = result.get("row_count", 0)
                 status = "success" if result["status"] == "success" else "error"
-                get_default_context_sync().add_query(
-                    user_id, sql_query, db_name, row_count, status
-                )
+                get_default_context_sync().add_query(user_id, sql_query, db_name, row_count, status)
             except Exception as e:
                 logger.warning(f"Failed to log query: {e}")
 
@@ -328,7 +378,6 @@ class DatabaseService:
         result = DatabaseOperations.get_databases(db_config)
 
         if db_config:
-            # Always include db_type for frontend to use
             result["db_type"] = db_config.get("db_type")
 
             if db_config.get("connection_string"):
@@ -338,7 +387,19 @@ class DatabaseService:
 
     @staticmethod
     def _fetch_tables(db_config: dict, db_name: str, db_type: str) -> List[str]:
-        """Fetch tables for a database."""
+        """
+        Fetch the list of tables in a database.
+
+        Used by ``switch_remote_database`` to populate the table list after
+        switching databases. Wraps the adapter's
+        ``get_all_tables_for_cache`` query and tolerates a fetch failure by
+        returning an empty list (the caller decides whether to surface this
+        to the user).
+
+        FIX [M13]: forwards ``db_config.get("schema")`` to the adapter so
+        non-default PostgreSQL schemas (e.g. ``analytics``) get the correct
+        table list instead of the ``public`` default.
+        """
         from service.database.adapters import get_adapter
         from service.database.connection_manager import get_connection_manager
 
@@ -348,7 +409,10 @@ class DatabaseService:
 
         try:
             with manager.get_cursor(db_config) as cursor:
-                tables_query, tables_params = adapter.get_all_tables_for_cache(db_name)
+                # FIX [M13]: forward the user's selected schema so the
+                # adapter does not default to "public" / "dbo".
+                schema = db_config.get("schema") or "public"
+                tables_query, tables_params = adapter.get_all_tables_for_cache(db_name, schema)
                 cursor.execute(tables_query, tables_params)
                 tables = [row[0] for row in cursor.fetchall()]
         except Exception as e:
@@ -357,17 +421,13 @@ class DatabaseService:
         return tables
 
     @staticmethod
-    def _update_context(
-        user_id: str, db_type: str, database: str, host: str, is_remote: bool
-    ):
+    def _update_context(user_id: str, db_type: str, database: str, host: str, is_remote: bool):
         """Update user's connection context in Firestore."""
         try:
             from service.database.context_sync import (
                 get_default_context_sync,
             )
 
-            get_default_context_sync().set_connection(
-                user_id, db_type, database, host, is_remote
-            )
+            get_default_context_sync().set_connection(user_id, db_type, database, host, is_remote)
         except Exception as e:
             logger.warning(f"Failed to update context: {e}")

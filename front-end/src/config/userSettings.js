@@ -15,9 +15,38 @@ export const defaultUserSettings = {
   enableReasoning: true,
   reasoningEffort: 'medium',
   responseStyle: 'balanced',
+  // ENH [AUTO-TASK-MODE]: User's preferred task mode. 'auto' lets the
+  // backend auto-detect from the prompt; the other values force the mode
+  // for every message in this conversation.
+  taskMode: 'auto',
   llmProvider: null,
   llmModel: null,
 };
+
+/**
+ * Valid task-mode values for the user-facing selector.
+ * 'auto' is the default — the backend classifier decides per prompt.
+ */
+export const TASK_MODE_OPTIONS = [
+  { value: 'auto', label: 'Auto', description: 'Backend auto-detects from prompt' },
+  { value: 'normal', label: 'Standard', description: '50 steps — quick Q&A' },
+  { value: 'tool_task', label: 'Tool Task', description: '100 steps — multi-tool workflows' },
+  { value: 'long_task', label: 'Long Task', description: '200 steps — reports & deep analysis' },
+];
+
+/**
+ * Map the user-facing taskMode setting to the backend task_mode value.
+ * 'auto' is translated to 'normal' on the wire (the backend classifier
+ * will then upgrade it if the prompt matches). The other values are
+ * passed through unchanged so the backend respects the explicit choice.
+ *
+ * @param {string} userTaskMode - The user's taskMode setting
+ * @returns {string} The backend task_mode value to send
+ */
+export function toBackendTaskMode(userTaskMode) {
+  if (userTaskMode === 'auto' || !userTaskMode) return 'normal';
+  return userTaskMode;
+}
 
 /** Keys persisted to the server for cross-browser sync. */
 const SYNCABLE_SETTING_KEYS = Object.keys(defaultUserSettings);

@@ -2,12 +2,11 @@ import { Box, Container, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { HOVER_CAPABLE_QUERY, REDUCED_MOTION_QUERY, Section } from '@/pages/Landing/index';
 import { UI_LAYOUT } from '@/styles/shared';
-import { getMoonlitBrandGradients } from '@/theme/themeEffects';
+import { BRAND } from '@/theme/tokens';
 
 function DemoSection() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const brandGradients = getMoonlitBrandGradients(theme);
 
   return (
     <Section id="demo-section" sx={{ py: { xs: 4, md: 6 } }}>
@@ -34,10 +33,7 @@ function DemoSection() {
             <Box
               component="span"
               sx={{
-                background: brandGradients.static,
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
+                color: BRAND.main,
               }}
             >
               Answer

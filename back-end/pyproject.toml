@@ -1,0 +1,48 @@
+[project]
+name = "moonlit-backend"
+version = "2.0.0"
+description = "MOONLIT — AI Agent for relational databases (audited, bank-grade)."
+requires-python = ">=3.12"
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = [".venv", "tests/fixtures"]
+
+[tool.ruff.lint]
+# E402 is intentionally relaxed: several modules set ``Config = get_config()``
+# before importing submodules that depend on the config singleton at import
+# time. Reordering would change evaluation semantics.
+#
+# E501 is relaxed: the codebase contains long string literals (SQL templates,
+# docstrings, URLs) that cannot be auto-broken. Structural formatting is
+# enforced by `ruff format`; line-length is a soft target, not a hard rule.
+ignore = ["E402", "E501"]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "W",   # pycodestyle warnings
+  "I",   # isort
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["B011"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --tb=short"
+markers = [
+  "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+  "integration: marks tests that require external services (Firestore, Qdrant, Bedrock)",
+]
+
+[tool.mypy]
+python_version = "3.12"
+warn_unused_configs = true
+ignore_missing_imports = true

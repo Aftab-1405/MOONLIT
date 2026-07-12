@@ -10,16 +10,16 @@
  */
 
 export {
-  getFirebaseConfig,
-  logout,
-  setSession,
+  getFirebaseConfigAndCsrfToken,
+  logoutAuthenticatedUserSession,
+  setAuthenticatedUserSession,
 } from '@/api/auth';
 
 export { del } from '@/api/client';
 export {
   deleteConversation,
+  getAllUserConversations,
   getConversation,
-  getConversations,
   renameConversation,
   resumeAgent,
   sendMessage,
@@ -29,12 +29,12 @@ export {
   disconnect as disconnectDb,
   getDatabases,
   getSchemas,
-  getStatus as getDbStatus,
   getTableSchema,
   getTables,
   selectDatabase,
   selectSchema,
   switchDatabase,
+  syncConnectionState,
 } from '@/api/database';
 export { USER } from '@/api/endpoints';
 export { getLlmOptions } from '@/api/llm';

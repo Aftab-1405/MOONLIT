@@ -1,64 +1,123 @@
-# File: database/security.py
-"""Optimized Database security utilities - READ-ONLY VERSION"""
+"""Database security utilities — read-only query validation and identifier rules.
 
-import re
+This module provides:
+
+1. **Identifier validation** for table / database / column names that flow
+   into dynamic SQL. The previous regex (``[A-Za-z0-9_.\\-]{1,128}``) was
+   too permissive: it accepted hyphens, leading digits, and all-numeric
+   names — all of which require DBMS-specific quoting and are a known
+   SQL-injection vector when interpolated. The new rule
+   (``[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)?``) matches only
+   safe SQL identifiers and an optional single ``schema.table`` qualifier.
+2. **Read-only query analysis** via ``sqlglot``: parses the SQL, rejects
+   multi-statement input, allows only ``SELECT`` / ``WITH`` roots, and
+   blocks any DDL/DML node anywhere in the parse tree.
+3. **Safe query templates** for the few places the codebase still builds
+   SQL from validated identifiers.
+
+All public methods are static and cached where the input space is small.
+"""
+
 import logging
-from typing import Dict
+import re
 from functools import lru_cache
+from typing import Dict
+
+from core.security import is_valid_identifier
 
 logger = logging.getLogger(__name__)
 
 
 class DatabaseSecurity:
-    """Optimized database security utilities - READ-ONLY VERSION"""
+    """Database security utilities — read-only query validation and identifier rules."""
 
-    # Pre-compiled regex patterns for better performance
-    # Use concise character class \w for readability; first char must be letter or underscore
-    _TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
-    _DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]{1,128}$")
-    _COLUMN_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_.\-]+$")
+    # FIX [AUDIT-2-B]: the previous patterns allowed hyphens, leading
+    # digits, and pure-numeric names — all of which are SQL-injection
+    # vectors when interpolated into dynamic SQL. The new patterns match
+    # only safe SQL identifiers and an optional single ``schema.table``
+    # qualifier. ``core.security.is_valid_identifier`` is the single
+    # source of truth so the rule is consistent across the codebase.
+    _TABLE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$")
+    _DATABASE_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$")
+    _COLUMN_NAME_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)?$")
 
     @staticmethod
     @lru_cache(maxsize=256)
     def validate_table_name(table_name: str) -> str:
-        """
-        Cached validation of table names for better performance
+        """Validate a SQL table name.
+
+        Args:
+            table_name: Table name to validate. May include a single
+                ``schema.table`` qualifier.
+
+        Returns:
+            The validated table name (unchanged).
+
+        Raises:
+            ValueError: If the name is empty, longer than 128 characters,
+                or contains characters outside the safe set.
         """
         if not table_name:
             raise ValueError("Table name cannot be empty")
-
-        if not DatabaseSecurity._TABLE_NAME_PATTERN.match(table_name):
+        if not is_valid_identifier(table_name, max_length=128):
             raise ValueError(f"Invalid table name: {table_name}")
-
         return table_name
 
     @staticmethod
     @lru_cache(maxsize=128)
     def validate_database_name(db_name: str) -> str:
-        """Cached validation of database names"""
+        """Validate a SQL database name.
+
+        Args:
+            db_name: Database name to validate.
+
+        Returns:
+            The validated database name (unchanged).
+
+        Raises:
+            ValueError: If the name is empty, longer than 128 characters,
+                or contains characters outside the safe set.
+        """
         if not db_name:
             raise ValueError("Database name cannot be empty")
-
-        if not DatabaseSecurity._DATABASE_NAME_PATTERN.match(db_name):
+        if not is_valid_identifier(db_name, max_length=128):
             raise ValueError(f"Invalid database name: {db_name}")
-
         return db_name
 
     @staticmethod
     @lru_cache(maxsize=512)
     def validate_column_name(column_name: str) -> str:
-        """Cached validation of column names"""
+        """Validate a SQL column name.
+
+        Args:
+            column_name: Column name to validate. May include a single
+                ``table.column`` qualifier.
+
+        Returns:
+            The validated column name (unchanged).
+
+        Raises:
+            ValueError: If the name is empty, longer than 128 characters,
+                or contains characters outside the safe set.
+        """
         if not column_name:
             raise ValueError("Column name cannot be empty")
-
-        if not DatabaseSecurity._COLUMN_NAME_PATTERN.match(column_name):
+        if not is_valid_identifier(column_name, max_length=128):
             raise ValueError(f"Invalid column name: {column_name}")
-
         return column_name
 
     @staticmethod
     def analyze_sql_query(query: str) -> Dict:
-        """Parse and validate exactly one read-only query."""
+        """Parse and validate exactly one read-only SQL statement.
+
+        Args:
+            query: SQL string to analyze.
+
+        Returns:
+            Dict with keys ``is_safe`` (bool), ``warnings`` (list[str]),
+            ``query_type`` (``"SELECT"`` / ``"WITH"`` / ``None``), and
+            ``tables_accessed`` (list[str]).
+        """
         if not query:
             raise ValueError("Query cannot be empty")
 
@@ -81,8 +140,7 @@ class DatabaseSecurity:
             allowed_roots = (exp.Select, exp.Union, exp.Intersect, exp.Except)
             if not isinstance(statement, allowed_roots):
                 analysis["warnings"].append(
-                    "Only read-only SELECT/WITH queries are allowed, not "
-                    f"{type(statement).__name__}"
+                    f"Only read-only SELECT/WITH queries are allowed, not {type(statement).__name__}"
                 )
                 return analysis
 
@@ -91,31 +149,31 @@ class DatabaseSecurity:
                 for node_type in (
                     getattr(exp, name, None)
                     for name in (
-                        "Insert", "Update", "Delete", "Drop", "Alter",
-                        "Create", "TruncateTable", "Command", "Copy",
-                        "Into", "Lock", "Merge", "Grant", "Revoke",
+                        "Insert",
+                        "Update",
+                        "Delete",
+                        "Drop",
+                        "Alter",
+                        "Create",
+                        "TruncateTable",
+                        "Command",
+                        "Copy",
+                        "Into",
+                        "Lock",
+                        "Merge",
+                        "Grant",
+                        "Revoke",
                     )
                 )
                 if node_type is not None
             )
-            blocked_nodes = [
-                type(node).__name__
-                for node in statement.walk()
-                if isinstance(node, blocked_types)
-            ]
+            blocked_nodes = [type(node).__name__ for node in statement.walk() if isinstance(node, blocked_types)]
             if blocked_nodes:
-                analysis["warnings"].append(
-                    "Blocked operation detected: "
-                    + ", ".join(sorted(set(blocked_nodes)))
-                )
+                analysis["warnings"].append("Blocked operation detected: " + ", ".join(sorted(set(blocked_nodes))))
                 return analysis
 
-            analysis["query_type"] = (
-                "WITH" if statement.args.get("with_") else "SELECT"
-            )
-            analysis["tables_accessed"] = [
-                table.name for table in statement.find_all(exp.Table) if table.name
-            ]
+            analysis["query_type"] = "WITH" if statement.args.get("with_") else "SELECT"
+            analysis["tables_accessed"] = [table.name for table in statement.find_all(exp.Table) if table.name]
             analysis["is_safe"] = True
         except Exception as exc:
             analysis["warnings"].append(f"SQL could not be safely parsed: {exc}")
@@ -125,8 +183,15 @@ class DatabaseSecurity:
     @staticmethod
     @lru_cache(maxsize=64)
     def get_safe_query_template(query_type: str, table_name: str) -> str:
-        """
-        Generate cached safe query templates - READ-ONLY VERSION
+        """Generate a cached safe query template.
+
+        Args:
+            query_type: ``"SELECT"`` or ``"COUNT"``.
+            table_name: Validated table name.
+
+        Returns:
+            SQL template string with ``{columns}`` / ``{conditions}``
+            placeholders. Empty string for unknown query types.
         """
         validated_table = DatabaseSecurity.validate_table_name(table_name)
 
@@ -140,7 +205,11 @@ class DatabaseSecurity:
 
     @staticmethod
     def clear_cache():
-        """Clear validation caches when needed"""
+        """Clear all validation caches.
+
+        Call this when the underlying DB schema changes and previously
+        rejected identifiers may now be valid (or vice versa).
+        """
         DatabaseSecurity.validate_table_name.cache_clear()
         DatabaseSecurity.validate_database_name.cache_clear()
         DatabaseSecurity.validate_column_name.cache_clear()

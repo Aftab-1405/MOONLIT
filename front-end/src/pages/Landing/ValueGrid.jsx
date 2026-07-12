@@ -1,32 +1,37 @@
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import SpeedIcon from '@mui/icons-material/Speed';
-import VisibilityIcon from '@mui/icons-material/Visibility';
+import BoltRoundedIcon from '@mui/icons-material/BoltRounded';
+import ChatRoundedIcon from '@mui/icons-material/ChatRounded';
+import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { Box, Container, Stack, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { motion } from 'framer-motion';
 import { useMemo } from 'react';
 import { HOVER_CAPABLE_QUERY, REDUCED_MOTION_QUERY, Section } from '@/pages/Landing/index';
-import { getMoonlitBrandGradients } from '@/theme/themeEffects';
+import { BRAND } from '@/theme/tokens';
 
 function ValueGrid() {
   const theme = useTheme();
   const isDark = theme.palette.mode === 'dark';
-  const brandGradients = getMoonlitBrandGradients(theme);
 
+  // Value-prop cards. Icons are chosen for exact semantic meaning:
+  //   - Natural Language Queries → Chat (conversation = natural language)
+  //   - Instant Results → Bolt (lightning = speed/instant)
+  //   - Visualize Instantly → Insights (chart with trend = visualization)
+  // The previous AutoAwesome/Speed/Visibility set was generic and didn't
+  // communicate the specific value of each card.
   const values = useMemo(
     () => [
       {
-        Icon: AutoAwesomeIcon,
+        Icon: ChatRoundedIcon,
         title: 'Natural Language Queries',
         desc: 'Just ask what you want to know. The AI translates your questions into optimized SQL automatically.',
       },
       {
-        Icon: SpeedIcon,
+        Icon: BoltRoundedIcon,
         title: 'Instant Results',
         desc: 'Get answers in seconds, not hours. View as tables, charts, or export to CSV with one click.',
       },
       {
-        Icon: VisibilityIcon,
+        Icon: InsightsRoundedIcon,
         title: 'Visualize Instantly',
         desc: 'Turn query results into beautiful charts. Bar, line, pie, or doughnut — generated on the fly.',
       },
@@ -60,12 +65,7 @@ function ValueGrid() {
             <Box
               component="span"
               sx={{
-                background: brandGradients.shimmer,
-                backgroundSize: '200% auto',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                backgroundClip: 'text',
-                animation: 'shimmer 5s linear infinite',
+                color: BRAND.main,
               }}
             >
               Everyone.
@@ -128,7 +128,13 @@ function ValueGrid() {
                     boxShadow: isDark
                       ? `0 20px 42px -18px ${alpha(theme.palette.common.black, 0.44)}`
                       : `0 20px 40px -18px ${alpha(theme.palette.common.black, 0.12)}`,
-                    '& .icon-container': { transform: 'scale(1.06)' },
+                    '& .icon-container': {
+                      transform: 'scale(1.06)',
+                      // Icon container picks up a subtle brand-purple border on
+                      // hover — connects the card to the brand color story
+                      // without overwhelming the monochrome base.
+                      borderColor: alpha(BRAND.main, isDark ? 0.4 : 0.32),
+                    },
                     '& .card-number': { opacity: 0.5 },
                   },
                 },

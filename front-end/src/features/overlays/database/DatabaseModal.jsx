@@ -157,13 +157,21 @@ function getDatabaseTextColor(dbValue, theme) {
   return DATABASE_TEXT_COLORS[dbValue] || theme.palette.text.primary;
 }
 
+/**
+ * Extract the list of databases to show in the "Available Databases" section.
+ *
+ * IMPORTANT: This must NOT fall back to `connectionData.schemas`. See the
+ * detailed comment in `DatabaseContext.getDatabaseList` for the full
+ * rationale — the short version is that the PostgreSQL connect handler
+ * historically returned the database list under the `schemas` key, and the
+ * frontend's fallback masked it by displaying PostgreSQL schemas as if they
+ * were databases.
+ */
 function getDatabaseOptions(connectionData = {}) {
-  const databases = connectionData.databases?.length
-    ? connectionData.databases
-    : connectionData.schemas;
-  if (databases?.length) return databases;
+  if (connectionData.databases?.length) return connectionData.databases;
 
-  // Use centralized helper so all backend field variants are covered.
+  // No databases list — fall back to the single connected database.
+  // Never fall back to `schemas`.
   const selectedDatabase = getSelectedDatabase(connectionData);
   return selectedDatabase ? [selectedDatabase] : [];
 }
@@ -470,6 +478,14 @@ function DatabaseModal({
         setSelectedDatabase(getSelectedDatabase(connectionData) || formData.database || null);
         onConnect?.(connectionData);
 
+        // Auto-route the user to the Databases tab now that the connection is
+        // established. The Connection tab's job (credentials/URI setup) is
+        // done — the user should be looking at the database picker next.
+        const connectedDatabases = getDatabaseOptions(connectionData);
+        if (connectedDatabases.length > 0) {
+          setMobileSection('databases');
+        }
+
         if (rememberConnection) {
           setSavedConnection({
             dbType,
@@ -531,6 +547,9 @@ function DatabaseModal({
       setSuccess(null);
       setConnectionActive(false);
       setSelectedDatabase(null);
+      // Reset back to the Connection tab so the user is back at the
+      // credential-setup stage for the next connection.
+      setMobileSection('connect');
       onConnect?.(null);
     } catch (err) {
       logger.error(err);
@@ -746,6 +765,12 @@ function DatabaseModal({
     </Box>
   );
 
+  // The tab toggle only appears when a connection is active AND databases are
+  // available. Before a connection is established, the user stays on the
+  // Connection tab exclusively — keeping credential setup and database
+  // selection strictly separated.
+  const showTabs = connectionActive && hasDatabases;
+
   return (
     <DialogShell
       open={open}
@@ -769,7 +794,7 @@ function DatabaseModal({
       <PreferencePageHeader title="Connect Database" onClose={onClose} />
 
       <PreferenceLayout sidebar={navContent}>
-        {hasDatabases ? (
+        {showTabs ? (
           <Box sx={{ mb: 4 }}>
             <ToggleButtonGroup
               value={mobileSection}
@@ -792,14 +817,15 @@ function DatabaseModal({
 
         <Fade in key={mobileSection}>
           <Box>
-            {mobileSection === 'databases' && hasDatabases ? (
-              renderDatabaseSection()
-            ) : (
-              <>
-                {renderConnectionForm()}
-                {hasDatabases ? renderDatabaseSection({ mt: { xs: 5, md: 6 } }) : null}
-              </>
-            )}
+            {mobileSection === 'databases' && showTabs
+              ? renderDatabaseSection()
+              : // Connection tab is rendered in two scenarios:
+              //   1. No connection yet — user is setting up credentials.
+              //   2. Connection is active AND databases are available — user
+              //      has explicitly switched back to the Connection tab.
+              // In scenario 2 we do NOT render the database list below the
+              // form (the user has a dedicated Databases tab for that).
+              renderConnectionForm()}
           </Box>
         </Fade>
 

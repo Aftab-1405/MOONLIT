@@ -3,9 +3,22 @@ import { alpha } from '@mui/material/styles';
 import { memo, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { CodeViewer } from '@/components';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { TRANSITIONS } from '@/theme/themeEffects';
-import { CodeViewer } from '@/components';
+
+/**
+ * MarkdownRenderer — renders AI message content with GitHub-flavoured Markdown.
+ *
+ * Responsibilities:
+ *   - Strip canvas-language code blocks (e.g. `diagram-flow`) before remark
+ *     parses them — these are rendered as artifact cards by `MessageList`.
+ *   - Detect bare JSON `{"query": "..."}` payloads and pretty-print them as
+ *     SQL code blocks with the rationale as a blockquote.
+ *   - Map markdown primitives (code, table, links, etc.) to themed MUI
+ *     components so typography & spacing stay consistent with the rest of
+ *     the app.
+ */
 
 // Languages rendered as interactive canvas artifacts — never shown as code blocks.
 const CANVAS_LANGUAGES = new Set(['diagram-flow']);
@@ -212,18 +225,27 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
         px: { xs: 1.25, sm: 2 },
         py: { xs: 0.85, sm: 1 },
         borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
-        whiteSpace: 'nowrap',
+        // Headers wrap to a max of 2 lines before truncating with an ellipsis.
+        // `whiteSpace: nowrap` (the previous value) forced every table to
+        // overflow horizontally even when the content was short.
+        whiteSpace: 'normal',
         ...theme.typography.uiCaptionMd,
       },
       '& td': {
         px: { xs: 1.25, sm: 2 },
         py: { xs: 0.85, sm: 1 },
         borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.06)}`,
-        whiteSpace: 'nowrap',
+        // Allow cell content to wrap by default. Long strings (URLs, code,
+        // hashes) still break via `word-break: break-word` set on the root.
+        whiteSpace: 'normal',
+        verticalAlign: 'top',
       },
       '& tr:last-child td': { borderBottom: 'none' },
-      '& tr:hover td': {
-        bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.04 : 0.024),
+      // Subtle row hover — only on hover-capable devices.
+      [HOVER_CAPABLE_QUERY]: {
+        '& tbody tr:hover td': {
+          bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.04 : 0.024),
+        },
       },
     }),
     [theme],

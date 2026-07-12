@@ -33,12 +33,15 @@ class DatabaseContextSync(Protocol):
     def update_schema(self, user_id: str, schema_name: str) -> None:
         """Persist selected schema."""
 
-    def store_schema_context(
-        self, user_id: str, database: str, tables: list, columns: dict
-    ) -> None:
+    def store_schema_context(self, user_id: str, database: str, tables: list, columns: dict) -> None:
         """Persist table/column schema context."""
 
     def add_query(
-        self, user_id: str, query: str, database: str | None, row_count: int, status: str
+        self,
+        user_id: str,
+        query: str,
+        database: str | None,
+        row_count: int,
+        status: str,
     ) -> None:
         """Persist query history metadata."""

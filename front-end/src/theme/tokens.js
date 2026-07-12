@@ -126,6 +126,40 @@ export const FONTS = {
   sans: '"Inter", system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif',
 };
 
+/**
+ * Moonlit brand accent color.
+ *
+ * The brand has ONE accent color: purple (#9c40ff). This is the single
+ * color used across the product for identity moments and primary actions.
+ *
+ * The full orange→purple→pink gradient is reserved for ONE place only:
+ * the welcome-screen name (the single identity moment on the empty chat
+ * state). Everywhere else, solid purple is used.
+ *
+ * Design rules:
+ *   - Body text, headings, borders, surfaces → monochrome (text.primary)
+ *   - Wordmarks → solid text.primary (no color — premium, like Linear/Stripe)
+ *   - Primary actions (send button, CTAs, tab indicator) → solid purple
+ *   - Active/current states (active conversation, skill node) → solid purple
+ *   - Focus rings on primary actions → solid purple at 50-60% alpha
+ *   - Semantic states (success/error/warning) → their own palette colors
+ *
+ * Purple is mode-independent — brand identity doesn't change with theme.
+ */
+export const BRAND = Object.freeze({
+  // The single brand color.
+  main: '#9c40ff',
+  // Lighter variant — used for solid fills in dark mode where the full
+  // purple is too heavy against dark surfaces.
+  light: '#b06aff',
+  // Darker variant — used for hover states on solid purple fills.
+  dark: '#7a1fdf',
+  // The full brand gradient (orange → purple → pink). Reserved for the
+  // welcome-screen name ONLY. Do not use elsewhere.
+  shimmer: 'linear-gradient(to right, #ffaa40, #9c40ff, #ff5a8c, #ffaa40)',
+  static: 'linear-gradient(to right, #ffaa40, #9c40ff, #ff5a8c)',
+});
+
 /** Shared MUI shape config */
 export const SHAPE = {
   borderRadius: 8,

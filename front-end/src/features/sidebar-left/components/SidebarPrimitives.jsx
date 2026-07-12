@@ -32,6 +32,21 @@ import {
   getSelectableMenuItemSx,
   getUtilityIconButtonSx,
 } from '@/styles/shared';
+import { BRAND } from '@/theme/tokens';
+
+/**
+ * Sidebar primitive components — the building blocks rendered inside the
+ * sidebar (left). Exported components:
+ *
+ *   - `SidebarNavItem`        — single row in the nav list (New chat, Search, Database, etc.)
+ *   - `ConversationItem`      — single row in the Recents list, with rename/delete menu
+ *   - `HistoryPopoverItem`    — same as ConversationItem but rendered inside a popover
+ *                               (used when sidebar is collapsed and user opens "History")
+ *   - `HistoryListSkeleton`   — loading placeholder for the conversation list
+ *
+ * All rows share the same geometry (height, icon column width, padding) via
+ * `buildNavRowSx` / `buildConversationRowSx` in sidebarStyles.js.
+ */
 
 // ─── ConversationItem ─────────────────────────────────────────────────────────
 export const ConversationItem = memo(function ConversationItem({
@@ -113,7 +128,10 @@ export const ConversationItem = memo(function ConversationItem({
             display: 'inline-flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: isActive ? 'text.primary' : 'text.secondary',
+            // Active conversation icon uses the brand purple as a semantic
+            // "this is the current conversation" signal — the only place in
+            // the sidebar where brand color appears.
+            color: isActive ? BRAND.main : 'text.secondary',
           }}
         >
           {isActive ? (
@@ -405,11 +423,13 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
             minWidth: ICON_COL,
             width: ICON_COL,
             justifyContent: 'center',
-            color: isActive ? 'text.primary' : 'text.secondary',
+            // Active conversation icon uses brand purple — matches the sidebar
+            // conversation row treatment.
+            color: isActive ? BRAND.main : 'text.secondary',
           }}
         >
           {isActive ? (
-            <CheckCircleOutlineRoundedIcon sx={{ fontSize: 18, color: 'text.primary' }} />
+            <CheckCircleOutlineRoundedIcon sx={{ fontSize: 18, color: BRAND.main }} />
           ) : (
             <QuestionAnswerOutlinedIcon
               sx={{ fontSize: 18, color: theme.palette.text.secondary }}
@@ -493,10 +513,10 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
 });
 
 // ─── HistoryListSkeleton ──────────────────────────────────────────────────────
+// Skeleton rows that match the geometry of ConversationItem (icon column +
+// title). The MuiSkeleton theme override provides the layered fill + highlight,
+// so we only specify geometry here.
 export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-
   return (
     <Box role="status" aria-label="Loading recent conversations" sx={{ px: 1, pb: 1 }}>
       {[0, 1, 2, 3, 4].map((i) => (
@@ -514,15 +534,7 @@ export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
           }}
         >
           <Box sx={{ width: ICON_COL, display: 'flex', justifyContent: 'center' }}>
-            <Skeleton
-              variant="circular"
-              width={16}
-              height={16}
-              animation="wave"
-              sx={{
-                bgcolor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
-              }}
-            />
+            <Skeleton variant="circular" width={16} height={16} animation="wave" />
           </Box>
           <Skeleton
             variant="rounded"
@@ -532,7 +544,6 @@ export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
               maxWidth: 168,
               height: 10,
               borderRadius: 999,
-              bgcolor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
             }}
           />
         </Box>

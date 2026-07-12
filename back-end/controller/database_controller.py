@@ -1,4 +1,3 @@
-# File: api/routes/database.py
 """Database connection and query related API routes."""
 
 import logging
@@ -33,10 +32,11 @@ from api_contract.database_schemas import (
 from api_contract.query_schemas import QueryResultData, RunSqlQueryData
 
 logger = logging.getLogger(__name__)
-router = APIRouter(tags=["database"])
+router = APIRouter(tags=["Database Operations End Points"])
 
 
 def _raise_service_error(result: dict, status_code: int = 400) -> None:
+    """Raise an ``HTTPException`` if the service result carries an error status."""
     if result.get("status") == "error":
         raise HTTPException(
             status_code=status_code,
@@ -48,6 +48,7 @@ def _raise_service_error(result: dict, status_code: int = 400) -> None:
 
 
 def _public_db_config(raw_config: dict | None, fallback_db_type: str | None = None):
+    """Project a raw internal db_config dict into the public ``DatabaseConfigPublic`` response model."""
     if not raw_config and not fallback_db_type:
         return None
 
@@ -69,6 +70,7 @@ def _public_db_config(raw_config: dict | None, fallback_db_type: str | None = No
 
 
 def _selected_database(result: dict, db_config: DatabaseConfigPublic | None = None):
+    """Resolve the selected database name from a service result, falling back to the db_config's database field."""
     return (
         result.get("selected_database")
         or result.get("selectedDatabase")
@@ -77,6 +79,7 @@ def _selected_database(result: dict, db_config: DatabaseConfigPublic | None = No
 
 
 async def _schema_metadata_for_config(raw_config: dict | None) -> dict[str, Any]:
+    """Fetch PostgreSQL schema list and current schema for a connection config (no-op for non-Postgres)."""
     if not raw_config or raw_config.get("db_type") != "postgresql":
         return {"schemas": [], "current_schema": None}
 
@@ -101,6 +104,7 @@ def _schema_metadata_from_result(
     db_config: DatabaseConfigPublic,
     schema_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """Merge explicit schema metadata with a service result, falling back to the db_config's schema_name."""
     metadata = schema_metadata or {}
     return {
         "schemas": metadata.get("schemas") or result.get("schemas") or [],
@@ -117,6 +121,7 @@ def _normalize_connect_response(
     result: dict,
     schema_metadata: dict[str, Any] | None = None,
 ) -> ConnectDatabaseData:
+    """Shape a raw connect-database service result into the public ``ConnectDatabaseData`` response model."""
     db_config = _public_db_config(result.get("db_config"), result.get("db_type"))
     if not db_config:
         raise HTTPException(
@@ -145,6 +150,7 @@ def _normalize_connect_response(
 
 
 def _normalize_database_list_response(result: dict) -> DatabaseListData:
+    """Shape a raw list-databases service result into the public ``DatabaseListData`` response model."""
     return DatabaseListData(
         databases=result.get("databases") or [],
         db_type=result.get("db_type"),
@@ -157,6 +163,7 @@ def _normalize_database_selection_response(
     requested_database: str,
     schema_metadata: dict[str, Any] | None = None,
 ) -> DatabaseSelectionData:
+    """Shape a raw select/switch-database service result into the public ``DatabaseSelectionData`` response model."""
     db_config = _public_db_config(result.get("db_config"))
     if not db_config:
         raise HTTPException(
@@ -185,6 +192,33 @@ def _normalize_database_selection_response(
 
 
 def _normalize_rows(rows: list[Any]) -> list[list[Any]]:
+    """Convert database rows to JSON-serializable lists.
+
+    Handles non-JSON-native types that database drivers return:
+      - ``bytes`` / ``bytearray``  → UTF-8 string or hex string (binary)
+      - ``decimal.Decimal``        → ``float`` (so Perspective's ``float``
+                                     schema receives a native JS number, not
+                                     a Pydantic-serialized string)
+      - ``datetime.datetime``      → ISO 8601 string (frontend converts to
+                                     epoch ms for Perspective's ``datetime``)
+      - ``datetime.date``          → ISO 8601 ``YYYY-MM-DD`` string
+      - ``datetime.time``          → ISO 8601 ``HH:MM:SS`` string
+      - ``datetime.timedelta``     → total seconds as ``float``
+      - ``uuid.UUID``              → canonical string form
+      - ``enum.Enum``              → ``.value``
+
+    Without this, FastAPI/Pydantic would attempt to serialize these types
+    at the response boundary. Pydantic v2's ``model_dump_json()`` converts
+    ``Decimal`` to a JSON string (``"19.99"``) rather than a number
+    (``19.99``), which creates a type mismatch in Perspective — the schema
+    says ``float`` but the value arrives as a string. Converting explicitly
+    here ensures the JSON response contains the correct native types.
+    """
+    import datetime as _dt
+    import decimal as _decimal
+    import enum as _enum
+    import uuid as _uuid
+
     normalized = []
     for row in rows:
         row_list = []
@@ -194,22 +228,46 @@ def _normalize_rows(rows: list[Any]) -> list[list[Any]]:
             row_list = list(row)
         else:
             row_list = [row]
-        
-        # Handle binary data (bytes) cleanly to prevent JSON serialization crash
+
         normalized_row = []
         for val in row_list:
-            if isinstance(val, bytes):
+            if val is None:
+                normalized_row.append(None)
+            elif isinstance(val, bool):
+                # bool is a subclass of int — keep as-is (JSON-native).
+                normalized_row.append(val)
+            elif isinstance(val, (str, int, float)):
+                normalized_row.append(val)  # JSON-native
+            elif isinstance(val, bytes):
                 try:
                     normalized_row.append(val.decode("utf-8"))
                 except UnicodeDecodeError:
                     normalized_row.append(f"\\x{val.hex()}")
+            elif isinstance(val, _decimal.Decimal):
+                # Convert to float so Perspective's float schema receives a
+                # native JS number, not a Pydantic-serialized string.
+                normalized_row.append(float(val))
+            elif isinstance(val, _dt.datetime):
+                normalized_row.append(val.isoformat())
+            elif isinstance(val, _dt.date):
+                normalized_row.append(val.isoformat())
+            elif isinstance(val, _dt.time):
+                normalized_row.append(val.isoformat())
+            elif isinstance(val, _dt.timedelta):
+                normalized_row.append(val.total_seconds())
+            elif isinstance(val, _uuid.UUID):
+                normalized_row.append(str(val))
+            elif isinstance(val, _enum.Enum):
+                normalized_row.append(val.value)
             else:
-                normalized_row.append(val)
+                # Fallback: stringify any other non-JSON-serializable type.
+                normalized_row.append(str(val))
         normalized.append(normalized_row)
     return normalized
 
 
 def _normalize_query_response(result: dict) -> RunSqlQueryData:
+    """Shape a raw query-execution service result into the public ``RunSqlQueryData`` response model."""
     result_payload = result.get("result") or {}
     columns = result_payload.get("columns") or result_payload.get("fields") or []
     column_types = result_payload.get("column_types") or {}
@@ -228,9 +286,7 @@ def _normalize_query_response(result: dict) -> RunSqlQueryData:
     )
 
 
-# =============================================================================
 # DATABASE CONNECTION ROUTES
-# =============================================================================
 
 
 @router.post(
@@ -243,8 +299,6 @@ async def connect_db(
 ):
     """Connect to a remote database via connection string or host/port credentials."""
     user_id = user.get("uid") or user
-
-    # Log connection request without sensitive fields
     safe_log_data = {
         k: v
         for k, v in data.model_dump().items()
@@ -255,8 +309,6 @@ async def connect_db(
     result = await run_in_threadpool(
         ConnectionService.connect_database, data.model_dump(), user_id
     )
-
-    # Store db_config in session if connection successful
     if result.get("status") in ["connected", "success"] and "db_config" in result:
         await update_session_data(
             request,
@@ -292,8 +344,6 @@ async def disconnect_db(
     user_id = user.get("uid") or user
 
     result = await run_in_threadpool(DatabaseService.disconnect, db_config, user_id)
-
-    # Clear db_config from session
     await update_session_data(
         request,
         {
@@ -313,19 +363,25 @@ async def disconnect_db(
 
 
 @router.get(
-    "/db_status",
+    "/sync_connection_state",
     response_model=ApiSuccess[DatabaseStatusData],
     responses=COMMON_ERROR_RESPONSES,
 )
-async def db_status(db_config: Optional[dict] = Depends(get_db_config)):
-    """Get current database connection status.
+async def sync_connection_state(db_config: Optional[dict] = Depends(get_db_config)):
+    """Synchronize the active database connection state with the consumer.
 
-    Returns all state needed by frontend DatabaseContext:
-    - connected: boolean connection status
-    - current_database: currently selected database name
+    This endpoint is used primarily by the frontend React application to restore, 
+    hydrate, and synchronize its local state (e.g. green badges, active tables, 
+    and sidebar schema explorers) on page reload or fresh tab visits.
+
+    Returns all state needed by the client-side DatabaseContext:
+    - connected: boolean indicating if there is an active session connection
+    - current_database: name of the currently selected database
     - db_type: database type (mysql, postgresql, sqlserver, oracle)
     - is_remote: whether using connection string
     - databases: list of available databases for switching
+    - schemas: list of available schemas (for Postgres)
+    - current_schema: name of the active schema
     """
     if not db_config:
         return ApiSuccess(
@@ -340,8 +396,6 @@ async def db_status(db_config: Optional[dict] = Depends(get_db_config)):
             ),
             message=None,
         )
-
-    # Fetch available databases for the switcher chip
     databases = []
     schema_metadata = await _schema_metadata_for_config(db_config)
     try:
@@ -394,8 +448,6 @@ async def switch_remote_database(
     result = await run_in_threadpool(
         DatabaseService.switch_remote_database, db_config, data.database, user_id
     )
-
-    # Update session with new db_config
     if result.get("status") == "success" and "db_config" in result:
         await update_session_data(
             request,
@@ -450,9 +502,7 @@ async def select_database(
     )
 
 
-# =============================================================================
 # QUERY ROUTES
-# =============================================================================
 
 
 @router.post(

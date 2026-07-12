@@ -4,14 +4,14 @@
  */
 
 export const AUTH = {
-  FIREBASE_CONFIG: '/firebase-config',
-  SET_SESSION: '/set_session',
-  CHECK_SESSION: '/check_session',
-  LOGOUT: '/logout',
+  FIREBASE_CONFIG: '/firebase-config-and-csrf-token',
+  SET_SESSION: '/set_authenticated_user_session',
+  CHECK_SESSION: '/check_authenticated_user_session',
+  LOGOUT: '/logout_authenticated_user_session',
 };
 
 export const CONVERSATIONS = {
-  LIST: '/api/v1/get_conversations',
+  LIST: '/api/v1/get_all_user_conversations',
   GET: (id) => `/api/v1/get_conversation/${id}`,
   RENAME: (id) => `/api/v1/rename_conversation/${id}`,
   DELETE: (id) => `/api/v1/delete_conversation/${id}`,
@@ -26,7 +26,7 @@ export const LLM = {
 };
 
 export const DATABASE = {
-  STATUS: '/api/v1/db_status',
+  STATUS: '/api/v1/sync_connection_state',
   CONNECT: '/api/v1/connect_db',
   DISCONNECT: '/api/v1/disconnect_db',
   LIST_DATABASES: '/api/v1/get_databases',

@@ -4,13 +4,40 @@ import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Box, IconButton, Tooltip, Typography, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
+import { CodeToTokenTransformStream } from '@shikijs/stream';
+import { ShikiStreamRenderer } from '@shikijs/stream/react';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ButtonLoadingSpinner } from '@/components';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { copyToClipboard } from '@/utils/clipboard';
 import { getShikiHighlighter } from '@/utils/shiki';
-import { CodeToTokenTransformStream } from '@shikijs/stream';
-import { ShikiStreamRenderer } from '@shikijs/stream/react';
+
+/**
+ * CodeViewer — renders code blocks inside AI messages.
+ *
+ * SINGLE RENDER PATH: ShikiStreamRenderer is used for BOTH streaming and
+ * static code. This is a deliberate architectural choice:
+ *
+ *   - Streaming code: fed into the ReadableStream incrementally as it
+ *     arrives over SSE. Tokens render as they're tokenized.
+ *   - Static code: fed into the ReadableStream all at once on mount. The
+ *     ShikiStreamRenderer tokenizes synchronously and renders the same
+ *     `<span>`-based DOM as a streaming render.
+ *
+ * Using one render path for both modes means the DOM structure is identical
+ * whether the code arrived in one chunk or fifty — so there is NEVER a
+ * layout shift when streaming completes. The previous dual-path
+ * implementation (ShikiStream for streaming, `codeToHtml` +
+ * `dangerouslySetInnerHTML` for static) produced structurally different DOM
+ * in the two modes, which caused the visible "height shrink" when streaming
+ * finished and the component flipped to static mode.
+ *
+ * For SQL blocks, shows a "Run query" affordance that calls `onRunQuery`.
+ *
+ * The Shiki highlighter is created once and cached (see utils/shiki.js).
+ * Shiki + its grammars live in the `vendor-shiki` chunk (see vite.config.js)
+ * so the main chat bundle stays small until a code block actually appears.
+ */
 
 const SQL_LANGUAGES = new Set([
   'sql',
@@ -32,6 +59,7 @@ const ActionButton = memo(function ActionButton({ title, onClick, disabled, icon
           size="small"
           onClick={onClick}
           disabled={disabled}
+          aria-label={title}
           sx={{
             width: 28,
             height: 28,
@@ -45,6 +73,10 @@ const ActionButton = memo(function ActionButton({ title, onClick, disabled, icon
                 color: 'text.primary',
                 backgroundColor: alpha(theme.palette.text.primary, 0.04),
               },
+            },
+            '&.Mui-focusVisible': {
+              outline: `2px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+              outlineOffset: 1,
             },
           }}
         >
@@ -72,11 +104,7 @@ function CodeViewer({
   const [wrapLongLines, setWrapLongLines] = useState(false);
   const copyTimeoutRef = useRef(null);
 
-  // States for static Shiki highlighting
-  const [highlightedHtml, setHighlightedHtml] = useState('');
-  const [loading, setLoading] = useState(true);
-
-  // States for streaming Shiki highlighting
+  // ShikiStream state — the single render path for both streaming and static.
   const [tokensStream, setTokensStream] = useState(null);
   const controllerRef = useRef(null);
   const lastLengthRef = useRef(0);
@@ -89,7 +117,7 @@ function CodeViewer({
 
   const rawCode = value;
   const { code, detectedLanguage } = useMemo(() => {
-    // Strip exactly one trailing newline to prevent layout shift between streaming and finished parsing
+    // Strip exactly one trailing newline to prevent a trailing empty line.
     const cleanRaw = rawCode.replace(/\n$/, '');
     const trimmed = rawCode.trim();
     if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
@@ -136,50 +164,14 @@ function CodeViewer({
 
   const shikiTheme = theme.palette.mode === 'dark' ? 'dracula-soft' : 'github-light';
 
-  // 1. Static highlighting effect (when isStreaming is false)
+  // ── Single ShikiStream setup effect ──────────────────────────────────────
+  // This runs for BOTH streaming and static code. The stream is created once
+  // per (language, theme) combination; code is fed into it either
+  // incrementally (streaming) or all at once (static) by the feed effect
+  // below.
+  //
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the stream is initialized once per (language, theme); code updates are fed by the separate feed effect below.
   useEffect(() => {
-    if (isStreaming) {
-      setHighlightedHtml('');
-      setLoading(false);
-      return;
-    }
-
-    let active = true;
-    setLoading(true);
-
-    getShikiHighlighter().then(async (highlighter) => {
-      if (!active) return;
-      try {
-        const html = highlighter.codeToHtml(code, {
-          lang: isSQL ? 'sql' : (detectedLanguage || 'text'),
-          theme: shikiTheme,
-        });
-        if (active) {
-          setHighlightedHtml(html);
-          setLoading(false);
-        }
-      } catch (err) {
-        console.error('Shiki static highlight error:', err);
-        if (active) {
-          setLoading(false);
-        }
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [code, detectedLanguage, isSQL, isStreaming]);
-
-  // 2. Streaming highlighting effect (when isStreaming is true)
-  useEffect(() => {
-    if (!isStreaming) {
-      setTokensStream(null);
-      controllerRef.current = null;
-      lastLengthRef.current = 0;
-      return;
-    }
-
     let controller;
     let active = true;
     const rawStream = new ReadableStream({
@@ -201,7 +193,7 @@ function CodeViewer({
       try {
         const transformer = new CodeToTokenTransformStream({
           highlighter,
-          lang: isSQL ? 'sql' : (detectedLanguage || 'text'),
+          lang: isSQL ? 'sql' : detectedLanguage || 'text',
           theme: shikiTheme,
           allowRecalls: true,
         });
@@ -211,6 +203,11 @@ function CodeViewer({
 
         setTokensStream(piped);
 
+        // For static code (isStreaming=false) OR when the full code is
+        // already present at mount, feed the entire code into the stream
+        // immediately. The ShikiStreamRenderer tokenizes synchronously
+        // and renders the same DOM as a streaming render — just without
+        // the incremental arrivals.
         if (code) {
           controller.enqueue(code);
           lastLengthRef.current = code.length;
@@ -225,36 +222,94 @@ function CodeViewer({
       if (controllerRef.current === controller) {
         try {
           controller.close();
-        } catch (_) {}
+        } catch (_) { }
         controllerRef.current = null;
       }
     };
-  }, [isStreaming, detectedLanguage, isSQL]);
+  }, [isStreaming, detectedLanguage, isSQL, shikiTheme]);
 
-  // Feed new streamed characters into the stream
+  // ── Feed effect — incremental code arrival ───────────────────────────────
+  // For streaming code: feeds only the NEW characters (delta) into the stream
+  // as they arrive. For static code: this effect runs once (code doesn't
+  // change) and the full code was already fed by the setup effect above, so
+  // the delta check (`code.length > lastLengthRef.current`) is false and
+  // nothing happens.
   useEffect(() => {
-    if (isStreaming && controllerRef.current && code.length > lastLengthRef.current) {
+    if (controllerRef.current && code.length > lastLengthRef.current) {
       const delta = code.slice(lastLengthRef.current);
       try {
         controllerRef.current.enqueue(delta);
         lastLengthRef.current = code.length;
-      } catch (_) {}
+      } catch (_) { }
     }
-  }, [code, isStreaming]);
-
-  // Extract the inner HTML content of the static Shiki output (removing the outer pre and code tags)
-  const innerHtml = useMemo(() => {
-    if (!highlightedHtml) return '';
-    return highlightedHtml
-      .replace(/^<pre[^>]*>\s*<code[^>]*>/i, '')
-      .replace(/<\/code>\s*<\/pre>$/i, '');
-  }, [highlightedHtml]);
+  }, [code]);
 
   // Layout styling definitions
   const containerBg = 'transparent';
-  const containerBorder = transparent || simple ? 'transparent' : alpha(theme.palette.text.primary, 0.1);
+  const containerBorder =
+    transparent || simple ? 'transparent' : alpha(theme.palette.text.primary, 0.1);
 
-  // Static or Simple rendering
+  // Shared sx for the outer <pre> — used by both the simple and full variants.
+  // Forces the nested pre.shiki-stream (rendered by ShikiStreamRenderer) to
+  // inherit ALL typography from the outer pre so streaming and static modes
+  // render at identical metrics.
+  const preSx = useMemo(
+    () => ({
+      background: 'transparent !important',
+      margin: 0,
+      padding: 0,
+      whiteSpace: wrapLongLines ? 'pre-wrap' : 'pre',
+      overflowWrap: wrapLongLines ? 'anywhere' : 'normal',
+      '& code': {
+        fontFamily: 'inherit',
+        fontSize: 'inherit',
+        lineHeight: 'inherit',
+      },
+      // ShikiStreamRenderer renders <pre className="shiki shiki-stream"> with
+      // browser-default typography. Force it to inherit the outer pre's
+      // metrics so the rendered height is identical regardless of token
+      // count or streaming state.
+      '& pre.shiki-stream': {
+        margin: 0,
+        padding: 0,
+        backgroundColor: 'transparent',
+        fontFamily: 'inherit',
+        fontSize: 'inherit',
+        lineHeight: 'inherit',
+        letterSpacing: 'inherit',
+        fontVariant: 'inherit',
+        fontFeatureSettings: 'inherit',
+        fontStretch: 'inherit',
+        whiteSpace: 'inherit',
+        overflowWrap: 'inherit',
+        wordBreak: 'inherit',
+        color: 'inherit',
+        '& code': {
+          fontFamily: 'inherit',
+          fontSize: 'inherit',
+          lineHeight: 'inherit',
+        },
+        '& span': {
+          lineHeight: 'inherit',
+          fontSize: 'inherit',
+          fontFamily: 'inherit',
+        },
+      },
+    }),
+    [wrapLongLines],
+  );
+
+  // The stream might not be ready yet (highlighter still loading). Fall back
+  // to plain text so the user sees the code immediately — Shiki will swap in
+  // highlighted tokens as soon as the stream is piped.
+  const renderCode = () => {
+    if (tokensStream) {
+      return <ShikiStreamRenderer stream={tokensStream} />;
+    }
+    return code;
+  };
+
+  // ── Simple variant (used by UserDBContextManagerForAI, StepTimelineItems)
   if (simple) {
     return (
       <Box
@@ -271,39 +326,20 @@ function CodeViewer({
           component="pre"
           className={`shiki ${shikiTheme}`}
           sx={{
-            background: 'transparent !important',
-            margin: 0,
-            padding: 0,
-            whiteSpace: wrapLongLines ? 'pre-wrap' : 'pre',
-            overflowWrap: wrapLongLines ? 'anywhere' : 'normal',
+            ...preSx,
             fontFamily: 'inherit',
             fontSize: 'inherit',
             lineHeight: 'inherit',
             color: 'text.secondary',
-            '& code': {
-              fontFamily: 'inherit',
-              fontSize: 'inherit',
-              lineHeight: 'inherit',
-            },
-            '& pre.shiki-stream': {
-              margin: 0,
-              padding: 0,
-              backgroundColor: 'transparent',
-            },
           }}
         >
-          <code>
-            {loading ? (
-              code
-            ) : (
-              <span dangerouslySetInnerHTML={{ __html: innerHtml }} />
-            )}
-          </code>
+          <code>{renderCode()}</code>
         </Box>
       </Box>
     );
   }
 
+  // ── Full variant (used by MarkdownRenderer for code blocks in AI messages)
   return (
     <Box
       sx={{
@@ -392,40 +428,14 @@ function CodeViewer({
           component="pre"
           className={`shiki ${shikiTheme}`}
           sx={{
-            background: 'transparent !important',
-            margin: 0,
-            padding: 0,
-            whiteSpace: wrapLongLines ? 'pre-wrap' : 'pre',
-            overflowWrap: wrapLongLines ? 'anywhere' : 'normal',
+            ...preSx,
             fontSize: theme.typography.uiCodeBlock.fontSize,
             lineHeight: theme.typography.uiCodeBlock.lineHeight,
             fontFamily: theme.typography.fontFamilyMono,
             color: 'text.primary',
-            '& code': {
-              fontFamily: 'inherit',
-              fontSize: 'inherit',
-              lineHeight: 'inherit',
-            },
-            '& pre.shiki-stream': {
-              margin: 0,
-              padding: 0,
-              backgroundColor: 'transparent',
-            },
           }}
         >
-          <code>
-            {isStreaming ? (
-              tokensStream ? (
-                <ShikiStreamRenderer stream={tokensStream} />
-              ) : (
-                code
-              )
-            ) : loading ? (
-              code
-            ) : (
-              <span dangerouslySetInnerHTML={{ __html: innerHtml }} />
-            )}
-          </code>
+          <code>{renderCode()}</code>
         </Box>
       </Box>
     </Box>
