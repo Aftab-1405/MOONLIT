@@ -32,13 +32,17 @@ function MoonlitBrand({ onClick, color = 'text.primary' }) {
       component="a"
       href="#top"
       onClick={onClick}
-      sx={{
+      sx={(theme) => ({
         display: 'inline-flex',
         alignItems: 'center',
         gap: 1,
         color,
         textDecoration: 'none',
-      }}
+        '&:focus-visible': {
+          outline: `2px solid ${theme.palette.border.focus}`,
+          outlineOffset: 2,
+        },
+      })}
     >
       <Box component="img" src="/moonlit.svg" alt="" sx={{ width: 32, height: 32 }} />
       <Typography component="span" sx={(theme) => theme.typography.uiBrandWordmark}>
