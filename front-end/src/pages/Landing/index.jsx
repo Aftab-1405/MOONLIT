@@ -15,15 +15,18 @@ import WorkflowSection from '@/pages/Landing/WorkflowSection';
 import { getLandingDestination, NAV_LINKS } from '@/pages/Landing/landingContent';
 import { REDUCED_MOTION_QUERY } from '@/styles/mediaQueries';
 
-const navLinkSx = {
+const navLinkSx = (theme) => ({
   minHeight: 36,
   px: 1.5,
-  color: 'text.primary',
+  color: theme.palette.common.white,
   borderColor: 'transparent',
-  '&:hover': { borderColor: 'transparent' },
-};
+  '&:hover': {
+    borderColor: 'transparent',
+    backgroundColor: alpha(theme.palette.common.white, 0.08),
+  },
+});
 
-function MoonlitBrand({ onClick }) {
+function MoonlitBrand({ onClick, color = 'text.primary' }) {
   return (
     <Box
       component="a"
@@ -33,7 +36,7 @@ function MoonlitBrand({ onClick }) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: 1,
-        color: 'text.primary',
+        color,
         textDecoration: 'none',
       }}
     >
@@ -66,7 +69,7 @@ function LandingNav({ onGetStarted }) {
           position: 'sticky',
           top: 0,
           zIndex: 20,
-          backgroundColor: alpha(theme.palette.background.default, 0.82),
+          backgroundColor: alpha(theme.palette.common.black, 0.84),
           borderBottom: '1px solid',
           borderColor: 'border.subtle',
           backdropFilter: 'blur(18px)',
@@ -77,7 +80,7 @@ function LandingNav({ onGetStarted }) {
           maxWidth="lg"
           sx={{ minHeight: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
         >
-          <MoonlitBrand />
+          <MoonlitBrand color="common.white" />
 
           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
             {NAV_LINKS.map((link) => (
@@ -85,10 +88,31 @@ function LandingNav({ onGetStarted }) {
                 {link.label}
               </Button>
             ))}
-            <Button variant="outlined" onClick={() => navigate('/auth')} sx={{ ml: 1 }}>
+            <Button
+              variant="outlined"
+              onClick={() => navigate('/auth')}
+              sx={(theme) => ({
+                ml: 1,
+                color: theme.palette.common.white,
+                borderColor: alpha(theme.palette.common.white, 0.5),
+                '&:hover': {
+                  borderColor: theme.palette.common.white,
+                  backgroundColor: alpha(theme.palette.common.white, 0.08),
+                },
+              })}
+            >
               Sign in
             </Button>
-            <Button variant="contained" onClick={onGetStarted} sx={{ ml: 0.5 }}>
+            <Button
+              variant="contained"
+              onClick={onGetStarted}
+              sx={(theme) => ({
+                ml: 0.5,
+                color: theme.palette.common.black,
+                backgroundColor: theme.palette.common.white,
+                '&:hover': { backgroundColor: alpha(theme.palette.common.white, 0.88) },
+              })}
+            >
               Get started
             </Button>
           </Stack>
@@ -96,7 +120,12 @@ function LandingNav({ onGetStarted }) {
           <IconButton
             aria-label="Open navigation"
             onClick={() => setMobileOpen(true)}
-            sx={{ display: { xs: 'inline-flex', md: 'none' }, width: 44, height: 44 }}
+            sx={{
+              display: { xs: 'inline-flex', md: 'none' },
+              width: 44,
+              height: 44,
+              color: 'common.white',
+            }}
           >
             <MenuIcon />
           </IconButton>
@@ -216,7 +245,6 @@ export default function Landing() {
 
   return (
     <Box
-      id="top"
       sx={{
         height: '100dvh',
         overflowY: 'auto',
@@ -227,6 +255,7 @@ export default function Landing() {
         [REDUCED_MOTION_QUERY]: { scrollBehavior: 'auto' },
       }}
     >
+      <Box id="top" aria-hidden="true" sx={{ height: 0 }} />
       <LandingNav onGetStarted={handleGetStarted} />
       <Box component="main">
         <Hero onGetStarted={handleGetStarted} />
