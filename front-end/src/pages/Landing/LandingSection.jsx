@@ -41,12 +41,16 @@ export function SectionHeading({ eyebrow, title, description, align = 'left' }) 
 }
 
 export function Reveal({ children, delay = 0, sx = {} }) {
+  const canObserve = typeof window !== 'undefined' && typeof window.IntersectionObserver !== 'undefined';
+
   return (
     <Box
       component={motion.div}
-      initial={{ opacity: 0, y: 18 }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, margin: '-48px' }}
+      initial={canObserve ? { opacity: 0, y: 18 } : false}
+      {...(canObserve && {
+        whileInView: { opacity: 1, y: 0 },
+        viewport: { once: true, margin: '-48px' },
+      })}
       transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
       sx={{ [REDUCED_MOTION_QUERY]: { opacity: '1 !important', transform: 'none !important' }, ...sx }}
     >

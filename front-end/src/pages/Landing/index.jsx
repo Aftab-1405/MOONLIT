@@ -15,6 +15,8 @@ import WorkflowSection from '@/pages/Landing/WorkflowSection';
 import { getLandingDestination, NAV_LINKS } from '@/pages/Landing/landingContent';
 import { REDUCED_MOTION_QUERY } from '@/styles/mediaQueries';
 
+const MOBILE_NAVIGATION_ID = 'mobile-navigation';
+
 const navLinkSx = (theme) => ({
   minHeight: 36,
   px: 1.5,
@@ -86,7 +88,14 @@ function LandingNav({ onGetStarted }) {
         >
           <MoonlitBrand color="common.white" />
 
-          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
+          <Stack
+            component="nav"
+            aria-label="Desktop primary navigation"
+            direction="row"
+            spacing={0.5}
+            alignItems="center"
+            sx={{ display: { xs: 'none', md: 'flex' } }}
+          >
             {NAV_LINKS.map((link) => (
               <Button key={link.href} component="a" href={link.href} variant="text" sx={navLinkSx}>
                 {link.label}
@@ -123,6 +132,8 @@ function LandingNav({ onGetStarted }) {
 
           <IconButton
             aria-label="Open navigation"
+            aria-controls={MOBILE_NAVIGATION_ID}
+            aria-expanded={mobileOpen}
             onClick={() => setMobileOpen(true)}
             sx={{
               display: { xs: 'inline-flex', md: 'none' },
@@ -159,7 +170,13 @@ function LandingNav({ onGetStarted }) {
             <CloseIcon />
           </IconButton>
         </Box>
-        <Stack spacing={1} alignItems="stretch">
+        <Stack
+          id={MOBILE_NAVIGATION_ID}
+          component="nav"
+          aria-label="Mobile navigation"
+          spacing={1}
+          alignItems="stretch"
+        >
           {NAV_LINKS.map((link) => (
             <Button
               key={link.href}
@@ -213,7 +230,11 @@ function LandingFooter({ onGetStarted }) {
               Ask questions. Inspect SQL. Ship answers.
             </Typography>
           </Box>
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+          <Box
+            component="nav"
+            aria-label="Footer navigation"
+            sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}
+          >
             {NAV_LINKS.map((link) => (
               <Button key={link.href} component="a" href={link.href} variant="text">
                 {link.label}

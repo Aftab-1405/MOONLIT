@@ -1,9 +1,10 @@
 import { Box, Stack, Typography } from '@mui/material';
 
-const MOCK_QUERY = `SELECT region, SUM(total) AS revenue
-FROM orders
-WHERE ordered_at >= '2026-01-01'
-GROUP BY region
+const MOCK_QUERY = `SELECT r.name AS region, SUM(o.total) AS revenue
+FROM orders AS o
+JOIN regions AS r ON o.region_id = r.id
+WHERE o.ordered_at >= date_trunc('year', CURRENT_DATE)
+GROUP BY r.name
 ORDER BY revenue DESC;`;
 
 const RESULT_ROWS = [
@@ -79,6 +80,10 @@ export default function WorkspaceMockup({ activeFeature = 'query', compact = fal
             <Typography sx={(theme) => theme.typography.captionMonoSm}>orders</Typography>
             <Typography sx={(theme) => ({ ...theme.typography.uiCaptionXs, mt: 0.5, color: 'text.disabled' })}>
               id · region_id · total · ordered_at
+            </Typography>
+            <Typography sx={(theme) => ({ ...theme.typography.captionMonoSm, mt: 1.25 })}>regions</Typography>
+            <Typography sx={(theme) => ({ ...theme.typography.uiCaptionXs, mt: 0.5, color: 'text.disabled' })}>
+              id · name
             </Typography>
           </Box>
           <Box

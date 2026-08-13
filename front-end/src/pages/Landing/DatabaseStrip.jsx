@@ -69,11 +69,28 @@ export default function DatabaseStrip() {
                 },
                 [REDUCED_MOTION_QUERY]: {
                   animation: 'none',
+                  display: 'block',
                   transform: 'none',
+                  width: '100%',
                 },
               }}
             >
-              <DatabaseGroup />
+              <DatabaseGroup
+                sx={{
+                  [REDUCED_MOTION_QUERY]: {
+                    display: 'grid',
+                    gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' },
+                    width: '100%',
+                    gap: 2,
+                    px: 0,
+                    '& > li': {
+                      minWidth: 0,
+                      width: '100%',
+                      px: { xs: 1.25, sm: 2 },
+                    },
+                  },
+                }}
+              />
               <DatabaseGroup hidden sx={{ [REDUCED_MOTION_QUERY]: { display: 'none' } }} />
             </Box>
           </Box>
