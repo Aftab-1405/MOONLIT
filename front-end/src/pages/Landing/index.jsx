@@ -1,77 +1,206 @@
-import { Box } from '@mui/material';
-import GlobalStyles from '@mui/material/GlobalStyles';
-import { alpha, useTheme } from '@mui/material/styles';
-import { useCallback, useEffect } from 'react';
+import { Box, Button, Container, Drawer, IconButton, Stack, Typography } from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { CloseIcon, MenuIcon } from '@/components/icons';
 import { useAuth } from '@/contexts/AuthContext';
-import DemoSection from '@/pages/Landing/DemoSection';
+import CapabilityGrid from '@/pages/Landing/CapabilityGrid';
+import DatabaseStrip from '@/pages/Landing/DatabaseStrip';
+import FaqSection from '@/pages/Landing/FaqSection';
 import FinalCTA from '@/pages/Landing/FinalCTA';
 import Hero from '@/pages/Landing/Hero';
-import StepsGrid from '@/pages/Landing/StepsGrid';
-import ValueGrid from '@/pages/Landing/ValueGrid';
-import {
-  HOVER_CAPABLE_QUERY as SHARED_HOVER_CAPABLE_QUERY,
-  REDUCED_MOTION_QUERY as SHARED_REDUCED_MOTION_QUERY,
-} from '@/styles/mediaQueries';
+import ProductShowcase from '@/pages/Landing/ProductShowcase';
+import SecuritySection from '@/pages/Landing/SecuritySection';
+import WorkflowSection from '@/pages/Landing/WorkflowSection';
+import { getLandingDestination, NAV_LINKS } from '@/pages/Landing/landingContent';
+import { REDUCED_MOTION_QUERY } from '@/styles/mediaQueries';
 
-export const REDUCED_MOTION_QUERY = SHARED_REDUCED_MOTION_QUERY;
-export const HOVER_CAPABLE_QUERY = SHARED_HOVER_CAPABLE_QUERY;
-
-export const Section = ({ children, sx = {}, id, fullHeight = true, tinted = false }) => {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  return (
-    <Box
-      id={id}
-      component="section"
-      sx={{
-        width: '100%',
-        maxWidth: '100%',
-        minHeight: fullHeight ? '100dvh' : 'auto',
-        '@supports not (min-height: 100dvh)': {
-          minHeight: fullHeight ? '100vh' : 'auto',
-        },
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative',
-        py: { xs: 6, sm: 8, md: 10, lg: 12 },
-        px: { xs: 2, sm: 3, md: 4 },
-        boxSizing: 'border-box',
-        overflowX: 'clip',
-        scrollSnapAlign: 'start',
-        scrollSnapStop: 'always',
-        ...(tinted && {
-          backgroundColor: isDark
-            ? alpha(theme.palette.text.primary, 0.015)
-            : alpha(theme.palette.text.primary, 0.012),
-        }),
-        ...sx,
-      }}
-    >
-      {children}
-    </Box>
-  );
+const navLinkSx = {
+  minHeight: 36,
+  px: 1.5,
+  color: 'text.primary',
+  borderColor: 'transparent',
+  '&:hover': { borderColor: 'transparent' },
 };
 
-const LANDING_KEYFRAMES = (
-  <GlobalStyles
-    styles={{
-      '@keyframes fadeIn': {
-        from: { opacity: 0, transform: 'translateY(10px)' },
-        to: { opacity: 1, transform: 'translateY(0)' },
-      },
-      '@keyframes shimmer': {
-        '0%': { backgroundPosition: '-200% center' },
-        '100%': { backgroundPosition: '200% center' },
-      },
-      '@keyframes pulse-dot': {
-        '0%, 100%': { opacity: 1, transform: 'scale(1)' },
-        '50%': { opacity: 0.4, transform: 'scale(0.85)' },
-      },
-    }}
-  />
-);
+function MoonlitBrand({ onClick }) {
+  return (
+    <Box
+      component="a"
+      href="#top"
+      onClick={onClick}
+      sx={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 1,
+        color: 'text.primary',
+        textDecoration: 'none',
+      }}
+    >
+      <Box component="img" src="/moonlit.svg" alt="" sx={{ width: 32, height: 32 }} />
+      <Typography component="span" sx={(theme) => theme.typography.uiBrandWordmark}>
+        Moonlit
+      </Typography>
+    </Box>
+  );
+}
+
+function LandingNav({ onGetStarted }) {
+  const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const closeMobile = () => setMobileOpen(false);
+  const handleMobileSignIn = () => {
+    closeMobile();
+    navigate('/auth');
+  };
+  const handleMobileGetStarted = () => {
+    closeMobile();
+    onGetStarted();
+  };
+
+  return (
+    <>
+      <Box
+        component="header"
+        sx={(theme) => ({
+          position: 'sticky',
+          top: 0,
+          zIndex: 20,
+          backgroundColor: alpha(theme.palette.background.default, 0.82),
+          borderBottom: '1px solid',
+          borderColor: 'border.subtle',
+          backdropFilter: 'blur(18px)',
+          WebkitBackdropFilter: 'blur(18px)',
+        })}
+      >
+        <Container
+          maxWidth="lg"
+          sx={{ minHeight: 64, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+        >
+          <MoonlitBrand />
+
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ display: { xs: 'none', md: 'flex' } }}>
+            {NAV_LINKS.map((link) => (
+              <Button key={link.href} component="a" href={link.href} variant="text" sx={navLinkSx}>
+                {link.label}
+              </Button>
+            ))}
+            <Button variant="outlined" onClick={() => navigate('/auth')} sx={{ ml: 1 }}>
+              Sign in
+            </Button>
+            <Button variant="contained" onClick={onGetStarted} sx={{ ml: 0.5 }}>
+              Get started
+            </Button>
+          </Stack>
+
+          <IconButton
+            aria-label="Open navigation"
+            onClick={() => setMobileOpen(true)}
+            sx={{ display: { xs: 'inline-flex', md: 'none' }, width: 44, height: 44 }}
+          >
+            <MenuIcon />
+          </IconButton>
+        </Container>
+      </Box>
+
+      <Drawer
+        anchor="right"
+        open={mobileOpen}
+        onClose={closeMobile}
+        slotProps={{
+          paper: {
+            sx: {
+              width: 'min(88vw, 360px)',
+              borderRadius: 0,
+              borderLeft: '1px solid',
+              borderColor: 'border.subtle',
+              backgroundColor: 'background.default',
+              p: 2,
+            },
+          },
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
+          <MoonlitBrand onClick={closeMobile} />
+          <IconButton aria-label="Close navigation" onClick={closeMobile} sx={{ width: 44, height: 44 }}>
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <Stack spacing={1} alignItems="stretch">
+          {NAV_LINKS.map((link) => (
+            <Button
+              key={link.href}
+              component="a"
+              href={link.href}
+              variant="text"
+              onClick={closeMobile}
+              sx={{ minHeight: 44, justifyContent: 'flex-start' }}
+            >
+              {link.label}
+            </Button>
+          ))}
+          <Button variant="outlined" onClick={handleMobileSignIn} sx={{ minHeight: 44 }}>
+            Sign in
+          </Button>
+          <Button variant="contained" onClick={handleMobileGetStarted} sx={{ minHeight: 44 }}>
+            Get started
+          </Button>
+        </Stack>
+      </Drawer>
+    </>
+  );
+}
+
+function LandingFooter({ onGetStarted }) {
+  const navigate = useNavigate();
+
+  return (
+    <Box
+      component="footer"
+      sx={{
+        px: { xs: 2, sm: 3 },
+        py: { xs: 6, md: 8 },
+        borderTop: '1px solid',
+        borderColor: 'border.subtle',
+      }}
+    >
+      <Container maxWidth="lg">
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
+            alignItems: { xs: 'flex-start', md: 'center' },
+            justifyContent: 'space-between',
+            gap: 4,
+          }}
+        >
+          <Box>
+            <MoonlitBrand />
+            <Typography sx={{ mt: 1.5, color: 'text.secondary', maxWidth: 420 }}>
+              Ask questions. Inspect SQL. Ship answers.
+            </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}>
+            {NAV_LINKS.map((link) => (
+              <Button key={link.href} component="a" href={link.href} variant="text">
+                {link.label}
+              </Button>
+            ))}
+            <Button variant="text" onClick={() => navigate('/auth')}>
+              Sign in
+            </Button>
+            <Button variant="outlined" onClick={onGetStarted}>
+              Get started
+            </Button>
+          </Box>
+        </Box>
+        <Typography sx={(theme) => ({ ...theme.typography.captionMonoSm, mt: 5, color: 'text.disabled' })}>
+          © {new Date().getFullYear()} Moonlit
+        </Typography>
+      </Container>
+    </Box>
+  );
+}
 
 export default function Landing() {
   const navigate = useNavigate();
@@ -79,50 +208,37 @@ export default function Landing() {
 
   useEffect(() => {
     document.title = 'Moonlit - AI Database Assistant';
-    // Preload large page chunks in the background to ensure instantaneous navigation transitions
-    const preloadChunks = () => {
-      import('@/pages/Chat').catch(() => {});
-      import('@/pages/Auth').catch(() => {});
-    };
-    const timer = setTimeout(preloadChunks, 1000);
-    return () => clearTimeout(timer);
   }, []);
 
   const handleGetStarted = useCallback(() => {
-    if (loading) {
-      navigate('/chat');
-    } else {
-      navigate(isAuthenticated ? '/chat' : '/auth');
-    }
+    navigate(getLandingDestination({ loading, isAuthenticated }));
   }, [navigate, isAuthenticated, loading]);
 
   return (
-    <>
-      {LANDING_KEYFRAMES}
-      <Box
-        sx={{
-          height: '100dvh',
-          '@supports not (height: 100dvh)': { height: '100vh' },
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          backgroundColor: 'transparent',
-          scrollBehavior: 'smooth',
-          scrollSnapType: { xs: 'y proximity', md: 'y mandatory' },
-          position: 'relative',
-          [REDUCED_MOTION_QUERY]: {
-            scrollBehavior: 'auto',
-            scrollSnapType: 'none',
-            '& *': { animation: 'none !important', transition: 'none !important' },
-          },
-        }}
-        role="main"
-      >
+    <Box
+      id="top"
+      sx={{
+        height: '100dvh',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        backgroundColor: 'background.default',
+        color: 'text.primary',
+        scrollBehavior: 'smooth',
+        [REDUCED_MOTION_QUERY]: { scrollBehavior: 'auto' },
+      }}
+    >
+      <LandingNav onGetStarted={handleGetStarted} />
+      <Box component="main">
         <Hero onGetStarted={handleGetStarted} />
-        <ValueGrid />
-        <DemoSection />
-        <StepsGrid />
+        <DatabaseStrip />
+        <ProductShowcase />
+        <CapabilityGrid />
+        <WorkflowSection />
+        <SecuritySection />
+        <FaqSection />
         <FinalCTA onGetStarted={handleGetStarted} />
       </Box>
-    </>
+      <LandingFooter onGetStarted={handleGetStarted} />
+    </Box>
   );
 }
