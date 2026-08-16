@@ -1,5 +1,5 @@
 import { Navigate } from 'react-router-dom';
-import { PageLoader } from '@/components';
+import PageLoader from '@/components/common/PageLoader';
 import { useAuth } from '@/contexts/AuthContext';
 
 function ProtectedRoute({ children }) {

@@ -1,8 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import '@xyflow/react/dist/style.css';
 import Dagre from '@dagrejs/dagre';
-import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
-import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
 import { Box, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import {
@@ -15,8 +13,7 @@ import {
   useEdgesState,
   useNodesState,
 } from '@xyflow/react';
-import DatabaseIcon from '@/components/icons/DatabaseIcon';
-import SchemaIcon from '@/components/icons/SchemaIcon';
+import { ChevronRightIcon, DatabaseIcon, PrimaryKeyIcon, TableIcon } from '@/components/icons';
 import { getReadOnlyReactFlowProps } from '@/config/reactFlow';
 import {
   FLOW_NODE_CARD_CLASS,
@@ -50,7 +47,6 @@ const CustomBezierEdge = ({
 };
 const DatabaseNode = memo(({ data }) => {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const isMobile = data.isMobile;
 
   return (
@@ -60,15 +56,15 @@ const DatabaseNode = memo(({ data }) => {
         ...getSchemaNodeCardSx(theme),
         px: { xs: 1.75, sm: 1.5 },
         py: { xs: 1.25, sm: 1 },
-        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.085 : 0.045),
-        borderColor: alpha(theme.palette.text.primary, isDark ? 0.2 : 0.14),
+        backgroundColor: theme.palette.layer.soft,
+        borderColor: theme.palette.border.default,
         display: 'flex',
         alignItems: 'center',
         gap: 1,
         minWidth: isMobile ? 164 : 150,
         minHeight: isMobile ? 54 : 48,
         '&:hover': {
-          borderColor: alpha(theme.palette.text.primary, isDark ? 0.3 : 0.22),
+          borderColor: theme.palette.border.hover,
         },
       }}
     >
@@ -83,7 +79,7 @@ const DatabaseNode = memo(({ data }) => {
           noWrap
           variant="body2"
           sx={{
-            fontWeight: 650,
+            fontWeight: 400,
             color: theme.palette.text.primary,
             ...theme.typography.uiSchemaDbLabel,
           }}
@@ -94,14 +90,14 @@ const DatabaseNode = memo(({ data }) => {
           noWrap
           variant="caption"
           sx={{
-            color: alpha(theme.palette.text.primary, isDark ? 0.58 : 0.52),
+            color: theme.palette.text.secondary,
             ...theme.typography.uiCaption2xs,
           }}
         >
           {data.tableCount} tables
         </Typography>
       </Box>
-      <ChevronRightRoundedIcon
+      <ChevronRightIcon
         sx={{
           fontSize: { xs: 18, sm: 14 },
           color: alpha(theme.palette.text.primary, 0.5),
@@ -115,7 +111,6 @@ const DatabaseNode = memo(({ data }) => {
 DatabaseNode.displayName = 'DatabaseNode';
 const TableNode = memo(({ data }) => {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const isMobile = data.isMobile;
   const hasColumns = data.columnCount > 0;
   const handleToggle = useCallback(() => {
@@ -138,27 +133,22 @@ const TableNode = memo(({ data }) => {
       tabIndex={hasColumns ? 0 : undefined}
       aria-expanded={hasColumns ? data.expanded : undefined}
       sx={{
-        ...getSchemaNodeCardSx(theme, { interactive: hasColumns, expanded: data.expanded }),
+        ...getSchemaNodeCardSx(theme, { interactive: hasColumns }),
         px: { xs: 1.5, sm: 1.25 },
         py: { xs: 1.1, sm: 0.95 },
-        borderColor: data.expanded
-          ? alpha(theme.palette.text.primary, isDark ? 0.38 : 0.3)
-          : alpha(theme.palette.text.primary, isDark ? 0.12 : 0.1),
+        borderColor: theme.palette.border.idle,
         display: 'flex',
         alignItems: 'center',
         gap: { xs: 1, sm: 0.75 },
         minWidth: isMobile ? 160 : 144,
         minHeight: isMobile ? 52 : 46,
-        boxShadow: data.expanded
-          ? `0 0 0 2px ${alpha(theme.palette.text.primary, isDark ? 0.1 : 0.065)}`
-          : undefined,
       }}
       onClick={handleToggle}
       onKeyDown={handleKeyDown}
     >
       <Handle type="target" position={Position.Left} style={HIDDEN_FLOW_HANDLE_STYLE} />
 
-      <SchemaIcon
+      <TableIcon
         sx={{
           width: { xs: 16, sm: 14 },
           height: { xs: 16, sm: 14 },
@@ -171,7 +161,7 @@ const TableNode = memo(({ data }) => {
           noWrap
           variant="caption"
           sx={{
-            fontWeight: 650,
+            fontWeight: 400,
             color: data.expanded ? theme.palette.text.primary : 'text.primary',
             ...theme.typography.uiSchemaTableLabel,
           }}
@@ -194,7 +184,7 @@ const TableNode = memo(({ data }) => {
 
       {hasColumns && (
         <Box sx={{ display: 'flex', alignItems: 'center', ml: 'auto' }}>
-          <ChevronRightRoundedIcon
+          <ChevronRightIcon
             sx={{
               fontSize: { xs: 16, sm: 14 },
               color: 'text.secondary',
@@ -212,7 +202,6 @@ const TableNode = memo(({ data }) => {
 TableNode.displayName = 'TableNode';
 const ColumnNode = memo(({ data }) => {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const isMobile = data.isMobile;
   const isPK = data.isPrimaryKey;
 
@@ -224,11 +213,11 @@ const ColumnNode = memo(({ data }) => {
         px: { xs: 1.25, sm: 1 },
         py: { xs: 0.75, sm: 0.625 },
         backgroundColor: isPK
-          ? alpha(theme.palette.warning.main, isDark ? 0.1 : 0.065)
-          : alpha(theme.palette.background.paper, isDark ? 0.92 : 0.96),
+          ? alpha(theme.palette.warning.main, theme.palette.opacity.statusBackground)
+          : theme.palette.layer.surfaceSoft,
         borderColor: isPK
-          ? alpha(theme.palette.warning.main, isDark ? 0.28 : 0.2)
-          : alpha(theme.palette.text.primary, isDark ? 0.1 : 0.08),
+          ? alpha(theme.palette.warning.main, theme.palette.opacity.statusBorderSelected)
+          : theme.palette.border.subtle,
         display: 'flex',
         alignItems: 'center',
         gap: { xs: 0.75, sm: 0.5 },
@@ -236,15 +225,15 @@ const ColumnNode = memo(({ data }) => {
         minHeight: isMobile ? 38 : 32,
         '&:hover': {
           borderColor: isPK
-            ? alpha(theme.palette.warning.main, isDark ? 0.38 : 0.3)
-            : alpha(theme.palette.text.primary, isDark ? 0.22 : 0.16),
+            ? alpha(theme.palette.warning.main, theme.palette.opacity.emphasis)
+            : theme.palette.border.hover,
         },
       }}
     >
       <Handle type="target" position={Position.Left} style={HIDDEN_FLOW_HANDLE_STYLE} />
 
       {isPK && (
-        <KeyRoundedIcon
+        <PrimaryKeyIcon
           sx={{
             fontSize: { xs: 12, sm: 10 },
             color: theme.palette.warning.main,
@@ -256,7 +245,7 @@ const ColumnNode = memo(({ data }) => {
         variant="caption"
         sx={{
           color: isPK ? theme.palette.warning.main : 'text.primary',
-          fontWeight: isPK ? 600 : 500,
+          fontWeight: 400,
           ...theme.typography.uiSchemaColumnLabel,
           fontFamily: theme.typography.fontFamilyMono,
         }}
@@ -292,23 +281,19 @@ const edgeTypes = {
   custom: CustomBezierEdge,
 };
 
-const getSchemaNodeCardSx = (theme, { interactive = false, expanded = false } = {}) => {
-  const isDark = theme.palette.mode === 'dark';
-  const ink = theme.palette.text.primary;
-  const borderColor = expanded ? alpha(ink, isDark ? 0.34 : 0.24) : alpha(ink, isDark ? 0.14 : 0.1);
+const getSchemaNodeCardSx = (theme, { interactive = false } = {}) => {
+  const borderColor = theme.palette.border.idle;
 
   return {
     width: '100%',
     height: '100%',
     boxSizing: 'border-box',
-    borderRadius: '10px',
+    borderRadius: '8px',
     border: '1px solid',
     borderColor,
-    backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.94 : 0.98),
+    backgroundColor: theme.palette.layer.surfaceSoft,
     backgroundImage: 'none',
-    boxShadow: expanded
-      ? `0 0 0 2px ${alpha(ink, isDark ? 0.11 : 0.065)}`
-      : `0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.24 : 0.07)}`,
+    boxShadow: 'none',
     cursor: interactive ? 'pointer' : 'default',
     transition: theme.transitions.create(
       ['background-color', 'border-color', 'box-shadow', 'transform'],
@@ -318,9 +303,9 @@ const getSchemaNodeCardSx = (theme, { interactive = false, expanded = false } = 
     ),
     '&:hover': interactive
       ? {
-          borderColor: alpha(ink, isDark ? 0.28 : 0.2),
-          backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.98 : 1),
-          boxShadow: `0 2px 6px ${alpha(theme.palette.common.black, isDark ? 0.26 : 0.08)}`,
+          borderColor: theme.palette.border.hover,
+          backgroundColor: theme.palette.background.paper,
+          boxShadow: 'none',
           transform: 'translateY(-1px)',
         }
       : undefined,
@@ -333,21 +318,18 @@ const getSchemaNodeCardSx = (theme, { interactive = false, expanded = false } = 
 };
 
 const getSchemaCanvasSx = (theme) => {
-  const isDark = theme.palette.mode === 'dark';
-  const ink = theme.palette.text.primary;
-
   return {
     width: '100%',
     height: '100%',
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: alpha(theme.palette.background.default, isDark ? 0.72 : 0.58),
+    backgroundColor: theme.palette.layer.surfaceMuted,
     '& .react-flow': {
-      '--xy-edge-stroke-default': alpha(theme.palette.text.secondary, isDark ? 0.34 : 0.28),
+      '--xy-edge-stroke-default': theme.palette.layer.secondaryContent,
       '--xy-edge-stroke-width-default': 1.35,
-      '--xy-edge-stroke-selected-default': alpha(ink, isDark ? 0.64 : 0.52),
-      '--xy-selection-background-color-default': alpha(ink, isDark ? 0.08 : 0.045),
-      '--xy-selection-border-default': `1px dotted ${alpha(ink, isDark ? 0.32 : 0.22)}`,
+      '--xy-edge-stroke-selected-default': theme.palette.action.active,
+      '--xy-selection-background-color-default': theme.palette.action.hover,
+      '--xy-selection-border-default': `1px dotted ${theme.palette.border.hover}`,
     },
     '& .react-flow__pane': { cursor: 'grab' },
     '& .react-flow__pane:active': { cursor: 'grabbing' },
@@ -355,15 +337,15 @@ const getSchemaCanvasSx = (theme) => {
       filter: 'none',
     },
     '& .react-flow__node': {
-      borderRadius: '10px',
+      borderRadius: '8px',
       outline: 'none',
     },
     [`& .react-flow__node.selected .${FLOW_NODE_CARD_CLASS}`]: {
-      borderColor: alpha(ink, isDark ? 0.42 : 0.32),
-      boxShadow: `0 0 0 2px ${alpha(ink, isDark ? 0.13 : 0.08)}`,
+      borderColor: theme.palette.border.idle,
+      boxShadow: 'none',
     },
     [`& .react-flow__node:focus-visible .${FLOW_NODE_CARD_CLASS}`]: {
-      outline: `2px solid ${theme.palette.border?.focus || theme.palette.primary.main}`,
+      outline: `2px solid ${theme.palette.border.focus}`,
       outlineOffset: 3,
     },
     '& .react-flow__edge-path': {
@@ -373,11 +355,11 @@ const getSchemaCanvasSx = (theme) => {
     },
     '& .react-flow__edge.selected .react-flow__edge-path': {
       strokeWidth: 2,
-      stroke: alpha(ink, isDark ? 0.62 : 0.52),
+      stroke: theme.palette.action.active,
     },
     '& .react-flow__edge:hover .react-flow__edge-path': {
       strokeWidth: 2,
-      stroke: alpha(ink, isDark ? 0.58 : 0.46),
+      stroke: theme.palette.layer.emphasis,
     },
   };
 };
@@ -386,14 +368,11 @@ const getInactiveSchemaCanvasSx = (theme) => ({
   width: '100%',
   height: '100%',
   minHeight: 300,
-  borderRadius: '10px',
+  borderRadius: '8px',
   overflow: 'hidden',
   contain: 'strict',
   contentVisibility: 'hidden',
-  backgroundColor: alpha(
-    theme.palette.background.default,
-    theme.palette.mode === 'dark' ? 0.72 : 0.58,
-  ),
+  backgroundColor: theme.palette.layer.surfaceMuted,
 });
 
 const getLayoutedElements = (nodes, edges, direction = 'LR', isMobile = false) => {
@@ -429,7 +408,6 @@ const getLayoutedElements = (nodes, edges, direction = 'LR', isMobile = false) =
 };
 function SchemaFlowDiagramCanvas({ database, tables, columns }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down(MOBILE_BREAKPOINT_QUERY));
   const [expandedTables, setExpandedTables] = useState(new Set());
   const validTableIds = useMemo(
@@ -574,14 +552,13 @@ function SchemaFlowDiagramCanvas({ database, tables, columns }) {
         width: '100%',
         height: '100%',
         minHeight: 300,
-        borderRadius: '10px',
+        borderRadius: '8px',
         overflow: 'hidden',
         contain: 'layout paint style',
         touchAction: 'pan-y',
         border: '1px solid',
-        borderColor:
-          theme.palette.border?.subtle || alpha(theme.palette.text.primary, isDark ? 0.12 : 0.1),
-        backgroundColor: alpha(theme.palette.background.default, isDark ? 0.72 : 0.58),
+        borderColor: theme.palette.border.subtle,
+        backgroundColor: theme.palette.layer.surfaceMuted,
       }}
     >
       <Box sx={getSchemaCanvasSx(theme)}>
@@ -605,11 +582,7 @@ function SchemaFlowDiagramCanvas({ database, tables, columns }) {
           zoomOnPinch={true}
           preventScrolling={true}
         >
-          <Background
-            gap={24}
-            size={0.65}
-            color={alpha(theme.palette.text.primary, isDark ? 0.055 : 0.04)}
-          />
+          <Background gap={24} size={0.65} color={theme.palette.layer.subtle} />
         </ReactFlow>
       </Box>
     </Box>

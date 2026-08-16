@@ -21,6 +21,7 @@ import {
   getGoogleProvider,
   initializeFirebase,
 } from '@/config/firebase';
+import { normalizeAuthUser } from '@/utils/authUserProfile';
 import logger from '@/utils/logger';
 
 /**
@@ -62,21 +63,6 @@ const getErrorMessage = (error) => ERROR_MESSAGES[error.code] || error.message;
 const AuthContext = createContext(null);
 
 /**
- * Normalizes user details by merging Firebase Authentication attributes
- * with any extra user details retrieved from the backend API session response.
- */
-const normalizeAuthUser = (firebaseUser, backendUser = {}) => ({
-  uid: backendUser.uid || firebaseUser.uid,
-  email: backendUser.email || firebaseUser.email,
-  displayName:
-    backendUser.displayName ||
-    backendUser.name ||
-    firebaseUser.displayName ||
-    firebaseUser.email?.split('@')[0],
-  photoURL: backendUser.photoURL || backendUser.picture || firebaseUser.photoURL,
-});
-
-/**
  * Helper to safely extract user information from the backend session payload.
  */
 const getSessionUser = (sessionResponse) =>
@@ -86,6 +72,8 @@ const getSessionUser = (sessionResponse) =>
  * Custom hook to easily consume the authentication context values in pages/components.
  * Ensures the consumer is wrapped in an AuthProvider.
  */
+// This hook intentionally shares the provider module's private context.
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {

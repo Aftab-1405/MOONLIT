@@ -1,9 +1,7 @@
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import FullscreenExitRoundedIcon from '@mui/icons-material/FullscreenExitRounded';
-import FullscreenRoundedIcon from '@mui/icons-material/FullscreenRounded';
 import { Box, IconButton, Stack, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { memo } from 'react';
+import { CloseIcon, FullscreenEnterIcon, FullscreenExitIcon } from '@/components/icons';
 import {
   ARTIFACT_ROOT_SX,
   getArtifactActionButtonSx,
@@ -123,7 +121,7 @@ function ArtifactHeader({ icon, title, subtitle, actions, sx = {} }) {
             noWrap
             sx={{
               ...theme.typography.uiBodyMd,
-              fontWeight: 600,
+              fontWeight: 400,
               color: 'text.primary',
               lineHeight: 1.35,
             }}
@@ -155,8 +153,8 @@ function ArtifactHeader({ icon, title, subtitle, actions, sx = {} }) {
           flexWrap="wrap"
           justifyContent="flex-end"
         >
-          {visibleActions.map((action) => (
-            <ArtifactActionButton key={action.key || action.label} {...action} />
+          {visibleActions.map(({ key, ...actionProps }) => (
+            <ArtifactActionButton key={key || actionProps.label} {...actionProps} />
           ))}
         </Stack>
       ) : null}
@@ -206,11 +204,21 @@ function ArtifactFooter({ children, sx = {} }) {
   );
 }
 
-export function ArtifactEmptyState({ icon, title = 'Nothing to display', message, sx = {} }) {
+export function ArtifactEmptyState({
+  icon,
+  title = 'Nothing to display',
+  message,
+  role,
+  ariaLive,
+  sx = {},
+}) {
   const theme = useTheme();
 
   return (
     <Box
+      role={role}
+      aria-live={ariaLive}
+      aria-atomic={ariaLive ? 'true' : undefined}
       sx={{
         ...ARTIFACT_ROOT_SX,
         alignItems: 'center',
@@ -232,7 +240,7 @@ export function ArtifactEmptyState({ icon, title = 'Nothing to display', message
           {icon}
         </Box>
       ) : null}
-      <Typography sx={{ ...theme.typography.uiBodyMd, color: 'text.secondary', fontWeight: 600 }}>
+      <Typography sx={{ ...theme.typography.uiBodyMd, color: 'text.secondary', fontWeight: 400 }}>
         {title}
       </Typography>
       {message ? (
@@ -279,9 +287,9 @@ function ArtifactShell({
           key: 'fullscreen',
           label: isFullscreen ? 'Exit fullscreen' : 'Fullscreen',
           icon: isFullscreen ? (
-            <FullscreenExitRoundedIcon sx={{ fontSize: 18 }} />
+            <FullscreenExitIcon sx={{ fontSize: 18 }} />
           ) : (
-            <FullscreenRoundedIcon sx={{ fontSize: 18 }} />
+            <FullscreenEnterIcon sx={{ fontSize: 18 }} />
           ),
           onClick: handleFullscreenClick,
           active: isFullscreen,
@@ -291,7 +299,7 @@ function ArtifactShell({
       ? {
           key: 'close',
           label: 'Close artifact',
-          icon: <CloseRoundedIcon sx={{ fontSize: 18 }} />,
+          icon: <CloseIcon sx={{ fontSize: 18 }} />,
           onClick: requestClose,
         }
       : null,

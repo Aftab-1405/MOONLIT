@@ -7,7 +7,7 @@ const REACT_FLOW_ARIA_LABEL_CONFIG = {
   'minimap.ariaLabel': 'Diagram minimap',
 };
 
-const getReactFlowColorMode = (theme) => (theme.palette.mode === 'dark' ? 'dark' : 'light');
+const getReactFlowColorMode = (theme) => theme.palette.integration.colorMode;
 
 export const getReadOnlyReactFlowProps = (theme) => ({
   colorMode: getReactFlowColorMode(theme),

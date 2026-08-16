@@ -8,6 +8,7 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
+import { buildConversationTitle } from '@/utils/conversationTitles';
 import { resumeAgent, sendMessage } from '@/api';
 import { queryClient, queryKeys } from '@/api/queryClient';
 import { toBackendTaskMode } from '@/config/userSettings';
@@ -134,9 +135,7 @@ export function useMessageStreaming({
         setCurrentConversationId(newConversationId);
         navigate(`/chat/${newConversationId}`, { replace: true });
 
-        const tempTitle =
-          promptForNewConversation.substring(0, 50) +
-          (promptForNewConversation.length > 50 ? '...' : '');
+        const tempTitle = buildConversationTitle(promptForNewConversation);
         setConversations((prev) => [
           { id: newConversationId, title: tempTitle, created_at: new Date().toISOString() },
           ...prev,

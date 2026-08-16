@@ -196,6 +196,8 @@ export function useChatPageStreaming({
   // (a "reset on change" side-effect), not a value the effect derives from.
   // biome-ignore lint/correctness/useExhaustiveDependencies: reset on conversation change
   useEffect(() => {
+    // Intentional reset of conversation-scoped UI state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setEffectiveTaskMode(null);
   }, [currentConversationId]);
 
@@ -237,8 +239,11 @@ export function useChatPageStreaming({
       (messages[0].role === 'user' || messages[0].sender === 'user');
 
     if (foundUsage) {
+      // Restore the persisted value after conversation hydration completes.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setUsageMetrics(nextUsage);
     } else if (!isLastUser || !messages || messages.length === 0) {
+      // Clear metrics when the selected transcript contains no usage record.
       setUsageMetrics(null);
     }
   }, [messages, isCurrentlyStreaming]);

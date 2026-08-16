@@ -1,4 +1,3 @@
-import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
 import { Box, CircularProgress, Stack, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import {
@@ -10,6 +9,7 @@ import {
   useRef,
   useState,
 } from 'react';
+import { AnalyticsIcon } from '@/components/icons';
 import { ArtifactEmptyState } from '@/features/sidebar-right/artifact-loader';
 import {
   clearAnalysisConfig,
@@ -128,7 +128,7 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
   // loaded. The data-loading effect waits for this before proceeding.
   const [initialized, setInitialized] = useState(false);
 
-  const perspectiveTheme = theme.palette.mode === 'dark' ? 'Pro Dark' : 'Pro Light';
+  const perspectiveTheme = theme.palette.integration.perspectiveTheme;
   const perspectiveThemeRef = useRef(perspectiveTheme);
   perspectiveThemeRef.current = perspectiveTheme;
 
@@ -322,6 +322,8 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
       // Full cleanup only on unmount — NOT on data changes.
       // The worker and table persist across data changes for performance.
       cleanupPerspectiveResources({
+        // Cleanup intentionally reads the latest mounted viewer instance.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
         viewer: viewerRef.current,
         table: tableRef.current,
         worker: workerRef.current,
@@ -331,6 +333,9 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
       schemaRef.current = null;
       setInitialized(false);
     };
+    // Perspective resources intentionally live for this component's entire
+    // lifetime; data replacement is handled by the separate phase below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ── Phase 2: Load / replace data ──────────────────────────────────────────
@@ -497,7 +502,9 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
   if (!hasData) {
     return (
       <ArtifactEmptyState
-        icon={<InsightsRoundedIcon sx={{ fontSize: 48 }} />}
+        role="status"
+        ariaLive="polite"
+        icon={<AnalyticsIcon sx={{ fontSize: 48 }} />}
         title="No data available for analysis"
       />
     );
@@ -507,20 +514,15 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
     <Box
       sx={{
         position: 'relative',
+        flex: 1,
         height: '100%',
         minHeight: 0,
         minWidth: 0,
         overflow: 'hidden',
-        borderRadius: 2,
+        borderRadius: '8px',
         border: `1px solid ${alpha(theme.palette.divider, 0.5)}`,
-        boxShadow:
-          theme.palette.mode === 'dark'
-            ? `0 0 0 1px ${alpha(theme.palette.primary.main, 0.08)}, 0 8px 40px ${alpha('#000', 0.5)}`
-            : `0 1px 2px ${alpha('#000', 0.06)}, 0 6px 24px ${alpha('#000', 0.07)}`,
-        background:
-          theme.palette.mode === 'dark'
-            ? alpha(theme.palette.background.paper, 0.6)
-            : theme.palette.background.paper,
+        boxShadow: 'none',
+        background: theme.palette.layer.surfaceMuted,
         '& perspective-viewer': {
           display: 'block',
           width: '100%',
@@ -547,17 +549,17 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
 
       {status === 'loading' ? (
         <Stack
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
           alignItems="center"
           justifyContent="center"
           spacing={1.5}
           sx={{
             position: 'absolute',
             inset: 0,
-            backdropFilter: 'blur(6px)',
-            bgcolor: alpha(
-              theme.palette.background.paper,
-              theme.palette.mode === 'dark' ? 0.55 : 0.7,
-            ),
+            backdropFilter: 'none',
+            bgcolor: theme.palette.layer.surfaceTranslucent,
             zIndex: 1,
           }}
         >
@@ -566,7 +568,7 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
             sx={{
               ...theme.typography.uiCaptionMd,
               color: 'text.secondary',
-              fontWeight: 600,
+              fontWeight: 400,
               letterSpacing: 0,
             }}
           >
@@ -577,17 +579,16 @@ const PerspectiveDashboard = forwardRef(function PerspectiveDashboard(
 
       {status === 'error' ? (
         <ArtifactEmptyState
-          icon={<InsightsRoundedIcon sx={{ fontSize: 40 }} />}
+          role="alert"
+          ariaLive="assertive"
+          icon={<AnalyticsIcon sx={{ fontSize: 40 }} />}
           title="Unable to load analytics workspace"
           message={getErrorMessage(error)}
           sx={{
             position: 'absolute',
             inset: 0,
-            backdropFilter: 'blur(6px)',
-            bgcolor: alpha(
-              theme.palette.background.paper,
-              theme.palette.mode === 'dark' ? 0.75 : 0.88,
-            ),
+            backdropFilter: 'none',
+            bgcolor: theme.palette.layer.surfaceMuted,
             zIndex: 2,
           }}
         />

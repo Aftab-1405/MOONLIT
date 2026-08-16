@@ -20,11 +20,6 @@
  *     browser from auto-scrolling to keep older content in view.
  */
 
-import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
-import PauseCircleOutlineRoundedIcon from '@mui/icons-material/PauseCircleOutlineRounded';
 import {
   Box,
   Button,
@@ -38,11 +33,17 @@ import {
 import Fade from '@mui/material/Fade';
 import { alpha, keyframes } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CheckIcon, CopyIcon, DiagramIcon, ErrorIcon, PauseIcon } from '@/components/icons';
 import { StepsAccordion } from '@/features/chat/ai-response-steps';
 import { slideIn } from '@/features/chat/ai-response-steps/timelineShared';
 import MarkdownRenderer from '@/features/chat/MarkdownRenderer';
-import { HOVER_CAPABLE_QUERY, REDUCED_MOTION_QUERY } from '@/styles/mediaQueries';
-import { getSecondaryActionButtonSx, UI_LAYOUT } from '@/styles/shared';
+import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
+import {
+  HOVER_CAPABLE_QUERY,
+  REDUCED_MOTION_QUERY,
+  TOUCH_DEVICE_QUERY,
+} from '@/styles/mediaQueries';
+import { getInteractionColors, getSecondaryActionButtonSx, UI_LAYOUT } from '@/styles/shared';
 import { MESSAGE_STATUS } from '@/utils/chatMessages';
 import { copyToClipboard } from '@/utils/clipboard';
 import InlineExecutionTable from './InlineExecutionTable';
@@ -56,50 +57,53 @@ const softPulse = keyframes`
   50% { opacity: 0.76; }
 `;
 
-const messageActionsRowSx = {
+const getMessageActionsRowSx = (theme) => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'flex-start',
   gap: 0.5,
   flexWrap: 'wrap',
-  minHeight: 30,
+  minHeight: { xs: 44, md: 30 },
   opacity: 0,
-  transform: 'translateY(-2px)',
-  transition: 'opacity 140ms ease, transform 140ms ease',
-};
+  transition: theme.transitions.create('opacity', {
+    duration: theme.transitions.duration.shorter,
+  }),
+  [REDUCED_MOTION_QUERY]: { transition: 'none' },
+});
 
 const turnGroupHoverSx = {
   [HOVER_CAPABLE_QUERY]: {
-    '&:hover .msg-actions-row': { opacity: 1, transform: 'translateY(0)' },
-    '&:focus-within .msg-actions-row': {
-      opacity: 1,
-      transform: 'translateY(0)',
-    },
+    '&:hover .msg-actions-row': { opacity: 1 },
   },
-  '@media (pointer: coarse)': {
-    '& .msg-actions-row': { opacity: 1, transform: 'translateY(0)' },
+  '&:focus-within .msg-actions-row': { opacity: 1 },
+  [TOUCH_DEVICE_QUERY]: {
+    '& .msg-actions-row': { opacity: 1 },
   },
 };
 
-const getMessageActionButtonSx = (theme, copied = false) => ({
-  width: 30,
-  height: 30,
-  borderRadius: '8px',
-  color: copied ? 'success.main' : 'text.secondary',
-  transition: theme.transitions.create(['background-color', 'color'], {
-    duration: theme.transitions.duration.shorter,
-  }),
-  [HOVER_CAPABLE_QUERY]: {
-    '&:hover': {
-      color: 'text.primary',
-      bgcolor: alpha(theme.palette.text.primary, 0.045),
+const getMessageActionButtonSx = (theme, copied = false) => {
+  const interaction = getInteractionColors(theme);
+
+  return {
+    ...getResponsivePillIconButtonSx(theme, { desktopSize: 30 }),
+    color: copied ? theme.palette.success.main : theme.palette.text.disabled,
+    transition: theme.transitions.create(['background-color', 'color'], {
+      duration: theme.transitions.duration.shorter,
+    }),
+    [HOVER_CAPABLE_QUERY]: {
+      '&:hover': {
+        color: copied ? theme.palette.success.main : interaction.hoverColor,
+        bgcolor: interaction.hoverBackground,
+      },
     },
-  },
-  '&:focus-visible': {
-    outline: `2px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.18 : 0.12)}`,
-    outlineOffset: 2,
-  },
-});
+    '&:focus-visible': {
+      color: copied ? theme.palette.success.main : interaction.hoverColor,
+      bgcolor: interaction.hoverBackground,
+      outline: `2px solid ${interaction.focusRing}`,
+      outlineOffset: 2,
+    },
+  };
+};
 
 function useCopyToClipboard() {
   const [copied, setCopied] = useState(false);
@@ -177,11 +181,7 @@ const CopyButton = memo(function CopyButton({
         color="inherit"
         sx={{ ...getMessageActionButtonSx(theme, copied), ...sx }}
       >
-        {copied ? (
-          <CheckRoundedIcon sx={{ fontSize: 18 }} />
-        ) : (
-          <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />
-        )}
+        {copied ? <CheckIcon sx={{ fontSize: 18 }} /> : <CopyIcon sx={{ fontSize: 18 }} />}
       </IconButton>
     </Tooltip>
   );
@@ -191,17 +191,15 @@ const UserMessage = memo(function UserMessage({ message }) {
   const { copied, copyText } = useCopyToClipboard();
   const theme = useTheme();
   const handleCopy = useCallback(() => copyText(message), [copyText, message]);
-  const bubbleBg = alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.055 : 0.035);
-  const bubbleBorder = alpha(
-    theme.palette.text.primary,
-    theme.palette.mode === 'dark' ? 0.1 : 0.075,
-  );
+  const bubbleBg = theme.palette.layer.subtle;
 
   return (
     <Fade in timeout={180}>
       <Box
+        component="article"
+        aria-label="Your message"
         sx={{
-          mt: { xs: 2, sm: 2.25 },
+          mt: { xs: 2, md: 2.5 },
           mb: 0,
           ...turnGroupHoverSx,
         }}
@@ -218,13 +216,11 @@ const UserMessage = memo(function UserMessage({ message }) {
             sx={{
               display: 'inline-flex',
               flexDirection: 'column',
-              maxWidth: { xs: 'min(90%, 72ch)', sm: 'min(78%, 75ch)' },
-              borderRadius: '14px 14px 6px 14px',
-              px: { xs: 1.5, sm: 1.75 },
-              py: { xs: 1, sm: 1.1 },
+              maxWidth: { xs: 'min(90%, 72ch)', md: 'min(78%, 75ch)' },
+              borderRadius: '8px',
+              px: { xs: 1.5, md: 2 },
+              py: { xs: 1, md: 1.5 },
               bgcolor: bubbleBg,
-              border: '1px solid',
-              borderColor: bubbleBorder,
               color: 'text.primary',
             }}
           >
@@ -232,10 +228,9 @@ const UserMessage = memo(function UserMessage({ message }) {
               component="div"
               data-testid="user-message"
               sx={{
-                lineHeight: 1.6,
+                ...theme.typography.uiResponseBody,
                 whiteSpace: 'pre-wrap',
                 wordBreak: 'break-word',
-                fontSize: { xs: '0.925rem', sm: '0.97rem' },
               }}
             >
               {message}
@@ -245,7 +240,7 @@ const UserMessage = memo(function UserMessage({ message }) {
             className="msg-actions-row"
             role="group"
             aria-label="Message actions"
-            sx={messageActionsRowSx}
+            sx={getMessageActionsRowSx(theme)}
           >
             <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
           </Box>
@@ -338,19 +333,18 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
   onOpen,
 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const panelBorder = alpha(theme.palette.text.primary, isDark ? 0.1 : 0.075);
+  const panelBorder = theme.palette.border.subtle;
   const panelBg = 'transparent';
-  const panelHoverBg = alpha(theme.palette.text.primary, isDark ? 0.045 : 0.03);
+  const panelHoverBg = theme.palette.action.hover;
 
   return (
     <Box
       sx={{
         display: 'flex',
         alignItems: 'center',
-        gap: { xs: 1.5, sm: 2 },
-        px: { xs: 1.25, sm: 1.5 },
-        py: { xs: 1.1, sm: 1.25 },
+        gap: { xs: 1.5, md: 2 },
+        px: { xs: 1.5, md: 2 },
+        py: { xs: 1, md: 1.5 },
         borderRadius: '8px',
         border: '1px solid',
         borderColor: panelBorder,
@@ -362,7 +356,7 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
           [HOVER_CAPABLE_QUERY]: {
             '&:hover': {
               bgcolor: panelHoverBg,
-              borderColor: alpha(theme.palette.text.primary, isDark ? 0.14 : 0.1),
+              borderColor: theme.palette.border.hover,
             },
           },
         }),
@@ -372,12 +366,12 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
         sx={{
           width: { xs: 36, sm: 40 },
           height: { xs: 36, sm: 40 },
-          borderRadius: '10px',
+          borderRadius: '8px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.075 : 0.045),
+          bgcolor: theme.palette.action.selected,
           transition: 'background-color 140ms ease',
           ...(isGenerating && {
             animation: `${softPulse} 2.2s ease-in-out infinite`,
@@ -387,12 +381,10 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
           }),
         }}
       >
-        <AccountTreeOutlinedIcon
+        <DiagramIcon
           sx={{
             fontSize: { xs: 18, sm: 20 },
-            color: isGenerating
-              ? alpha(theme.palette.text.primary, isDark ? 0.38 : 0.34)
-              : alpha(theme.palette.text.primary, isDark ? 0.74 : 0.68),
+            color: isGenerating ? theme.palette.text.disabled : theme.palette.text.secondary,
             transition: 'color 140ms ease',
           }}
         />
@@ -403,11 +395,9 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
           sx={{
             ...theme.typography.uiBodySm,
             fontFamily: theme.typography.fontFamily,
-            fontWeight: 650,
+            fontWeight: 400,
             lineHeight: 1.25,
-            color: isGenerating
-              ? alpha(theme.palette.text.primary, isDark ? 0.42 : 0.38)
-              : 'text.primary',
+            color: isGenerating ? theme.palette.text.disabled : 'text.primary',
             transition: 'color 140ms ease',
             overflow: 'hidden',
             textOverflow: 'ellipsis',
@@ -422,13 +412,11 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
             ...theme.typography.uiCaptionMd,
             fontFamily: theme.typography.fontFamily,
             lineHeight: 1.4,
-            mt: 0.35,
+            mt: 0.5,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-            color: isGenerating
-              ? alpha(theme.palette.text.primary, isDark ? 0.34 : 0.3)
-              : alpha(theme.palette.text.secondary, isDark ? 0.55 : 0.65),
+            color: isGenerating ? theme.palette.text.disabled : theme.palette.text.secondary,
           }}
         >
           {isGenerating ? 'Generating diagram\u2026' : 'Interactive node graph'}
@@ -440,20 +428,19 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
           aria-hidden
           sx={{
             flexShrink: 0,
-            px: { xs: 1.75, sm: 2.25 },
-            py: 0.625,
-            borderRadius: '6px',
-            bgcolor: alpha(theme.palette.text.primary, isDark ? 0.055 : 0.035),
+            px: { xs: 2, md: 2.5 },
+            py: 0.5,
+            borderRadius: theme.shape.radius.pill,
+            bgcolor: theme.palette.action.hover,
           }}
         >
           <Typography
             sx={{
-              ...theme.typography.uiBodySm,
+              ...theme.typography.uiCaptionMd,
               fontFamily: theme.typography.fontFamily,
-              fontSize: { xs: '0.75rem', sm: '0.8125rem' },
-              fontWeight: 600,
+              fontWeight: 400,
               userSelect: 'none',
-              color: alpha(theme.palette.text.primary, isDark ? 0.42 : 0.38),
+              color: theme.palette.text.disabled,
             }}
           >
             Building\u2026
@@ -562,6 +549,12 @@ const AIMessage = memo(function AIMessage({
     () => [...generatingArtifacts, ...artifacts],
     [generatingArtifacts, artifacts],
   );
+  const showMessageActions =
+    !isWaiting &&
+    !isStreaming &&
+    Boolean(
+      displayText.trim() || displaySteps.length || effectiveTimeline.length || allArtifacts.length,
+    );
 
   // The execute_query trigger has been removed since results are now displayed inline.
 
@@ -588,7 +581,7 @@ const AIMessage = memo(function AIMessage({
   }, [copyRich, displayText]);
 
   const renderTextBlock = useCallback(
-    (content, key) => {
+    (content, key, streamThisBlock = false) => {
       if (!content || !String(content).trim()) return null;
       return (
         <Box
@@ -602,7 +595,7 @@ const AIMessage = memo(function AIMessage({
             pl: { xs: 0, sm: 0.5 },
             pr: { xs: 0, sm: 0.5 },
             minWidth: 0,
-            py: 0.25,
+            py: 0.1,
             overflowAnchor: 'none',
             // Same entry spec as StepsAccordion and timeline items — one
             // consistent fade-in for every piece of content that materialises.
@@ -613,12 +606,12 @@ const AIMessage = memo(function AIMessage({
           <MarkdownRenderer
             content={content}
             onRunQuery={onRunQuery}
-            isStreaming={isWaiting || isStreaming}
+            isStreaming={streamThisBlock}
           />
         </Box>
       );
     },
-    [isStreaming, isWaiting, onRunQuery],
+    [onRunQuery],
   );
 
   const renderStepBlock = useCallback(
@@ -721,6 +714,10 @@ const AIMessage = memo(function AIMessage({
       const nodes = [];
       let stepBuffer = [];
       let groupIndex = 0;
+      const lastTextIndex = timelineItems.reduce(
+        (lastIndex, item, index) => (item.type === 'text' ? index : lastIndex),
+        -1,
+      );
 
       const flushStepBuffer = () => {
         if (stepBuffer.length === 0) return;
@@ -735,7 +732,13 @@ const AIMessage = memo(function AIMessage({
           // Text breaks the step chain — flush the accumulated steps as a
           // single accordion, then render the text block.
           flushStepBuffer();
-          nodes.push(renderTextBlock(item.content || '', item.id || `text-${index}`));
+          nodes.push(
+            renderTextBlock(
+              item.content || '',
+              item.id || `text-${index}`,
+              (isWaiting || isStreaming) && index === lastTextIndex,
+            ),
+          );
         } else if (item.type === 'thinking' || item.type === 'tool' || item.type === 'skill') {
           stepBuffer.push(item);
         }
@@ -747,19 +750,23 @@ const AIMessage = memo(function AIMessage({
 
       return nodes;
     },
-    [renderStepGroupBlock, renderTextBlock],
+    [isStreaming, isWaiting, renderStepGroupBlock, renderTextBlock],
   );
 
   return (
     <Fade in timeout={180}>
       <Box
+        component="article"
+        aria-label="Moonlit response"
+        aria-busy={isWaiting || isStreaming || undefined}
+        data-response-state={isWaiting ? 'waiting' : isStreaming ? 'streaming' : 'complete'}
         sx={{
           pb: { xs: 2.25, sm: 2.5 },
           minWidth: 0,
           ...turnGroupHoverSx,
         }}
       >
-        <Box ref={contentRef} sx={{ position: 'relative', lineHeight: 1.65, minWidth: 0 }}>
+        <Box ref={contentRef} sx={{ position: 'relative', minWidth: 0 }}>
           {/* Fade in+out so it cross-fades with the first arriving step
                rather than instantly popping out when the accordion mounts. */}
           {/* ENH [ANTI-FLOOD]: Consecutive non-text timeline items are
@@ -778,55 +785,29 @@ const AIMessage = memo(function AIMessage({
 
           {showThinkingSpinner && (
             <Box
+              role="status"
+              aria-label="Moonlit is thinking"
               sx={{
-                width: '24px',
-                color: 'primary.main',
-                display: 'flex',
-                alignItems: 'center',
-                py: 0.5,
+                width: 'max-content',
+                py: 0.65,
+                pl: { xs: 0, sm: 0.5 },
               }}
             >
-              <svg fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                <g>
-                  <circle cx="12" cy="3" r="1">
-                    <animate id="spinner_7Z73" begin="0;spinner_tKsu.end-0.5s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="16.50" cy="4.21" r="1">
-                    <animate id="spinner_Wd87" begin="spinner_7Z73.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="7.50" cy="4.21" r="1">
-                    <animate id="spinner_tKsu" begin="spinner_9Qlc.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="19.79" cy="7.50" r="1">
-                    <animate id="spinner_lMMO" begin="spinner_Wd87.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="4.21" cy="7.50" r="1">
-                    <animate id="spinner_9Qlc" begin="spinner_Khxv.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="21.00" cy="12.00" r="1">
-                    <animate id="spinner_5L9t" begin="spinner_lMMO.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="3.00" cy="12.00" r="1">
-                    <animate id="spinner_Khxv" begin="spinner_ld6P.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="19.79" cy="16.50" r="1">
-                    <animate id="spinner_BfTD" begin="spinner_5L9t.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="4.21" cy="16.50" r="1">
-                    <animate id="spinner_ld6P" begin="spinner_XyBs.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="16.50" cy="19.79" r="1">
-                    <animate id="spinner_7gAK" begin="spinner_BfTD.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="7.50" cy="19.79" r="1">
-                    <animate id="spinner_XyBs" begin="spinner_HiSl.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <circle cx="12" cy="21" r="1">
-                    <animate id="spinner_HiSl" begin="spinner_7gAK.begin+0.1s" attributeName="r" calcMode="spline" dur="0.6s" values="1;2;1" keySplines=".27,.42,.37,.99;.53,0,.61,.73"></animate>
-                  </circle>
-                  <animateTransform attributeName="transform" type="rotate" dur="6s" values="360 12 12;0 12 12" repeatCount="indefinite"></animateTransform>
-                </g>
-              </svg>
+              <Typography
+                component="span"
+                sx={{
+                  fontSize: { xs: '0.75rem', sm: '0.8125rem' },
+                  lineHeight: 1.45,
+                  fontWeight: 400,
+                  color: 'text.secondary',
+                  animation: `${softPulse} 1.8s ease-in-out infinite`,
+                  [REDUCED_MOTION_QUERY]: {
+                    animation: 'none',
+                  },
+                }}
+              >
+                Thinking
+              </Typography>
             </Box>
           )}
 
@@ -867,22 +848,19 @@ const AIMessage = memo(function AIMessage({
               py: 0.9,
               px: 1.5,
               borderRadius: '8px',
-              bgcolor: (th) =>
-                alpha(th.palette.warning.main, th.palette.mode === 'dark' ? 0.1 : 0.06),
+              bgcolor: (th) => alpha(th.palette.warning.main, th.palette.opacity.soft),
               border: '1px solid',
               borderColor: (th) =>
-                alpha(th.palette.warning.main, th.palette.mode === 'dark' ? 0.28 : 0.22),
+                alpha(th.palette.warning.main, th.palette.opacity.statusBorderHover),
               maxWidth: 'max-content',
             }}
           >
-            <PauseCircleOutlineRoundedIcon
-              sx={{ fontSize: 16, color: 'warning.main', flexShrink: 0 }}
-            />
+            <PauseIcon sx={{ fontSize: 16, color: 'warning.main', flexShrink: 0 }} />
             <Typography
               variant="caption"
               sx={{
                 color: 'warning.main',
-                fontWeight: 600,
+                fontWeight: 400,
                 letterSpacing: 0.1,
               }}
             >
@@ -891,20 +869,22 @@ const AIMessage = memo(function AIMessage({
           </Box>
         )}
 
-        <Box
-          className="msg-actions-row"
-          role="group"
-          aria-label="Message actions"
-          sx={{
-            ...messageActionsRowSx,
-            width: '100%',
-            mt: 0,
-            pl: { xs: 0, sm: 0.5 },
-            pr: { xs: 0, sm: 0.5 },
-          }}
-        >
-          <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
-        </Box>
+        {showMessageActions && (
+          <Box
+            className="msg-actions-row"
+            role="group"
+            aria-label="Message actions"
+            sx={(theme) => ({
+              ...getMessageActionsRowSx(theme),
+              width: '100%',
+              mt: 0.15,
+              pl: { xs: 0, sm: 0.5 },
+              pr: { xs: 0, sm: 0.5 },
+            })}
+          >
+            <CopyButton copied={copied} onClick={handleCopy} data-testid="action-bar-copy" />
+          </Box>
+        )}
       </Box>
     </Fade>
   );
@@ -913,9 +893,8 @@ const AIMessage = memo(function AIMessage({
 const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() {
   const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
   // `animation` is passed to each Skeleton; respects user motion preference.
-  // We no longer override `bgcolor` on individual skeletons — the MuiSkeleton
-  // theme override in lightTheme/darkTheme provides a layered fill + highlight
-  // that gives every skeleton a premium "sunken surface" look for free.
+  // We no longer override `bgcolor` on individual skeletons — the centralized
+  // MuiSkeleton theme override provides the shared layered fill and highlight.
   const animation = prefersReducedMotion ? false : 'wave';
 
   return (
@@ -944,7 +923,7 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
             sx={{
               width: { xs: 148, sm: 210 },
               height: { xs: 30, sm: 38 },
-              borderRadius: '14px 14px 6px 14px',
+              borderRadius: '8px',
             }}
           />
         </Box>
@@ -1001,7 +980,7 @@ const ConversationLoadingSkeleton = memo(function ConversationLoadingSkeleton() 
             sx={{
               width: { xs: 100, sm: 148 },
               height: { xs: 30, sm: 38 },
-              borderRadius: '14px 14px 6px 14px',
+              borderRadius: '8px',
             }}
           />
         </Box>
@@ -1099,12 +1078,12 @@ const MessageList = memo(function MessageList({
             bgcolor: 'transparent',
           }}
         >
-          <ErrorOutlineRoundedIcon sx={{ fontSize: 20, color: 'text.secondary', mb: 0.25 }} />
+          <ErrorIcon sx={{ fontSize: 20, color: 'text.secondary', mb: 0.25 }} />
           <Typography
             sx={(th) => ({
               ...th.typography.uiBodySm,
               color: 'text.primary',
-              fontWeight: 600,
+              fontWeight: 400,
             })}
           >
             Couldn&apos;t load conversation
@@ -1124,6 +1103,10 @@ const MessageList = memo(function MessageList({
 
   return (
     <Box
+      role="log"
+      aria-label="Conversation transcript"
+      aria-live="polite"
+      aria-relevant="additions text"
       sx={{
         flex: 1,
         py: { xs: 1.25, sm: 1.75 },

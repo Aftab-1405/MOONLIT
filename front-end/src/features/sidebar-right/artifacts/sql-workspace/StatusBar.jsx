@@ -1,11 +1,9 @@
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
 import { Box, Button, IconButton, Tooltip, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useState } from 'react';
 import { runQuery } from '@/api';
 import { ButtonLoadingSpinner } from '@/components';
+import { CheckIcon, CopyIcon, ExecuteIcon } from '@/components/icons';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import { getArtifactActionButtonSx } from '@/features/sidebar-right/artifact-loader';
 import { copyToClipboard } from '@/utils/clipboard';
@@ -113,7 +111,7 @@ function StatusBar({
               ...theme.typography.uiCaptionXs,
               minWidth: 0,
               color: connectionColor,
-              fontWeight: isConnected ? 600 : 'normal',
+              fontWeight: 400,
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
@@ -158,16 +156,16 @@ function StatusBar({
                 isRunning ? (
                   <ButtonLoadingSpinner size={14} />
                 ) : (
-                  <PlayArrowRoundedIcon sx={{ fontSize: 17 }} />
+                  <ExecuteIcon sx={{ fontSize: 17 }} />
                 )
               }
               sx={{
                 minWidth: 72,
                 height: 30,
                 px: 1.25,
-                borderRadius: '9px',
+                borderRadius: '9999px',
                 ...theme.typography.uiCaptionSm,
-                fontWeight: 650,
+                fontWeight: 400,
                 boxShadow: 'none',
                 '&:hover': { boxShadow: 'none' },
                 '& .MuiButton-startIcon': { ml: 0, mr: 0.5 },
@@ -191,11 +189,7 @@ function StatusBar({
                 bgcolor: copied ? alpha(theme.palette.success.main, 0.08) : 'transparent',
               }}
             >
-              {copied ? (
-                <CheckCircleRoundedIcon sx={{ fontSize: 16 }} />
-              ) : (
-                <ContentCopyRoundedIcon sx={{ fontSize: 15 }} />
-              )}
+              {copied ? <CheckIcon sx={{ fontSize: 16 }} /> : <CopyIcon sx={{ fontSize: 15 }} />}
             </IconButton>
           </span>
         </Tooltip>
@@ -228,10 +222,7 @@ function StatusBar({
             px: 0.75,
             borderRadius: '6px',
             color: 'text.disabled',
-            bgcolor: alpha(
-              theme.palette.text.primary,
-              theme.palette.mode === 'dark' ? 0.055 : 0.035,
-            ),
+            bgcolor: alpha(theme.palette.text.primary, theme.palette.opacity.subtle),
             fontFamily: theme.typography.fontFamilyMono,
             fontSize: '0.625rem',
             lineHeight: 1,

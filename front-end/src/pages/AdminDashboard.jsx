@@ -11,28 +11,28 @@ import {
   Typography,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
-import {
-  Activity,
-  BarChart3,
-  Check,
-  ChevronDown,
-  Database,
-  RefreshCw,
-  Save,
-  Server,
-  Timer,
-  Trash2,
-  TriangleAlert,
-  UserRound,
-  Zap,
-} from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { USER } from '@/api/endpoints';
 import { getContextMetrics } from '@/api/user';
+import {
+  ActivityIcon,
+  AnalyticsIcon,
+  CheckIcon,
+  DatabaseIcon,
+  DeleteIcon,
+  ExpandMoreIcon,
+  PerformanceIcon,
+  RefreshIcon,
+  SaveIcon,
+  ServerIcon,
+  TimeIcon,
+  UserIcon,
+  WarningIcon,
+} from '@/components/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import logger from '@/utils/logger';
 
-const FONT_MONO = '"JetBrains Mono", "Fira Code", Monaco, Consolas, monospace';
+const FONT_MONO = '"Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace';
 const FONT_SANS =
   'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
 
@@ -42,13 +42,13 @@ const LABEL_SX = {
   color: 'text.secondary',
   fontFamily: FONT_SANS,
   fontSize: 11,
-  fontWeight: 600,
+  fontWeight: 400,
   letterSpacing: '0.08em',
   lineHeight: 1.35,
   textTransform: 'uppercase',
 };
 
-const ICON_PROPS = { size: 18, strokeWidth: 1.75, 'aria-hidden': true };
+const ICON_PROPS = { sx: { fontSize: 18 }, 'aria-hidden': true };
 
 const formatNumber = (value) => new Intl.NumberFormat('en-US').format(value || 0);
 
@@ -100,10 +100,7 @@ function Card({ children, sx = {}, component = 'section', ...props }) {
         border: '1px solid',
         borderColor: 'divider',
         bgcolor: 'background.paper',
-        boxShadow: (theme) =>
-          theme.palette.mode === 'dark'
-            ? '0 1px 2px rgba(0, 0, 0, 0.35)'
-            : '0 1px 3px rgba(0, 0, 0, 0.05)',
+        boxShadow: 'none',
         p: `${SPACE[6]}px`,
         ...sx,
       }}
@@ -133,7 +130,7 @@ function CardHeader({ label, title, icon: Icon }) {
             color: 'text.primary',
             fontFamily: FONT_SANS,
             fontSize: 16,
-            fontWeight: 600,
+            fontWeight: 400,
             lineHeight: 1.3,
           }}
         >
@@ -174,7 +171,7 @@ function MetricRow({ icon, label, value, detail, tone = 'neutral' }) {
             color: 'text.primary',
             fontFamily: FONT_SANS,
             fontSize: 13,
-            fontWeight: 500,
+            fontWeight: 400,
             lineHeight: 1.35,
           }}
         >
@@ -197,7 +194,7 @@ function MetricRow({ icon, label, value, detail, tone = 'neutral' }) {
           color,
           fontFamily: FONT_MONO,
           fontSize: 15,
-          fontWeight: 600,
+          fontWeight: 400,
           textAlign: 'right',
           overflowWrap: 'anywhere',
         }}
@@ -213,21 +210,21 @@ function HitRateCard({ hitRate, hits, misses }) {
 
   return (
     <Card sx={{ height: '100%', minHeight: 300 }}>
-      <CardHeader label="Cache efficiency" title="Context reuse" icon={BarChart3} />
+      <CardHeader label="Cache efficiency" title="Context reuse" icon={AnalyticsIcon} />
       <Typography
         aria-label={`Cache hit rate ${hitRate}%`}
         sx={{
           color: 'text.primary',
           fontFamily: FONT_MONO,
           fontSize: 48,
-          fontWeight: 700,
+          fontWeight: 400,
           lineHeight: 1,
         }}
       >
         {hitRate}
         <Box
           component="span"
-          sx={{ ml: `${SPACE[1]}px`, color: 'text.secondary', fontSize: 20, fontWeight: 500 }}
+          sx={{ ml: `${SPACE[1]}px`, color: 'text.secondary', fontSize: 20, fontWeight: 400 }}
         >
           %
         </Box>
@@ -260,7 +257,7 @@ function HitRateCard({ hitRate, hits, misses }) {
               color: 'primary.main',
               fontFamily: FONT_MONO,
               fontSize: 16,
-              fontWeight: 600,
+              fontWeight: 400,
             }}
           >
             {formatNumber(hits)}
@@ -274,7 +271,7 @@ function HitRateCard({ hitRate, hits, misses }) {
               color: missedRate > 30 ? 'warning.main' : 'text.primary',
               fontFamily: FONT_MONO,
               fontSize: 16,
-              fontWeight: 600,
+              fontWeight: 400,
             }}
           >
             {formatNumber(misses)} · {missedRate}%
@@ -310,7 +307,7 @@ function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
           color: statusTone.color,
         }}
       >
-        <Server {...ICON_PROPS} />
+        <ServerIcon {...ICON_PROPS} />
       </Box>
       <Box sx={{ minWidth: 0 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: `${SPACE[2]}px` }}>
@@ -333,7 +330,7 @@ function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
             color: 'text.primary',
             fontFamily: FONT_MONO,
             fontSize: 14,
-            fontWeight: 600,
+            fontWeight: 400,
           }}
         >
           {formatLatency(apiHealth.latency)}
@@ -360,14 +357,14 @@ function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
                 color: 'text.primary',
               },
               '&.Mui-focusVisible': {
-                boxShadow: (theme) => `0 0 0 3px ${alpha(theme.palette.primary.main, 0.25)}`,
+                boxShadow: (theme) => `0 0 0 3px ${theme.palette.border.focus}`,
               },
             }}
           >
             {refreshing ? (
               <CircularProgress size={16} sx={{ color: 'text.primary' }} />
             ) : (
-              <RefreshCw {...ICON_PROPS} />
+              <RefreshIcon {...ICON_PROPS} />
             )}
           </IconButton>
         </span>
@@ -534,7 +531,7 @@ function AdminDashboard() {
         label: 'Cache TTL',
         value: dashboardData.ttlLabel,
         detail: ttlRemaining !== null ? 'Context cache countdown' : 'No active cache window',
-        icon: Timer,
+        icon: TimeIcon,
       },
       {
         label: 'Table Budget',
@@ -542,13 +539,13 @@ function AdminDashboard() {
         detail: dashboardData.connectedDatabase
           ? `${dashboardData.activeTableCount} active in ${dashboardData.connectedDatabase}`
           : 'Waiting for database context',
-        icon: Database,
+        icon: DatabaseIcon,
       },
       {
         label: 'Metrics Feed',
         value: dashboardData.metricsEnabled ? 'Live' : 'Quiet',
         detail: 'Realtime context instrumentation',
-        icon: Activity,
+        icon: ActivityIcon,
         tone: dashboardData.metricsEnabled ? 'good' : 'warning',
       },
     ],
@@ -561,27 +558,27 @@ function AdminDashboard() {
         label: 'Cache Hits',
         value: formatNumber(dashboardData.hits),
         detail: 'Served without recompilation',
-        icon: Check,
+        icon: CheckIcon,
         tone: 'good',
       },
       {
         label: 'Cache Misses',
         value: formatNumber(dashboardData.misses),
         detail: 'Required fresh context assembly',
-        icon: TriangleAlert,
+        icon: WarningIcon,
         tone: 'warning',
       },
       {
         label: 'Writes',
         value: formatNumber(dashboardData.stores),
         detail: 'Stored context snapshots',
-        icon: Save,
+        icon: SaveIcon,
       },
       {
         label: 'Clears',
         value: formatNumber(dashboardData.clears),
         detail: 'Cache invalidation events',
-        icon: Trash2,
+        icon: DeleteIcon,
         tone: dashboardData.clears > 0 ? 'warning' : 'neutral',
       },
     ],
@@ -595,22 +592,26 @@ function AdminDashboard() {
         label: 'Connection',
         value: redis.connected ? 'Online' : 'Offline',
         detail: redis.connected
-          ? (redis.upstash_version ? 'Upstash Redis Server' : 'Standard Redis Server')
+          ? redis.upstash_version
+            ? 'Upstash Redis Server'
+            : 'Standard Redis Server'
           : 'Checkpointer offline',
-        icon: Server,
+        icon: ServerIcon,
         tone: redis.connected ? 'good' : 'warning',
       },
       {
         label: 'Keys Stored',
         value: redis.connected ? formatNumber(redis.total_keys) : '0',
         detail: 'Total active checkpointer keys',
-        icon: Database,
+        icon: DatabaseIcon,
       },
       {
         label: 'Storage Size',
-        value: redis.connected ? (redis.total_data_size_human || redis.used_memory_human || '0 B') : '0 B',
+        value: redis.connected
+          ? redis.total_data_size_human || redis.used_memory_human || '0 B'
+          : '0 B',
         detail: `Max capacity: ${redis.maxmemory_human || '64.00MB'}`,
-        icon: Zap,
+        icon: PerformanceIcon,
       },
     ];
   }, [metrics]);
@@ -657,7 +658,7 @@ function AdminDashboard() {
                     color: 'text.primary',
                     fontFamily: FONT_SANS,
                     fontSize: { xs: 26, sm: 32 },
-                    fontWeight: 650,
+                    fontWeight: 400,
                     letterSpacing: '-0.025em',
                     lineHeight: 1.15,
                   }}
@@ -700,7 +701,7 @@ function AdminDashboard() {
                 }}
               >
                 <Box sx={{ color: 'warning.main', lineHeight: 0 }}>
-                  <TriangleAlert {...ICON_PROPS} />
+                  <WarningIcon {...ICON_PROPS} />
                 </Box>
                 <Typography
                   sx={{
@@ -728,7 +729,7 @@ function AdminDashboard() {
                 }}
               >
                 <Box sx={{ color: 'warning.main', lineHeight: 0 }}>
-                  <TriangleAlert {...ICON_PROPS} />
+                  <WarningIcon {...ICON_PROPS} />
                 </Box>
                 <Typography
                   sx={{
@@ -779,7 +780,7 @@ function AdminDashboard() {
                     <CardHeader
                       label="Runtime summary"
                       title="Current operating limits"
-                      icon={Zap}
+                      icon={PerformanceIcon}
                     />
                     <Box
                       sx={{
@@ -790,20 +791,20 @@ function AdminDashboard() {
                       }}
                     >
                       <MetricRow
-                        icon={Zap}
+                        icon={PerformanceIcon}
                         label="Total context requests"
                         detail="Hits and misses combined"
                         value={formatNumber(dashboardData.totalQueries)}
                       />
                       <MetricRow
-                        icon={Activity}
+                        icon={ActivityIcon}
                         label="Metrics capture"
                         detail="Runtime instrumentation"
                         value={dashboardData.metricsEnabled ? 'Enabled' : 'Disabled'}
                         tone={dashboardData.metricsEnabled ? 'good' : 'warning'}
                       />
                       <MetricRow
-                        icon={UserRound}
+                        icon={UserIcon}
                         label="Signed-in operator"
                         detail="Current admin session"
                         value={user?.email || 'Active'}
@@ -813,7 +814,11 @@ function AdminDashboard() {
                 </Box>
                 <Box sx={{ gridColumn: { xs: '1 / -1', md: 'span 6', lg: 'span 4' } }}>
                   <Card sx={{ height: '100%', minHeight: 300 }}>
-                    <CardHeader label="Configuration" title="Foundation signals" icon={Database} />
+                    <CardHeader
+                      label="Configuration"
+                      title="Foundation signals"
+                      icon={DatabaseIcon}
+                    />
                     <Box
                       sx={{
                         '& > *:not(:last-child)': {
@@ -830,8 +835,10 @@ function AdminDashboard() {
                 </Box>
                 <Box sx={{ gridColumn: { xs: '1 / -1', lg: 'span 8' } }}>
                   <Card sx={{ height: '100%' }}>
-                    <CardHeader label="Operations" title="Cache movement" icon={Activity} />
-                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}>
+                    <CardHeader label="Operations" title="Cache movement" icon={ActivityIcon} />
+                    <Box
+                      sx={{ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))' }}
+                    >
                       {operationStats.map((stat, index) => (
                         <Box
                           key={stat.label}
@@ -859,7 +866,7 @@ function AdminDashboard() {
                 </Box>
                 <Box sx={{ gridColumn: { xs: '1 / -1', lg: 'span 4' } }}>
                   <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                    <CardHeader label="Memory State" title="Redis telemetry" icon={Server} />
+                    <CardHeader label="Memory State" title="Redis telemetry" icon={ServerIcon} />
                     <Box
                       sx={{
                         '& > *:not(:last-child)': {
@@ -883,31 +890,49 @@ function AdminDashboard() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            bgcolor: (theme) => alpha(theme.palette.text.primary, 0.02),
+                            bgcolor: 'transparent',
                             '&:hover': {
-                              bgcolor: (theme) => alpha(theme.palette.text.primary, 0.04),
+                              bgcolor: 'action.hover',
                             },
                           }}
                         >
-                          <Typography sx={{ fontSize: 12, fontWeight: 600, color: 'text.secondary' }}>
+                          <Typography
+                            sx={{ fontSize: 12, fontWeight: 400, color: 'text.secondary' }}
+                          >
                             Advanced telemetry
                           </Typography>
-                          <ChevronDown
-                            size={16}
-                            style={{
+                          <ExpandMoreIcon
+                            sx={{
+                              fontSize: 16,
                               transform: redisExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                               transition: 'transform 0.2s ease',
-                              color: 'var(--mui-palette-text-secondary)',
+                              color: 'text.secondary',
                             }}
                           />
                         </ListItemButton>
                         <Collapse in={redisExpanded} timeout={200}>
-                          <Box sx={{ display: 'flex', flexDirection: 'column', gap: `${SPACE[2]}px`, mt: `${SPACE[2]}px` }}>
+                          <Box
+                            sx={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: `${SPACE[2]}px`,
+                              mt: `${SPACE[2]}px`,
+                            }}
+                          >
                             {[
-                              { label: 'Client count', value: `${metrics.redis.connected_clients} active` },
+                              {
+                                label: 'Client count',
+                                value: `${metrics.redis.connected_clients} active`,
+                              },
                               { label: 'Redis version', value: metrics.redis.redis_version },
-                              { label: 'Upstash version', value: metrics.redis.upstash_version || 'N/A' },
-                              { label: 'Max memory limit', value: metrics.redis.maxmemory_human || 'N/A' },
+                              {
+                                label: 'Upstash version',
+                                value: metrics.redis.upstash_version || 'N/A',
+                              },
+                              {
+                                label: 'Max memory limit',
+                                value: metrics.redis.maxmemory_human || 'N/A',
+                              },
                             ].map((item) => (
                               <Box
                                 key={item.label}
@@ -915,16 +940,30 @@ function AdminDashboard() {
                                   display: 'flex',
                                   justifyContent: 'space-between',
                                   p: 1,
-                                  backgroundColor: (theme) => alpha(theme.palette.text.primary, 0.01),
+                                  backgroundColor: (theme) =>
+                                    alpha(theme.palette.text.primary, 0.01),
                                   border: '1px solid',
                                   borderColor: (theme) => alpha(theme.palette.text.primary, 0.04),
                                   borderRadius: '6px',
                                 }}
                               >
-                                <Typography sx={{ fontSize: 11.5, color: 'text.secondary', fontFamily: FONT_MONO }}>
+                                <Typography
+                                  sx={{
+                                    fontSize: 11.5,
+                                    color: 'text.secondary',
+                                    fontFamily: FONT_MONO,
+                                  }}
+                                >
                                   {item.label}
                                 </Typography>
-                                <Typography sx={{ fontSize: 11.5, color: 'text.primary', fontWeight: 600, fontFamily: FONT_MONO }}>
+                                <Typography
+                                  sx={{
+                                    fontSize: 11.5,
+                                    color: 'text.primary',
+                                    fontWeight: 400,
+                                    fontFamily: FONT_MONO,
+                                  }}
+                                >
                                   {item.value}
                                 </Typography>
                               </Box>

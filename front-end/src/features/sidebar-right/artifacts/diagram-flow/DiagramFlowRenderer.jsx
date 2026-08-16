@@ -1,10 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import '@xyflow/react/dist/style.css';
 import Dagre from '@dagrejs/dagre';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import SettingsSuggestRoundedIcon from '@mui/icons-material/SettingsSuggestRounded';
-import TableChartRoundedIcon from '@mui/icons-material/TableChartRounded';
 import { Box, CircularProgress, Typography, useMediaQuery, useTheme } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import {
@@ -19,6 +15,7 @@ import {
   useInternalNode,
   useNodesState,
 } from '@xyflow/react';
+import { CheckIcon, CopyIcon, ProcessIcon, TableIcon } from '@/components/icons';
 import { getReadOnlyReactFlowProps } from '@/config/reactFlow';
 import { ArtifactShell } from '@/features/sidebar-right/artifact-loader';
 import {
@@ -356,7 +353,7 @@ const buildFlowElements = (diagram, isMobile, theme) => {
     interactionWidth: 20,
     labelStyle: {
       fontSize: 10,
-      fontWeight: 600,
+      fontWeight: 400,
       letterSpacing: 0,
     },
     animated: edge.animated,
@@ -387,7 +384,7 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
       borderLeft: `3px solid ${theme.palette.primary.main}`,
     }),
     ...(isProcess && {
-      borderRadius: '16px',
+      borderRadius: '8px',
       borderLeft: `3px solid ${theme.palette.primary.main}`,
     }),
   };
@@ -466,14 +463,10 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
           }}
         >
           {isEntity && (
-            <TableChartRoundedIcon
-              sx={{ fontSize: 16, color: theme.palette.primary.main, flexShrink: 0 }}
-            />
+            <TableIcon sx={{ fontSize: 16, color: theme.palette.primary.main, flexShrink: 0 }} />
           )}
           {isProcess && (
-            <SettingsSuggestRoundedIcon
-              sx={{ fontSize: 16, color: theme.palette.primary.main, flexShrink: 0 }}
-            />
+            <ProcessIcon sx={{ fontSize: 16, color: theme.palette.primary.main, flexShrink: 0 }} />
           )}
           <Typography
             noWrap
@@ -539,7 +532,7 @@ const DiagramFlowNode = memo(function DiagramFlowNode({ data }) {
                 border: '1px solid',
                 fontFamily: theme.typography.fontFamilyMono,
                 fontSize: 10.5,
-                fontWeight: 700,
+                fontWeight: 400,
                 lineHeight: 1,
                 letterSpacing: 0,
                 textTransform: 'none',
@@ -690,7 +683,6 @@ function DiagramFlowRenderer({
   workspaceContainerRef,
 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const copyTimeoutRef = useRef(null);
   const settleTimeoutRef = useRef(null);
@@ -947,9 +939,9 @@ function DiagramFlowRenderer({
               key: 'copy',
               label: copied ? 'Copied!' : 'Copy code',
               icon: copied ? (
-                <CheckRoundedIcon sx={{ fontSize: 18 }} />
+                <CheckIcon sx={{ fontSize: 18 }} />
               ) : (
-                <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />
+                <CopyIcon sx={{ fontSize: 18 }} />
               ),
               onClick: handleCopy,
             },
@@ -960,7 +952,7 @@ function DiagramFlowRenderer({
               p: isMobile ? 1.5 : 2,
               borderBottom: '1px solid',
               borderColor: theme.palette.border.subtle,
-              bgcolor: alpha(theme.palette.error.main, isDark ? 0.08 : 0.04),
+              bgcolor: alpha(theme.palette.error.main, theme.palette.opacity.soft),
               flexShrink: 0,
             }}
           >
@@ -978,7 +970,7 @@ function DiagramFlowRenderer({
               overflow: 'auto',
               fontFamily: theme.typography.fontFamilyMono,
               ...theme.typography.uiBodySm,
-              bgcolor: alpha(theme.palette.text.primary, isDark ? 0.02 : 0.01),
+              bgcolor: theme.palette.layer.barely,
             }}
           >
             <code>{code}</code>
@@ -1003,11 +995,7 @@ function DiagramFlowRenderer({
         {
           key: 'copy',
           label: copied ? 'Copied!' : 'Copy code',
-          icon: copied ? (
-            <CheckRoundedIcon sx={{ fontSize: 18 }} />
-          ) : (
-            <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />
-          ),
+          icon: copied ? <CheckIcon sx={{ fontSize: 18 }} /> : <CopyIcon sx={{ fontSize: 18 }} />,
           onClick: handleCopy,
         },
       ]}
@@ -1022,7 +1010,7 @@ function DiagramFlowRenderer({
           zIndex: 0,
           isolation: 'isolate',
           overflow: 'hidden',
-          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.02 : 0.01),
+          bgcolor: theme.palette.layer.barely,
         }}
       >
         {isReceiving ? (

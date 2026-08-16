@@ -4,7 +4,6 @@
  */
 
 export const defaultUserSettings = {
-  theme: 'dark',
   confirmBeforeRun: false,
   queryTimeout: 30,
   maxRows: 1000,

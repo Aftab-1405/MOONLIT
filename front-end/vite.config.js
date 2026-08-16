@@ -48,42 +48,15 @@ export default defineConfig({
           if (id.includes('@xyflow') || id.includes('dagre') || id.includes('@dagrejs')) {
             return 'vendor-react-flow';
           }
-          // ── Markdown pipeline (react-markdown + remark + micromark + hast) ─
-          if (
-            id.includes('react-markdown') ||
-            id.includes('remark-') ||
-            id.includes('react-syntax-highlighter') ||
-            id.includes('refractor') ||
-            id.includes('prismjs') ||
-            id.includes('unified') ||
-            id.includes('micromark') ||
-            id.includes('mdast-util') ||
-            id.includes('hast-util') ||
-            id.includes('unist-util')
-          ) {
-            return 'vendor-markdown';
-          }
-          // ── Shiki (syntax highlighting for CodeViewer) ────────────────────
-          // Shiki ships dozens of language grammars (multi-MB). Splitting it
-          // out keeps the main chat bundle lean; only the first message that
-          // contains a code block pays the cost.
-          if (id.includes('shiki') || id.includes('@shikijs') || id.includes('@vscode/')) {
-            return 'vendor-shiki';
-          }
+          // Markdown and Shiki intentionally use Rollup's natural dynamic
+          // chunks. Forcing them into manual chunks made Vite preload them from
+          // the entry page even though chat and code rendering are lazy.
           // ── Perspective (data-visualization artifact) ─────────────────────
           // Perspective is by far the heaviest dependency (~10MB unminified).
           // It is lazy-loaded via dynamic import inside PerspectiveDashboard;
           // isolating it here ensures no other chunk accidentally pulls it in.
           if (id.includes('@perspective-dev')) {
             return 'vendor-perspective';
-          }
-          // ── Three.js + postprocessing (Hyperspeed landing background) ─────
-          if (
-            id.includes('three') ||
-            id.includes('postprocessing') ||
-            id.includes('@types/three')
-          ) {
-            return 'vendor-three';
           }
           // ── Framer Motion + MUI + Emotion ────────────────────────────────
           // These three are bundled together to avoid a circular-chunk

@@ -1,29 +1,21 @@
 /**
- * CodeMirror theme + syntax highlighting that matches Shiki's themes.
+ * CodeMirror theme + syntax highlighting that matches Moonlit's Shiki theme.
  *
  * ── Why this file exists ──────────────────────────────────────────────────
  * The app uses Shiki for all code blocks in chat messages (CodeViewer.jsx)
- * with the themes `dracula-soft` (dark) and `github-light` (light).
+ * with the dark `dracula-soft` palette.
  * The SQL editor uses CodeMirror 6 — which has its own theming system.
  *
- * Previously, CodeMirror used the `@uiw/codemirror-theme-dracula` and
- * `@uiw/codemirror-theme-github` packages, which did NOT match Shiki's
- * exact colors. SQL in the editor looked different from SQL in chat code
- * blocks.
- *
  * This file maps Shiki's exact token colors to CodeMirror's highlight tags
- * so the two surfaces are visually identical. The color values below were
- * extracted directly from the Shiki theme JSON files:
- *   - node_modules/@shikijs/themes/dist/github-light.mjs
- *   - node_modules/@shikijs/themes/dist/dracula-soft.mjs
+ * so the two surfaces are visually identical.
  *
  * ── How it works ──────────────────────────────────────────────────────────
- * 1. `getCodeMirrorTheme(mode, transparent)` returns an Extension[] that:
+ * 1. `getCodeMirrorTheme(transparent)` returns an Extension[] that:
  *    - Sets the editor background (transparent for inline use)
  *    - Sets gutter, selection, cursor, active-line, whitespace colors
  *    - Maps to the same editor.* colors from the Shiki theme's `colors` object
  *
- * 2. `getCodeMirrorHighlighting(mode)` returns a syntaxHighlighting Extension
+ * 2. `getCodeMirrorHighlighting()` returns a syntaxHighlighting Extension
  *    that uses HighlightTags → Shiki token colors. This replaces the
  *    @uiw theme packages entirely.
  */
@@ -31,103 +23,20 @@
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { EditorView } from '@codemirror/view';
 import { tags as t } from '@lezer/highlight';
+import { moonlitDarkSyntax } from '@/theme/syntaxPalettes';
+import { primitives } from '@/theme/tokens/primitives';
 
-// ─── Shiki color palettes (extracted from theme JSON) ───────────────────────
-
-/**
- * GitHub Light — Shiki theme colors.
- * Source: @shikijs/themes/dist/github-light.mjs
- */
-const GITHUB_LIGHT = {
-  // Editor chrome
-  editorForeground: '#24292e',
-  editorBackground: '#ffffff',
-  lineNumberForeground: '#1b1f234d',
-  lineNumberActiveForeground: '#24292e',
-  cursorForeground: '#044289',
-  lineHighlightBackground: '#f6f8fa',
-  selectionBackground: '#0366d625',
-  whitespaceForeground: '#d1d5da',
-  bracketMatchBackground: '#34d05840',
-
-  // Syntax token colors
-  comment: '#6a737d',
-  constant: '#005cc5',
-  entity: '#6f42c1',
-  keyword: '#d73a49',
-  storage: '#d73a49',
-  string: '#032f62',
-  support: '#005cc5',
-  variable: '#e36209',
-  variableOther: '#24292e',
-  functionCall: '#6f42c1',
-  propertyName: '#005cc5',
-  punctuation: '#24292e',
-  tagName: '#22863a',
-  attributeName: '#005cc5',
-  number: '#005cc5',
-  boolean: '#005cc5',
-  operator: '#d73a49',
-  invalid: '#b31d28',
-  regex: '#032f62',
-  escape: '#22863a',
-};
-
-/**
- * Dracula Soft — Shiki theme colors.
- * Source: @shikijs/themes/dist/dracula-soft.mjs
- */
-const DRACULA_SOFT = {
-  // Editor chrome
-  editorForeground: '#f6f6f4',
-  editorBackground: '#282a36',
-  lineNumberForeground: '#7b7f8b',
-  lineNumberActiveForeground: '#f6f6f4',
-  cursorForeground: '#f6f6f4',
-  lineHighlightBackground: '#ffffff0d', // very subtle white overlay
-  selectionBackground: '#44475a',
-  whitespaceForeground: '#ffffff1a',
-  bracketMatchBackground: '#f6f6f433',
-
-  // Syntax token colors
-  comment: '#7b7f8b',
-  constant: '#bf9eee',
-  entity: '#97e1f1',
-  keyword: '#f286c4',
-  storage: '#f286c4',
-  string: '#e7ee98',
-  support: '#97e1f1',
-  variable: '#f6f6f4',
-  variableOther: '#f6f6f4',
-  functionCall: '#62e884',
-  propertyName: '#97e1f1',
-  punctuation: '#f6f6f4',
-  tagName: '#f286c4',
-  attributeName: '#62e884',
-  number: '#bf9eee',
-  boolean: '#bf9eee',
-  operator: '#f286c4',
-  invalid: '#ee6666',
-  regex: '#e7ee98',
-  escape: '#f286c4',
-};
-
-// ─── Theme factory ──────────────────────────────────────────────────────────
-
-function getPalette(mode) {
-  return mode === 'dark' ? DRACULA_SOFT : GITHUB_LIGHT;
-}
+const CODE_PALETTE = moonlitDarkSyntax;
 
 /**
  * Returns a CodeMirror EditorView theme Extension that matches the Shiki
  * theme's editor chrome (background, gutter, cursor, selection, etc.).
  *
- * @param {'light'|'dark'} mode
- * @param {boolean}        transparent  use transparent bg (for inline viewers)
+ * @param {boolean} transparent use transparent bg (for inline viewers)
  * @returns {Extension} CodeMirror theme extension
  */
-export function getCodeMirrorTheme(mode, transparent = false) {
-  const p = getPalette(mode);
+export function getCodeMirrorTheme(transparent = false) {
+  const p = CODE_PALETTE;
   const bg = transparent ? 'transparent' : p.editorBackground;
 
   return EditorView.theme({
@@ -170,13 +79,13 @@ export function getCodeMirrorTheme(mode, transparent = false) {
     '.cm-panels': {
       backgroundColor: p.editorBackground,
       color: p.editorForeground,
-      borderTop: '1px solid rgba(128,128,128,0.2)',
+      borderTop: `1px solid ${primitives.code.panelBorder}`,
     },
     '.cm-searchMatch': {
-      backgroundColor: 'rgba(255, 223, 93, 0.4)',
+      backgroundColor: primitives.code.searchMatch,
     },
     '.cm-searchMatch-selected': {
-      backgroundColor: 'rgba(255, 223, 93, 0.7)',
+      backgroundColor: primitives.code.searchMatchSelected,
     },
   });
 }
@@ -188,11 +97,10 @@ export function getCodeMirrorTheme(mode, transparent = false) {
  * This is what makes SQL in the editor look identical to SQL in chat
  * code blocks — both use the same color values from the Shiki theme.
  *
- * @param {'light'|'dark'} mode
  * @returns {Extension} syntaxHighlighting extension
  */
-export function getCodeMirrorHighlighting(mode) {
-  const p = getPalette(mode);
+export function getCodeMirrorHighlighting() {
+  const p = CODE_PALETTE;
 
   return syntaxHighlighting(
     HighlightStyle.define([

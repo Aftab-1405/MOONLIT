@@ -8,14 +8,12 @@
 //   - SchemaMindmapDialog                   schema mindmap full-screen overlay
 //   - ConfirmDialog                         run-query confirmation
 //   - ConfirmDialog                         delete-conversation confirmation
-//   - RenameConversationDialog              rename conversation
 
 import { Box } from '@mui/material';
 import { AnimatePresence } from 'framer-motion';
 import { lazy, memo, Suspense } from 'react';
 import { ConfirmDialog } from '@/components';
 import Notification from '@/components/ui/toast';
-import RenameConversationDialog from '@/features/chat/RenameConversationDialog';
 import SchemaMindmapDialog from '@/features/overlays/mindmap';
 
 const DatabaseModal = lazy(() => import('@/features/overlays/database/DatabaseModal'));
@@ -128,11 +126,6 @@ const GlobalOverlays = memo(function GlobalOverlays({
   deleteConversationDialog,
   handleDeleteConversationDialogClose,
   handleDeleteConversationConfirm,
-  // Rename conversation
-  renameConversationDialog,
-  handleRenameConversationDialogClose,
-  handleRenameConversationTitleChange,
-  handleRenameConversationConfirm,
   // Schema mindmap
   mindmapOpen,
   handleCloseMindmap,
@@ -182,14 +175,6 @@ const GlobalOverlays = memo(function GlobalOverlays({
         cancelText="Cancel"
         maxWidth="xs"
         loadingText="Running..."
-      />
-
-      <RenameConversationDialog
-        open={renameConversationDialog.open}
-        title={renameConversationDialog.title}
-        onClose={handleRenameConversationDialogClose}
-        onChange={handleRenameConversationTitleChange}
-        onConfirm={handleRenameConversationConfirm}
       />
 
       <ConfirmDialog

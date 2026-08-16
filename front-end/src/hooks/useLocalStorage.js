@@ -68,9 +68,12 @@ export function useLocalStorage(key, initialValue) {
   // Track the latest value in a ref so setValue can resolve functional updates
   // without adding storedValue to useCallback deps or using the state updater.
   const storedValueRef = useRef(storedValue);
-  storedValueRef.current = storedValue;
+  useEffect(() => {
+    storedValueRef.current = storedValue;
+  }, [storedValue]);
 
   // Re-sync state when the key changes (useState initializer only runs at mount).
+  /* eslint-disable react-hooks/set-state-in-effect -- localStorage is the external source synchronized by this effect. */
   useEffect(() => {
     if (!isBrowser()) return;
     try {
@@ -84,8 +87,8 @@ export function useLocalStorage(key, initialValue) {
     } catch (error) {
       logger.warn(`useLocalStorage: Error reading key "${key}":`, error);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, initialValue]); // intentionally excludes initialValue — read only when key identity changes
+  }, [key, initialValue]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const setValue = useCallback(
     (value) => {

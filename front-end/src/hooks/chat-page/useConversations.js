@@ -7,7 +7,7 @@
  * @module hooks/useConversations
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   deleteConversation,
@@ -16,7 +16,12 @@ import {
   renameConversation,
 } from '@/api';
 import { queryClient, queryKeys } from '@/api/queryClient';
+import {
+  conversationListLoadReducer,
+  initialConversationListLoadState,
+} from '@/features/sidebar-left/conversationListModel';
 import { normalizeConversationMessage } from '@/utils/chatMessages';
+import { recoverLegacyConversationTitle } from '@/utils/conversationTitles';
 import logger from '@/utils/logger';
 
 /**
@@ -31,6 +36,10 @@ export function useConversations() {
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [isConversationsLoading, setIsConversationsLoading] = useState(false);
   const [isConversationLoading, setIsConversationLoading] = useState(Boolean(conversationId));
+  const [conversationListLoadState, dispatchConversationListLoad] = useReducer(
+    conversationListLoadReducer,
+    initialConversationListLoadState,
+  );
   const [routeConversationLoadState, setRouteConversationLoadState] = useState(
     conversationId ? 'loading' : 'idle',
   );
@@ -39,24 +48,37 @@ export function useConversations() {
   const newlyCreatedConvIdRef = useRef(null);
   const conversationLoadSeqRef = useRef(0);
   const conversationsLoadSeqRef = useRef(0);
+  const legacyTitleSourceRef = useRef(new Map());
   const fetchConversations = useCallback(async (signal, options = {}) => {
     const showLoading = options.showLoading ?? true;
-    if (options.force) {
-      await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
-    }
     const requestSeq = conversationsLoadSeqRef.current + 1;
     conversationsLoadSeqRef.current = requestSeq;
+    dispatchConversationListLoad({ type: 'started', visible: showLoading });
     if (showLoading) {
       setIsConversationsLoading(true);
     }
     try {
+      if (options.force) {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.conversations });
+      }
       const data = await queryClient.fetchQuery({
         queryKey: queryKeys.conversations,
         queryFn: ({ signal: querySignal }) => getAllUserConversations(signal ?? querySignal),
         staleTime: 15 * 1000,
       });
+      if (conversationsLoadSeqRef.current !== requestSeq) return;
       if (data.status === 'success') {
-        const nextConversations = data.conversations || [];
+        const nextConversations = (data.conversations || []).map((conversation) => {
+          const firstUserMessage = legacyTitleSourceRef.current.get(conversation.id);
+          if (!firstUserMessage) return conversation;
+          const recoveredTitle = recoverLegacyConversationTitle(
+            conversation.title,
+            firstUserMessage,
+          );
+          return recoveredTitle && recoveredTitle !== conversation.title
+            ? { ...conversation, title: recoveredTitle }
+            : conversation;
+        });
         setConversations((prev) => {
           if (prev.length !== nextConversations.length) return nextConversations;
           for (let i = 0; i < prev.length; i += 1) {
@@ -67,21 +89,46 @@ export function useConversations() {
           return prev;
         });
       }
+      dispatchConversationListLoad({ type: 'succeeded' });
     } catch (error) {
       if (error.name === 'AbortError') return; // Ignore abort errors
+      if (conversationsLoadSeqRef.current !== requestSeq) return;
+      dispatchConversationListLoad({ type: 'failed' });
       logger.error('Failed to fetch conversations:', error);
     } finally {
-      if (showLoading && conversationsLoadSeqRef.current === requestSeq) {
+      if (conversationsLoadSeqRef.current === requestSeq) {
         setIsConversationsLoading(false);
       }
     }
   }, []);
+  const retryConversations = useCallback(
+    () => fetchConversations(undefined, { force: true, showLoading: true }),
+    [fetchConversations],
+  );
   const registerStreamingConversation = useCallback((convId) => {
     newlyCreatedConvIdRef.current = convId;
     lastLoadedConversationIdRef.current = convId;
     prevConversationIdRef.current = convId;
     setCurrentConversationId(convId);
     setIsConversationLoading(false);
+  }, []);
+  const recoverGeneratedTitle = useCallback((convId, conversationMessages) => {
+    const firstUserMessage = conversationMessages.find((message) => message?.role === 'user')?.text;
+    if (!firstUserMessage) return;
+    legacyTitleSourceRef.current.set(convId, firstUserMessage);
+
+    setConversations((prev) =>
+      prev.map((conversation) => {
+        if (conversation.id !== convId) return conversation;
+        const recoveredTitle = recoverLegacyConversationTitle(
+          conversation.title,
+          firstUserMessage,
+        );
+        return recoveredTitle && recoveredTitle !== conversation.title
+          ? { ...conversation, title: recoveredTitle }
+          : conversation;
+      }),
+    );
   }, []);
   const resetChatState = useCallback(() => {
     setMessages([]);
@@ -93,6 +140,7 @@ export function useConversations() {
     if (cachedConversation?.messages) {
       setCurrentConversationId(convId);
       setMessages(cachedConversation.messages);
+      recoverGeneratedTitle(convId, cachedConversation.messages);
       lastLoadedConversationIdRef.current = convId;
       setIsConversationLoading(false);
       return true;
@@ -123,6 +171,7 @@ export function useConversations() {
           messages: formattedMessages,
         });
         setMessages(formattedMessages);
+        recoverGeneratedTitle(convId, formattedMessages);
         lastLoadedConversationIdRef.current = convId;
         return true;
       }
@@ -137,7 +186,7 @@ export function useConversations() {
         setIsConversationLoading(false);
       }
     }
-  }, []);
+  }, [recoverGeneratedTitle]);
   const handleDeleteConversation = useCallback(
     async (convId) => {
       try {
@@ -158,7 +207,7 @@ export function useConversations() {
   );
   const handleRenameConversation = useCallback(async (convId, title) => {
     const trimmedTitle = title.trim();
-    if (!trimmedTitle) return;
+    if (!trimmedTitle) return false;
     try {
       const data = await renameConversation(convId, trimmedTitle);
       const savedTitle = data.title || trimmedTitle;
@@ -166,9 +215,11 @@ export function useConversations() {
       setConversations((prev) =>
         prev.map((c) => (c.id === convId ? { ...c, title: savedTitle } : c)),
       );
+      return true;
     } catch (error) {
-      if (error.name === 'AbortError') return;
+      if (error.name === 'AbortError') return false;
       logger.error('Failed to rename conversation:', error);
+      throw error;
     }
   }, []);
   useEffect(() => {
@@ -232,6 +283,8 @@ export function useConversations() {
     messages,
     setMessages,
     isConversationsLoading,
+    conversationListError: conversationListLoadState.error,
+    conversationListFailureRevision: conversationListLoadState.failureRevision,
     isConversationLoading,
     conversations,
     setConversations,
@@ -240,6 +293,7 @@ export function useConversations() {
     routeConversationId: conversationId || null,
     routeConversationLoadState,
     fetchConversations,
+    retryConversations,
     registerStreamingConversation,
     handleDeleteConversation,
     handleRenameConversation,

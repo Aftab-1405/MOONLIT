@@ -1,5 +1,5 @@
 import { Box, Typography, useTheme } from '@mui/material';
-import { alpha } from '@mui/material/styles';
+import { alpha, keyframes } from '@mui/material/styles';
 import { memo, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -24,26 +24,28 @@ import { TRANSITIONS } from '@/theme/themeEffects';
 const CANVAS_LANGUAGES = new Set(['diagram-flow']);
 const REMARK_PLUGINS = [remarkGfm];
 
+const streamingCaret = keyframes`
+  0%, 45% { opacity: 0.72; }
+  55%, 100% { opacity: 0.16; }
+`;
+
 const InlineCode = memo(function InlineCode({ children, theme }) {
   return (
     <Typography
       component="code"
       sx={{
         fontFamily: theme.typography.fontFamilyMono,
-        fontSize: '0.85em',
-        backgroundColor:
-          theme.palette.mode === 'dark'
-            ? alpha(theme.palette.text.primary, 0.12)
-            : alpha(theme.palette.text.primary, 0.08),
-        px: 0.75,
-        py: 0.25,
-        borderRadius: '6px',
-        fontWeight: 500,
-        wordBreak: 'break-word',
-        color:
-          theme.palette.mode === 'dark'
-            ? alpha(theme.palette.text.primary, 0.9)
-            : alpha(theme.palette.text.primary, 0.85),
+        fontSize: '0.84em',
+        lineHeight: 1,
+        backgroundColor: theme.palette.action.selected,
+        px: '0.42em',
+        py: '0.16em',
+        borderRadius: '5px',
+        fontWeight: 400,
+        fontVariantLigatures: 'none',
+        fontFeatureSettings: '"liga" 0, "calt" 0',
+        overflowWrap: 'anywhere',
+        color: theme.palette.text.primary,
       }}
     >
       {children}
@@ -55,8 +57,10 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
   content,
   onRunQuery,
   isStreaming = false,
+  variant = 'response',
 }) {
   const theme = useTheme();
+  const isCompact = variant === 'compact';
 
   const processedContent = useMemo(() => {
     if (typeof content !== 'string') return content;
@@ -125,14 +129,13 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
         <Box
           sx={{
             overflowX: 'auto',
-            my: 2,
+            my: isCompact ? 1 : 2,
             borderRadius: '8px',
             border: '1px solid',
-            borderColor: alpha(theme.palette.text.primary, 0.075),
-            backgroundColor: alpha(
-              theme.palette.text.primary,
-              theme.palette.mode === 'dark' ? 0.022 : 0.014,
-            ),
+            borderColor: theme.palette.border.subtle,
+            backgroundColor: theme.palette.background.paper,
+            scrollbarWidth: 'thin',
+            scrollbarColor: `${alpha(theme.palette.text.primary, 0.2)} transparent`,
           }}
         >
           <Box
@@ -148,92 +151,164 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
         </Box>
       ),
     }),
-    [onRunQuery, isStreaming, theme],
+    [isCompact, onRunQuery, isStreaming, theme],
   );
 
   const containerSx = useMemo(
     () => ({
       overflowWrap: 'anywhere',
       wordBreak: 'break-word',
+      color: theme.palette.text.primary,
+      ...(isCompact ? theme.typography.uiResponseCompact : theme.typography.uiResponseBody),
 
-      '& p': { my: 1.2, lineHeight: 1.72 },
-      '& p:first-of-type': { mt: 0 },
-      '& p:last-child': { mb: 0 },
-      '& ul, & ol': {
-        pl: 2.5,
-        my: 1.25,
+      '& p': { m: 0, lineHeight: 'inherit' },
+      '& p + p': { mt: isCompact ? 0.8 : 1.05 },
+      '& strong': {
+        color: 'inherit',
+        fontWeight: 400,
       },
-      '& li': { mb: 0.5, minHeight: '1.5em', lineHeight: 1.7 },
+      '& em': { color: 'inherit' },
+      '& del': {
+        color: theme.palette.text.secondary,
+        textDecorationThickness: '1px',
+      },
+      '& ul, & ol': {
+        pl: isCompact ? 2.15 : 2.5,
+        my: isCompact ? 0.8 : 1.05,
+      },
+      '& ul ul, & ul ol, & ol ul, & ol ol': {
+        mt: 0.4,
+        mb: 0.25,
+      },
+      '& li': {
+        mb: isCompact ? 0.28 : 0.42,
+        minHeight: '1.45em',
+        lineHeight: 'inherit',
+        pl: 0.15,
+      },
+      '& li:last-child': { mb: 0 },
+      '& li::marker': {
+        color: theme.palette.layer.secondaryContent,
+        fontWeight: 400,
+      },
+      '& .contains-task-list': {
+        listStyle: 'none',
+        pl: 0.25,
+      },
+      '& .task-list-item': {
+        display: 'flex',
+        alignItems: 'flex-start',
+        gap: 0.75,
+      },
+      '& .task-list-item > input': {
+        flexShrink: 0,
+        width: 14,
+        height: 14,
+        mt: '0.38em',
+        accentColor: theme.palette.text.primary,
+      },
       '& a': {
         color: 'text.primary',
-        textDecoration: 'none',
-        borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.22)}`,
+        textDecorationLine: 'underline',
+        textDecorationColor: alpha(theme.palette.text.primary, 0.28),
+        textDecorationThickness: '1px',
+        textUnderlineOffset: '0.18em',
         transition: TRANSITIONS.default,
         [HOVER_CAPABLE_QUERY]: {
           '&:hover': {
             color: 'text.primary',
-            borderBottomColor: theme.palette.text.primary,
+            textDecorationColor: theme.palette.text.primary,
           },
+        },
+        '&:focus-visible': {
+          outline: `2px solid ${theme.palette.border.focus}`,
+          outlineOffset: 3,
+          borderRadius: '2px',
         },
       },
       '& img': {
         maxWidth: '100%',
         height: 'auto',
         display: 'block',
+        my: isCompact ? 1 : 1.5,
         borderRadius: '8px',
+        border: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
       },
       '& blockquote': {
-        borderLeft: `2px solid ${alpha(theme.palette.text.primary, 0.16)}`,
+        borderLeft: `2px solid ${alpha(theme.palette.text.primary, 0.18)}`,
         margin: 0,
-        my: 1.5,
-        pl: 1.5,
-        py: 0.5,
+        my: isCompact ? 0.9 : 1.35,
+        pl: isCompact ? 1.15 : 1.4,
+        pr: isCompact ? 0.75 : 1,
+        py: isCompact ? 0.55 : 0.7,
+        borderRadius: '0 8px 8px 0',
+        backgroundColor: theme.palette.layer.barely,
         color: theme.palette.text.secondary,
       },
+      '& blockquote p + p': { mt: 0.65 },
       '& hr': {
         border: 'none',
         borderTop: `1px solid ${alpha(theme.palette.text.primary, 0.08)}`,
-        my: 1.5,
+        my: isCompact ? 1.15 : 1.8,
       },
       '& h1, & h2, & h3': {
-        fontFamily: theme.typography.h1.fontFamily,
         color: theme.palette.text.primary,
-        lineHeight: 1.3,
-        mt: 2.5,
-        mb: 1,
+        scrollMarginTop: 88,
       },
-      '& h1': { fontSize: '1.4rem', fontWeight: 700, letterSpacing: '-0.02em' },
-      '& h2': { fontSize: '1.2rem', fontWeight: 700, letterSpacing: '-0.015em' },
-      '& h3': { fontSize: '1.05rem', fontWeight: 600, letterSpacing: '-0.01em' },
+      '& h1': {
+        ...(isCompact
+          ? { ...theme.typography.uiResponseCompact, fontWeight: 400 }
+          : theme.typography.uiResponseHeading1),
+        mt: isCompact ? 1.35 : 2.15,
+        mb: isCompact ? 0.55 : 0.85,
+      },
+      '& h2': {
+        ...(isCompact
+          ? { ...theme.typography.uiResponseCompact, fontWeight: 400 }
+          : theme.typography.uiResponseHeading2),
+        mt: isCompact ? 1.2 : 1.9,
+        mb: isCompact ? 0.5 : 0.75,
+      },
+      '& h3': {
+        ...(isCompact
+          ? { ...theme.typography.uiResponseCompact, fontWeight: 400 }
+          : theme.typography.uiResponseHeading3),
+        mt: isCompact ? 1.05 : 1.55,
+        mb: isCompact ? 0.4 : 0.6,
+      },
       '& h4, & h5, & h6': {
-        fontSize: '0.95rem',
-        fontWeight: 600,
+        fontFamily: theme.typography.fontFamily,
+        fontSize: isCompact ? 'inherit' : { xs: '0.9375rem', sm: '0.975rem' },
+        fontWeight: 400,
         color: theme.palette.text.primary,
-        mt: 1.5,
-        mb: 0.5,
+        mt: isCompact ? 1 : 1.4,
+        mb: 0.45,
         lineHeight: 1.4,
+        letterSpacing: '-0.008em',
       },
+      '& > :first-child': { mt: 0 },
+      '& > :last-child': { mb: 0 },
       '& table': {
         overflowWrap: 'normal',
         wordBreak: 'normal',
-        ...theme.typography.uiBodyTable,
+        ...(isCompact ? theme.typography.uiResponseCompact : theme.typography.uiBodyTable),
       },
       '& th': {
-        bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.045 : 0.028),
-        fontWeight: 600,
+        bgcolor: theme.palette.layer.faint,
+        fontWeight: 400,
         textAlign: 'left',
-        px: { xs: 1.25, sm: 2 },
-        py: { xs: 0.85, sm: 1 },
+        px: { xs: 1, md: 2 },
+        py: 1,
         borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
         // Headers wrap to a max of 2 lines before truncating with an ellipsis.
         // `whiteSpace: nowrap` (the previous value) forced every table to
         // overflow horizontally even when the content was short.
         whiteSpace: 'normal',
-        ...theme.typography.uiCaptionMd,
+        ...(isCompact ? theme.typography.uiCaptionSm : theme.typography.uiCaptionMd),
       },
       '& td': {
-        px: { xs: 1.25, sm: 2 },
-        py: { xs: 0.85, sm: 1 },
+        px: { xs: 1, md: 2 },
+        py: 1,
         borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.06)}`,
         // Allow cell content to wrap by default. Long strings (URLs, code,
         // hashes) still break via `word-break: break-word` set on the root.
@@ -244,17 +319,40 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
       // Subtle row hover — only on hover-capable devices.
       [HOVER_CAPABLE_QUERY]: {
         '& tbody tr:hover td': {
-          bgcolor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.04 : 0.024),
+          bgcolor: theme.palette.action.hover,
         },
       },
+      '&.is-streaming > p:last-child::after, &.is-streaming > ul:last-child li:last-child::after, &.is-streaming > ol:last-child li:last-child::after, &.is-streaming > blockquote:last-child p:last-child::after':
+        {
+          content: '""',
+          display: 'inline-block',
+          width: '2px',
+          height: '0.95em',
+          ml: '0.2em',
+          borderRadius: '1px',
+          verticalAlign: '-0.1em',
+          backgroundColor: alpha(theme.palette.text.primary, 0.82),
+          animation: `${streamingCaret} 1s ease-in-out infinite`,
+        },
+      '@media (prefers-reduced-motion: reduce)': {
+        '&.is-streaming > p:last-child::after, &.is-streaming > ul:last-child li:last-child::after, &.is-streaming > ol:last-child li:last-child::after, &.is-streaming > blockquote:last-child p:last-child::after':
+          {
+            animation: 'none',
+            opacity: 0.55,
+          },
+      },
     }),
-    [theme],
+    [isCompact, theme],
   );
 
   return (
-    <Box sx={containerSx}>
+    <Box
+      className={isStreaming && String(processedContent || '').trim() ? 'is-streaming' : undefined}
+      aria-busy={isStreaming || undefined}
+      sx={containerSx}
+    >
       <ReactMarkdown remarkPlugins={REMARK_PLUGINS} components={components}>
-        {processedContent}
+        {processedContent || ''}
       </ReactMarkdown>
     </Box>
   );

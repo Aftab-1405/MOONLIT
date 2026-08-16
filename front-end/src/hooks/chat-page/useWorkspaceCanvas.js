@@ -7,7 +7,7 @@
  * @module hooks/useWorkspaceCanvas
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 const MIN_CANVAS_WIDTH_FLOOR = 320;
 const MIN_CANVAS_WIDTH_RATIO = 0.3;
@@ -44,22 +44,29 @@ export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
   const [workspaceCanvasArtifact, setWorkspaceCanvasArtifact] = useState(null);
   const [hasBeenResized, setHasBeenResized] = useState(false);
   const [workspaceCanvasWidth, setWorkspaceCanvasWidth] = useState(DEFAULT_CANVAS_WIDTH);
+  const sidebarWidthRef = useRef(sidebarWidth);
+  const {
+    minWidth: workspaceCanvasMinWidth,
+    maxWidth: workspaceCanvasMaxWidth,
+  } = getCanvasWidthBounds(sidebarWidth);
 
-  const handleOpenCanvasArtifact = useCallback(
-    (artifact) => {
-      if (!artifact?.type) return;
-      setWorkspaceCanvasArtifact(artifact);
-      setWorkspaceCanvasOpen(true);
-      setHasBeenResized(false);
-      setWorkspaceCanvasWidth(() => {
-        const workspace = getWorkspaceWidth(sidebarWidth);
-        const half = Math.floor(workspace * 0.5);
-        const { minWidth, maxWidth } = getCanvasWidthBounds(sidebarWidth);
-        return Math.min(maxWidth, Math.max(minWidth, half));
-      });
-    },
-    [sidebarWidth],
-  );
+  useEffect(() => {
+    sidebarWidthRef.current = sidebarWidth;
+  }, [sidebarWidth]);
+
+  const handleOpenCanvasArtifact = useCallback((artifact) => {
+    if (!artifact?.type) return;
+    setWorkspaceCanvasArtifact(artifact);
+    setWorkspaceCanvasOpen(true);
+    setHasBeenResized(false);
+    setWorkspaceCanvasWidth(() => {
+      const currentSidebarWidth = sidebarWidthRef.current;
+      const workspace = getWorkspaceWidth(currentSidebarWidth);
+      const half = Math.floor(workspace * 0.5);
+      const { minWidth, maxWidth } = getCanvasWidthBounds(currentSidebarWidth);
+      return Math.min(maxWidth, Math.max(minWidth, half));
+    });
+  }, []);
 
   const handleOpenSqlEditor = useCallback(
     (query = '', results = null) => {
@@ -79,13 +86,12 @@ export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
     setWorkspaceCanvasOpen(false);
   }, []);
 
-  const handleCanvasResize = useCallback(
-    (deltaX) => {
-      setHasBeenResized(true);
-      setWorkspaceCanvasWidth((prev) => clampCanvasWidth(prev - deltaX, sidebarWidth));
-    },
-    [sidebarWidth],
-  );
+  const handleCanvasResize = useCallback((deltaX) => {
+    setHasBeenResized(true);
+    setWorkspaceCanvasWidth((prev) =>
+      clampCanvasWidth(prev - deltaX, sidebarWidthRef.current),
+    );
+  }, []);
 
   useEffect(() => {
     if (!workspaceCanvasOpen) return undefined;
@@ -122,6 +128,8 @@ export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
     workspaceCanvasOpen,
     workspaceCanvasArtifact,
     workspaceCanvasWidth,
+    workspaceCanvasMinWidth,
+    workspaceCanvasMaxWidth,
     handleOpenCanvasArtifact,
     handleOpenSqlEditor,
     handleCloseWorkspaceCanvas,

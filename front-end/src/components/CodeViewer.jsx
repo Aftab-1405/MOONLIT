@@ -1,16 +1,11 @@
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import WrapTextRoundedIcon from '@mui/icons-material/WrapTextRounded';
 import { Box, IconButton, Tooltip, Typography, useTheme } from '@mui/material';
-import { alpha } from '@mui/material/styles';
-import { CodeToTokenTransformStream } from '@shikijs/stream';
-import { ShikiStreamRenderer } from '@shikijs/stream/react';
+import { alpha, keyframes } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ButtonLoadingSpinner } from '@/components';
+import ButtonLoadingSpinner from '@/components/common/ButtonLoadingSpinner';
+import { CheckIcon, CopyIcon, ExecuteIcon, WrapTextIcon } from '@/components/icons';
+import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { copyToClipboard } from '@/utils/clipboard';
-import { getShikiHighlighter } from '@/utils/shiki';
 
 /**
  * CodeViewer — renders code blocks inside AI messages.
@@ -50,6 +45,11 @@ const SQL_LANGUAGES = new Set([
   'plsql',
 ]);
 
+const livePulse = keyframes`
+  0%, 100% { opacity: 0.42; transform: scale(0.82); }
+  50% { opacity: 1; transform: scale(1); }
+`;
+
 const ActionButton = memo(function ActionButton({ title, onClick, disabled, icon, active }) {
   const theme = useTheme();
   return (
@@ -61,9 +61,7 @@ const ActionButton = memo(function ActionButton({ title, onClick, disabled, icon
           disabled={disabled}
           aria-label={title}
           sx={{
-            width: 28,
-            height: 28,
-            borderRadius: '6px',
+            ...getResponsivePillIconButtonSx(theme, { desktopSize: 28 }),
             color: active ? 'text.primary' : 'text.secondary',
             transition: 'all 0.15s ease',
             backgroundColor: 'transparent',
@@ -71,11 +69,11 @@ const ActionButton = memo(function ActionButton({ title, onClick, disabled, icon
             [HOVER_CAPABLE_QUERY]: {
               '&:hover': {
                 color: 'text.primary',
-                backgroundColor: alpha(theme.palette.text.primary, 0.04),
+                backgroundColor: theme.palette.action.hover,
               },
             },
             '&.Mui-focusVisible': {
-              outline: `2px solid ${alpha(theme.palette.primary.main, 0.5)}`,
+              outline: `2px solid ${theme.palette.border.focus}`,
               outlineOffset: 1,
             },
           }}
@@ -106,8 +104,10 @@ function CodeViewer({
 
   // ShikiStream state — the single render path for both streaming and static.
   const [tokensStream, setTokensStream] = useState(null);
+  const [StreamRenderer, setStreamRenderer] = useState(null);
   const controllerRef = useRef(null);
   const lastLengthRef = useRef(0);
+  const latestCodeRef = useRef('');
 
   useEffect(() => {
     return () => {
@@ -162,7 +162,7 @@ function CodeViewer({
     }
   }, [onRunQuery, isSQL, isRunning, code]);
 
-  const shikiTheme = theme.palette.mode === 'dark' ? 'dracula-soft' : 'github-light';
+  const shikiTheme = theme.palette.integration.codeTheme;
 
   // ── Single ShikiStream setup effect ──────────────────────────────────────
   // This runs for BOTH streaming and static code. The stream is created once
@@ -170,7 +170,6 @@ function CodeViewer({
   // incrementally (streaming) or all at once (static) by the feed effect
   // below.
   //
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the stream is initialized once per (language, theme); code updates are fed by the separate feed effect below.
   useEffect(() => {
     let controller;
     let active = true;
@@ -188,9 +187,18 @@ function CodeViewer({
 
     lastLengthRef.current = 0;
 
-    getShikiHighlighter().then((highlighter) => {
-      if (!active) return;
+    const setupHighlighter = async () => {
       try {
+        const [{ CodeToTokenTransformStream }, { ShikiStreamRenderer }, { getShikiHighlighter }] =
+          await Promise.all([
+            import('@shikijs/stream'),
+            import('@shikijs/stream/react'),
+            import('@/utils/shiki'),
+          ]);
+        if (!active) return;
+        const highlighter = await getShikiHighlighter();
+        if (!active) return;
+        setStreamRenderer(() => ShikiStreamRenderer);
         const transformer = new CodeToTokenTransformStream({
           highlighter,
           lang: isSQL ? 'sql' : detectedLanguage || 'text',
@@ -208,25 +216,32 @@ function CodeViewer({
         // immediately. The ShikiStreamRenderer tokenizes synchronously
         // and renders the same DOM as a streaming render — just without
         // the incremental arrivals.
-        if (code) {
-          controller.enqueue(code);
-          lastLengthRef.current = code.length;
+        const initialCode = latestCodeRef.current;
+        // The feed effect can enqueue before the async highlighter finishes
+        // (ReadableStream buffers those writes). Only seed here when nothing
+        // has been written yet; otherwise the same block would render twice.
+        if (initialCode && lastLengthRef.current === 0) {
+          controller.enqueue(initialCode);
+          lastLengthRef.current = initialCode.length;
         }
       } catch (err) {
         console.error('Shiki stream setup error:', err);
       }
-    });
+    };
+    setupHighlighter();
 
     return () => {
       active = false;
       if (controllerRef.current === controller) {
         try {
           controller.close();
-        } catch (_) { }
+        } catch {
+          // The stream may already be closed during rapid unmounts.
+        }
         controllerRef.current = null;
       }
     };
-  }, [isStreaming, detectedLanguage, isSQL, shikiTheme]);
+  }, [detectedLanguage, isSQL, shikiTheme]);
 
   // ── Feed effect — incremental code arrival ───────────────────────────────
   // For streaming code: feeds only the NEW characters (delta) into the stream
@@ -235,17 +250,20 @@ function CodeViewer({
   // the delta check (`code.length > lastLengthRef.current`) is false and
   // nothing happens.
   useEffect(() => {
+    latestCodeRef.current = code;
     if (controllerRef.current && code.length > lastLengthRef.current) {
       const delta = code.slice(lastLengthRef.current);
       try {
         controllerRef.current.enqueue(delta);
         lastLengthRef.current = code.length;
-      } catch (_) { }
+      } catch {
+        // Ignore writes racing with stream disposal.
+      }
     }
   }, [code]);
 
   // Layout styling definitions
-  const containerBg = 'transparent';
+  const containerBg = transparent || simple ? 'transparent' : theme.palette.code.background;
   const containerBorder =
     transparent || simple ? 'transparent' : alpha(theme.palette.text.primary, 0.1);
 
@@ -260,6 +278,9 @@ function CodeViewer({
       padding: 0,
       whiteSpace: wrapLongLines ? 'pre-wrap' : 'pre',
       overflowWrap: wrapLongLines ? 'anywhere' : 'normal',
+      tabSize: 2,
+      fontVariantLigatures: 'none',
+      fontFeatureSettings: '"liga" 0, "calt" 0',
       '& code': {
         fontFamily: 'inherit',
         fontSize: 'inherit',
@@ -303,8 +324,8 @@ function CodeViewer({
   // to plain text so the user sees the code immediately — Shiki will swap in
   // highlighted tokens as soon as the stream is piped.
   const renderCode = () => {
-    if (tokensStream) {
-      return <ShikiStreamRenderer stream={tokensStream} />;
+    if (tokensStream && StreamRenderer) {
+      return <StreamRenderer stream={tokensStream} />;
     }
     return code;
   };
@@ -360,23 +381,56 @@ function CodeViewer({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          pt: 1.5,
+          minHeight: 42,
+          pt: 1,
           pb: 0.5,
-          px: 2,
+          px: { xs: 1.5, md: 2 },
         }}
       >
-        <Typography
-          sx={{
-            color: 'text.secondary',
-            fontFamily: theme.typography.fontFamilyMono,
-            fontSize: '0.8rem',
-            textTransform: 'lowercase',
-            opacity: 0.8,
-            userSelect: 'none',
-          }}
-        >
-          {detectedLanguage || 'code'}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+          <Typography
+            sx={{
+              color: 'text.secondary',
+              fontFamily: theme.typography.fontFamilyMono,
+              ...theme.typography.uiMonoLabel,
+              textTransform: 'lowercase',
+              opacity: 0.82,
+              userSelect: 'none',
+            }}
+          >
+            {detectedLanguage || 'code'}
+          </Typography>
+          {isStreaming && (
+            <Box
+              role="status"
+              aria-label="Code is streaming"
+              sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}
+            >
+              <Box
+                aria-hidden
+                sx={{
+                  width: 5,
+                  height: 5,
+                  borderRadius: '50%',
+                  bgcolor: 'text.secondary',
+                  animation: `${livePulse} 1.25s ease-in-out infinite`,
+                  '@media (prefers-reduced-motion: reduce)': { animation: 'none', opacity: 0.6 },
+                }}
+              />
+              <Typography
+                component="span"
+                sx={{
+                  ...theme.typography.uiCaption2xs,
+                  color: 'text.secondary',
+                  opacity: 0.72,
+                  userSelect: 'none',
+                }}
+              >
+                streaming
+              </Typography>
+            </Box>
+          )}
+        </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
           {hasLongLines && (
@@ -384,19 +438,19 @@ function CodeViewer({
               title={wrapLongLines ? 'Unwrap lines' : 'Wrap lines'}
               onClick={() => setWrapLongLines((v) => !v)}
               active={wrapLongLines}
-              icon={<WrapTextRoundedIcon sx={{ fontSize: 18 }} />}
+              icon={<WrapTextIcon sx={{ fontSize: 18 }} />}
             />
           )}
           {isSQL && onRunQuery && (
             <ActionButton
               title={isRunning ? 'Running…' : 'Run query'}
               onClick={handleRun}
-              disabled={isRunning}
+              disabled={isRunning || isStreaming}
               icon={
                 isRunning ? (
                   <ButtonLoadingSpinner size={14} />
                 ) : (
-                  <PlayArrowRoundedIcon sx={{ fontSize: 18 }} />
+                  <ExecuteIcon sx={{ fontSize: 18 }} />
                 )
               }
             />
@@ -404,11 +458,12 @@ function CodeViewer({
           <ActionButton
             title={copied ? 'Copied!' : 'Copy code'}
             onClick={handleCopy}
+            disabled={isStreaming}
             icon={
               copied ? (
-                <CheckRoundedIcon sx={{ fontSize: 18, color: 'success.main' }} />
+                <CheckIcon sx={{ fontSize: 18, color: 'success.main' }} />
               ) : (
-                <ContentCopyRoundedIcon sx={{ fontSize: 16 }} />
+                <CopyIcon sx={{ fontSize: 16 }} />
               )
             }
           />
@@ -420,8 +475,15 @@ function CodeViewer({
         sx={{
           overflowX: 'auto',
           pt: 0.5,
-          pb: 2,
-          px: 2,
+          pb: { xs: 1.5, md: 2 },
+          px: { xs: 1.5, md: 2 },
+          scrollbarWidth: 'thin',
+          scrollbarColor: `${alpha(theme.palette.text.primary, 0.2)} transparent`,
+          '&::-webkit-scrollbar': { height: 6 },
+          '&::-webkit-scrollbar-thumb': {
+            borderRadius: 999,
+            bgcolor: alpha(theme.palette.text.primary, 0.18),
+          },
         }}
       >
         <Box

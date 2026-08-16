@@ -1,26 +1,28 @@
-import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
-import AutorenewRoundedIcon from '@mui/icons-material/AutorenewRounded';
-import CancelRoundedIcon from '@mui/icons-material/CancelRounded';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { Box, ButtonBase, Collapse, Link, Typography, useTheme } from '@mui/material';
-import { alpha, keyframes } from '@mui/material/styles';
-import { memo, useMemo, useState } from 'react';
+import { keyframes } from '@mui/material/styles';
+import { memo, useId, useMemo, useState } from 'react';
 import { CodeViewer } from '@/components';
+import {
+  AiSparkleIcon,
+  CancelIcon,
+  CheckIcon,
+  ExpandMoreIcon,
+  ProcessingIcon,
+  TimeIcon,
+} from '@/components/icons';
 import { MarkdownRenderer } from '@/features/chat';
 import {
   DetailLabel,
   ToolResultDetails,
 } from '@/features/chat/ai-response-steps/ToolResultDetails';
 import {
-  shimmer,
+  getFlatStepControlSx,
   slideIn,
   TIMELINE_LINE_X,
 } from '@/features/chat/ai-response-steps/timelineShared';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
+import { getInteractionColors } from '@/styles/shared';
 import { TRANSITIONS } from '@/theme/index';
-import { BRAND } from '@/theme/tokens';
 
 /**
  * AI reasoning-step timeline primitives.
@@ -29,12 +31,13 @@ import { BRAND } from '@/theme/tokens';
  * left (anchored to the timeline line) and content on the right.
  *
  * Step types & their semantic iconography:
- *   - ThinkingStep   → AccessTimeRounded (clock) — "AI is thinking/working"
- *   - SkillStep      → AutoAwesomeRounded (sparkles) — "skill activated"
- *   - ToolStep (running)    → AutorenewRounded (spinning) — "tool executing"
- *   - ToolStep (done)       → CheckRounded (filled check) — "tool succeeded"
- *   - ToolStep (error)      → CancelRounded (filled x) — "tool failed"
- *   - DoneIndicator         → CheckRounded — "workflow complete"
+ *   - ThinkingStep (active) → TimeIcon — "AI is reasoning"
+ *   - ThinkingStep (done)   → CheckIcon — "reasoning completed"
+ *   - SkillStep             → AiSparkleIcon — "skill activated"
+ *   - ToolStep (running)    → ProcessingIcon — "tool executing"
+ *   - ToolStep (done)       → CheckIcon — "tool succeeded"
+ *   - ToolStep (error)      → CancelIcon — "tool failed"
+ *   - DoneIndicator         → CheckIcon — "workflow complete"
  *
  * The thinking/skill icons are outline style (in-progress states). The
  * done/error icons are filled (terminal states) — filled reads as "this is
@@ -53,17 +56,13 @@ const pulse = keyframes`
   50%       { opacity: 0.82; }
 `;
 
-const TIMELINE_CONTENT_PL = { xs: 3.5, sm: 4.25 };
+const TIMELINE_CONTENT_PL = { xs: 3.5, md: 4 };
+const TIMELINE_ITEM_PY = 0.5;
+const TIMELINE_NODE_TOP = { xs: 20, sm: 21 };
+const STEP_TITLE_MIN_HEIGHT = { xs: 44, md: 32 };
+const REASONING_MAX_WIDTH = '72ch';
 
-const getTimelineNodeSx = ({
-  isDark,
-  color,
-  isCurrent = false,
-  shadowColor,
-  animation,
-  theme,
-  top = { xs: 17, sm: 19 },
-}) => ({
+const getTimelineNodeSx = ({ color, animation, theme, top = TIMELINE_NODE_TOP }) => ({
   position: 'absolute',
   left: TIMELINE_LINE_X,
   top,
@@ -77,10 +76,10 @@ const getTimelineNodeSx = ({
   color,
   padding: 0,
   border: 0,
-  boxShadow:
-    isCurrent && shadowColor ? `0 0 0 3px ${alpha(shadowColor, isDark ? 0.14 : 0.1)}` : 'none',
   opacity: 1,
-  transition: 'border-color 140ms ease, box-shadow 140ms ease, color 140ms ease',
+  transition: theme.transitions.create('color', {
+    duration: theme.transitions.duration.shorter,
+  }),
   ...(animation
     ? {
         animation,
@@ -91,37 +90,22 @@ const getTimelineNodeSx = ({
 });
 
 const getStepButtonSx = (theme, { interactive = false } = {}) => {
-  const isDark = theme.palette.mode === 'dark';
-
   return {
+    ...(interactive
+      ? getFlatStepControlSx(theme)
+      : {
+          minHeight: STEP_TITLE_MIN_HEIGHT,
+          color: theme.palette.text.secondary,
+          borderRadius: 0,
+        }),
     width: '100%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'flex-start',
-    gap: { xs: 0.75, sm: 1 },
-    py: { xs: 0.3, sm: 0.35 },
+    gap: 1,
+    py: 0,
     px: 0,
-    minHeight: 34,
     cursor: interactive ? 'pointer' : 'default',
-    borderRadius: '8px',
-    bgcolor: 'transparent',
-    transition: TRANSITIONS.default,
-    ...(interactive
-      ? {
-          [HOVER_CAPABLE_QUERY]: {
-            '&:hover .step-text': {
-              color: alpha(theme.palette.text.primary, isDark ? 0.9 : 0.8),
-            },
-            '&:hover .step-arrow': {
-              color: alpha(theme.palette.text.secondary, isDark ? 0.82 : 0.72),
-            },
-          },
-          '&:focus-visible': {
-            outline: `2px solid ${alpha(theme.palette.text.primary, isDark ? 0.16 : 0.11)}`,
-            outlineOffset: 2,
-          },
-        }
-      : {}),
   };
 };
 
@@ -133,30 +117,24 @@ export const ThinkingStep = memo(function ThinkingStep({
 }) {
   const [showMore, setShowMore] = useState(false);
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const isActive = !isComplete;
+  const interaction = getInteractionColors(theme);
 
   const lines = content.split('\n');
   const isLong = lines.length > 6 || content.length > 400;
   const displayContent = showMore ? content : lines.slice(0, 6).join('\n');
 
-  // Thinking node uses the muted text color — thinking is "internal" and
-  // shouldn't compete with tool/done nodes for attention. When active, the
-  // icon gently pulses to signal "work in progress".
-  const nodeColor = theme.palette.text.secondary;
+  const StatusIcon = isComplete ? CheckIcon : TimeIcon;
+  const nodeColor = isActive ? theme.palette.info.main : theme.palette.success.main;
 
   const thinkingNodeSx = useMemo(
     () =>
       getTimelineNodeSx({
-        isDark,
         color: nodeColor,
-        isCurrent,
-        shadowColor: theme.palette.text.secondary,
         animation: isActive ? `${pulse} 2s ease-in-out infinite` : undefined,
         theme,
-        top: { xs: 18.5, sm: 21 },
       }),
-    [isActive, isCurrent, isDark, nodeColor, theme],
+    [isActive, nodeColor, theme],
   );
 
   return (
@@ -166,46 +144,76 @@ export const ThinkingStep = memo(function ThinkingStep({
         '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
-        py: { xs: 0.65, sm: 0.85 },
+        py: TIMELINE_ITEM_PY,
       }}
     >
-      <AccessTimeRoundedIcon sx={thinkingNodeSx} />
+      <StatusIcon sx={thinkingNodeSx} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        {content ? (
+        <Box
+          sx={{
+            minHeight: STEP_TITLE_MIN_HEIGHT,
+            display: 'flex',
+            alignItems: 'center',
+          }}
+        >
+          <Typography
+            sx={{
+              color: theme.palette.text.primary,
+              ...theme.typography.uiBodyMd,
+              fontFamily: theme.typography.fontFamily,
+              fontWeight: theme.typography.fontWeightMedium,
+              ...(!content && isActive ? { color: theme.palette.text.secondary } : {}),
+            }}
+          >
+            {isActive ? (content ? 'Thinking' : 'Thinking\u2026') : 'Reasoning'}
+          </Typography>
+        </Box>
+
+        {content && (
           <>
             <Box
               sx={{
-                color: alpha(theme.palette.text.primary, isDark ? 0.76 : 0.68),
-                ...theme.typography.uiBodySm,
-                fontFamily: theme.typography.fontFamily,
-                lineHeight: { xs: 1.55, sm: 1.62 },
-                letterSpacing: 0,
-                pl: 0,
-                pr: 0,
-                py: { xs: 0.4, sm: 0.5 },
-                transition: 'color 140ms ease',
+                color: theme.palette.text.secondary,
+                ...theme.typography.uiResponseCompact,
+                maxWidth: REASONING_MAX_WIDTH,
+                overflowWrap: 'anywhere',
               }}
             >
               <MarkdownRenderer
                 content={showMore || !isLong ? displayContent : `${displayContent}\u2026`}
+                variant="compact"
+                isStreaming={isCurrent}
               />
             </Box>
             {isLong && (
               <Link
                 component="button"
                 onClick={() => setShowMore(!showMore)}
+                aria-expanded={showMore}
                 sx={{
                   mt: 0.6,
                   ...theme.typography.uiCaptionSm,
                   fontFamily: theme.typography.fontFamily,
-                  fontWeight: 500,
-                  color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
+                  fontWeight: theme.typography.fontWeightMedium,
+                  color: interaction.restingColor,
                   textDecoration: 'none',
                   cursor: 'pointer',
+                  borderRadius: '4px',
+                  p: 0,
+                  border: 0,
+                  backgroundColor: 'transparent',
                   transition: TRANSITIONS.default,
-                  '&:hover': {
-                    color: alpha(theme.palette.text.secondary, 0.82),
-                    textDecoration: 'underline',
+                  [HOVER_CAPABLE_QUERY]: {
+                    '&:hover': {
+                      color: interaction.hoverColor,
+                      textDecoration: 'underline',
+                      backgroundColor: 'transparent',
+                    },
+                  },
+                  '&:focus-visible': {
+                    color: interaction.hoverColor,
+                    outline: `2px solid ${interaction.focusRing}`,
+                    outlineOffset: 2,
                   },
                 }}
               >
@@ -213,38 +221,6 @@ export const ThinkingStep = memo(function ThinkingStep({
               </Link>
             )}
           </>
-        ) : (
-          <Typography
-            sx={{
-              ...theme.typography.uiBodySm,
-              fontFamily: theme.typography.fontFamily,
-              fontStyle: 'italic',
-              ...(isActive
-                ? {
-                    // Shimmer sweep — same technique as StepsAccordion summary.
-                    backgroundImage: `linear-gradient(90deg,
-                      ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 0%,
-                      ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 36%,
-                      ${alpha(theme.palette.text.primary, isDark ? 0.88 : 0.72)} 50%,
-                      ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 64%,
-                      ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 100%)`,
-                    backgroundSize: '220% 100%',
-                    backgroundClip: 'text',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    animation: `${shimmer} 2.4s linear infinite`,
-                    '@media (prefers-reduced-motion: reduce)': {
-                      backgroundImage: 'none',
-                      WebkitTextFillColor: 'currentColor',
-                      color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
-                      animation: 'none',
-                    },
-                  }
-                : { color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62) }),
-            }}
-          >
-            {isActive ? 'Thinking\u2026' : 'Thought process'}
-          </Typography>
         )}
       </Box>
     </Box>
@@ -257,19 +233,9 @@ function humanizeSkillName(name) {
   return name.replace(/[_-]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-/**
- * Renders activated skills in the timeline.
- * Uses the brand purple as the node color — skill activation is a "moment"
- * worth highlighting, and the brand color marks it as an identity-level
- * event (consistent with the welcome name, sidebar wordmark, etc.).
- */
-export const SkillStep = memo(function SkillStep({
-  skills = [],
-  isStreaming = false,
-  animDelay = 0,
-}) {
+/** Renders an activated skill as a completed timeline event. */
+export const SkillStep = memo(function SkillStep({ skills = [], animDelay = 0 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
 
   const SKILL_LABELS = {
     database_querying: 'Database',
@@ -284,21 +250,15 @@ export const SkillStep = memo(function SkillStep({
 
   const label = skills.map((s) => SKILL_LABELS[s] || humanizeSkillName(s)).join(', ');
 
-  // Brand purple node — skills are identity moments.
-  const nodeColor = BRAND.main;
+  const nodeColor = theme.palette.success.main;
 
   const skillNodeSx = useMemo(
     () =>
       getTimelineNodeSx({
-        isDark,
         color: nodeColor,
-        isCurrent: isStreaming,
-        shadowColor: BRAND.main,
-        animation: isStreaming ? `${pulse} 2s ease-in-out infinite` : undefined,
         theme,
-        top: { xs: 22, sm: 23 },
       }),
-    [isStreaming, isDark, nodeColor, theme],
+    [nodeColor, theme],
   );
 
   if (!skills.length) return null;
@@ -310,56 +270,35 @@ export const SkillStep = memo(function SkillStep({
         '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
-        py: { xs: 0.6, sm: 0.75 },
+        py: TIMELINE_ITEM_PY,
       }}
     >
-      <AutoAwesomeRoundedIcon sx={skillNodeSx} />
+      <AiSparkleIcon sx={skillNodeSx} />
       <Box
         sx={{
           width: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-start',
-          gap: { xs: 0.75, sm: 1 },
-          py: { xs: 0.3, sm: 0.35 },
+          gap: 1,
+          py: 0,
           px: 0,
-          minHeight: 34,
+          minHeight: STEP_TITLE_MIN_HEIGHT,
           minWidth: 0,
         }}
       >
         <Typography
           sx={{
-            ...theme.typography.uiBodySm,
+            color: theme.palette.text.secondary,
+            ...theme.typography.uiBodyMd,
             fontFamily: theme.typography.fontFamily,
-            fontWeight: 500,
+            fontWeight: theme.typography.fontWeightMedium,
             flex: 1,
             minWidth: 0,
             textAlign: 'left',
             whiteSpace: 'normal',
             overflowWrap: 'anywhere',
             lineHeight: 1.4,
-            ...(isStreaming
-              ? {
-                  backgroundImage: `linear-gradient(90deg,
-                    ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 0%,
-                    ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 36%,
-                    ${alpha(theme.palette.text.primary, isDark ? 0.88 : 0.72)} 50%,
-                    ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 64%,
-                    ${alpha(theme.palette.text.secondary, isDark ? 0.5 : 0.45)} 100%)`,
-                  backgroundSize: '220% 100%',
-                  backgroundClip: 'text',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  color: 'transparent',
-                  animation: `${shimmer} 2.8s linear infinite`,
-                  '@media (prefers-reduced-motion: reduce)': {
-                    backgroundImage: 'none',
-                    WebkitTextFillColor: 'currentColor',
-                    color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
-                    animation: 'none',
-                  },
-                }
-              : { color: alpha(theme.palette.text.primary, isDark ? 0.72 : 0.65) }),
           }}
         >
           {`Using ${label} skill${skills.length > 1 ? 's' : ''}`}
@@ -378,13 +317,12 @@ export const ToolStep = memo(function ToolStep({
   parsedResult,
   isError,
   isRunning,
-  isCurrent = false,
   isCompactMobile = false,
   animDelay = 0,
 }) {
   const [expanded, setExpanded] = useState(false);
+  const detailsId = useId();
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const isSqlTool = stepName === 'execute_query';
   const hasDetails = Boolean((isSqlTool && parsedArgs?.query) || parsedResult);
 
@@ -398,21 +336,17 @@ export const ToolStep = memo(function ToolStep({
   // Status iconography — filled icons for terminal states (done/error),
   // outline + spin for in-progress. Filled reads as "this is finished";
   // outline reads as "this is in progress".
-  const StatusIcon = isRunning
-    ? AutorenewRoundedIcon
-    : isError
-      ? CancelRoundedIcon
-      : CheckRoundedIcon;
+  const StatusIcon = isRunning ? ProcessingIcon : isError ? CancelIcon : CheckIcon;
 
   // Semantic node colors:
-  //   - running → text.primary (neutral, "working")
+  //   - running → info.main (active work)
   //   - error   → error.main (red, "failed")
   //   - done    → success.main (green, "succeeded")
   // Done uses GREEN instead of primary because green is the universal
   // "success" semantic color. The previous version used primary (monochrome)
   // which made success and running states look identical.
   const nodeColor = isRunning
-    ? theme.palette.text.primary
+    ? theme.palette.info.main
     : isError
       ? theme.palette.error.main
       : theme.palette.success.main;
@@ -420,19 +354,11 @@ export const ToolStep = memo(function ToolStep({
   const statusNodeSx = useMemo(
     () =>
       getTimelineNodeSx({
-        isDark,
         color: nodeColor,
-        isCurrent,
-        shadowColor: isRunning
-          ? theme.palette.text.primary
-          : isError
-            ? theme.palette.error.main
-            : theme.palette.success.main,
         animation: isRunning ? `${spin} 1s linear infinite` : undefined,
         theme,
-        top: { xs: 22, sm: 23 },
       }),
-    [isCurrent, isDark, isError, isRunning, nodeColor, theme],
+    [isRunning, nodeColor, theme],
   );
 
   return (
@@ -442,7 +368,7 @@ export const ToolStep = memo(function ToolStep({
         '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
-        py: { xs: 0.6, sm: 0.75 },
+        py: TIMELINE_ITEM_PY,
       }}
     >
       <StatusIcon sx={statusNodeSx} />
@@ -450,6 +376,11 @@ export const ToolStep = memo(function ToolStep({
       <ButtonBase
         onClick={() => hasDetails && setExpanded(!expanded)}
         disabled={!hasDetails}
+        aria-expanded={hasDetails ? expanded : undefined}
+        aria-controls={hasDetails ? detailsId : undefined}
+        aria-label={
+          hasDetails ? `${expanded ? 'Collapse' : 'Expand'} details for ${actionText}` : undefined
+        }
         sx={{
           ...getStepButtonSx(theme, { interactive: hasDetails }),
         }}
@@ -458,10 +389,10 @@ export const ToolStep = memo(function ToolStep({
         <Typography
           className="step-text"
           sx={{
-            color: alpha(theme.palette.text.primary, isDark ? 0.72 : 0.65),
-            ...theme.typography.uiBodySm,
+            color: 'inherit',
+            ...theme.typography.uiBodyMd,
             fontFamily: theme.typography.fontFamily,
-            fontWeight: 500,
+            fontWeight: theme.typography.fontWeightMedium,
             lineHeight: 1.4,
             minWidth: 0,
             overflowWrap: 'anywhere',
@@ -471,11 +402,11 @@ export const ToolStep = memo(function ToolStep({
           {actionText}
         </Typography>
         {hasDetails && (
-          <KeyboardArrowDownRoundedIcon
+          <ExpandMoreIcon
             className="step-arrow"
             sx={{
               fontSize: { xs: 13, sm: 15 },
-              color: alpha(theme.palette.text.secondary, isDark ? 0.68 : 0.58),
+              color: 'inherit',
               transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
               transition: 'transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), color 0.2s',
               ml: 'auto',
@@ -487,6 +418,7 @@ export const ToolStep = memo(function ToolStep({
       {hasDetails && (
         <Collapse in={expanded} timeout={200} unmountOnExit>
           <Box
+            id={detailsId}
             sx={{
               mt: 0.5,
               pl: { xs: 1, sm: 1.5 },
@@ -530,18 +462,16 @@ export const ToolStep = memo(function ToolStep({
 
 export const DoneIndicator = memo(function DoneIndicator() {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
 
   // Done = green check. Universal "success" semantic color.
   const doneNodeSx = useMemo(
     () =>
       getTimelineNodeSx({
-        isDark,
         color: theme.palette.success.main,
         theme,
         top: '50%',
       }),
-    [isDark, theme],
+    [theme],
   );
 
   return (
@@ -551,18 +481,19 @@ export const DoneIndicator = memo(function DoneIndicator() {
         alignItems: 'center',
         position: 'relative',
         pl: TIMELINE_CONTENT_PL,
-        py: { xs: 0.6, sm: 0.75 },
+        py: TIMELINE_ITEM_PY,
+        minHeight: { xs: 40, sm: 42 },
         animation: `${slideIn} 0.22s ease-out both`,
         '@media (prefers-reduced-motion: reduce)': { animation: 'none' },
       }}
     >
-      <CheckRoundedIcon sx={doneNodeSx} />
+      <CheckIcon sx={doneNodeSx} />
       <Typography
         sx={{
-          color: alpha(theme.palette.text.secondary, isDark ? 0.74 : 0.64),
+          color: theme.palette.text.secondary,
           ...theme.typography.uiCaptionSm,
           fontFamily: theme.typography.fontFamily,
-          fontWeight: 500,
+          fontWeight: 400,
           letterSpacing: '0.02em',
         }}
       >

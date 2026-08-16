@@ -1,9 +1,3 @@
-import AutoAwesomeRoundedIcon from '@mui/icons-material/AutoAwesomeRounded';
-import DarkModeRoundedIcon from '@mui/icons-material/DarkModeRounded';
-import LightModeRoundedIcon from '@mui/icons-material/LightModeRounded';
-import PaletteRoundedIcon from '@mui/icons-material/PaletteRounded';
-import PsychologyRoundedIcon from '@mui/icons-material/PsychologyRounded';
-import StorageRoundedIcon from '@mui/icons-material/StorageRounded';
 import {
   Box,
   Button,
@@ -12,15 +6,18 @@ import {
   MenuItem,
   Select,
   Switch,
-  ToggleButton,
-  ToggleButtonGroup,
   Typography,
   useMediaQuery,
 } from '@mui/material';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { queryClient, queryKeys } from '@/api/queryClient';
 import { DialogShell } from '@/components';
+import {
+  AiContextIcon,
+  AiSparkleIcon,
+  DatabaseIcon,
+} from '@/components/icons';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import {
   getPreferenceBackdropSx,
@@ -29,7 +26,6 @@ import {
   getPreferenceControlSx,
   getPreferencePaperSx,
   getPreferenceRootSx,
-  getPreferenceToggleGroupSx,
   PreferenceFooterActions,
   PreferenceLayout,
   PreferenceNavItem,
@@ -42,20 +38,19 @@ import UserDBContextManagerForAI from '@/features/overlays/settings/UserDBContex
 import { getPopoverPaperSx, UI_Z_INDEX } from '@/styles/shared';
 
 // Settings nav items. Icons are chosen for semantic clarity:
-//   - Appearance → Palette (color/style)
-//   - Moonlit (AI settings) → AutoAwesome (sparkles = AI magic)
-//   - Database → Storage (database cylinder, more modern than DatabaseIcon)
-//   - AI Context → Psychology (brain = AI memory/context)
+//   - Moonlit (AI settings) → canonical AI sparkle
+//   - Database → canonical database concept
+//   - AI Context → canonical AI-context concept
 const SECTIONS = [
-  { id: 'appearance', label: 'Appearance', icon: PaletteRoundedIcon },
-  { id: 'ai', label: 'Moonlit', icon: AutoAwesomeRoundedIcon },
-  { id: 'database', label: 'Database', icon: StorageRoundedIcon },
-  { id: 'context', label: 'AI Context', icon: PsychologyRoundedIcon },
+  { id: 'ai', label: 'Moonlit', icon: AiSparkleIcon },
+  { id: 'database', label: 'Database', icon: DatabaseIcon },
+  { id: 'context', label: 'AI Context', icon: AiContextIcon },
 ];
 
 function SettingsModal({ open, onClose, initialSection = null }) {
   const { settings, updateSetting, resetSettings } = useAppTheme();
-  const [activeSection, setActiveSection] = useState('appearance');
+  const [activeSection, setActiveSection] = useState('ai');
+  const headingRef = useRef(null);
 
   const llmOptions = queryClient.getQueryData(queryKeys.llmOptions) || {};
   const currentModel = settings.llmModel;
@@ -70,17 +65,23 @@ function SettingsModal({ open, onClose, initialSection = null }) {
         // eslint-disable-next-line react-hooks/set-state-in-effect -- Preserve initial-section routing when settings opens from UI actions.
         setActiveSection(initialSection);
       } else {
-        setActiveSection('appearance');
+        setActiveSection('ai');
       }
     }
   }, [open, initialSection]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const frame = requestAnimationFrame(() => headingRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   const theme = useMuiTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
 
   const selectMenuProps = useMemo(
     () => ({
-      PaperProps: { sx: getPopoverPaperSx(theme, theme.palette.mode === 'dark') },
+      PaperProps: { sx: getPopoverPaperSx(theme) },
       sx: { zIndex: UI_Z_INDEX.mainContentModal + 10 },
     }),
     [theme],
@@ -90,7 +91,6 @@ function SettingsModal({ open, onClose, initialSection = null }) {
   const settingsSurfaceWidth = '100vw';
   const mainContentDialogRootSx = useMemo(() => getPreferenceRootSx(), []);
   const controlSx = useMemo(() => getPreferenceControlSx(theme), [theme]);
-  const toggleGroupSx = useMemo(() => getPreferenceToggleGroupSx(theme), [theme]);
   const subtleButtonSx = useMemo(() => getPreferenceButtonSx(theme), [theme]);
 
   const NavContent = (
@@ -113,33 +113,6 @@ function SettingsModal({ open, onClose, initialSection = null }) {
 
   const renderContent = () => {
     switch (activeSection) {
-      case 'appearance':
-        return (
-          <Fade in key="appearance">
-            <Box>
-              <PreferenceSection title="Appearance">
-                <PreferenceRow label="Theme" description="Choose light or dark interface">
-                  <ToggleButtonGroup
-                    value={settings.theme}
-                    exclusive
-                    onChange={(_e, value) => value && updateSetting('theme', value)}
-                    size="small"
-                    sx={toggleGroupSx}
-                  >
-                    <ToggleButton value="light" aria-label="Light theme">
-                      <LightModeRoundedIcon sx={{ fontSize: 16, mr: 0.75 }} />
-                      Light
-                    </ToggleButton>
-                    <ToggleButton value="dark" aria-label="Dark theme">
-                      <DarkModeRoundedIcon sx={{ fontSize: 16, mr: 0.75 }} />
-                      Dark
-                    </ToggleButton>
-                  </ToggleButtonGroup>
-                </PreferenceRow>
-              </PreferenceSection>
-            </Box>
-          </Fade>
-        );
       case 'ai':
         return (
           <Fade in key="ai">
@@ -286,7 +259,7 @@ function SettingsModal({ open, onClose, initialSection = null }) {
                         value={0}
                         sx={{
                           color: 'warning.main',
-                          fontWeight: 500,
+                          fontWeight: 400,
                         }}
                       >
                         No Limit
@@ -385,7 +358,7 @@ function SettingsModal({ open, onClose, initialSection = null }) {
                   sx={(theme) => ({
                     ...theme.typography.uiCardTitle,
                     color: 'text.primary',
-                    fontWeight: 650,
+                    fontWeight: 400,
                     pb: { xs: 1.5, md: 2 },
                     letterSpacing: 0,
                   })}
@@ -424,7 +397,7 @@ function SettingsModal({ open, onClose, initialSection = null }) {
       backdropSx={getPreferenceBackdropSx(settingsSurfaceLeft, settingsSurfaceWidth)}
       bodySx={getPreferenceBodySx(theme)}
     >
-      <PreferencePageHeader title="Settings" onClose={onClose} />
+      <PreferencePageHeader title="Settings" onClose={onClose} headingRef={headingRef} />
 
       <PreferenceLayout sidebar={NavContent}>
         {renderContent()}

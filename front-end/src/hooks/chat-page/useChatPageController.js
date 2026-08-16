@@ -5,7 +5,7 @@
 // MainInterface. Each sub-hook owns one cohesive slice of state:
 //
 //   useChatPageSidebar          — sidebar open/collapse, mobile drawer, profile menu
-//   useChatPageOverlays         — modal/snackbar state + mindmap + conversation dialogs
+//   useChatPageOverlays         — modal/snackbar state + mindmap + delete confirmation
 //   useChatPageGuidedConfirm    — agent interrupt / step-limit / navigate-new-chat banner
 //   useChatPageCanvas           — workspace canvas + SQL-editor streaming injection
 //   useChatPageStreaming        — message streaming + interrupt handlers + usage metrics
@@ -17,7 +17,7 @@
 // single place where those wires cross.
 
 import { useTheme as useMuiTheme } from '@mui/material/styles';
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useDatabaseConnection } from '@/contexts/DatabaseContext';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import { useMindmapSchema } from '@/hooks';
@@ -31,11 +31,15 @@ import { useChatPageStreaming } from '@/hooks/chat-page/useChatPageStreaming';
 import { useConversationDialogs } from '@/hooks/chat-page/useConversationDialogs';
 import { useConversations } from '@/hooks/chat-page/useConversations';
 import { useOverlayState } from '@/hooks/chat-page/useOverlayState';
+import {
+  planOverlayLaunch,
+  resolveOverlayFocusTarget,
+} from '@/hooks/chat-page/overlayCoordination';
 import { useQueryExecution } from '@/hooks/chat-page/useQueryExecution';
 import { useResponsive } from '@/hooks/chat-page/useResponsive';
 import { useUiActionDispatcher } from '@/hooks/chat-page/useUiActionDispatcher';
 
-export function useChatPageController() {
+export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
   // ── Infrastructure ────────────────────────────────────────────────────────
   const theme = useMuiTheme();
   const { isDesktop } = useResponsive();
@@ -60,6 +64,8 @@ export function useChatPageController() {
     messages,
     setMessages,
     isConversationsLoading,
+    conversationListError,
+    conversationListFailureRevision,
     isConversationLoading,
     conversations,
     setConversations,
@@ -68,6 +74,7 @@ export function useChatPageController() {
     routeConversationId,
     routeConversationLoadState,
     fetchConversations,
+    retryConversations,
     registerStreamingConversation,
     handleDeleteConversation,
     handleRenameConversation,
@@ -86,39 +93,56 @@ export function useChatPageController() {
     setSettingsInitialSection,
     notifications,
     showSnackbar,
-    handleCloseDbModal,
-    handleCloseSettings,
+    handleCloseDbModal: closeDbModal,
+    handleCloseSettings: closeSettings,
     removeToast,
   } = useOverlayState();
 
-  // ── Conversation dialogs (delete / rename) ────────────────────────────────
+  const pendingPreferenceOverlayRef = useRef(null);
+  const preferenceReturnFocusRef = useRef(null);
+
+  const lastReportedConversationListFailureRef = useRef(0);
+  useEffect(() => {
+    if (
+      conversationListFailureRevision === 0 ||
+      conversationListFailureRevision === lastReportedConversationListFailureRef.current
+    ) {
+      return;
+    }
+
+    lastReportedConversationListFailureRef.current = conversationListFailureRevision;
+    if (conversations.length > 0) {
+      showSnackbar('Couldn’t refresh conversations', 'error');
+    }
+  }, [conversationListFailureRevision, conversations.length, showSnackbar]);
+
+  // ── Conversation delete confirmation ─────────────────────────────────────
   const {
     deleteConversationDialog,
     handleDeleteConversationRequest,
     handleDeleteConversationDialogClose,
     handleDeleteConversationConfirm,
-    renameConversationDialog,
-    handleRenameConversationRequest,
-    handleRenameConversationDialogClose,
-    handleRenameConversationTitleChange,
-    handleRenameConversationConfirm,
   } = useConversationDialogs({
     handleDeleteConversation,
-    handleRenameConversation,
     showSnackbar,
   });
 
+  const handleSidebarRenameConversation = useCallback(
+    async (conversationId, title) => {
+      try {
+        return await handleRenameConversation(conversationId, title);
+      } catch (error) {
+        showSnackbar(error?.message || 'Failed to rename conversation', 'error');
+        throw error;
+      }
+    },
+    [handleRenameConversation, showSnackbar],
+  );
+
   // ── Sidebar + profile menu ────────────────────────────────────────────────
-  // The sidebar hook coordinates with overlays via onCloseModals — when the
-  // user opens settings from the profile menu, we want to close any open DB
-  // modal (and vice versa).
-  const sidebar = useChatPageSidebar({
-    isDesktop,
-    onCloseModals: useCallback(() => {
-      setDbModalOpen(false);
-      setSettingsOpen(true);
-    }, [setDbModalOpen, setSettingsOpen]),
-  });
+  // The sidebar hook coordinates with the existing Settings overlay owner.
+  // Every Settings entry point closes conflicting overlays before opening it.
+  const sidebar = useChatPageSidebar({ isDesktop });
 
   // Extract stable methods from the sidebar hook so they can be used in
   // useCallback deps WITHOUT putting the entire `sidebar` object (which is a
@@ -129,7 +153,75 @@ export function useChatPageController() {
     user: sidebarUser,
     setMobileOpen: setSidebarMobileOpen,
     handleMenuOpen: openProfileMenu,
+    handleMenuClose: closeProfileMenu,
   } = sidebar;
+
+  const openPreferenceOverlay = useCallback(
+    (overlay) => {
+      if (overlay === 'settings') {
+        setDbModalOpen(false);
+        setSettingsOpen(true);
+        return;
+      }
+      setSettingsOpen(false);
+      setDbModalOpen(true);
+    },
+    [setDbModalOpen, setSettingsOpen],
+  );
+
+  const requestPreferenceOverlay = useCallback(
+    (overlay, event) => {
+      const activeElement = typeof document === 'undefined' ? null : document.activeElement;
+      preferenceReturnFocusRef.current = event?.currentTarget || activeElement;
+
+      const launch = planOverlayLaunch({ drawerOpen: sidebar.mobileOpen, overlay });
+      pendingPreferenceOverlayRef.current = launch.pendingOverlay;
+      if (launch.closeDrawer) setSidebarMobileOpen(false);
+      if (launch.openOverlay) openPreferenceOverlay(launch.openOverlay);
+    },
+    [openPreferenceOverlay, setSidebarMobileOpen, sidebar.mobileOpen],
+  );
+
+  const handleMobileDrawerExited = useCallback(() => {
+    const pendingOverlay = pendingPreferenceOverlayRef.current;
+    if (!pendingOverlay) return;
+    pendingPreferenceOverlayRef.current = null;
+    openPreferenceOverlay(pendingOverlay);
+  }, [openPreferenceOverlay]);
+
+  const restorePreferenceFocus = useCallback(() => {
+    const returnTarget = resolveOverlayFocusTarget(
+      preferenceReturnFocusRef.current,
+      mobileSidebarTriggerRef?.current,
+    );
+    preferenceReturnFocusRef.current = null;
+    if (!returnTarget) return;
+    requestAnimationFrame(() => returnTarget.focus());
+  }, [mobileSidebarTriggerRef]);
+
+  const handleCloseDbModal = useCallback(
+    (event, reason) => {
+      closeDbModal(event, reason);
+      restorePreferenceFocus();
+    },
+    [closeDbModal, restorePreferenceFocus],
+  );
+
+  const handleCloseSettings = useCallback(
+    (event, reason) => {
+      closeSettings(event, reason);
+      restorePreferenceFocus();
+    },
+    [closeSettings, restorePreferenceFocus],
+  );
+
+  const handleProfileOpenSettings = useCallback(
+    (event) => {
+      closeProfileMenu();
+      requestPreferenceOverlay('settings', event);
+    },
+    [closeProfileMenu, requestPreferenceOverlay],
+  );
 
   // ── Schema mindmap (global overlay) ───────────────────────────────────────
   // The mindmap dialog is mounted at the shell level (GlobalOverlays). The
@@ -175,18 +267,21 @@ export function useChatPageController() {
     [navigate, setDbModalOpen, setSettingsOpen, setSidebarMobileOpen],
   );
 
-  const handleSidebarOpenDbModal = useCallback(() => {
-    setSidebarMobileOpen(false);
-    setSettingsOpen(false);
-    setDbModalOpen(true);
-  }, [setDbModalOpen, setSettingsOpen, setSidebarMobileOpen]);
+  const handleSidebarOpenDbModal = useCallback(
+    (event) => requestPreferenceOverlay('database', event),
+    [requestPreferenceOverlay],
+  );
 
   const handleSidebarMenuOpen = useCallback(
     (e) => {
-      setSidebarMobileOpen(false);
       openProfileMenu(e);
     },
-    [setSidebarMobileOpen, openProfileMenu],
+    [openProfileMenu],
+  );
+
+  const handleSidebarOpenSettings = useCallback(
+    (event) => requestPreferenceOverlay('settings', event),
+    [requestPreferenceOverlay],
   );
 
   // ── Canvas (artifact panel) + SQL editor streaming ────────────────────────
@@ -264,8 +359,10 @@ export function useChatPageController() {
 
   // Sync the cycle-breaking refs on every render so the streaming hook's
   // closures always read the latest dispatcher + SQL editor handler.
-  dispatchUiActionRef.current = dispatchUiAction;
-  handleOpenSqlEditorRef.current = canvas.handleOpenSqlEditor;
+  useEffect(() => {
+    dispatchUiActionRef.current = dispatchUiAction;
+    handleOpenSqlEditorRef.current = canvas.handleOpenSqlEditor;
+  }, [canvas.handleOpenSqlEditor, dispatchUiAction]);
 
   // ── Query execution ───────────────────────────────────────────────────────
   const { handleOpenCanvasArtifact } = canvas;
@@ -347,7 +444,6 @@ export function useChatPageController() {
     !routeConversationId && messages.length === 0 && !isConversationViewLoading;
   const showConversationPanel =
     Boolean(routeConversationId) || messages.length > 0 || isConversationViewLoading;
-
   const streamActivityKey = useMemo(() => {
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage) return 'empty';
@@ -356,7 +452,7 @@ export function useChatPageController() {
     return `${lastMessage.id}|${lastMessage.status}|${textLen}|${stepsLen}|${messages.length}`;
   }, [messages]);
 
-  const { setScrollContainerRef } = useAutoScroll({
+  const { setScrollContainerRef, isPinnedToBottom, scrollToBottom } = useAutoScroll({
     messageCount: messages.length,
     isStreaming: streaming.isCurrentlyStreaming,
     isConversationLoading,
@@ -377,8 +473,7 @@ export function useChatPageController() {
     usageMetrics,
     effectiveTaskMode,
   } = streaming;
-  const { handleOpenSqlEditor: handleOpenSqlEditorFromCanvas } = canvas;
-
+  const { handleToggleSqlEditor, isSqlEditorOpen } = canvas;
   const chatInputSharedProps = useMemo(
     () => ({
       onSend: handleSendMessage,
@@ -392,7 +487,6 @@ export function useChatPageController() {
       currentSchema,
       onSchemaChange: selectSchema,
       onDatabaseSwitch: handleDatabaseSwitch,
-      onOpenSqlEditor: handleOpenSqlEditorFromCanvas,
       selectedProvider,
       selectedModel,
       providerOptions,
@@ -402,6 +496,8 @@ export function useChatPageController() {
       taskMode: settings.taskMode ?? 'auto',
       onTaskModeChange: (value) => updateSetting('taskMode', value),
       effectiveTaskMode,
+      onToggleSqlEditor: handleToggleSqlEditor,
+      sqlEditorOpen: isSqlEditorOpen,
     }),
     [
       handleSendMessage,
@@ -415,7 +511,6 @@ export function useChatPageController() {
       currentSchema,
       selectSchema,
       handleDatabaseSwitch,
-      handleOpenSqlEditorFromCanvas,
       selectedProvider,
       selectedModel,
       providerOptions,
@@ -425,6 +520,8 @@ export function useChatPageController() {
       settings.taskMode,
       updateSetting,
       effectiveTaskMode,
+      handleToggleSqlEditor,
+      isSqlEditorOpen,
     ],
   );
 
@@ -432,9 +529,11 @@ export function useChatPageController() {
     () => ({
       conversations,
       isConversationsLoading,
+      conversationListError,
+      onRetryConversations: retryConversations,
       currentConversationId,
       onDeleteConversation: handleDeleteConversationRequest,
-      onRenameConversation: handleRenameConversationRequest,
+      onRenameConversation: handleSidebarRenameConversation,
       isConnected: isDbConnected,
       currentDatabase,
       dbType,
@@ -445,9 +544,11 @@ export function useChatPageController() {
     [
       conversations,
       isConversationsLoading,
+      conversationListError,
+      retryConversations,
       currentConversationId,
       handleDeleteConversationRequest,
-      handleRenameConversationRequest,
+      handleSidebarRenameConversation,
       isDbConnected,
       currentDatabase,
       dbType,
@@ -463,8 +564,8 @@ export function useChatPageController() {
     isNarrowLayout,
     anchorEl: sidebar.anchorEl,
     user: sidebarUser,
-    handleMenuClose: sidebar.handleMenuClose,
-    handleOpenSettings: sidebar.handleOpenSettings,
+    handleMenuClose: closeProfileMenu,
+    handleOpenSettings: handleProfileOpenSettings,
     handleLogout: sidebar.handleLogout,
     commonSidebarProps,
     handleSidebarNewChat,
@@ -473,11 +574,15 @@ export function useChatPageController() {
     sidebarOpen: sidebar.sidebarOpen,
     handleSidebarToggle: sidebar.handleSidebarToggle,
     handleSidebarMenuOpen,
+    handleSidebarOpenSettings,
     mobileOpen: sidebar.mobileOpen,
     handleMobileDrawerOpen: sidebar.handleMobileDrawerOpen,
     handleMobileDrawerClose: sidebar.handleMobileDrawerClose,
+    handleMobileDrawerExited,
     showWelcomeState,
     setScrollContainerRef,
+    isPinnedToBottom,
+    scrollToBottom,
     showConversationPanel,
     messages,
     isConversationLoading: isConversationViewLoading,
@@ -488,6 +593,8 @@ export function useChatPageController() {
     workspaceCanvasOpen: canvas.workspaceCanvasOpen,
     workspaceCanvasArtifact: canvas.workspaceCanvasArtifact,
     workspaceCanvasWidth: canvas.workspaceCanvasWidth,
+    workspaceCanvasMinWidth: canvas.workspaceCanvasMinWidth,
+    workspaceCanvasMaxWidth: canvas.workspaceCanvasMaxWidth,
     handleCanvasResize: canvas.handleCanvasResize,
     handleCloseWorkspaceCanvas: canvas.handleCloseWorkspaceCanvas,
     isDbConnected,
@@ -505,10 +612,6 @@ export function useChatPageController() {
     deleteConversationDialog,
     handleDeleteConversationDialogClose,
     handleDeleteConversationConfirm,
-    renameConversationDialog,
-    handleRenameConversationDialogClose,
-    handleRenameConversationTitleChange,
-    handleRenameConversationConfirm,
     guidedConfirmDialog,
     handleGuidedCancel,
     handleGuidedConfirm,

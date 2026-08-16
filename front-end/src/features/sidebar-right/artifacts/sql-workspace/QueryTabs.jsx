@@ -1,65 +1,51 @@
-import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import FiberManualRecordRoundedIcon from '@mui/icons-material/FiberManualRecordRounded';
-import { Box, IconButton, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
+import { Box, Button, IconButton, Tooltip } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { memo } from 'react';
-import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
-import SidebarPanelIcon from '@/components/icons/SidebarPanelIcon';
+import {
+  AddIcon,
+  CloseIcon,
+  CodeEditorIcon,
+  SidebarPanelIcon,
+  UnsavedIcon,
+} from '@/components/icons';
 import { getArtifactActionButtonSx } from '@/features/sidebar-right/artifact-loader';
+import { HOVER_CAPABLE_QUERY, TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
 import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 
-const TAB_HEIGHT = 32;
-const TAB_MIN_WIDTH = 104;
-const TAB_MAX_WIDTH = 196;
+const TAB_HEIGHT = 28;
+const TAB_MIN_WIDTH = 86;
+const TAB_MAX_WIDTH = 156;
 
 function getTabSx(theme, active) {
   const interaction = getInteractionColors(theme, { active });
-  const activeBackground = alpha(
-    theme.palette.text.primary,
-    theme.palette.mode === 'dark' ? 0.09 : 0.055,
-  );
-  const activeHoverBackground = alpha(
-    theme.palette.text.primary,
-    theme.palette.mode === 'dark' ? 0.12 : 0.075,
-  );
+  const activeBackground = theme.palette.action.selected;
+  const activeHoverBackground = theme.palette.layer.medium;
 
   return {
-    height: TAB_HEIGHT,
+    height: { xs: 44, md: TAB_HEIGHT },
+    minHeight: { xs: 44, md: TAB_HEIGHT },
     minWidth: TAB_MIN_WIDTH,
     maxWidth: TAB_MAX_WIDTH,
     flex: '0 1 auto',
-    px: 1.125,
+    px: { xs: 1.5, md: 1 },
     py: 0,
-    gap: 0.75,
+    gap: 0.5,
     border: 0,
-    borderRadius: '9px',
+    borderRadius: theme.shape.radius.pill,
     textTransform: 'none',
     color: active ? 'text.primary' : 'text.secondary',
     bgcolor: active ? activeBackground : 'transparent',
-    boxShadow: active
-      ? `inset 0 0 0 1px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.1 : 0.075)}`
-      : 'none',
-    transition: theme.transitions.create(['background-color', 'box-shadow', 'color'], {
+    boxShadow: 'none',
+    transition: theme.transitions.create(['background-color', 'color'], {
       duration: theme.transitions.duration.shorter,
     }),
     '&:hover': {
       color: 'text.primary',
       bgcolor: active ? activeHoverBackground : interaction.hoverBackground,
     },
-    '&.Mui-selected': {
-      color: 'text.primary',
-      bgcolor: activeBackground,
-      '&:hover': { bgcolor: activeHoverBackground },
-    },
-    '&.MuiToggleButtonGroup-grouped': {
-      border: 0,
-      mx: 0,
-      '&:not(:first-of-type)': {
-        borderRadius: '9px',
-        marginLeft: 0,
-      },
-      '&:first-of-type': { borderRadius: '9px' },
+    '&.Mui-focusVisible': {
+      outline: `2px solid ${interaction.focusRing}`,
+      outlineOffset: -2,
     },
   };
 }
@@ -74,6 +60,7 @@ function QueryTabs({
   schemaSidebarOpen,
 }) {
   const theme = useTheme();
+  const interaction = getInteractionColors(theme);
 
   return (
     <Box
@@ -101,15 +88,14 @@ function QueryTabs({
         </Tooltip>
       )}
 
-      <ToggleButtonGroup
-        exclusive
-        value={activeTabId}
-        onChange={(_, nextTabId) => {
-          if (nextTabId) onTabChange(nextTabId);
-        }}
+      <Box
+        role="tablist"
         aria-label="SQL query tabs"
+        aria-orientation="horizontal"
         sx={{
           flex: 1,
+          display: 'flex',
+          alignItems: 'center',
           minWidth: 0,
           gap: 0.5,
           overflowX: 'auto',
@@ -117,99 +103,102 @@ function QueryTabs({
           flexWrap: 'nowrap',
           p: 0,
           ...getScrollbarStyles(theme),
-          '& .MuiToggleButtonGroup-grouped': {
-            ...theme.typography.uiCaptionMd,
+          '& .sql-query-tab': {
+            ...theme.typography.uiCaptionXs,
           },
         }}
       >
         {tabs.map((tab) => {
           const active = activeTabId === tab.id;
           return (
-            <ToggleButton
+            <Box
               key={tab.id}
-              value={tab.id}
-              aria-label={tab.title}
-              sx={getTabSx(theme, active)}
+              className="sql-query-tab-item"
+              sx={{
+                display: 'flex',
+                alignItems: 'center',
+                flex: '0 0 auto',
+                minWidth: 0,
+                gap: 0.25,
+              }}
             >
-              <CodeEditorIcon
-                sx={{
-                  width: 14,
-                  height: 14,
-                  flexShrink: 0,
-                  color: active ? 'text.primary' : 'text.disabled',
-                }}
-              />
-              <Box
-                component="span"
-                sx={{
-                  whiteSpace: 'nowrap',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  flex: 1,
-                  minWidth: 0,
-                  textAlign: 'left',
-                }}
+              <Button
+                type="button"
+                id={`sql-query-tab-${tab.id}`}
+                className="sql-query-tab"
+                role="tab"
+                aria-selected={active}
+                aria-controls={active ? `sql-query-panel-${tab.id}` : undefined}
+                aria-label={tab.title}
+                onClick={() => onTabChange(tab.id)}
+                sx={getTabSx(theme, active)}
               >
-                {tab.title}
-              </Box>
-              {tab.isDirty && (
-                <FiberManualRecordRoundedIcon
-                  sx={{ fontSize: 7, color: 'text.primary', flexShrink: 0 }}
+                <CodeEditorIcon
+                  sx={{
+                    width: 13,
+                    height: 13,
+                    flexShrink: 0,
+                    color: active ? 'text.primary' : 'text.disabled',
+                  }}
                 />
-              )}
+                <Box
+                  component="span"
+                  sx={{
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    flex: 1,
+                    minWidth: 0,
+                    textAlign: 'left',
+                  }}
+                >
+                  {tab.title}
+                </Box>
+                {tab.isDirty && (
+                  <UnsavedIcon sx={{ fontSize: 7, color: 'text.primary', flexShrink: 0 }} />
+                )}
+              </Button>
               {tabs.length > 1 && (
                 <Tooltip title="Close query">
-                  <Box
-                    component="span"
-                    role="button"
-                    tabIndex={0}
+                  <IconButton
+                    type="button"
                     aria-label={`Close ${tab.title}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      onTabClose(tab.id);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        onTabClose(tab.id);
-                      }
-                    }}
+                    onClick={() => onTabClose(tab.id)}
                     sx={{
-                      width: 20,
-                      height: 20,
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: 'inherit',
-                      opacity: active ? 0.72 : 0,
-                      borderRadius: '6px',
-                      transition: theme.transitions.create(['background-color', 'opacity'], {
-                        duration: theme.transitions.duration.shorter,
-                      }),
-                      '.MuiToggleButton-root:hover &': { opacity: 0.72 },
-                      '&:hover': {
-                        opacity: 1,
-                        bgcolor: alpha(
-                          theme.palette.text.primary,
-                          theme.palette.mode === 'dark' ? 0.12 : 0.06,
-                        ),
+                      ...getArtifactActionButtonSx(theme, { size: 28 }),
+                      color: theme.palette.text.disabled,
+                      opacity: 0,
+                      transition: theme.transitions.create(
+                        ['background-color', 'color', 'opacity'],
+                        {
+                          duration: theme.transitions.duration.shorter,
+                        },
+                      ),
+                      [HOVER_CAPABLE_QUERY]: {
+                        '.sql-query-tab-item:hover &': { opacity: 1 },
+                        '&:hover': {
+                          color: interaction.hoverColor,
+                          bgcolor: interaction.hoverBackground,
+                        },
                       },
                       '&:focus-visible': {
                         opacity: 1,
-                        outline: `2px solid ${alpha(theme.palette.primary.main, 0.38)}`,
+                        color: interaction.hoverColor,
+                        bgcolor: interaction.hoverBackground,
+                        outline: `2px solid ${interaction.focusRing}`,
                         outlineOffset: 1,
                       },
+                      [TOUCH_DEVICE_QUERY]: { opacity: 1 },
                     }}
                   >
-                    <CloseRoundedIcon sx={{ fontSize: 14 }} />
-                  </Box>
+                    <CloseIcon sx={{ fontSize: 14 }} />
+                  </IconButton>
                 </Tooltip>
               )}
-            </ToggleButton>
+            </Box>
           );
         })}
-      </ToggleButtonGroup>
+      </Box>
 
       <Tooltip title="Create new query">
         <IconButton
@@ -219,13 +208,10 @@ function QueryTabs({
           sx={{
             ...getArtifactActionButtonSx(theme, { size: 32 }),
             color: 'text.primary',
-            bgcolor: alpha(
-              theme.palette.text.primary,
-              theme.palette.mode === 'dark' ? 0.07 : 0.045,
-            ),
+            bgcolor: alpha(theme.palette.text.primary, theme.palette.opacity.subtle),
           }}
         >
-          <AddRoundedIcon sx={{ fontSize: 18 }} />
+          <AddIcon sx={{ fontSize: 18 }} />
         </IconButton>
       </Tooltip>
     </Box>

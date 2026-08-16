@@ -13,12 +13,11 @@
 // appropriate column slots.
 
 import { Box } from '@mui/material';
-import { lazy, memo, Suspense, useState } from 'react';
+import { lazy, memo, Suspense, useRef, useState } from 'react';
 import { ResizeHandle } from '@/components';
 import ChatColumn from '@/features/chat/ChatColumn';
 import AppShell from '@/features/shell/AppShell';
 import GlobalOverlays from '@/features/shell/GlobalOverlays';
-import MobileSidebarOpenButton from '@/features/shell/MobileSidebarOpenButton';
 import UserProfileMenu from '@/features/shell/UserProfileMenu';
 import ArtifactLoader from '@/features/sidebar-right/index';
 import { useChatPageController } from '@/hooks/chat-page/useChatPageController';
@@ -35,6 +34,7 @@ import { useChatPageController } from '@/hooks/chat-page/useChatPageController';
 const Sidebar = lazy(() => import('@/features/sidebar-left'));
 
 function MainInterface() {
+  const mobileSidebarTriggerRef = useRef(null);
   const {
     theme,
     isNarrowLayout,
@@ -50,11 +50,15 @@ function MainInterface() {
     sidebarOpen,
     handleSidebarToggle,
     handleSidebarMenuOpen,
+    handleSidebarOpenSettings,
     mobileOpen,
     handleMobileDrawerOpen,
     handleMobileDrawerClose,
+    handleMobileDrawerExited,
     showWelcomeState,
     setScrollContainerRef,
+    isPinnedToBottom,
+    scrollToBottom,
     showConversationPanel,
     messages,
     isConversationLoading,
@@ -66,6 +70,8 @@ function MainInterface() {
     workspaceCanvasOpen,
     workspaceCanvasArtifact,
     workspaceCanvasWidth,
+    workspaceCanvasMinWidth,
+    workspaceCanvasMaxWidth,
     handleCanvasResize,
     handleCloseWorkspaceCanvas,
     isDbConnected,
@@ -83,10 +89,6 @@ function MainInterface() {
     deleteConversationDialog,
     handleDeleteConversationDialogClose,
     handleDeleteConversationConfirm,
-    renameConversationDialog,
-    handleRenameConversationDialogClose,
-    handleRenameConversationTitleChange,
-    handleRenameConversationConfirm,
     guidedConfirmDialog,
     handleGuidedCancel,
     handleGuidedConfirm,
@@ -97,45 +99,38 @@ function MainInterface() {
     handleCloseMindmap,
     schemaLoading,
     schemaData,
-  } = useChatPageController();
+  } = useChatPageController({ mobileSidebarTriggerRef });
 
   const [isResizingCanvas, setIsResizingCanvas] = useState(false);
 
-  // The mobile sidebar open button lives on the chat column's surface (top-left
-  // corner). We render it via a slot prop instead of mounting it inside
-  // ChatColumn so that the chat feature doesn't need to know about shell
-  // affordances.
   const chatSlot = (
-    <>
-      <MobileSidebarOpenButton
-        visible={isNarrowLayout}
-        theme={theme}
-        onOpen={handleMobileDrawerOpen}
-      />
-      <ChatColumn
-        showWelcomeState={showWelcomeState}
-        user={user}
-        chatInputSharedProps={chatInputSharedProps}
-        showConversationPanel={showConversationPanel}
-        setScrollContainerRef={setScrollContainerRef}
-        messages={messages}
-        isConversationLoading={isConversationLoading}
-        conversationLoadState={conversationLoadState}
-        handleRunQuery={handleRunQuery}
-        handleOpenCanvasArtifact={handleOpenCanvasArtifact}
-        guidedConfirmDialog={guidedConfirmDialog}
-        handleGuidedCancel={handleGuidedCancel}
-        handleGuidedConfirm={handleGuidedConfirm}
-        currentConversationId={currentConversationId}
-        theme={theme}
-      />
-    </>
+    <ChatColumn
+      showWelcomeState={showWelcomeState}
+      user={user}
+      chatInputSharedProps={chatInputSharedProps}
+      showConversationPanel={showConversationPanel}
+      setScrollContainerRef={setScrollContainerRef}
+      isPinnedToBottom={isPinnedToBottom}
+      scrollToBottom={scrollToBottom}
+      messages={messages}
+      isConversationLoading={isConversationLoading}
+      conversationLoadState={conversationLoadState}
+      handleRunQuery={handleRunQuery}
+      handleOpenCanvasArtifact={handleOpenCanvasArtifact}
+      guidedConfirmDialog={guidedConfirmDialog}
+      handleGuidedCancel={handleGuidedCancel}
+      handleGuidedConfirm={handleGuidedConfirm}
+      currentConversationId={currentConversationId}
+      isNarrowLayout={isNarrowLayout}
+      onOpenSidebar={handleMobileDrawerOpen}
+      openSidebarButtonRef={mobileSidebarTriggerRef}
+      theme={theme}
+    />
   );
 
   // The workspace slot needs a ResizeHandle on desktop (between chat and
   // artifact panel). On narrow viewports the handle is irrelevant (the panel
-  // is full-screen) — but AppShell only renders the desktop layout when
-  // !isNarrowLayout, so we always include it; it just doesn't show.
+  // is full-screen), so omit it rather than consuming 10px of overlay width.
   const workspaceSlot = (
     <Box
       sx={{
@@ -147,12 +142,17 @@ function MainInterface() {
         minWidth: 0,
       }}
     >
-      <ResizeHandle
-        onResize={handleCanvasResize}
-        onResizeStart={() => setIsResizingCanvas(true)}
-        onResizeEnd={() => setIsResizingCanvas(false)}
-        disabled={!workspaceCanvasOpen}
-      />
+      {!isNarrowLayout && (
+        <ResizeHandle
+          onResize={handleCanvasResize}
+          onResizeStart={() => setIsResizingCanvas(true)}
+          onResizeEnd={() => setIsResizingCanvas(false)}
+          disabled={!workspaceCanvasOpen}
+          valueMin={workspaceCanvasMinWidth}
+          valueMax={workspaceCanvasMaxWidth}
+          valueNow={workspaceCanvasWidth}
+        />
+      )}
       <Box
         sx={{
           flex: 1,
@@ -194,8 +194,8 @@ function MainInterface() {
         onClose={handleMenuClose}
         onOpenSettings={handleOpenSettings}
         onLogout={handleLogout}
-        userEmail={user?.email}
-        sidebarOpen={sidebarOpen}
+        user={user}
+        sidebarExpanded={isNarrowLayout || sidebarOpen}
         theme={theme}
       />
 
@@ -215,9 +215,12 @@ function MainInterface() {
               onOpenMindmap={handleOpenMindmap}
               open={sidebarOpen}
               onToggleOpen={handleSidebarToggle}
-              onMenuOpen={handleSidebarMenuOpen}
+              onProfileOpen={handleSidebarMenuOpen}
+              onOpenSettings={handleSidebarOpenSettings}
+              profileMenuOpen={Boolean(anchorEl)}
               mobileOpen={mobileOpen}
               onMobileClose={handleMobileDrawerClose}
+              onMobileExited={handleMobileDrawerExited}
             />
           </Suspense>
         }
@@ -245,10 +248,6 @@ function MainInterface() {
         deleteConversationDialog={deleteConversationDialog}
         handleDeleteConversationDialogClose={handleDeleteConversationDialogClose}
         handleDeleteConversationConfirm={handleDeleteConversationConfirm}
-        renameConversationDialog={renameConversationDialog}
-        handleRenameConversationDialogClose={handleRenameConversationDialogClose}
-        handleRenameConversationTitleChange={handleRenameConversationTitleChange}
-        handleRenameConversationConfirm={handleRenameConversationConfirm}
         mindmapOpen={mindmapOpen}
         handleCloseMindmap={handleCloseMindmap}
         schemaLoading={schemaLoading}

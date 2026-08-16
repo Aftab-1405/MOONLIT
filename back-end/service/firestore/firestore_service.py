@@ -134,8 +134,7 @@ def get_conversations(user_id):
                     {
                         "id": conv.id,
                         "timestamp": conv_data["timestamp"],
-                        "title": conv_data["messages"][0]["content"][:40]
-                        + ("..." if len(conv_data["messages"][0]["content"]) > 40 else ""),
+                        "title": conv_data["messages"][0]["content"][: Config.CONVERSATION_TITLE_MAX_LENGTH],
                     }
                 )
         conversation_list.sort(key=lambda x: x["timestamp"], reverse=True)

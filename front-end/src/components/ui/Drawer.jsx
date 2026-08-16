@@ -1,10 +1,8 @@
-/* eslint-disable react-refresh/only-export-components */
-
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import { alpha, Box, IconButton } from '@mui/material';
+import { Box, IconButton, Modal } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { AnimatePresence, motion } from 'framer-motion';
-import React, { createContext, useContext, useEffect } from 'react';
+import { motion, useReducedMotion } from 'framer-motion';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { CloseIcon } from '@/components/icons';
 
 /**
  * Drawer — accessible slide-in panel built on framer-motion.
@@ -17,13 +15,11 @@ import React, { createContext, useContext, useEffect } from 'react';
  *     DrawerContent     - the sliding panel itself
  *
  * Accessibility:
- *   - Escape key closes the drawer (handled here, not by consumers).
+ *   - MUI Modal owns focus containment, focus restoration, and Escape handling.
  *   - Close button has `aria-label="Close"` and a visible focus ring.
  *   - Backdrop click dismisses.
  *
- * The sliding panel uses a layered box-shadow (close + ambient) rather than
- * a single hard drop shadow so the drawer reads as "elevated" rather than
- * "floating".
+ * The sliding panel is separated from the canvas with a single hairline.
  */
 
 const DrawerContext = createContext(undefined);
@@ -36,44 +32,88 @@ const useDrawerContext = () => {
   return context;
 };
 
-export const Drawer = ({ children, open, onOpenChange, side = 'right' }) => {
+export const Drawer = ({
+  children,
+  open,
+  onOpenChange,
+  onExited,
+  side = 'right',
+  initialFocusRef,
+}) => {
+  const [present, setPresent] = useState(open);
+  const exitPendingRef = useRef(false);
+  const reduceMotion = useReducedMotion();
+
   useEffect(() => {
-    const handleKeyDown = (event) => {
-      if (event.key === 'Escape') {
-        onOpenChange(false);
-      }
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [onOpenChange]);
+    if (!open) return undefined;
+    const frame = requestAnimationFrame(() => setPresent(true));
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
+
+  useEffect(() => {
+    if (!present || !open) return undefined;
+    const frame = requestAnimationFrame(() => initialFocusRef?.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [initialFocusRef, open, present]);
+
+  useEffect(() => {
+    if (!present || open || !reduceMotion) return undefined;
+    const frame = requestAnimationFrame(() => setPresent(false));
+    return () => cancelAnimationFrame(frame);
+  }, [open, present, reduceMotion]);
+
+  useEffect(() => {
+    if (!exitPendingRef.current || present || open) return;
+    exitPendingRef.current = false;
+    onExited?.();
+  }, [onExited, open, present]);
+
+  const handlePanelExitComplete = () => {
+    if (!open) {
+      exitPendingRef.current = true;
+      setPresent(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!open && present) exitPendingRef.current = true;
+  }, [open, present]);
 
   return (
-    <DrawerContext.Provider value={{ open, onOpenChange, side }}>
-      <AnimatePresence>{open && <>{children}</>}</AnimatePresence>
+    <DrawerContext.Provider
+      value={{ open, onOpenChange, side, reduceMotion, onPanelExitComplete: handlePanelExitComplete }}
+    >
+      <Modal
+        open={open || present}
+        hideBackdrop
+        onClose={(_event, reason) => {
+          if (reason === 'escapeKeyDown') onOpenChange(false);
+        }}
+        aria-label="Sidebar"
+      >
+        <Box sx={{ position: 'fixed', inset: 0, outline: 'none' }}>{children}</Box>
+      </Modal>
     </DrawerContext.Provider>
   );
 };
 
-const MotionBox = motion(Box);
+const MotionBox = motion.create(Box);
 
 export const DrawerOverlay = React.forwardRef(({ sx, ...props }, ref) => {
-  const { onOpenChange } = useDrawerContext();
+  const { open, onOpenChange, reduceMotion } = useDrawerContext();
   const theme = useTheme();
   return (
     <MotionBox
       ref={ref}
       initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.25, ease: 'easeInOut' }}
+      animate={{ opacity: open ? 1 : 0 }}
+      transition={{ duration: reduceMotion ? 0 : 0.25, ease: 'easeInOut' }}
       onClick={() => onOpenChange(false)}
       sx={{
         position: 'fixed',
         inset: 0,
         zIndex: theme.zIndex.drawer,
-        backgroundColor:
-          theme.palette.mode === 'dark' ? 'rgba(0, 0, 0, 0.65)' : 'rgba(0, 0, 0, 0.45)',
-        backdropFilter: 'blur(3px)',
+        backgroundColor: theme.palette.overlay.scrim,
         ...sx,
       }}
       {...props}
@@ -84,7 +124,7 @@ DrawerOverlay.displayName = 'DrawerOverlay';
 
 export const DrawerContent = React.forwardRef(
   ({ sx, children, showCloseButton = true, ...props }, ref) => {
-    const { onOpenChange, side } = useDrawerContext();
+    const { open, onOpenChange, side, reduceMotion, onPanelExitComplete } = useDrawerContext();
     const theme = useTheme();
 
     const sideStyles = {
@@ -126,20 +166,23 @@ export const DrawerContent = React.forwardRef(
       },
     };
 
-    const getMotionProps = () => {
+    const getClosedTransform = () => {
       switch (side) {
         case 'top':
-          return { initial: { y: '-100%' }, animate: { y: 0 }, exit: { y: '-100%' } };
+          return { y: '-100%' };
         case 'bottom':
-          return { initial: { y: '100%' }, animate: { y: 0 }, exit: { y: '100%' } };
+          return { y: '100%' };
         case 'left':
-          return { initial: { x: '-100%' }, animate: { x: 0 }, exit: { x: '-100%' } };
+          return { x: '-100%' };
         case 'right':
-          return { initial: { x: '100%' }, animate: { x: 0 }, exit: { x: '100%' } };
+          return { x: '100%' };
         default:
-          return { initial: { x: '100%' }, animate: { x: 0 }, exit: { x: '100%' } };
+          return { x: '100%' };
       }
     };
+
+    const closedTransform = getClosedTransform();
+    const openTransform = side === 'top' || side === 'bottom' ? { y: 0 } : { x: 0 };
 
     return (
       <MotionBox
@@ -149,24 +192,30 @@ export const DrawerContent = React.forwardRef(
           zIndex: theme.zIndex.drawer + 1,
           backgroundColor: 'background.paper',
           color: 'text.primary',
-          // Layered shadow = premium feel. Two-stop shadow (close + ambient)
-          // reads as "elevated panel" rather than a hard drop shadow.
-          boxShadow:
-            theme.palette.mode === 'dark'
-              ? `0 18px 48px ${alpha('#000', 0.6)}, 0 4px 12px ${alpha('#000', 0.36)}`
-              : `0 18px 48px ${alpha('#000', 0.12)}, 0 4px 12px ${alpha('#000', 0.05)}`,
+          boxShadow: 'none',
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
           ...sideStyles[side],
           ...sx,
         }}
-        {...getMotionProps()}
-        transition={{
-          type: 'spring',
-          stiffness: 320,
-          damping: 32,
+        initial={closedTransform}
+        animate={open ? openTransform : closedTransform}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : {
+                type: 'spring',
+                stiffness: 320,
+                damping: 32,
+              }
+        }
+        onAnimationComplete={() => {
+          if (!open && !reduceMotion) onPanelExitComplete();
         }}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Sidebar"
         {...props}
       >
         {children}
@@ -184,16 +233,16 @@ export const DrawerContent = React.forwardRef(
               color: 'text.secondary',
               borderRadius: '50%',
               '&:hover': {
-                backgroundColor: alpha(theme.palette.text.primary, 0.08),
+                backgroundColor: theme.palette.action.hover,
                 color: 'text.primary',
               },
               '&:focus-visible': {
-                outline: `2px solid ${alpha(theme.palette.text.primary, 0.4)}`,
+                outline: `2px solid ${theme.palette.border.focus}`,
                 outlineOffset: 2,
               },
             }}
           >
-            <CloseRoundedIcon sx={{ fontSize: 18 }} />
+            <CloseIcon sx={{ fontSize: 18 }} />
           </IconButton>
         )}
       </MotionBox>

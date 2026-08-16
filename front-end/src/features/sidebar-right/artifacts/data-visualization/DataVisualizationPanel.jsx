@@ -1,15 +1,17 @@
-import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import DownloadRoundedIcon from '@mui/icons-material/DownloadRounded';
-import FilterAltRoundedIcon from '@mui/icons-material/FilterAltRounded';
-import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
-import InsightsRoundedIcon from '@mui/icons-material/InsightsRounded';
-import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
-import SaveRoundedIcon from '@mui/icons-material/SaveRounded';
-import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import { Box, Button, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
+import {
+  AnalyticsIcon,
+  CodeEditorIcon,
+  CopyIcon,
+  DownloadIcon,
+  FilterIcon,
+  ImageIcon,
+  ResetIcon,
+  SaveIcon,
+  WarningIcon,
+} from '@/components/icons';
 import { ArtifactEmptyState, ArtifactShell } from '@/features/sidebar-right/artifact-loader';
 import PerspectiveDashboard from '@/features/sidebar-right/artifacts/data-visualization/PerspectiveDashboard';
 import { createAnalysisStorageKey } from '@/features/sidebar-right/artifacts/data-visualization/perspectiveAnalysis';
@@ -101,7 +103,9 @@ function DataVisualizationPanel({
   if (!rows.length) {
     return (
       <ArtifactEmptyState
-        icon={<InsightsRoundedIcon sx={{ fontSize: 48 }} />}
+        role="status"
+        ariaLive="polite"
+        icon={<AnalyticsIcon sx={{ fontSize: 48 }} />}
         title="No data available for analysis"
       />
     );
@@ -141,28 +145,28 @@ function DataVisualizationPanel({
           {
             key: 'save-analysis',
             label: 'Save analysis',
-            icon: <SaveRoundedIcon sx={{ fontSize: 18 }} />,
+            icon: <SaveIcon sx={{ fontSize: 18 }} />,
             onClick: () => runDashboardAction('save', 'Analysis saved.'),
             disabled: !viewerReady,
           },
           {
             key: 'copy-view',
             label: 'Copy current view as CSV',
-            icon: <ContentCopyRoundedIcon sx={{ fontSize: 18 }} />,
+            icon: <CopyIcon sx={{ fontSize: 18 }} />,
             onClick: () => runDashboardAction('copy', 'Current view copied.'),
             disabled: !viewerReady,
           },
           {
             key: 'download-csv',
             label: 'Download current view as CSV',
-            icon: <DownloadRoundedIcon sx={{ fontSize: 18 }} />,
+            icon: <DownloadIcon sx={{ fontSize: 18 }} />,
             onClick: () => runDashboardAction('download', 'CSV download started.'),
             disabled: !viewerReady,
           },
           {
             key: 'export-visualization',
             label: 'Export visualization',
-            icon: <ImageOutlinedIcon sx={{ fontSize: 18 }} />,
+            icon: <ImageIcon sx={{ fontSize: 18 }} />,
             onClick: () =>
               runDashboardAction('exportVisualization', 'Visualization export started.'),
             disabled: !viewerReady,
@@ -170,7 +174,7 @@ function DataVisualizationPanel({
           {
             key: 'reset-analysis',
             label: 'Reset analysis',
-            icon: <RestartAltRoundedIcon sx={{ fontSize: 18 }} />,
+            icon: <ResetIcon sx={{ fontSize: 18 }} />,
             onClick: () => runDashboardAction('reset', 'Analysis reset.'),
             disabled: !viewerReady,
           },
@@ -199,7 +203,7 @@ function DataVisualizationPanel({
                 <Button
                   size="small"
                   variant="outlined"
-                  startIcon={<FilterAltRoundedIcon />}
+                  startIcon={<FilterIcon />}
                   onClick={applySelectionFilter}
                   sx={getSecondaryActionButtonSx(theme)}
                 >
@@ -209,7 +213,7 @@ function DataVisualizationPanel({
               <Button
                 size="small"
                 variant="outlined"
-                startIcon={<ContentCopyRoundedIcon />}
+                startIcon={<CopyIcon />}
                 onClick={copySelection}
                 sx={getSecondaryActionButtonSx(theme)}
               >
@@ -229,23 +233,20 @@ function DataVisualizationPanel({
               mb: 1.5,
               px: 1.5,
               py: 1,
-              borderRadius: 1.5,
+              borderRadius: '8px',
               color: 'warning.main',
-              bgcolor: alpha(
-                theme.palette.warning.main,
-                theme.palette.mode === 'dark' ? 0.12 : 0.08,
-              ),
+              bgcolor: alpha(theme.palette.warning.main, theme.palette.opacity.medium),
               border: `1px solid ${alpha(theme.palette.warning.main, 0.24)}`,
             }}
           >
-            <WarningAmberRoundedIcon sx={{ fontSize: 18, flexShrink: 0 }} />
+            <WarningIcon sx={{ fontSize: 18, flexShrink: 0 }} />
             <Typography sx={{ ...theme.typography.uiCaptionMd, color: 'text.secondary' }}>
               Analysis only includes the first {displayedRowCount.toLocaleString()} rows. Increase
               the query row limit or aggregate in SQL before drawing conclusions.
             </Typography>
           </Box>
         ) : null}
-        <Box sx={{ flex: 1, minHeight: 0 }}>
+        <Box sx={{ flex: 1, minHeight: 0, minWidth: 0 }}>
           <PerspectiveDashboard
             ref={dashboardRef}
             data={memoizedData}

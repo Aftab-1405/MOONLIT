@@ -9,11 +9,13 @@
 // guided confirmation prompt paints its own panel surface (it's an overlay,
 // not part of the column body).
 
-import { Box, Fade } from '@mui/material';
+import { Box, Fade, IconButton, Tooltip } from '@mui/material';
 import { memo } from 'react';
+import { MenuIcon, ScrollDownIcon } from '@/components/icons';
 import { ChatInput, MessageList, WelcomeScreen } from '@/features/chat';
 import GuidedConfirmationPrompt from '@/features/chat/GuidedConfirmationPrompt';
-import { getScrollbarStyles } from '@/styles/shared';
+import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
+import { getInteractiveIconButtonSx, getScrollbarStyles, UI_LAYOUT } from '@/styles/shared';
 
 const ChatColumn = memo(function ChatColumn({
   showWelcomeState,
@@ -21,6 +23,8 @@ const ChatColumn = memo(function ChatColumn({
   chatInputSharedProps,
   showConversationPanel,
   setScrollContainerRef,
+  isPinnedToBottom,
+  scrollToBottom,
   messages,
   isConversationLoading,
   conversationLoadState,
@@ -30,6 +34,9 @@ const ChatColumn = memo(function ChatColumn({
   handleGuidedCancel,
   handleGuidedConfirm,
   currentConversationId,
+  isNarrowLayout,
+  onOpenSidebar,
+  openSidebarButtonRef,
   theme,
 }) {
   return (
@@ -44,67 +51,132 @@ const ChatColumn = memo(function ChatColumn({
         contain: 'layout paint style',
       }}
     >
-      <WelcomeScreen visible={showWelcomeState} user={user} chatInputProps={chatInputSharedProps} />
-
-      <Fade in={showConversationPanel} timeout={300} unmountOnExit>
-        <Box
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            flex: 1,
-            minHeight: 0,
-            position: 'relative',
-          }}
-        >
-          <Box
-            ref={setScrollContainerRef}
+      {isNarrowLayout && (
+        <Tooltip title="Open sidebar">
+          <IconButton
+            ref={openSidebarButtonRef}
+            onClick={onOpenSidebar}
+            aria-label="Open sidebar"
             sx={{
+              ...getInteractiveIconButtonSx(theme, {
+                size: UI_LAYOUT.touchTarget,
+                radius: theme.shape.radius.pill,
+              }),
+              position: 'absolute',
+              top: 'max(env(safe-area-inset-top), 8px)',
+              left: 12,
+              zIndex: 6,
+              bgcolor: 'transparent',
+              '&:hover': { bgcolor: 'action.hover' },
+            }}
+          >
+            <MenuIcon sx={{ fontSize: 20 }} />
+          </IconButton>
+        </Tooltip>
+      )}
+
+      <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex' }}>
+        <WelcomeScreen
+          visible={showWelcomeState}
+          user={user}
+          chatInputProps={chatInputSharedProps}
+        />
+
+        <Fade in={showConversationPanel} timeout={300} unmountOnExit>
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
               flex: 1,
               minHeight: 0,
-              overflowY: 'auto',
-              overflowX: 'hidden',
-              px: { xs: 0, sm: 1 },
-              pt: { xs: 2, sm: 3 },
-              pb: { xs: 1, sm: 2 },
-              ...getScrollbarStyles(theme),
+              position: 'relative',
             }}
           >
-            <MessageList
-              messages={messages}
-              isLoadingConversation={isConversationLoading}
-              loadError={conversationLoadState === 'error'}
-              conversationId={currentConversationId}
-              onRunQuery={handleRunQuery}
-              onOpenCanvasArtifact={handleOpenCanvasArtifact}
-            />
-          </Box>
+            <Box
+              ref={setScrollContainerRef}
+              sx={{
+                flex: 1,
+                minHeight: 0,
+                overflowY: 'auto',
+                overflowX: 'hidden',
+                px: { xs: 0, sm: 1 },
+                pt: { xs: isNarrowLayout ? 7 : 2, sm: 3 },
+                pb: { xs: 1, sm: 2 },
+                ...getScrollbarStyles(theme),
+              }}
+            >
+              <MessageList
+                messages={messages}
+                isLoadingConversation={isConversationLoading}
+                loadError={conversationLoadState === 'error'}
+                conversationId={currentConversationId}
+                onRunQuery={handleRunQuery}
+                onOpenCanvasArtifact={handleOpenCanvasArtifact}
+              />
+            </Box>
 
-          <Box
-            sx={{
-              flexShrink: 0,
-              position: 'relative', // Anchor for the absolutely-positioned banner
-              zIndex: 2,
-              px: { xs: 0, sm: 1 },
-              pt: { xs: 1, sm: 1.5 },
-              pb: 'max(env(safe-area-inset-bottom), 8px)',
-            }}
-          >
-            <GuidedConfirmationPrompt
-              open={guidedConfirmDialog.open}
-              title={guidedConfirmDialog.title}
-              message={guidedConfirmDialog.message}
-              confirmText={guidedConfirmDialog.confirmText}
-              cancelText={guidedConfirmDialog.cancelText}
-              onCancel={handleGuidedCancel}
-              onConfirm={handleGuidedConfirm}
-              theme={theme}
-            />
-            <Box sx={{ position: 'relative', zIndex: 4 }}>
-              <ChatInput {...chatInputSharedProps} messageCount={messages.length} />
+            <Box
+              sx={{
+                flexShrink: 0,
+                position: 'relative', // Anchor for the absolutely-positioned banner
+                zIndex: 2,
+                px: { xs: 0, sm: 1 },
+                pt: { xs: 1, sm: 1.5 },
+                pb: 'max(env(safe-area-inset-bottom), 8px)',
+              }}
+            >
+              <Fade in={!isPinnedToBottom}>
+                <Box
+                  sx={{
+                    position: 'absolute',
+                    left: 0,
+                    right: 0,
+                    bottom: 'calc(100% + 12px)',
+                    zIndex: 5,
+                    display: 'flex',
+                    justifyContent: 'center',
+                    pointerEvents: isPinnedToBottom ? 'none' : 'auto',
+                  }}
+                >
+                  <Tooltip title="Jump to latest">
+                    <IconButton
+                      onClick={scrollToBottom}
+                      aria-label="Jump to latest message"
+                      sx={{
+                        ...getResponsivePillIconButtonSx(theme, {
+                          desktopSize: 40,
+                          mobileSize: UI_LAYOUT.touchTarget,
+                        }),
+                        bgcolor: 'background.paper',
+                        color: 'text.secondary',
+                        border: '1px solid',
+                        borderColor: 'border.subtle',
+                        boxShadow: 'none',
+                        '&:hover': { bgcolor: 'background.paper', color: 'text.primary' },
+                      }}
+                    >
+                      <ScrollDownIcon sx={{ fontSize: 18 }} />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              </Fade>
+              <GuidedConfirmationPrompt
+                open={guidedConfirmDialog.open}
+                title={guidedConfirmDialog.title}
+                message={guidedConfirmDialog.message}
+                confirmText={guidedConfirmDialog.confirmText}
+                cancelText={guidedConfirmDialog.cancelText}
+                onCancel={handleGuidedCancel}
+                onConfirm={handleGuidedConfirm}
+                theme={theme}
+              />
+              <Box sx={{ position: 'relative', zIndex: 4 }}>
+                <ChatInput {...chatInputSharedProps} messageCount={messages.length} />
+              </Box>
             </Box>
           </Box>
-        </Box>
-      </Fade>
+        </Fade>
+      </Box>
     </Box>
   );
 });

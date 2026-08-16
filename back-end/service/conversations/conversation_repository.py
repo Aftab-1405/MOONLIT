@@ -408,7 +408,9 @@ class ConversationRepository:
                 # append branch (below) handles their message correctly.
                 content_str = (message or "").strip()
                 preview = content_str[:50] + "..." if len(content_str) > 50 else content_str
-                title = content_str[:40] + ("..." if len(content_str) > 40 else "")
+                from config import get_config
+
+                title = content_str[: get_config().CONVERSATION_TITLE_MAX_LENGTH]
                 txn.set(
                     ref,
                     {

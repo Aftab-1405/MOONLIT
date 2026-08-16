@@ -1,10 +1,9 @@
-import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
-import TableRowsOutlinedIcon from '@mui/icons-material/TableRowsOutlined';
 import { Box, Skeleton, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { MaterialReactTable, useMaterialReactTable } from 'material-react-table';
 import { useEffect, useState } from 'react';
 import { getExecutionResult } from '@/api/conversations';
+import { ErrorIcon, TableIcon } from '@/components/icons';
 
 const MIN_COLUMN_SIZE = 112;
 const MAX_COLUMN_SIZE = 360;
@@ -80,8 +79,6 @@ function createColumnDefinitions(columnNames, rows) {
 }
 
 function getSurfaceSx(theme) {
-  const isDark = theme.palette.mode === 'dark';
-
   // ── Visual parity with MarkdownRenderer tables ──────────────────────────
   // The inline execution table and the markdown table must look identical
   // (same border, radius, surface treatment). This ensures query results
@@ -94,18 +91,17 @@ function getSurfaceSx(theme) {
     mb: 2,
     overflow: 'hidden',
     borderRadius: '8px',
-    border: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
-    backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.022 : 0.014),
+    border: `1px solid ${theme.palette.border.subtle}`,
+    backgroundColor: theme.palette.background.paper,
     boxShadow: 'none',
   };
 }
 
 function LoadingTable() {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const skeletonRows = Array.from({ length: 4 });
   const skeletonColumns = Array.from({ length: 3 });
-  const headerBg = alpha(theme.palette.text.primary, isDark ? 0.045 : 0.028);
+  const headerBg = theme.palette.layer.faint;
 
   return (
     <Box role="status" aria-label="Loading query results" sx={getSurfaceSx(theme)}>
@@ -114,8 +110,8 @@ function LoadingTable() {
           display: 'grid',
           // No row-number column — parity with MarkdownRenderer tables.
           gridTemplateColumns: 'repeat(3, minmax(112px, 1fr))',
-          px: { xs: 1.25, sm: 2 },
-          py: { xs: 0.85, sm: 1 },
+          px: { xs: 1, md: 2 },
+          py: 1,
           bgcolor: headerBg,
           borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
         }}
@@ -139,9 +135,9 @@ function LoadingTable() {
             // No row-number column — parity with MarkdownRenderer tables.
             gridTemplateColumns: 'repeat(3, minmax(112px, 1fr))',
             alignItems: 'center',
-            px: { xs: 1.25, sm: 2 },
-            py: { xs: 0.85, sm: 1 },
-            borderTop: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.055 : 0.045)}`,
+            px: { xs: 1, md: 2 },
+            py: 1,
+            borderTop: `1px solid ${theme.palette.border.subtle}`,
           }}
         >
           {skeletonColumns.map((_, columnIndex) => (
@@ -178,33 +174,29 @@ function ResultState({ error }) {
     >
       <Box
         sx={{
-          width: 38,
-          height: 38,
+          width: 40,
+          height: 40,
           display: 'grid',
           placeItems: 'center',
           flexShrink: 0,
-          borderRadius: '11px',
+          borderRadius: '8px',
           color: isError ? 'error.main' : 'text.disabled',
           bgcolor: alpha(
             isError ? theme.palette.error.main : theme.palette.text.primary,
-            theme.palette.mode === 'dark' ? 0.09 : 0.055,
+            theme.palette.opacity.soft,
           ),
         }}
       >
-        {isError ? (
-          <ErrorOutlineRoundedIcon sx={{ fontSize: 20 }} />
-        ) : (
-          <TableRowsOutlinedIcon sx={{ fontSize: 19 }} />
-        )}
+        {isError ? <ErrorIcon sx={{ fontSize: 20 }} /> : <TableIcon sx={{ fontSize: 19 }} />}
       </Box>
       <Box sx={{ minWidth: 0 }}>
-        <Typography sx={{ ...theme.typography.uiBodySm, fontWeight: 650, color: 'text.primary' }}>
+        <Typography sx={{ ...theme.typography.uiBodySm, fontWeight: 400, color: 'text.primary' }}>
           {isError ? 'Results unavailable' : 'No rows returned'}
         </Typography>
         <Typography
           sx={{
             ...theme.typography.uiCaptionSm,
-            mt: 0.375,
+            mt: 0.5,
             color: isError ? 'error.main' : 'text.secondary',
             overflowWrap: 'anywhere',
           }}
@@ -218,7 +210,6 @@ function ResultState({ error }) {
 
 export default function InlineExecutionTable({ conversationId, executionId }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const [data, setData] = useState([]);
   const [columns, setColumns] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -274,11 +265,11 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
   const shouldVirtualizeRows = data.length > 50;
   const shouldVirtualizeColumns = columns.length > 12;
   // Same divider color as MarkdownRenderer tables for visual parity.
-  const rowDivider = alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05);
+  const rowDivider = theme.palette.border.subtle;
   // Same header background as MarkdownRenderer tables.
-  const headerBg = alpha(theme.palette.text.primary, isDark ? 0.045 : 0.028);
+  const headerBg = theme.palette.layer.faint;
   // Same row-hover background as MarkdownRenderer tables.
-  const rowHoverBg = alpha(theme.palette.text.primary, isDark ? 0.04 : 0.024);
+  const rowHoverBg = theme.palette.action.hover;
 
   const table = useMaterialReactTable({
     columns,
@@ -312,21 +303,28 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
     enableTopToolbar: false,
     initialState: { density: 'compact' },
     mrtTheme: {
-      baseBackgroundColor: 'rgba(0, 0, 0, 0)',
+      baseBackgroundColor: theme.palette.transparent,
       cellNavigationOutlineColor: theme.palette.primary.main,
       draggingBorderColor: theme.palette.primary.main,
-      matchHighlightColor: alpha(theme.palette.primary.main, isDark ? 0.18 : 0.1),
+      matchHighlightColor: alpha(
+        theme.palette.primary.main,
+        theme.palette.opacity.statusBackground,
+      ),
       menuBackgroundColor: theme.palette.background.paper,
-      pinnedRowBackgroundColor: 'rgba(0, 0, 0, 0)',
-      selectedRowBackgroundColor: alpha(theme.palette.primary.main, isDark ? 0.1 : 0.06),
+      pinnedRowBackgroundColor: theme.palette.transparent,
+      selectedRowBackgroundColor: alpha(theme.palette.primary.main, theme.palette.opacity.soft),
     },
     muiTableContainerProps: {
       sx: {
         maxHeight: 420,
         overflow: 'auto',
-        scrollbarWidth: 'none',
-        msOverflowStyle: 'none',
-        '&::-webkit-scrollbar': { display: 'none' },
+        scrollbarWidth: 'thin',
+        scrollbarColor: `${alpha(theme.palette.text.primary, 0.2)} transparent`,
+        '&::-webkit-scrollbar': { width: 6, height: 6 },
+        '&::-webkit-scrollbar-thumb': {
+          borderRadius: 999,
+          bgcolor: alpha(theme.palette.text.primary, 0.18),
+        },
       },
     },
     muiTablePaperProps: {
@@ -351,18 +349,18 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
         // ── Header style matches MarkdownRenderer `th` ──
         // Same bgcolor, fontWeight, typography, padding, border.
         minHeight: 39,
-        px: { xs: 1.25, sm: 2 },
-        py: { xs: 0.85, sm: 1 },
+        px: { xs: 1, md: 2 },
+        py: 1,
         borderBottom: `1px solid ${alpha(theme.palette.text.primary, 0.075)}`,
         color: 'text.secondary',
         bgcolor: headerBg,
         // Use the same typography as markdown table headers.
         ...theme.typography.uiCaptionMd,
-        fontWeight: 600,
+        fontWeight: 400,
         '& .Mui-TableHeadCell-Content-Actions': { display: 'none' },
         '& .Mui-TableHeadCell-ResizeHandle-Divider': {
           height: 20,
-          borderColor: alpha(theme.palette.text.primary, isDark ? 0.14 : 0.1),
+          borderColor: theme.palette.border.default,
           borderWidth: '1px',
           opacity: 0,
         },
@@ -393,8 +391,8 @@ export default function InlineExecutionTable({ conversationId, executionId }) {
         // Same padding, border, typography. Keeps tabular-nums for data
         // alignment (query results need numeric alignment).
         minHeight: 38,
-        px: { xs: 1.25, sm: 2 },
-        py: { xs: 0.85, sm: 1 },
+        px: { xs: 1, md: 2 },
+        py: 1,
         overflow: 'hidden',
         borderBottom: `1px solid ${rowDivider}`,
         color: 'text.primary',

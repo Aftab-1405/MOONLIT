@@ -1,15 +1,21 @@
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { Avatar, Box, Collapse, Tooltip, Typography, useMediaQuery } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import DatabaseIcon from '@/components/icons/DatabaseIcon';
-import MindmapIcon from '@/components/icons/MindmapIcon';
-import NewChatIcon from '@/components/icons/NewChatIcon';
-import RecentChatIcon from '@/components/icons/RecentChatIcon';
-import SearchIcon from '@/components/icons/SearchIcon';
-import SidebarPanelIcon from '@/components/icons/SidebarPanelIcon';
+import { useTheme } from '@mui/material/styles';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  DatabaseIcon,
+  DiagramIcon,
+  NewChatIcon,
+  RecentChatIcon,
+  SearchIcon,
+  SettingsIcon,
+  SidebarPanelIcon,
+} from '@/components/icons';
 import { Drawer as CustomDrawer, DrawerContent, DrawerOverlay } from '@/components/ui/Drawer';
 import SidebarOverlays from '@/features/sidebar-left/components/SidebarOverlays';
+import {
+  getProfileControlGeometry,
+  getProfileSettingsMode,
+} from '@/features/sidebar-left/profileSettingsModel';
 import {
   ConversationItem,
   HistoryListSkeleton,
@@ -27,6 +33,14 @@ import {
 } from '@/features/sidebar-left/styles/sidebarStyles';
 import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 
+const EMPTY_INLINE_RENAME = Object.freeze({
+  surface: null,
+  conversationId: null,
+  title: '',
+  originalTitle: '',
+  saving: false,
+});
+
 // ─── Main Sidebar component ───────────────────────────────────────────────────
 //
 // Layout ownership: AppShell owns the three-column layout, including the
@@ -39,6 +53,8 @@ import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 function Sidebar({
   conversations = [],
   isConversationsLoading = false,
+  conversationListError = null,
+  onRetryConversations,
   currentConversationId,
   onNewChat,
   onSelectConversation,
@@ -53,19 +69,24 @@ function Sidebar({
   open = true,
   onToggleOpen,
   user = null,
-  onMenuOpen,
+  onProfileOpen,
+  onOpenSettings,
+  profileMenuOpen = false,
   mobileOpen = false,
   onMobileClose,
+  onMobileExited,
 }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
-  const isDark = theme.palette.mode === 'dark';
+  const mobileCloseButtonRef = useRef(null);
 
   const [dbPopoverAnchor, setDbPopoverAnchor] = useState(null);
   const [historyPopoverAnchor, setHistoryPopoverAnchor] = useState(null);
   const [searchPopoverAnchor, setSearchPopoverAnchor] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [recentsCollapsed, setRecentsCollapsed] = useState(false);
+  const [inlineRename, setInlineRename] = useState(EMPTY_INLINE_RENAME);
+  const inlineRenameRef = useRef(EMPTY_INLINE_RENAME);
 
   const scrollbarStyles = useMemo(() => getScrollbarStyles(theme), [theme]);
   const neutralInteraction = useMemo(() => getInteractionColors(theme), [theme]);
@@ -84,6 +105,13 @@ function Sidebar({
         .join('') || 'M'
     );
   }, [user?.displayName]);
+  const conversationListView = conversations.length > 0
+    ? 'list'
+    : isConversationsLoading
+      ? 'loading'
+      : conversationListError
+        ? 'error'
+        : 'empty';
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   const handleDatabaseSelect = useCallback(
@@ -99,7 +127,7 @@ function Sidebar({
       if (isConnected && availableDatabases.length > 0) {
         setDbPopoverAnchor(event.currentTarget);
       } else {
-        onOpenDbModal?.();
+        onOpenDbModal?.(event);
       }
     },
     [isConnected, availableDatabases.length, onOpenDbModal],
@@ -118,20 +146,32 @@ function Sidebar({
 
   const toggleRecentsCollapsed = useCallback(() => setRecentsCollapsed((p) => !p), []);
   const handleCloseDbPopover = useCallback(() => setDbPopoverAnchor(null), []);
-  const handleCloseHistoryPopover = useCallback(() => setHistoryPopoverAnchor(null), []);
+  const handleCloseHistoryPopover = useCallback(() => {
+    setHistoryPopoverAnchor(null);
+    setInlineRename((current) => {
+      if (current.surface !== 'history') return current;
+      inlineRenameRef.current = EMPTY_INLINE_RENAME;
+      return EMPTY_INLINE_RENAME;
+    });
+  }, []);
   const handleCloseSearchPopover = useCallback(() => {
     setSearchPopoverAnchor(null);
     setSearchQuery('');
+    setInlineRename((current) => {
+      if (current.surface !== 'search') return current;
+      inlineRenameRef.current = EMPTY_INLINE_RENAME;
+      return EMPTY_INLINE_RENAME;
+    });
   }, []);
   const handleProfileClick = useCallback(
     (e) => {
-      onMenuOpen?.(e);
+      onProfileOpen?.(e);
     },
-    [onMenuOpen],
+    [onProfileOpen],
   );
-  const handleOpenNewConnection = useCallback(() => {
+  const handleOpenNewConnection = useCallback((event) => {
     setDbPopoverAnchor(null);
-    onOpenDbModal?.();
+    onOpenDbModal?.(event);
   }, [onOpenDbModal]);
   const handleSelectConversation = useCallback(
     (id) => {
@@ -139,6 +179,58 @@ function Sidebar({
     },
     [onSelectConversation],
   );
+  const handleInlineRenameStart = useCallback((surface, conversationId, title) => {
+    const nextRename = {
+      surface,
+      conversationId,
+      title: title || '',
+      originalTitle: title || '',
+      saving: false,
+    };
+    inlineRenameRef.current = nextRename;
+    setInlineRename(nextRename);
+  }, []);
+  const handleInlineRenameChange = useCallback((title) => {
+    setInlineRename((current) => {
+      const nextRename = { ...current, title };
+      inlineRenameRef.current = nextRename;
+      return nextRename;
+    });
+  }, []);
+  const handleInlineRenameCancel = useCallback(() => {
+    inlineRenameRef.current = EMPTY_INLINE_RENAME;
+    setInlineRename(EMPTY_INLINE_RENAME);
+  }, []);
+  const handleInlineRenameCommit = useCallback(async () => {
+    const currentRename = inlineRenameRef.current;
+    const title = currentRename.title.trim();
+    if (!currentRename.conversationId || !title || currentRename.saving) return;
+
+    if (title === currentRename.originalTitle.trim()) {
+      inlineRenameRef.current = EMPTY_INLINE_RENAME;
+      setInlineRename(EMPTY_INLINE_RENAME);
+      return;
+    }
+
+    const savingRename = { ...currentRename, saving: true };
+    inlineRenameRef.current = savingRename;
+    setInlineRename(savingRename);
+    try {
+      const didRename = await onRenameConversation?.(currentRename.conversationId, title);
+      if (didRename === false) {
+        const retryRename = { ...currentRename, saving: false };
+        inlineRenameRef.current = retryRename;
+        setInlineRename(retryRename);
+        return;
+      }
+      inlineRenameRef.current = EMPTY_INLINE_RENAME;
+      setInlineRename(EMPTY_INLINE_RENAME);
+    } catch {
+      const retryRename = { ...currentRename, saving: false };
+      inlineRenameRef.current = retryRename;
+      setInlineRename(retryRename);
+    }
+  }, [onRenameConversation]);
 
   // Close popovers when sidebar closes
   useEffect(() => {
@@ -148,6 +240,8 @@ function Sidebar({
       setHistoryPopoverAnchor(null);
       setSearchPopoverAnchor(null);
       setSearchQuery('');
+      inlineRenameRef.current = EMPTY_INLINE_RENAME;
+      setInlineRename(EMPTY_INLINE_RENAME);
     }
   }, [isMobile, mobileOpen, open]);
 
@@ -162,7 +256,6 @@ function Sidebar({
         onClick: () => {
           onNewChat?.();
         },
-        shortcut: 'Ctrl+Shift+O',
       },
       {
         id: 'search',
@@ -170,7 +263,6 @@ function Sidebar({
         tooltip: 'Search chats',
         icon: <SearchIcon sx={{ fontSize: 18 }} />,
         onClick: handleSearchClick,
-        shortcut: 'Ctrl+K',
       },
     ],
     [handleSearchClick, onNewChat],
@@ -195,7 +287,7 @@ function Sidebar({
         isConnected && currentDatabase
           ? 'Mindmap'
           : 'Connect a database to view the schema mindmap',
-      icon: <MindmapIcon sx={{ fontSize: 18 }} />,
+      icon: <DiagramIcon sx={{ fontSize: 18 }} />,
       onClick: onOpenMindmap,
       disabled: !isConnected || !currentDatabase,
     });
@@ -225,7 +317,11 @@ function Sidebar({
       currentConversationId,
       onSelectConversation: handleSelectConversation,
       onDeleteConversation,
-      onRenameConversation,
+      inlineRename,
+      handleInlineRenameStart,
+      handleInlineRenameChange,
+      handleInlineRenameCancel,
+      handleInlineRenameCommit,
       sidebarOpen: open,
     }),
     [
@@ -241,8 +337,12 @@ function Sidebar({
       handleOpenNewConnection,
       handleSelectConversation,
       historyPopoverAnchor,
+      inlineRename,
       onDeleteConversation,
-      onRenameConversation,
+      handleInlineRenameCancel,
+      handleInlineRenameChange,
+      handleInlineRenameCommit,
+      handleInlineRenameStart,
       open,
       searchPopoverAnchor,
       searchQuery,
@@ -274,6 +374,7 @@ function Sidebar({
           disableTouchListener={!collapsed}
         >
           <Box
+            ref={mobile ? mobileCloseButtonRef : undefined}
             component="button"
             type="button"
             onClick={mobile ? onMobileClose : onToggleOpen}
@@ -347,7 +448,6 @@ function Sidebar({
           isCollapsed={collapsed}
           showStatus={item.showStatus}
           disabled={item.disabled}
-          shortcut={item.shortcut}
           uiTarget={item.uiTarget}
         />
       ))}
@@ -379,6 +479,7 @@ function Sidebar({
           alignItems: 'center',
           justifyContent: 'space-between',
           width: '100%',
+          minHeight: { xs: 44, md: 36 },
           px: 2,
           pt: 1.5,
           pb: 0.75,
@@ -390,7 +491,7 @@ function Sidebar({
           flexShrink: 0,
           '&:hover .toggle-hint': { opacity: 0.7 },
           '&:focus-visible': {
-            outline: `2px solid ${alpha(theme.palette.text.primary, 0.3)}`,
+            outline: `2px solid ${theme.palette.border.focus}`,
             outlineOffset: -2,
             borderRadius: '8px',
           },
@@ -450,32 +551,90 @@ function Sidebar({
             ...scrollbarStyles,
           }}
         >
-          {isConversationsLoading ? (
-            <HistoryListSkeleton />
-          ) : conversations.length === 0 ? (
-            <Box
-              role="status"
-              aria-live="polite"
-              sx={{
-                mx: 1,
-                mt: 0.5,
-                px: 1.25,
-                py: 1.1,
-                borderRadius: '8px',
-                border: '1px solid',
-                borderColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
-                bgcolor: alpha(theme.palette.background.paper, isDark ? 0.3 : 0.55),
-              }}
-            >
-              <Typography
+          {conversationListView === 'loading' ? (
+            <Box component="li" sx={{ listStyle: 'none' }}>
+              <HistoryListSkeleton />
+            </Box>
+          ) : conversationListView === 'error' ? (
+            <Box component="li" sx={{ listStyle: 'none' }}>
+              <Box
+                role="alert"
                 sx={{
-                  ...theme.typography.uiNavItem,
-                  color: 'text.secondary',
-                  lineHeight: 1.35,
+                  mx: 1,
+                  mt: 0.5,
+                  px: 1.25,
+                  py: 1.1,
+                  borderRadius: '8px',
+                  border: '1px solid',
+                  borderColor: theme.palette.border.subtle,
+                  bgcolor: theme.palette.layer.surfaceTranslucent,
                 }}
               >
-                No conversations yet
-              </Typography>
+                <Typography
+                  sx={{
+                    ...theme.typography.uiNavItem,
+                    color: 'text.secondary',
+                    lineHeight: 1.35,
+                  }}
+                >
+                  Couldn’t load conversations
+                </Typography>
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={onRetryConversations}
+                  sx={{
+                    mt: 1,
+                    minWidth: 44,
+                    minHeight: { xs: 44, md: 32 },
+                    px: 1.5,
+                    border: '1px solid',
+                    borderColor: theme.palette.border.idle,
+                    borderRadius: 9999,
+                    color: 'text.primary',
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer',
+                    ...theme.typography.uiNavItem,
+                    '&:hover': {
+                      backgroundColor: neutralInteraction.hoverBackground,
+                      borderColor: theme.palette.border.hover,
+                    },
+                    '&:focus-visible': {
+                      outline: `2px solid ${theme.palette.border.focus}`,
+                      outlineOffset: 2,
+                    },
+                  }}
+                >
+                  Retry
+                </Box>
+              </Box>
+            </Box>
+          ) : conversationListView === 'empty' ? (
+            <Box component="li" sx={{ listStyle: 'none' }}>
+              <Box
+                role="status"
+                aria-live="polite"
+                sx={{
+                  mx: 1,
+                  mt: 0.5,
+                  px: 1.25,
+                  py: 1.1,
+                  borderRadius: '8px',
+                  border: '1px solid',
+                  borderColor: theme.palette.border.subtle,
+                  bgcolor: theme.palette.layer.surfaceTranslucent,
+                }}
+              >
+                <Typography
+                  sx={{
+                    ...theme.typography.uiNavItem,
+                    color: 'text.secondary',
+                    lineHeight: 1.35,
+                  }}
+                >
+                  No conversations yet
+                </Typography>
+              </Box>
             </Box>
           ) : (
             conversations.map((conv) => (
@@ -485,7 +644,16 @@ function Sidebar({
                 isActive={conv.id === currentConversationId}
                 onSelect={handleSelectConversation}
                 onDelete={onDeleteConversation}
-                onRename={onRenameConversation}
+                inlineRename={
+                  inlineRename.surface === 'main' && inlineRename.conversationId === conv.id
+                    ? inlineRename
+                    : null
+                }
+                renameSurface="main"
+                onRenameStart={handleInlineRenameStart}
+                onRenameChange={handleInlineRenameChange}
+                onRenameCancel={handleInlineRenameCancel}
+                onRenameCommit={handleInlineRenameCommit}
               />
             ))
           )}
@@ -495,98 +663,122 @@ function Sidebar({
   );
 
   /**
-   * Footer — profile avatar + name + chevron.
+   * Footer — profile avatar + name + settings action.
    * Same icon-column model as nav items.
    */
   const renderFooter = ({ mobile = false } = {}) => {
     const collapsed = !mobile && !open;
+    const { showDirectSettings } = getProfileSettingsMode(!collapsed);
     return (
       <Box
         component="footer"
         sx={{
           px: ROW_PX,
           py: 0.75,
-          borderTop: `1px solid ${alpha(theme.palette.divider, isDark ? 0.5 : 0.65)}`,
+          borderTop: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Tooltip
-          title={collapsed ? user?.displayName || 'Profile' : ''}
-          placement="right"
-          arrow
-          slotProps={railTooltipSlotProps}
-          disableHoverListener={!collapsed}
-          disableFocusListener={!collapsed}
-          disableTouchListener={!collapsed}
-        >
-          <Box
-            component="button"
-            type="button"
-            onClick={handleProfileClick}
-            aria-label={`${user?.displayName || 'Profile'}, Settings`}
-            sx={{
-              ...buildNavRowSx(theme, { collapsed }),
-              px: 0,
-              opacity: 0.8,
-              '&:hover': {
-                opacity: 1,
-                backgroundColor: neutralInteraction.hoverBackground,
-                color: theme.palette.text.primary,
-              },
-            }}
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+          <Tooltip
+            title={collapsed ? user?.displayName || 'Profile' : ''}
+            placement="right"
+            arrow
+            slotProps={railTooltipSlotProps}
+            disableHoverListener={!collapsed}
+            disableFocusListener={!collapsed}
+            disableTouchListener={!collapsed}
           >
-            {/* Avatar — in the same ICON_COL slot as all nav icons */}
             <Box
-              component="span"
+              component="button"
+              type="button"
+              onClick={handleProfileClick}
+              aria-label={`Open ${user?.displayName || 'Profile'} profile`}
+              aria-haspopup="menu"
+              aria-expanded={profileMenuOpen || undefined}
               sx={{
-                display: 'inline-flex',
-                flexShrink: 0,
-                width: ICON_COL,
-                justifyContent: 'center',
-                alignItems: 'center',
+                ...buildNavRowSx(theme, { collapsed }),
+                ...getProfileControlGeometry(),
+                width: collapsed ? 36 : 'auto',
+                flex: collapsed ? '0 0 36px' : '1 1 auto',
+                minWidth: 0,
+                px: 0,
+                opacity: 0.8,
+                '&:hover': {
+                  opacity: 1,
+                  backgroundColor: neutralInteraction.hoverBackground,
+                  color: theme.palette.text.primary,
+                },
               }}
             >
-              <Avatar
-                src={user?.photoURL || undefined}
+              {/* Avatar — in the same ICON_COL slot as all nav icons */}
+              <Box
+                component="span"
                 sx={{
-                  width: 26,
-                  height: 26,
-                  fontSize: '0.7rem',
-                  fontWeight: 700,
+                  display: 'inline-flex',
+                  flexShrink: 0,
+                  width: ICON_COL,
+                  justifyContent: 'center',
+                  alignItems: 'center',
                 }}
               >
-                {!user?.photoURL && userInitials}
-              </Avatar>
-            </Box>
+                <Avatar
+                  src={user?.photoURL || undefined}
+                  sx={{
+                    width: 26,
+                    height: 26,
+                    fontSize: '0.7rem',
+                    fontWeight: 400,
+                  }}
+                >
+                  {!user?.photoURL && userInitials}
+                </Avatar>
+              </Box>
 
-            {/* Name — fades + collapses when collapsed */}
-            <Box sx={getCollapsingLabelSx(theme, collapsed)}>
-              <Typography
-                noWrap
+              {/* Name — fades + collapses when collapsed */}
+              <Box sx={getCollapsingLabelSx(theme, collapsed)}>
+                <Typography
+                  noWrap
+                  sx={{
+                    ...theme.typography.uiNavItem,
+                    fontWeight: 400,
+                    color: 'text.primary',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {user?.displayName || 'Profile'}
+                </Typography>
+              </Box>
+
+            </Box>
+          </Tooltip>
+
+          {showDirectSettings && (
+            <Tooltip title="Settings" placement="top" arrow>
+              <Box
+                component="button"
+                type="button"
+                onClick={onOpenSettings}
+                aria-label="Open settings"
+                data-ui-target="settings_button"
                 sx={{
-                  ...theme.typography.uiNavItem,
-                  fontWeight: 500,
-                  color: 'text.primary',
-                  whiteSpace: 'nowrap',
+                  ...buildNavRowSx(theme, { collapsed: true }),
+                  ...getProfileControlGeometry({ iconOnly: true }),
+                  justifyContent: 'center',
+                  px: 0,
+                  flex: '0 0 auto',
+                  opacity: 0.8,
+                  '&:hover': {
+                    opacity: 1,
+                    backgroundColor: neutralInteraction.hoverBackground,
+                    color: theme.palette.text.primary,
+                  },
                 }}
               >
-                {user?.displayName || 'Profile'}
-              </Typography>
-            </Box>
-
-            <Box
-              sx={{
-                maxWidth: collapsed ? 0 : 20,
-                opacity: collapsed ? 0 : 1,
-                overflow: 'hidden',
-                flexShrink: 0,
-              }}
-            >
-              <ExpandMoreRoundedIcon
-                sx={{ fontSize: 18, color: 'text.secondary', display: 'block' }}
-              />
-            </Box>
-          </Box>
-        </Tooltip>
+                <SettingsIcon sx={{ fontSize: 18, color: 'text.secondary', display: 'block' }} />
+              </Box>
+            </Tooltip>
+          )}
+        </Box>
       </Box>
     );
   };
@@ -696,7 +888,9 @@ function Sidebar({
           onOpenChange={(val) => {
             if (!val) onMobileClose?.();
           }}
+          onExited={onMobileExited}
           side="left"
+          initialFocusRef={mobileCloseButtonRef}
         >
           <DrawerOverlay />
           <DrawerContent sx={mobileDrawerPaperStyles} showCloseButton={false}>
@@ -742,6 +936,7 @@ function arePropsEqual(p, n) {
     p.currentConversationId === n.currentConversationId &&
     p.isConnected === n.isConnected &&
     p.isConversationsLoading === n.isConversationsLoading &&
+    p.conversationListError === n.conversationListError &&
     p.currentDatabase === n.currentDatabase &&
     p.open === n.open &&
     p.mobileOpen === n.mobileOpen &&
@@ -749,12 +944,16 @@ function arePropsEqual(p, n) {
     p.onSelectConversation === n.onSelectConversation &&
     p.onDeleteConversation === n.onDeleteConversation &&
     p.onRenameConversation === n.onRenameConversation &&
+    p.onRetryConversations === n.onRetryConversations &&
     p.onOpenDbModal === n.onOpenDbModal &&
     p.onOpenMindmap === n.onOpenMindmap &&
     p.onDatabaseSwitch === n.onDatabaseSwitch &&
     p.onToggleOpen === n.onToggleOpen &&
-    p.onMenuOpen === n.onMenuOpen &&
+    p.onProfileOpen === n.onProfileOpen &&
+    p.onOpenSettings === n.onOpenSettings &&
+    p.profileMenuOpen === n.profileMenuOpen &&
     p.onMobileClose === n.onMobileClose &&
+    p.onMobileExited === n.onMobileExited &&
     p.user?.photoURL === n.user?.photoURL &&
     p.user?.displayName === n.user?.displayName &&
     areConversationMetaEqual(p.conversations, n.conversations) &&

@@ -16,12 +16,15 @@ export function useArtifactActions(actions = []) {
 
 export const getArtifactActionButtonSx = (theme, { active = false, size = 36 } = {}) => {
   const interaction = getInteractionColors(theme, { active });
+  const responsiveSize = { xs: 44, md: size };
   return {
-    width: size,
-    height: size,
+    width: responsiveSize,
+    height: responsiveSize,
+    minWidth: responsiveSize,
+    minHeight: responsiveSize,
     flexShrink: 0,
-    borderRadius: '8px',
-    border: '0.5px solid transparent',
+    borderRadius: theme.shape.radius.pill,
+    border: '1px solid transparent',
     color: interaction.color,
     bgcolor: active ? interaction.activeBackground : 'transparent',
     transition: theme.transitions.create(['background-color', 'border-color', 'color', 'opacity'], {
@@ -33,7 +36,8 @@ export const getArtifactActionButtonSx = (theme, { active = false, size = 36 } =
       borderColor: 'transparent',
     },
     '&.Mui-focusVisible': {
-      boxShadow: `0 0 0 3px ${interaction.focusRing}`,
+      outline: `2px solid ${interaction.focusRing}`,
+      outlineOffset: 2,
     },
     '&.Mui-disabled': {
       opacity: 0.68,

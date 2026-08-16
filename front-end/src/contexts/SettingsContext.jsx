@@ -6,10 +6,14 @@
 import { createContext, useCallback, useContext, useMemo } from 'react';
 import { defaultUserSettings } from '@/config/userSettings';
 import { useLocalStorage } from '@/hooks';
+import { THEME_STORAGE_KEY } from '@/theme/mode';
 
-const SETTINGS_KEY = 'moonlit-settings';
+const defaultSettings = Object.freeze({ ...defaultUserSettings });
 
-const defaultSettings = defaultUserSettings;
+const withoutLegacyTheme = (settings) => {
+  const { theme: _legacyTheme, ...supportedSettings } = settings ?? {};
+  return supportedSettings;
+};
 
 const SettingsContext = createContext(null);
 
@@ -24,11 +28,11 @@ export function useSettings() {
 }
 
 export function SettingsProvider({ children }) {
-  const [rawSettings, setRawSettings] = useLocalStorage(SETTINGS_KEY, defaultSettings);
+  const [rawSettings, setRawSettings] = useLocalStorage(THEME_STORAGE_KEY, defaultSettings);
   const settings = useMemo(
     () => ({
       ...defaultSettings,
-      ...rawSettings,
+      ...withoutLegacyTheme(rawSettings),
     }),
     [rawSettings],
   );
@@ -62,21 +66,16 @@ export function SettingsProvider({ children }) {
     [settings],
   );
 
-  const isDarkMode = settings.theme === 'dark';
-
   const value = useMemo(
     () => ({
       settings,
-      isDarkMode,
 
       updateSetting,
       updateSettings,
       resetSettings,
       getSetting,
-
-      theme: settings.theme,
     }),
-    [settings, isDarkMode, updateSetting, updateSettings, resetSettings, getSetting],
+    [settings, updateSetting, updateSettings, resetSettings, getSetting],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

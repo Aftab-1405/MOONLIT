@@ -31,11 +31,13 @@
  *   anchored to the top-left of the input area so it floats above the
  *   text field.
  */
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import { Box, MenuItem, Paper, Popper, Typography } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
+import { Box, Paper, Popper, Typography } from '@mui/material';
+import { useTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AppPopoverItem, AppPopoverList, AppPopoverSectionLabel } from '@/components';
+import { CheckIcon } from '@/components/icons';
 import { TASK_MODE_OPTIONS } from '@/config/userSettings';
+import { getPopoverPaperSx, UI_POPOVER } from '@/styles/shared';
 
 /**
  * Build the list of available slash commands.
@@ -94,15 +96,6 @@ function buildSlashCommands(currentTaskMode) {
  *   "hello /mode"    → null     (slash not at start)
  *   "/"              → ""       (menu open, no filter)
  */
-export function extractSlashQuery(message) {
-  if (!message || !message.startsWith('/')) return null;
-  // Only consider up to the first whitespace — once the user types a
-  // space, they've moved past the command token and the menu closes.
-  const firstToken = message.split(/\s/, 1)[0];
-  if (!firstToken) return null;
-  return firstToken.slice(1).toLowerCase();
-}
-
 const SlashCommandMenu = memo(function SlashCommandMenu({
   anchorEl,
   query,
@@ -124,20 +117,15 @@ const SlashCommandMenu = memo(function SlashCommandMenu({
       return tokens.some((t) => t.includes(query));
     });
   }, [allCommands, query]);
-
-  // Reset highlight when the filtered list changes.
-  useEffect(() => {
-    setHighlightedIndex(0);
-  }, [query]);
-
+  const safeHighlightedIndex = Math.min(highlightedIndex, Math.max(filteredCommands.length - 1, 0));
   // Scroll the highlighted item into view.
   useEffect(() => {
     if (!listRef.current) return;
-    const item = listRef.current.querySelector(`[data-slash-index="${highlightedIndex}"]`);
+    const item = listRef.current.querySelector(`[data-slash-index="${safeHighlightedIndex}"]`);
     if (item && typeof item.scrollIntoView === 'function') {
       item.scrollIntoView({ block: 'nearest' });
     }
-  }, [highlightedIndex]);
+  }, [safeHighlightedIndex]);
 
   // Listen for keyboard events on the anchor's owner document. We use
   // a capture-phase listener so we can intercept Arrow/Enter/Escape
@@ -165,10 +153,10 @@ const SlashCommandMenu = memo(function SlashCommandMenu({
         e.stopPropagation();
         setHighlightedIndex((prev) => Math.max(prev - 1, 0));
       } else if (e.key === 'Enter' || e.key === 'Tab') {
-        if (filteredCommands[highlightedIndex]) {
+        if (filteredCommands[safeHighlightedIndex]) {
           e.preventDefault();
           e.stopPropagation();
-          onSelect(filteredCommands[highlightedIndex]);
+          onSelect(filteredCommands[safeHighlightedIndex]);
         }
       } else if (e.key === 'Escape') {
         e.preventDefault();
@@ -179,7 +167,7 @@ const SlashCommandMenu = memo(function SlashCommandMenu({
     // Capture phase so we beat the TextField's own keydown handler.
     document.addEventListener('keydown', handleKey, true);
     return () => document.removeEventListener('keydown', handleKey, true);
-  }, [anchorEl, filteredCommands, highlightedIndex, onSelect, onClose]);
+  }, [anchorEl, filteredCommands, safeHighlightedIndex, onSelect, onClose]);
 
   const handleItemClick = useCallback(
     (cmd) => {
@@ -202,101 +190,87 @@ const SlashCommandMenu = memo(function SlashCommandMenu({
       modifiers={[
         {
           name: 'offset',
-          options: { offset: [0, 8] },
+          options: { offset: [0, 10] },
+        },
+        {
+          name: 'flip',
+          options: { fallbackPlacements: ['bottom-start'] },
+        },
+        {
+          name: 'preventOverflow',
+          options: { padding: 12 },
         },
       ]}
       style={{ zIndex: theme.zIndex.modal + 100 }}
     >
       <Paper
-        elevation={4}
-        sx={{
-          width: 320,
-          maxWidth: 'calc(100vw - 32px)',
-          p: 1,
-          borderRadius: 2,
-          bgcolor: 'background.paper',
-          border: `1px solid ${alpha(theme.palette.divider, 0.6)}`,
-          boxShadow: theme.shadows[8],
-        }}
+        elevation={0}
+        sx={getPopoverPaperSx(theme, {
+          width: 332,
+          maxWidth: 'calc(100vw - 24px)',
+          p: UI_POPOVER.paperPadding,
+          overflow: 'hidden',
+        })}
       >
-        <Typography
-          sx={{
-            fontSize: 10,
-            fontWeight: 700,
-            letterSpacing: 0.8,
-            textTransform: 'uppercase',
-            color: 'text.secondary',
-            px: 1,
-            py: 0.5,
-          }}
-        >
-          Slash Commands
-        </Typography>
-        <Box ref={listRef} sx={{ display: 'flex', flexDirection: 'column', gap: 0.25 }}>
+        <AppPopoverSectionLabel>Task mode</AppPopoverSectionLabel>
+        <AppPopoverList ref={listRef} role="menu" aria-label="Task mode commands" maxHeight={240}>
           {filteredCommands.map((cmd, idx) => {
-            const isHighlighted = idx === highlightedIndex;
+            const isHighlighted = idx === safeHighlightedIndex;
             return (
-              <MenuItem
+              <AppPopoverItem
                 key={cmd.id}
                 data-slash-index={idx}
+                role="menuitemradio"
+                ariaChecked={cmd.isCurrent}
+                selected={isHighlighted}
+                reserveTrailing
                 onClick={() => handleItemClick(cmd)}
                 onMouseEnter={() => handleItemMouseEnter(idx)}
-                sx={{
-                  borderRadius: 1,
-                  px: 1,
-                  py: 0.85,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'flex-start',
-                  gap: 0.25,
-                  bgcolor: isHighlighted ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
-                  '&:hover': {
-                    bgcolor: alpha(theme.palette.primary.main, 0.12),
-                  },
-                }}
-              >
-                <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                  <Typography
-                    component="code"
+                trailing={cmd.isCurrent ? <CheckIcon /> : null}
+                label={
+                  <Box
                     sx={{
-                      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
-                      fontSize: 13,
-                      fontWeight: 600,
-                      color: 'primary.main',
-                      mr: 1,
+                      minWidth: 0,
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      gap: 1,
                     }}
                   >
-                    {cmd.command}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    sx={{ fontWeight: 600, flex: 1, color: 'text.primary' }}
-                  >
-                    {cmd.label}
-                  </Typography>
-                  {cmd.isCurrent && (
-                    <CheckCircleOutlineRoundedIcon sx={{ fontSize: 14, color: 'primary.main' }} />
-                  )}
-                </Box>
-                <Typography variant="caption" sx={{ color: 'text.secondary', pl: 0.5 }}>
-                  {cmd.description}
-                </Typography>
-              </MenuItem>
+                    <Typography
+                      noWrap
+                      sx={{
+                        ...theme.typography.uiMenuItemSm,
+                        minWidth: 0,
+                        color: 'text.primary',
+                        fontWeight: 400,
+                      }}
+                    >
+                      {cmd.label}
+                    </Typography>
+                    <Typography
+                      component="code"
+                      noWrap
+                      sx={{
+                        flexShrink: 0,
+                        fontFamily: theme.typography.fontFamilyMono,
+                        fontSize: 11,
+                        lineHeight: 1.4,
+                        color: 'text.disabled',
+                      }}
+                    >
+                      {cmd.command}
+                    </Typography>
+                  </Box>
+                }
+                description={cmd.description}
+                descriptionSx={{ color: 'text.secondary' }}
+                sx={{
+                  '&.Mui-selected code': { color: 'text.secondary' },
+                }}
+              />
             );
           })}
-        </Box>
-        <Typography
-          sx={{
-            fontSize: 10,
-            color: 'text.disabled',
-            px: 1,
-            pt: 0.75,
-            mt: 0.5,
-            borderTop: `1px solid ${alpha(theme.palette.divider, 0.4)}`,
-          }}
-        >
-          ↑↓ navigate · ↵ select · esc close
-        </Typography>
+        </AppPopoverList>
       </Paper>
     </Popper>
   );

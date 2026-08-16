@@ -1,61 +1,63 @@
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import { Box, ButtonBase, Collapse, Link, Typography, useTheme } from '@mui/material';
-import { alpha } from '@mui/material/styles';
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { ExpandMoreIcon } from '@/components/icons';
 import { MarkdownRenderer } from '@/features/chat';
 import { getDetailedResult } from '@/features/chat/ai-response-steps/stepUtils';
+import { getFlatStepControlSx } from '@/features/chat/ai-response-steps/timelineShared';
+import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
+import { getInteractionColors } from '@/styles/shared';
 import { TRANSITIONS } from '@/theme/index';
 import { normalizeCitationMarkdown } from '@/utils/toolResultFormatting';
 
 const getStepTypeScale = (theme) => {
-  const isDark = theme.palette.mode === 'dark';
   return {
     sectionLabel: {
-      color: alpha(theme.palette.text.secondary, isDark ? 0.58 : 0.52),
+      color: theme.palette.text.disabled,
       ...theme.typography.uiCaptionMd,
-      fontWeight: 650,
+      fontWeight: 400,
       letterSpacing: 0,
       textTransform: 'none',
     },
     metaLabel: {
-      color: alpha(theme.palette.text.secondary, isDark ? 0.6 : 0.54),
+      color: theme.palette.text.disabled,
       ...theme.typography.uiCaptionSm,
       fontWeight: theme.typography.fontWeightMedium,
     },
     metaValue: {
-      color: alpha(theme.palette.text.primary, isDark ? 0.76 : 0.72),
+      color: theme.palette.text.secondary,
       fontFamily: theme.typography.fontFamilyMono,
       ...theme.typography.uiCaptionSm,
       fontWeight: theme.typography.fontWeightMedium,
       letterSpacing: '0',
     },
     primaryMono: {
-      color: alpha(theme.palette.text.primary, isDark ? 0.84 : 0.78),
+      color: theme.palette.text.primary,
       fontFamily: theme.typography.fontFamilyMono,
       ...theme.typography.uiCaptionMd,
       fontWeight: theme.typography.fontWeightMedium,
       letterSpacing: '0',
     },
     secondaryMono: {
-      color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
+      color: theme.palette.text.secondary,
       fontFamily: theme.typography.fontFamilyMono,
       ...theme.typography.uiCaptionSm,
       fontWeight: theme.typography.fontWeightRegular,
       letterSpacing: '0',
     },
     mutedMono: {
-      color: alpha(theme.palette.text.secondary, isDark ? 0.56 : 0.48),
+      color: theme.palette.text.disabled,
       fontFamily: theme.typography.fontFamilyMono,
       ...theme.typography.uiCaption2xs,
       fontWeight: theme.typography.fontWeightRegular,
       letterSpacing: '0',
     },
     body: {
-      color: alpha(theme.palette.text.secondary, isDark ? 0.78 : 0.72),
-      ...theme.typography.uiBodySm,
+      color: theme.palette.text.secondary,
+      ...theme.typography.uiResponseCompact,
       fontFamily: theme.typography.fontFamily,
       fontWeight: theme.typography.fontWeightRegular,
       letterSpacing: 0,
+      maxWidth: '72ch',
     },
   };
 };
@@ -168,7 +170,6 @@ const EmptyResult = ({ children = 'No details returned.' }) => {
 
 const ColumnChip = ({ column }) => {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const type = getStepTypeScale(theme);
   const name = getColumnName(column);
   const meta = getColumnMeta(column);
@@ -183,13 +184,8 @@ const ColumnChip = ({ column }) => {
         maxWidth: '100%',
         px: 0.8,
         py: 0.35,
-        borderRadius: '4px',
-        border: `1px solid ${alpha(theme.palette.text.primary, isDark ? 0.075 : 0.055)}`,
-        bgcolor: alpha(theme.palette.text.primary, isDark ? 0.05 : 0.03),
-        transition: TRANSITIONS.default,
-        '&:hover': {
-          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.05),
-        },
+        borderRadius: 9999,
+        bgcolor: theme.palette.layer.faint,
       }}
     >
       <Typography
@@ -247,8 +243,8 @@ const ToolMetaGrid = ({ items }) => {
 
 const SchemaResultDetails = ({ result }) => {
   const [expandedTables, setExpandedTables] = useState(() => new Set());
+  const schemaDetailsId = useId();
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const type = getStepTypeScale(theme);
   const tables = toArray(result.tables);
   const columnsByTable =
@@ -278,9 +274,11 @@ const SchemaResultDetails = ({ result }) => {
         <EmptyResult>No tables returned.</EmptyResult>
       ) : (
         <Box sx={{ display: 'grid', gap: 0 }}>
-          {tables.map((table) => {
+          {tables.map((table, index) => {
             const columns = resolveColumnsForTable(columnsByTable, table);
             const isExpanded = expandedTables.has(table);
+            const canExpand = Boolean(columns?.length);
+            const tableDetailsId = `${schemaDetailsId}-${index}`;
             const columnCountLabel = columns
               ? `${columns.length} column${columns.length !== 1 ? 's' : ''}`
               : 'not loaded';
@@ -288,29 +286,31 @@ const SchemaResultDetails = ({ result }) => {
               <Box
                 key={table}
                 sx={{
-                  py: { xs: 0.5, sm: 0.6 },
+                  py: 0.5,
                   '&:first-of-type': { pt: 0 },
                   '&:last-of-type': { pb: 0 },
                 }}
               >
                 <ButtonBase
-                  onClick={() => columns?.length && toggleTable(table)}
-                  disabled={!columns?.length}
+                  onClick={() => canExpand && toggleTable(table)}
+                  disabled={!canExpand}
+                  aria-expanded={canExpand ? isExpanded : undefined}
+                  aria-controls={canExpand ? tableDetailsId : undefined}
+                  aria-label={
+                    canExpand
+                      ? `${isExpanded ? 'Collapse' : 'Expand'} columns for ${table}`
+                      : undefined
+                  }
                   sx={{
+                    ...(canExpand
+                      ? getFlatStepControlSx(theme)
+                      : { minHeight: { xs: 44, md: 32 } }),
                     width: '100%',
                     display: 'block',
                     textAlign: 'left',
-                    px: { xs: 0.5, sm: 0.75 },
-                    py: { xs: 0.65, sm: 0.8 },
-                    cursor: columns?.length ? 'pointer' : 'default',
-                    bgcolor: 'transparent',
-                    transition: TRANSITIONS.default,
-                    '&:hover': columns?.length
-                      ? {
-                          bgcolor: alpha(theme.palette.text.primary, isDark ? 0.04 : 0.025),
-                          borderRadius: '8px',
-                        }
-                      : {},
+                    px: { xs: 0.5, md: 1 },
+                    py: 0.5,
+                    cursor: canExpand ? 'pointer' : 'default',
                   }}
                   disableRipple
                 >
@@ -334,11 +334,11 @@ const SchemaResultDetails = ({ result }) => {
                       }}
                     >
                       <Typography sx={type.metaLabel}>{columnCountLabel}</Typography>
-                      {columns?.length > 0 && (
-                        <KeyboardArrowDownIcon
+                      {canExpand && (
+                        <ExpandMoreIcon
                           sx={{
                             fontSize: 15,
-                            color: alpha(theme.palette.text.secondary, isDark ? 0.68 : 0.58),
+                            color: theme.palette.text.secondary,
                             transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                             transition: TRANSITIONS.default,
                           }}
@@ -346,7 +346,7 @@ const SchemaResultDetails = ({ result }) => {
                       )}
                     </Box>
                   </Box>
-                  {columns?.length > 0 && !isExpanded && (
+                  {canExpand && !isExpanded && (
                     <Box sx={{ mt: 0.4 }}>
                       <ColumnList columns={columns} limit={5} />
                     </Box>
@@ -354,10 +354,11 @@ const SchemaResultDetails = ({ result }) => {
                 </ButtonBase>
                 <Collapse in={isExpanded} timeout={200} unmountOnExit>
                   <Box
+                    id={tableDetailsId}
                     sx={{
-                      px: { xs: 0.5, sm: 0.75 },
-                      pb: { xs: 0.7, sm: 0.85 },
-                      pt: 0.1,
+                      px: { xs: 0.5, md: 1 },
+                      pb: 0.5,
+                      pt: 0,
                     }}
                   >
                     <ColumnList columns={columns} />
@@ -418,18 +419,18 @@ const ForeignKeysResultDetails = ({ result, args }) => {
               key={`${fk.table_name}-${fk.column_name}-${fk.referenced_table}-${fk.referenced_column}-${index}`}
               sx={{
                 display: 'grid',
-                gridTemplateColumns: { xs: '1fr', sm: 'minmax(0, 1fr) auto minmax(0, 1fr)' },
+                gridTemplateColumns: { xs: '1fr', md: 'minmax(0, 1fr) auto minmax(0, 1fr)' },
                 alignItems: 'center',
-                gap: { xs: 0.4, sm: 1 },
-                px: 0.25,
-                py: { xs: 0.5, sm: 0.6 },
+                gap: { xs: 0.5, md: 1 },
+                px: 0.5,
+                py: 0.5,
                 bgcolor: 'transparent',
               }}
             >
               <Typography sx={{ ...type.primaryMono, overflowWrap: 'anywhere' }}>
                 {fk.table_name}.{fk.column_name}
               </Typography>
-              <Typography sx={{ ...type.metaLabel, textAlign: { xs: 'left', sm: 'center' } }}>
+              <Typography sx={{ ...type.metaLabel, textAlign: { xs: 'left', md: 'center' } }}>
                 →
               </Typography>
               <Typography sx={{ ...type.primaryMono, overflowWrap: 'anywhere' }}>
@@ -447,7 +448,7 @@ const ForeignKeysResultDetails = ({ result, args }) => {
 
 const WebSearchResultDetails = ({ result, args }) => {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+  const interaction = getInteractionColors(theme);
   const type = getStepTypeScale(theme);
   const rows = toArray(result.results);
   const query = result.query || args?.query;
@@ -482,15 +483,21 @@ const WebSearchResultDetails = ({ result, args }) => {
                   target="_blank"
                   rel="noreferrer"
                   sx={{
-                    color: alpha(theme.palette.text.primary, isDark ? 0.82 : 0.76),
+                    color: interaction.activeColor,
                     ...theme.typography.uiBodySm,
                     fontWeight: theme.typography.fontWeightMedium,
                     textDecoration: 'none',
                     overflowWrap: 'anywhere',
                     transition: TRANSITIONS.default,
-                    '&:hover': {
-                      color: theme.palette.text.primary,
-                      textDecoration: 'none',
+                    [HOVER_CAPABLE_QUERY]: {
+                      '&:hover': {
+                        color: interaction.hoverColor,
+                        textDecoration: 'underline',
+                      },
+                    },
+                    '&:focus-visible': {
+                      outline: `2px solid ${interaction.focusRing}`,
+                      outlineOffset: 2,
                     },
                   }}
                 >
@@ -507,13 +514,20 @@ const WebSearchResultDetails = ({ result, args }) => {
                       display: 'block',
                       mt: 0.2,
                       ...type.mutedMono,
+                      color: interaction.restingColor,
                       textDecoration: 'none',
                       overflowWrap: 'anywhere',
                       transition: TRANSITIONS.default,
-                      '&:hover': {
-                        color: alpha(theme.palette.text.secondary, isDark ? 0.75 : 0.65),
-                        textDecoration: 'underline',
-                        textUnderlineOffset: '2px',
+                      [HOVER_CAPABLE_QUERY]: {
+                        '&:hover': {
+                          color: interaction.hoverColor,
+                          textDecoration: 'underline',
+                          textUnderlineOffset: '2px',
+                        },
+                      },
+                      '&:focus-visible': {
+                        outline: `2px solid ${interaction.focusRing}`,
+                        outlineOffset: 2,
                       },
                     }}
                   >
@@ -531,27 +545,34 @@ const WebSearchResultDetails = ({ result, args }) => {
                       '& p': { mt: 0, mb: 0.65 },
                       '& p:last-child': { mb: 0 },
                       '& strong': {
-                        color: alpha(theme.palette.text.primary, isDark ? 0.82 : 0.76),
+                        color: theme.palette.text.primary,
                         fontWeight: theme.typography.fontWeightMedium,
                       },
                       '& h1, & h2, & h3, & h4, & h5, & h6': {
                         mt: 0.65,
                         mb: 0.3,
-                        color: alpha(theme.palette.text.primary, isDark ? 0.82 : 0.76),
+                        color: theme.palette.text.primary,
                         ...theme.typography.uiBodySm,
                         fontWeight: theme.typography.fontWeightMedium,
                       },
                       '& a': {
-                        color: alpha(theme.palette.text.secondary, isDark ? 0.72 : 0.62),
-                        textDecorationColor: alpha(theme.palette.text.secondary, 0.3),
+                        color: interaction.restingColor,
+                        textDecorationColor: theme.palette.border.subtle,
                         textUnderlineOffset: '3px',
                       },
-                      '& a:hover': {
-                        color: alpha(theme.palette.text.primary, isDark ? 0.85 : 0.78),
+                      [HOVER_CAPABLE_QUERY]: {
+                        '& a:hover': {
+                          color: interaction.hoverColor,
+                        },
+                      },
+                      '& a:focus-visible': {
+                        color: interaction.hoverColor,
+                        outline: `2px solid ${interaction.focusRing}`,
+                        outlineOffset: 2,
                       },
                     }}
                   >
-                    <MarkdownRenderer content={normalizedContent} />
+                    <MarkdownRenderer content={normalizedContent} variant="compact" />
                   </Box>
                 )}
               </Box>
@@ -572,7 +593,7 @@ const GenericResultDetails = ({ stepName, result, isError }) => {
     <Typography
       sx={{
         ...type.body,
-        color: isError ? alpha(theme.palette.error.main, 0.85) : type.body.color,
+        color: isError ? theme.palette.error.main : type.body.color,
         lineHeight: 1.6,
       }}
     >

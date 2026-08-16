@@ -12,9 +12,10 @@ function useAutoScroll({
   messageCount,
   isStreaming,
   isConversationLoading = false,
-  _activityKey = '',
+  activityKey = '',
 }) {
   const [scrollContainer, setScrollContainer] = useState(null);
+  const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
   const scheduleRafRef = useRef(null);
   const prevMessageCountRef = useRef(messageCount);
   const prevStreamingRef = useRef(isStreaming);
@@ -29,7 +30,16 @@ function useAutoScroll({
   const scrollToBottomNow = useCallback(() => {
     if (scrollContainer) {
       scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'auto' });
+      pinnedRef.current = true;
+      setIsPinnedToBottom(true);
     }
+  }, [scrollContainer]);
+
+  const scrollToBottom = useCallback(() => {
+    if (!scrollContainer) return;
+    pinnedRef.current = true;
+    setIsPinnedToBottom(true);
+    scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
   }, [scrollContainer]);
 
   const scheduleScrollToBottom = useCallback(() => {
@@ -64,7 +74,9 @@ function useAutoScroll({
     const handleScroll = () => {
       const distanceFromBottom =
         scrollContainer.scrollHeight - scrollContainer.scrollTop - scrollContainer.clientHeight;
-      pinnedRef.current = distanceFromBottom <= PINNED_THRESHOLD_PX;
+      const nextPinned = distanceFromBottom <= PINNED_THRESHOLD_PX;
+      pinnedRef.current = nextPinned;
+      setIsPinnedToBottom((current) => (current === nextPinned ? current : nextPinned));
     };
 
     handleScroll();
@@ -102,11 +114,13 @@ function useAutoScroll({
     prevStreamingRef.current = isStreaming;
   }, [isStreaming, scheduleScrollToBottom]);
   useEffect(() => {
+    // A changed activity key is the signal to re-evaluate the pinned state.
+    void activityKey;
     if (!scrollContainer) return;
     if (shouldAutoFollow()) {
       scheduleScrollToBottom();
     }
-  }, [scheduleScrollToBottom, scrollContainer, shouldAutoFollow]);
+  }, [activityKey, scheduleScrollToBottom, scrollContainer, shouldAutoFollow]);
   useEffect(() => {
     if (!scrollContainer || typeof ResizeObserver === 'undefined') return undefined;
 
@@ -138,6 +152,8 @@ function useAutoScroll({
 
   return {
     setScrollContainerRef,
+    isPinnedToBottom,
+    scrollToBottom,
   };
 }
 

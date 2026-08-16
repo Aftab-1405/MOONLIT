@@ -1,21 +1,20 @@
 import { Box, Chip, Fade, Typography } from '@mui/material';
 import { keyframes, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useMemo } from 'react';
-import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
-import DatabaseIcon from '@/components/icons/DatabaseIcon';
-import SchemaIcon from '@/components/icons/SchemaIcon';
+import { CodeEditorIcon, DatabaseIcon, SchemaIcon } from '@/components/icons';
 import ChatInput from '@/features/chat/ChatInput';
-import { getWelcomeHeroSx } from '@/features/styles/interfaceChrome';
-import { getInteractionColors, getPillSx, UI_LAYOUT } from '@/styles/shared';
-import { BRAND } from '@/theme/tokens';
+import {
+  getResponsivePillControlSx,
+  getWelcomeHeroSx,
+  getWelcomeLayoutSx,
+} from '@/features/styles/interfaceChrome';
+import { UI_LAYOUT } from '@/styles/shared';
 
 /**
  * WelcomeScreen — empty-state hero shown when no conversation is selected.
  *
- * Renders the greeting headline + composer + suggestion chips. The user's
- * first name uses the Moonlit brand gradient (orange → purple → pink) as an
- * identity moment — this is the only place in the chat interface where the
- * brand color appears at full saturation.
+ * Renders the greeting headline + composer + suggestion chips. The greeting
+ * stays monochrome so the composer remains the visual anchor.
  */
 
 /** Soft entrance animation — fades content up from 4px below. */
@@ -28,13 +27,6 @@ const softReveal = keyframes`
     opacity: 1;
     transform: translateY(0);
   }
-`;
-
-/** Subtle gradient drift on the highlighted first-name (8s loop). */
-const gradientFlow = keyframes`
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
 `;
 
 const WELCOME_PREFIX = 'How can I help today';
@@ -57,20 +49,32 @@ const SUGGESTIONS = [
   },
 ];
 
-/**
- * Build the sx for a suggestion chip.
- * Uses the shared `getPillSx` from styles/shared.js so every pill/chip in
- * the app has identical geometry and interaction states.
- */
-const getSuggestionChipSx = (theme, interaction) => getPillSx(theme, interaction);
+const WELCOME_LAYOUT = getWelcomeLayoutSx();
 
 function WelcomeScreen({ visible, user, chatInputProps }) {
   const theme = useTheme();
   const firstName = user?.displayName?.split(' ')[0];
-  const neutralInteraction = useMemo(() => getInteractionColors(theme), [theme]);
   const suggestionChipSx = useMemo(
-    () => getSuggestionChipSx(theme, neutralInteraction),
-    [theme, neutralInteraction],
+    () => ({
+      ...getResponsivePillControlSx(theme, {
+        desktopHeight: 34,
+        mobileHeight: UI_LAYOUT.touchTarget,
+      }),
+      border: `1px solid ${theme.palette.border.idle}`,
+      bgcolor: 'transparent',
+      color: 'text.secondary',
+      '& .MuiChip-icon': { color: 'inherit', ml: 1 },
+      '& .MuiChip-label': { px: 1.5, ...theme.typography.buttonMd },
+      '&:hover': {
+        bgcolor: theme.palette.action.selected,
+        color: 'text.primary',
+      },
+      '&:focus-visible': {
+        outline: `2px solid ${theme.palette.border.focus}`,
+        outlineOffset: 2,
+      },
+    }),
+    [theme],
   );
 
   const { onSend } = chatInputProps || {};
@@ -82,27 +86,11 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
     [onSend],
   );
 
-  // Brand gradient for the user's first name. This is the Moonlit brand
-  // accent — orange → purple → pink — used as an identity moment on the
-  // welcome hero. The gradient slowly shimmers (cycles left → right) to
-  // give the empty state a sense of life without being distracting.
-  const nameGradientSx = useMemo(
+  const nameAccentSx = useMemo(
     () => ({
       display: 'inline-block',
-      // Brand shimmer gradient (orange → purple → pink → orange). The 4th
-      // stop matches the 1st so the loop is seamless.
-      backgroundImage: BRAND.shimmer,
-      backgroundSize: '300% 100%',
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      animation: `${gradientFlow} 6s linear infinite`,
-      fontWeight: 600,
-      '@media (prefers-reduced-motion: reduce)': {
-        animation: 'none',
-        // Fall back to the static 3-stop gradient (no animation).
-        backgroundImage: BRAND.static,
-      },
+      color: 'text.primary',
+      fontWeight: 400,
     }),
     [],
   );
@@ -117,8 +105,7 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
           alignItems: 'center',
           justifyContent: 'center',
           overflowY: 'auto',
-          px: { xs: 1, sm: 3 },
-          py: { xs: 2.5, sm: 4 },
+          ...WELCOME_LAYOUT.outer,
         }}
       >
         <Box
@@ -129,7 +116,7 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
             display: 'flex',
             flexDirection: 'column',
             alignItems: 'center',
-            gap: { xs: 1.75, sm: 2.25 },
+            ...WELCOME_LAYOUT.content,
             textAlign: 'center',
           }}
         >
@@ -143,21 +130,12 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
               component="h1"
               sx={{
                 ...getWelcomeHeroSx(theme),
-                // Use the new display-weight hero variant for an editorial
-                // "moment" feel — tighter letter-spacing, serif face, heavier
-                // weight. Falls back gracefully on small screens.
-                ...theme.typography.uiDisplayMd,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.24em',
+                gap: '0.25em',
                 flexWrap: 'wrap',
-                maxWidth: { xs: 'min(100%, 680px)', sm: 720 },
-                // Override uiDisplayMd's font-size with the responsive scale
-                // we already tuned for this hero.
-                fontSize: { xs: '1.65rem', sm: '2.05rem', md: '2.55rem' },
-                fontWeight: 500,
-                lineHeight: 1.18,
+                maxWidth: { xs: 'min(100%, 680px)', md: 720 },
               }}
             >
               <Box
@@ -171,7 +149,7 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
                 {firstName ? ',' : ''}
               </Box>
               {firstName ? (
-                <Box component="span" sx={nameGradientSx}>
+                <Box component="span" sx={nameAccentSx}>
                   {` ${firstName}?`}
                 </Box>
               ) : (
@@ -206,7 +184,7 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
                   display: 'flex',
                   justifyContent: 'center',
                   alignItems: 'center',
-                  gap: 0.75,
+                  ...WELCOME_LAYOUT.suggestions,
                   flexWrap: 'wrap',
                 }}
               >

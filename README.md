@@ -72,7 +72,7 @@ Moonlit removes that friction. You connect your database, describe your goal, an
 | **Result Visualization** | Chart.js charts and formatted data tables for query results |
 | **React Flow Diagrams** | AI can render structured `diagram-flow` ER diagrams and flowcharts inline |
 | **Markdown Rendering** | Full markdown + code block support in AI responses |
-| **Dark / Light Theme** | User-selectable with custom colour palettes |
+| **Dark Theme** | Canonical near-black interface defined by `front-end/DESIGN.md` |
 | **Conversation Sidebar** | Browse, resume, and delete past conversations |
 
 ### Security & Reliability
