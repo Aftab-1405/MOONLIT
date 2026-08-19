@@ -259,6 +259,7 @@ FIREBASE_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
 FIREBASE_CLIENT_ID=123456789
 FIREBASE_AUTH_URI=https://accounts.google.com/o/oauth2/auth
 FIREBASE_TOKEN_URI=https://oauth2.googleapis.com/token
+ADMIN_UID=your-firebase-admin-uid  # Sole UID authorized for admin telemetry endpoints
 
 # ── Firebase Web SDK (required) ────────────────────────────────────────────────
 FIREBASE_WEB_API_KEY=your-web-api-key

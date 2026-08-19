@@ -1,7 +1,7 @@
 # Authentication and Administration Compliance Design
 
 Date: 2026-08-16
-Status: Proposed — backend authorization scope requires approval
+Status: Implemented — 2026-08-17
 
 ## Goal
 
@@ -43,7 +43,7 @@ canonical dark UI system without changing Firebase sign-in semantics or weakenin
   administrator/operator role. The repository's existing security audit already records that the
   payload includes shared Redis/infrastructure telemetry ordinary users should not receive.
 
-## Proposed Design
+## Implemented Design
 
 ### Phase 4A — account entry and guards
 
@@ -51,7 +51,7 @@ canonical dark UI system without changing Firebase sign-in semantics or weakenin
 - Introduce one explicit auth-operation state (`email`, `google`, `github`, or `reset`) so all
   conflicting actions are disabled during a request and the initiating action has named progress.
 - Keep client validation immediate and Firebase/backend validation authoritative.
-- Move reset-password chrome onto the shared dialog/action geometry, preserving autofocus,
+- Move reset-password chrome onto the shared dialog/action geometry, preserving deterministic focus,
   validation, cancellation, success notification, and MUI focus restoration.
 - Remove the nonfunctional “Remember me” row. Implementing configurable Firebase persistence is a
   separate product/security decision and is not implied by a UI compliance pass.
@@ -68,8 +68,8 @@ canonical dark UI system without changing Firebase sign-in semantics or weakenin
 - Add backend authorization tests for unauthenticated, non-admin, configured admin, and missing
   configuration cases before changing dashboard presentation.
 
-This is a backend behavior change and requires explicit user approval because it can revoke API
-access currently available to all authenticated users.
+This backend behavior change was explicitly approved and now limits these telemetry endpoints to
+the configured server-side administrator.
 
 ### Phase 4C — admin presentation
 

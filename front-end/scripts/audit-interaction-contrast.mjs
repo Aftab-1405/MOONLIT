@@ -2,9 +2,13 @@ import { readFileSync } from 'node:fs';
 import * as interfaceChrome from '../src/features/styles/interfaceChrome.js';
 
 const {
-  getComposerHoverShadow,
+  COMPOSER_MAX_WIDTH,
   getComposerSurfaceSx,
+  getWelcomeCategorySx,
   getWelcomeHeroSx,
+  getWelcomeLayoutSx,
+  getWelcomeSuggestionCloseSx,
+  getWelcomeSuggestionPanelSx,
   INTERFACE_RADIUS,
 } = interfaceChrome;
 import { getFlatStepControlSx } from '../src/features/chat/ai-response-steps/timelineShared.js';
@@ -215,6 +219,170 @@ requireSource(
 );
 
 requireSource(
+  'src/features/chat/WelcomeScreen.jsx',
+  /const greeting = getWelcomeGreeting\(\{\s*date:\s*new Date\(\),\s*displayName:\s*user\?\.displayName,?\s*\}\);/,
+  'welcome heading must recompute the tested time-aware greeting from the current time during render.',
+);
+requireSource(
+  'src/features/chat/WelcomeScreen.jsx',
+  /if \(!visible\) return undefined;[\s\S]*setTimeout\([\s\S]*getWelcomePeriodBoundaryDelay\(now\)[\s\S]*clearTimeout\(greetingTimerId\)/,
+  'welcome heading must schedule and clean up a visibility-aware refresh at the next greeting boundary.',
+);
+requireSource(
+  'src/features/chat/WelcomeScreen.jsx',
+  /component="img"[\s\S]*src="\/moonlit\.svg"[\s\S]*alt=""/,
+  'welcome heading must use the existing decorative Moonlit mark.',
+);
+requireSource(
+  'src/features/chat/WelcomeScreen.jsx',
+  /if \(!visible\) setActiveCategoryId\(null\)/,
+  'welcome category state must reset when the welcome state ends.',
+);
+requireSource(
+  'src/features/chat/WelcomeScreen.jsx',
+  /previousIsConnectedRef\.current !== isConnected[\s\S]*setActiveCategoryId\(null\)/,
+  'welcome category state must reset when the connection-aware catalog changes.',
+);
+requireSourceAbsent(
+  'src/features/chat/WelcomeScreen.jsx',
+  /width:\s*'100%',\s*maxWidth:\s*COMPOSER_MAX_WIDTH,\s*mx:\s*'auto',\s*display:\s*'flex'/,
+  'welcome content must not cap the form outside its gutters and shrink the 672px composer surface.',
+);
+requireSource(
+  'src/features/chat/WelcomeScreen.jsx',
+  /component="span"[\s\S]*minWidth:\s*0[\s\S]*overflowWrap:\s*'anywhere'/,
+  'welcome names must wrap safely even when they contain no break opportunities.',
+);
+requireSource(
+  'src/features/chat/WelcomeScreen.jsx',
+  /runWelcomeEntry\(entry,[\s\S]*canSend:\s*!disabled\s*&&\s*!isStreaming/,
+  'welcome prompts must preserve disabled and streaming guards.',
+);
+requireSource(
+  'src/features/MainInterface.jsx',
+  /onOpenDatabase=\{handleSidebarOpenDbModal\}/,
+  'main interface must pass the existing database modal callback into chat.',
+);
+requireSource(
+  'src/features/chat/ChatColumn.jsx',
+  /<WelcomeScreen[\s\S]*onOpenDatabase=\{onOpenDatabase\}/,
+  'chat column must pass the database modal callback to the welcome screen.',
+);
+
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /useReducedMotion\(\)/,
+  'welcome suggestions must respect reduced motion.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /aria-label="Prompt categories"/,
+  'welcome categories must expose a named list.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /role="region"[\s\S]*aria-label=\{`\$\{activeCategory\.label\} suggestions`\}/,
+  'welcome suggestion panel must expose a named region.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /getSuggestionNavigationIndex/,
+  'welcome suggestion keyboard behavior must use the tested navigation model.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /createWelcomeInteractionGuard[\s\S]*beginWelcomeStageTransition[\s\S]*runGuardedWelcomeActivation/,
+  'the rendered welcome interaction must consume the tested transition and activation guard model.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /layout=\{reduceMotion \? false : 'size'\}/,
+  'welcome stages must use a persistent size-layout wrapper for symmetric height motion.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /position:\s*'absolute',[\s\S]*top:\s*'100%',[\s\S]*left:\s*0,[\s\S]*right:\s*0,[\s\S]*zIndex:\s*3/,
+  'welcome suggestions must be an anchored overlay so panel expansion never repositions the composer.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /initial=\{reduceMotion \? false : \{ opacity: 0, y: 6 \}\}[\s\S]*exit=\{reduceMotion \? \{ opacity: 0 \} : \{ opacity: 0, y: -4 \}\}/,
+  'welcome stage motion must stay within 6px and omit translation under reduced motion.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /inert=\{interactionLocked \? true : undefined\}/,
+  'welcome stages must become inert while their keyed tree exits.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /onExitComplete=\{handleExitComplete\}/,
+  'welcome interaction locking must reset from AnimatePresence exit completion.',
+);
+requireSourceAbsent(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /\b(?:initial|animate|exit)=\{[^\n]*height:/,
+  'welcome stage height must be owned by the persistent layout wrapper rather than one-sided panel motion.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /<AnimatePresence mode="wait" initial=\{false\} onExitComplete=\{handleExitComplete\}>/,
+  'welcome stages must replace sequentially so only one remains accessible and interactive.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /aria-disabled=\{isSuggestionDisabled\(entry\)\}/,
+  'unavailable welcome suggestions must remain focusable with an accessible disabled state.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /if \(isSuggestionDisabled\(entry\)\) return;[\s\S]*runGuardedWelcomeActivation/,
+  'aria-disabled welcome suggestions must guard activation.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /isWelcomeEntryDisabled[\s\S]*isWelcomeCategoryDisabled/,
+  'the rendered welcome controls must consume the tested prompt/database availability model.',
+);
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /disabled=\{isWelcomeCategoryDisabled\(category, availability\)\}/,
+  'a mixed database category must remain reachable when only prompt actions are disabled.',
+);
+const welcomeSuggestionsSource = readSource('src/features/chat/WelcomeSuggestions.jsx');
+if (!/moonlit:\s*AiSparkleIcon/.test(welcomeSuggestionsSource)) {
+  failures.push("Moonlit's choice must use the app sparkle icon rather than a schema icon.");
+}
+if (!/sx=\{\(theme\) => getWelcomeSuggestionCloseSx\(theme\)\}/.test(welcomeSuggestionsSource)) {
+  failures.push('welcome suggestion close control must use the shared compact close-control contract.');
+}
+if ((welcomeSuggestionsSource.match(/type="button"/g) || []).length !== 3) {
+  failures.push(
+    'welcome category, close, and suggestion controls must be non-submit buttons inside the composer form.',
+  );
+}
+requireSource(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /'&\.Mui-focusVisible':[\s\S]*backgroundColor:\s*'action\.hover'[\s\S]*boxShadow:\s*'none'/,
+  'welcome suggestion focus must use an intentional background without the default MUI shadow.',
+);
+requireSourceAbsent(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /role="(?:tab|tabpanel|option|listbox)"/,
+  'welcome actions must not use selection-widget roles.',
+);
+requireSourceAbsent(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /mode="sync"/,
+  'welcome stages must not overlap accessible keyed trees.',
+);
+requireSourceAbsent(
+  'src/features/chat/WelcomeSuggestions.jsx',
+  /disabled=\{disabled \|\| \(entry\.type === 'openDatabase' && !canOpenDatabase\)\}/,
+  'suggestion rows must not use native disabled state because keyboard focus must remain deterministic.',
+);
+
+requireSource(
   'src/features/chat/MessageList.jsx',
   /getResponsivePillIconButtonSx\(theme,\s*\{\s*desktopSize:\s*30\s*\}\)/s,
   'transcript actions must consume 44px-mobile/30px-desktop pill geometry.',
@@ -228,6 +396,11 @@ requireSource(
   'src/features/chat/MarkdownRenderer.jsx',
   /backgroundColor:\s*theme\.palette\.background\.paper/,
   'markdown tables must use the semantic card surface.',
+);
+requireSourceAbsent(
+  'src/features/chat/MarkdownRenderer.jsx',
+  /:first-child/,
+  'markdown rendering must not use SSR-unsafe :first-child selectors; use :first-of-type.',
 );
 requireSource(
   'src/components/CodeViewer.jsx',
@@ -322,6 +495,8 @@ const geometryTheme = {
   spacing: (value) => `${value * 8}px`,
 };
 
+if (COMPOSER_MAX_WIDTH !== 672) failures.push('composer: maximum width must be 672px.');
+
 if (typeof interfaceChrome.getResponsivePillControlSx !== 'function') {
   failures.push('chat controls: responsive pill geometry helper is missing.');
 } else {
@@ -376,10 +551,12 @@ if (typeof interfaceChrome.getWelcomeLayoutSx !== 'function') {
   const welcomeLayout = interfaceChrome.getWelcomeLayoutSx();
   if (
     welcomeLayout.content.gap.xs !== 2 ||
-    welcomeLayout.content.gap.md !== 3 ||
-    welcomeLayout.suggestions.gap !== 1
+    welcomeLayout.content.gap.md !== 3
   ) {
     failures.push('welcome: responsive spacing contract mismatch.');
+  }
+  if ('suggestions' in welcomeLayout) {
+    failures.push('welcome: unused suggestions layout contract must be removed or consumed.');
   }
 }
 
@@ -410,14 +587,62 @@ for (const [mode, tokens] of MODES) {
 
   const composerTheme = { palette: tokens };
   const composer = getComposerSurfaceSx(composerTheme);
-  if (composer.border !== `1px solid ${tokens.border.idle}`) failures.push(`${mode}/composer: idle hairline mismatch.`);
-  if (composer.borderRadius !== '8px') failures.push(`${mode}/composer: radius must be 8px.`);
-  if (composer.backgroundColor !== tokens.background.input) failures.push(`${mode}/composer: surface must use the semantic input tone.`);
-  if (composer.backgroundColor === tokens.background.default) failures.push(`${mode}/composer: surface must remain distinguishable from the chat canvas.`);
-  if (composer.boxShadow !== 'none' || getComposerHoverShadow(composerTheme) !== 'none') failures.push(`${mode}/composer: idle and hover shadows must be none.`);
-  const composerFocus = composer['&:focus-within'];
-  if (composerFocus != null) {
-    failures.push(`${mode}/composer: composer must not expose a visual focus-within state.`);
+  if (composer.borderRadius !== '20px') failures.push(`${mode}/composer: radius must be 20px.`);
+  if (composer.backgroundColor !== tokens.background.input) {
+    failures.push(`${mode}/composer: surface must preserve the existing near-black input tone.`);
+  }
+  if (composer.border !== `1px solid ${tokens.border.idle}` || composer.boxShadow !== 'none') {
+    failures.push(`${mode}/composer: idle boundary must be a single low-contrast 1px hairline without elevation.`);
+  }
+  if (composer['&:focus-within'] != null) {
+    failures.push(`${mode}/composer: focus must not replace the subtle idle boundary.`);
+  }
+
+  const categoryControl = getWelcomeCategorySx(composerTheme);
+  if (
+    categoryControl.height.md !== 32 ||
+    categoryControl.minHeight.xs !== 44 ||
+    categoryControl.borderRadius !== '8px' ||
+    categoryControl.px !== 1.5 ||
+    categoryControl.gap !== 0.75
+  ) failures.push(`${mode}/welcome category: responsive geometry mismatch.`);
+  if (categoryControl['& .MuiButton-startIcon']?.m !== 0) {
+    failures.push(`${mode}/welcome category: MUI start-icon margin must be reset to preserve the 6px gap.`);
+  }
+  const categoryFocus = categoryControl['&.Mui-focusVisible'];
+  if (
+    categoryFocus?.backgroundColor !== tokens.action.selected ||
+    categoryFocus?.boxShadow !== 'none'
+  ) {
+    failures.push(`${mode}/welcome category: focus must use the selected background without a MUI shadow.`);
+  }
+
+  const panel = getWelcomeSuggestionPanelSx(composerTheme);
+  if (panel.borderRadius !== '16px' || panel.backgroundColor !== tokens.background.input) {
+    failures.push(`${mode}/welcome panel: surface must preserve the composer near-black tone.`);
+  }
+  if (panel.border !== `1px solid ${tokens.border.idle}` || panel.boxShadow !== 'none') {
+    failures.push(`${mode}/welcome panel: boundary must remain a quiet 1px hairline without elevation.`);
+  }
+
+  if (typeof getWelcomeSuggestionCloseSx !== 'function') {
+    failures.push(`${mode}/welcome close control: compact close-control helper is missing.`);
+  } else {
+    const closeControl = getWelcomeSuggestionCloseSx(composerTheme);
+    if (
+      closeControl.width.md !== 28 ||
+      closeControl.height.md !== 28 ||
+      closeControl.width.xs !== 44 ||
+      closeControl.height.xs !== 44
+    ) {
+      failures.push(`${mode}/welcome close control: desktop must be compact while touch targets remain 44px.`);
+    }
+    if (
+      closeControl['&:hover']?.backgroundColor !== tokens.action.hover ||
+      closeControl['&:hover']?.color !== tokens.text.primary
+    ) {
+      failures.push(`${mode}/welcome close control: hover must use a subtle neutral fill.`);
+    }
   }
   if (contrast(tokens.border.separator, tokens.background.default) >= contrast(tokens.border.idle, tokens.background.default)) {
     failures.push(`${mode}/separator: structural dividers must be quieter than component hairlines.`);
@@ -456,9 +681,12 @@ for (const [mode, tokens] of MODES) {
   }
 }
 
-for (const [role, radius] of Object.entries(INTERFACE_RADIUS)) {
+for (const role of ['row', 'control', 'panel', 'popover']) {
+  const radius = INTERFACE_RADIUS[role];
   if (radius !== '8px') failures.push(`interface radius ${role} must be 8px.`);
 }
+if (INTERFACE_RADIUS.composer !== '20px') failures.push('interface radius composer must be 20px.');
+if (INTERFACE_RADIUS.suggestionPanel !== '16px') failures.push('interface radius suggestionPanel must be 16px.');
 for (const role of ['sm', 'md', 'lg', 'xl']) {
   if (SHAPE.radius[role] !== 8) failures.push(`shape radius ${role} must be 8.`);
 }
@@ -494,5 +722,5 @@ if (failures.length) {
   for (const failure of failures) console.error(`FAIL: ${failure}`);
   process.exitCode = 1;
 } else {
-  console.log('PASS: boundary hierarchy, route mode, canonical geometry, focus contrast, flat reasoning controls, and shadow-free composer states.');
+  console.log('PASS: boundary hierarchy, route mode, canonical geometry, focus contrast, flat reasoning controls, and shared composer and welcome suggestion states.');
 }

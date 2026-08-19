@@ -2,12 +2,6 @@ import {
   Alert,
   Box,
   Button,
-  Checkbox,
-  CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
   Link,
   Snackbar,
   Stack,
@@ -17,12 +11,18 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import ButtonLoadingSpinner from '@/components/common/ButtonLoadingSpinner';
+import DialogShell from '@/components/common/DialogShell';
+import PageLoader from '@/components/common/PageLoader';
+import { getConfirmActionGeometrySx } from '@/components/common/dialogActionStyles';
 import { GitHubBrandIcon } from '@/components/icons';
 import { useAuth } from '@/contexts/AuthContext';
 import { useFormValidation } from '@/hooks/useFormValidation';
+import AuthBrandPanel, { PRODUCT_COPY } from '@/pages/AuthBrandPanel';
+import { getAuthActionSx } from '@/pages/authActionStyles';
+import { getAuthLayoutSx } from '@/pages/authLayoutStyles';
 import { getOutlinedFieldStateSx } from '@/styles/shared';
 import logger from '@/utils/logger';
 import {
@@ -66,13 +66,15 @@ function Auth() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [formLoading, setFormLoading] = useState(false);
+  const [authOperation, setAuthOperation] = useState(null);
+  const authOperationRef = useRef(null);
+  const resetEmailInputRef = useRef(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
   const [snackbarSeverity, setSnackbarSeverity] = useState('error');
   const [forgotDialogOpen, setForgotDialogOpen] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
-  const [resetLoading, setResetLoading] = useState(false);
+  const authBusy = authOperation !== null;
 
   const {
     errors: fieldErrors,
@@ -118,12 +120,35 @@ function Auth() {
     },
     [theme],
   );
+  const authActionSx = useMemo(() => getAuthActionSx(theme), [theme]);
+  const authLayoutSx = useMemo(() => getAuthLayoutSx(theme), [theme]);
 
-  const changeMode = (next) => {
+  const runAuthOperation = useCallback(async (operation, action, errorLabel) => {
+    if (authOperationRef.current) return false;
+
+    authOperationRef.current = operation;
+    setAuthOperation(operation);
+    try {
+      await action();
+      return true;
+    } catch (operationError) {
+      logger.error(errorLabel, operationError);
+      return false;
+    } finally {
+      authOperationRef.current = null;
+      setAuthOperation(null);
+    }
+  }, []);
+
+  const changeMode = useCallback((next) => {
+    if (authOperationRef.current || next === tabValue) return;
     setTabValue(next);
+    setPassword('');
+    setConfirmPassword('');
+    setDisplayName('');
     resetErrors();
     clearAuthError?.();
-  };
+  }, [clearAuthError, resetErrors, tabValue]);
 
   const handleSnackbarClose = (_, reason) => {
     if (reason === 'clickaway') return;
@@ -131,87 +156,103 @@ function Auth() {
     clearAuthError?.();
   };
 
-  const handleEmailSignIn = async (event) => {
+  const handleEmailSignIn = useCallback(async (event) => {
     event.preventDefault();
     if (!validateForm(signInSchema, { email, password })) return;
-    setFormLoading(true);
-    try {
-      await signInWithEmail(email, password);
-    } catch (signInError) {
-      logger.error('Sign in failed:', signInError);
-    } finally {
-      setFormLoading(false);
-    }
-  };
+    await runAuthOperation(
+      'email',
+      () => signInWithEmail(email, password),
+      'Sign in failed:',
+    );
+  }, [email, password, runAuthOperation, signInWithEmail, validateForm]);
 
-  const handleEmailSignUp = async (event) => {
+  const handleEmailSignUp = useCallback(async (event) => {
     event.preventDefault();
     if (!validateForm(signUpSchema, { email, passwordSignUp: password, confirmPassword, displayName })) return;
-    setFormLoading(true);
-    try {
-      await signUpWithEmail(email, password, displayName);
-    } catch (signUpError) {
-      logger.error('Sign up failed:', signUpError);
-    } finally {
-      setFormLoading(false);
-    }
-  };
+    await runAuthOperation(
+      'email',
+      () => signUpWithEmail(email, password, displayName),
+      'Sign up failed:',
+    );
+  }, [confirmPassword, displayName, email, password, runAuthOperation, signUpWithEmail, validateForm]);
 
-  const handlePasswordReset = async () => {
+  const handleProviderSignIn = useCallback(async (provider) => {
+    const action = provider === 'google' ? signInWithGoogle : signInWithGitHub;
+    await runAuthOperation(
+      provider,
+      action,
+      `${provider === 'google' ? 'Google' : 'GitHub'} sign in failed:`,
+    );
+  }, [runAuthOperation, signInWithGitHub, signInWithGoogle]);
+
+  const handlePasswordReset = useCallback(async () => {
     if (!validateForm(resetPasswordSchema, { email: resetEmail })) return;
-    setResetLoading(true);
-    try {
-      await resetPassword(resetEmail);
-      setForgotDialogOpen(false);
-      setResetEmail('');
-      setSnackbarMessage('Password reset link sent.');
-      setSnackbarSeverity('success');
-      setSnackbarOpen(true);
-    } catch (resetError) {
-      logger.error('Password reset failed:', resetError);
-    } finally {
-      setResetLoading(false);
-    }
-  };
+    const succeeded = await runAuthOperation(
+      'reset',
+      () => resetPassword(resetEmail),
+      'Password reset failed:',
+    );
+    if (!succeeded) return;
+
+    setForgotDialogOpen(false);
+    setResetEmail('');
+    setSnackbarMessage('Password reset link sent.');
+    setSnackbarSeverity('success');
+    setSnackbarOpen(true);
+  }, [resetEmail, resetPassword, runAuthOperation, validateForm]);
+
+  const openResetDialog = useCallback(() => {
+    if (authOperationRef.current) return;
+    resetErrors();
+    clearAuthError?.();
+    setResetEmail(email);
+    setForgotDialogOpen(true);
+  }, [clearAuthError, email, resetErrors]);
+
+  const closeResetDialog = useCallback(() => {
+    if (authOperationRef.current === 'reset') return;
+    setForgotDialogOpen(false);
+    resetErrors();
+  }, [resetErrors]);
+
+  const handleResetDialogEntered = useCallback(() => {
+    resetErrors();
+    resetEmailInputRef.current?.focus();
+  }, [resetErrors]);
 
   if (loading) {
-    return (
-      <Box sx={{ height: '100dvh', display: 'grid', placeItems: 'center', backgroundColor: 'background.default' }}>
-        <CircularProgress size={28} color="inherit" />
-      </Box>
-    );
+    return <PageLoader />;
   }
 
   return (
     <>
       <Box
         data-auth-page=""
-        sx={{
-          height: '100dvh',
-          overflowY: 'auto',
-          backgroundColor: 'background.default',
-          color: 'text.primary',
-          px: { xs: 2, sm: 3 },
-          py: { xs: 3, sm: 6 },
-        }}
+        sx={authLayoutSx.page}
       >
-        <Box sx={{ width: '100%', maxWidth: 480, mx: 'auto' }}>
-          <Button variant="text" onClick={() => navigate('/')} sx={{ px: 0, mb: 5, borderRadius: 0 }}>
-            <Typography sx={(muiTheme) => muiTheme.typography.uiBrandWordmark}>Moonlit</Typography>
-          </Button>
+        <AuthBrandPanel
+          actionSx={authActionSx}
+          layoutSx={authLayoutSx}
+          onNavigateHome={() => navigate('/')}
+        />
 
-          <Box sx={{ p: { xs: 3, sm: 4 }, border: '1px solid', borderColor: 'border.subtle', borderRadius: '8px', backgroundColor: 'background.paper' }}>
-            <Typography sx={(muiTheme) => ({ ...muiTheme.typography.captionMonoSm, color: 'text.secondary' })}>
-              Account access
-            </Typography>
-            <Typography component="h1" sx={(muiTheme) => ({ ...muiTheme.typography.displaySm, mt: 1.5 })}>
-              {tabValue === 0 ? 'Welcome back.' : 'Create your account.'}
-            </Typography>
-            <Typography sx={{ mt: 1.5, color: 'text.secondary' }}>
-              {tabValue === 0
-                ? 'Sign in to continue your database conversations.'
-                : 'Start querying and visualizing your databases with Moonlit.'}
-            </Typography>
+        <Box component="main" sx={authLayoutSx.formPanel}>
+          <Box sx={authLayoutSx.formInner}>
+            <Box>
+              <Typography sx={(muiTheme) => ({ ...muiTheme.typography.captionMonoSm, color: 'text.secondary' })}>
+                Account access
+              </Typography>
+              <Typography component="h1" sx={(muiTheme) => ({ ...muiTheme.typography.displaySm, mt: 1.5 })}>
+                {tabValue === 0 ? 'Welcome back.' : 'Create your account.'}
+              </Typography>
+              <Typography sx={{ mt: 1.5, color: 'text.secondary', ...authLayoutSx.desktopProductCopy }}>
+                {tabValue === 0
+                  ? 'Sign in to continue your database conversations.'
+                  : 'Start querying and visualizing your databases with Moonlit.'}
+              </Typography>
+              <Typography sx={{ mt: 1.5, color: 'text.secondary', ...authLayoutSx.mobileProductCopy }}>
+                {PRODUCT_COPY}
+              </Typography>
 
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.5, p: 0.5, mt: 4, border: '1px solid', borderColor: 'border.subtle', borderRadius: 999 }}>
               {['Sign in', 'Sign up'].map((label, index) => (
@@ -219,8 +260,12 @@ function Auth() {
                   key={label}
                   variant="text"
                   onClick={() => changeMode(index)}
+                  disabled={authBusy}
                   aria-pressed={tabValue === index}
-                  sx={{ backgroundColor: tabValue === index ? 'action.selected' : 'transparent' }}
+                  sx={{
+                    ...authActionSx,
+                    backgroundColor: tabValue === index ? 'action.selected' : 'transparent',
+                  }}
                 >
                   {label}
                 </Button>
@@ -230,6 +275,7 @@ function Auth() {
             <Stack
               component="form"
               onSubmit={tabValue === 0 ? handleEmailSignIn : handleEmailSignUp}
+              aria-busy={authBusy}
               spacing={2}
               sx={{ mt: 3 }}
             >
@@ -239,6 +285,7 @@ function Auth() {
                   label="Display name"
                   placeholder="Enter your name"
                   value={displayName}
+                  disabled={authBusy}
                   onChange={(event) => setDisplayName(event.target.value)}
                   error={Boolean(fieldErrors.displayName)}
                   helperText={fieldErrors.displayName}
@@ -251,6 +298,7 @@ function Auth() {
                 label="Email"
                 placeholder="you@example.com"
                 value={email}
+                disabled={authBusy}
                 onChange={(event) => {
                   setEmail(event.target.value);
                   clearFieldError('email');
@@ -266,6 +314,7 @@ function Auth() {
                 label="Password"
                 placeholder="Enter your password"
                 value={password}
+                disabled={authBusy}
                 onChange={(event) => {
                   setPassword(event.target.value);
                   clearFieldError(tabValue === 0 ? 'password' : 'passwordSignUp');
@@ -282,6 +331,7 @@ function Auth() {
                   label="Confirm password"
                   placeholder="Repeat your password"
                   value={confirmPassword}
+                  disabled={authBusy}
                   onChange={(event) => {
                     setConfirmPassword(event.target.value);
                     clearFieldError('confirmPassword');
@@ -294,62 +344,98 @@ function Auth() {
               )}
 
               {tabValue === 0 && (
-                <Stack
-                  direction={{ xs: 'column', sm: 'row' }}
-                  justifyContent="space-between"
-                  alignItems={{ xs: 'flex-start', sm: 'center' }}
-                  spacing={{ xs: 1.25, sm: 0 }}
-                >
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Checkbox id="remember-me" size="small" sx={{ p: 0 }} />
-                    <Typography component="label" htmlFor="remember-me" sx={{ color: 'text.secondary', cursor: 'pointer' }}>
-                      Remember me
-                    </Typography>
-                  </Stack>
+                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
                   <Link
                     component="button"
                     type="button"
-                    onClick={() => {
-                      setResetEmail(email);
-                      setForgotDialogOpen(true);
+                    onClick={openResetDialog}
+                    disabled={authBusy}
+                    sx={{
+                      minHeight: authActionSx.minHeight,
+                      display: 'inline-flex',
+                      alignItems: 'center',
                     }}
                   >
                     Forgot password?
                   </Link>
-                </Stack>
+                </Box>
               )}
 
-              <Button fullWidth type="submit" variant="contained" size="large" disabled={formLoading} sx={{ mt: '8px !important' }}>
-                {formLoading ? (tabValue === 0 ? 'Signing in…' : 'Creating account…') : tabValue === 0 ? 'Sign in' : 'Create account'}
+              <Button
+                fullWidth
+                type="submit"
+                variant="contained"
+                size="large"
+                disabled={authBusy}
+                sx={{ ...authActionSx, mt: '8px !important' }}
+              >
+                {authOperation === 'email'
+                  ? (tabValue === 0 ? 'Signing in…' : 'Creating account…')
+                  : tabValue === 0 ? 'Sign in' : 'Create account'}
               </Button>
 
-              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 1 }}>
-                <Button fullWidth variant="outlined" startIcon={<GoogleBrandIcon sx={{ fontSize: 18 }} />} onClick={() => signInWithGoogle().catch(() => {})}>
-                  Google
+              <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+                <Button type="button" fullWidth variant="outlined" disabled={authBusy} startIcon={authOperation === 'google' ? <ButtonLoadingSpinner size={16} /> : <GoogleBrandIcon sx={{ fontSize: 18 }} />} onClick={() => handleProviderSignIn('google')} sx={authActionSx}>
+                  {authOperation === 'google' ? 'Connecting…' : 'Google'}
                 </Button>
-                <Button fullWidth variant="outlined" startIcon={<GitHubBrandIcon sx={{ fontSize: 18 }} />} onClick={() => signInWithGitHub().catch(() => {})}>
-                  GitHub
+                <Button type="button" fullWidth variant="outlined" disabled={authBusy} startIcon={authOperation === 'github' ? <ButtonLoadingSpinner size={16} /> : <GitHubBrandIcon sx={{ fontSize: 18 }} />} onClick={() => handleProviderSignIn('github')} sx={authActionSx}>
+                  {authOperation === 'github' ? 'Connecting…' : 'GitHub'}
                 </Button>
               </Box>
             </Stack>
 
             <Typography sx={{ mt: 4, textAlign: 'center', color: 'text.secondary' }}>
               {tabValue === 0 ? 'New to Moonlit? ' : 'Already have an account? '}
-              <Link component="button" onClick={() => changeMode(tabValue === 0 ? 1 : 0)}>
+              <Link
+                component="button"
+                disabled={authBusy}
+                onClick={() => changeMode(tabValue === 0 ? 1 : 0)}
+                sx={{
+                  minHeight: authActionSx.minHeight,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                }}
+              >
                 {tabValue === 0 ? 'Create an account' : 'Sign in'}
               </Link>
             </Typography>
-          </Box>
+            </Box>
 
-          <Typography sx={(muiTheme) => ({ ...muiTheme.typography.captionMonoSm, mt: 3, color: 'text.disabled', textAlign: 'center' })}>
-            Secure account access
-          </Typography>
+            <Typography sx={(muiTheme) => ({
+              ...muiTheme.typography.captionMonoSm,
+              ...authLayoutSx.mobileProductCopy,
+              mt: 3,
+              color: 'text.disabled',
+              textAlign: 'center',
+              textTransform: 'uppercase',
+            })}>
+              Secure by design · Work with confidence
+            </Typography>
+          </Box>
         </Box>
       </Box>
 
-      <Dialog open={forgotDialogOpen} onClose={() => setForgotDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={(muiTheme) => ({ ...muiTheme.typography.displayXs, pb: 1 })}>Reset password</DialogTitle>
-        <DialogContent>
+      <DialogShell
+        open={forgotDialogOpen}
+        onClose={closeResetDialog}
+        maxWidth="xs"
+        desktopMinHeight={0}
+        desktopMaxHeight={440}
+        headerTitle="Reset password"
+        headerTitleId="reset-password-title"
+        ariaLabelledBy="reset-password-title"
+        transitionProps={{ onEntered: handleResetDialogEntered }}
+        bodySx={{ overflowY: 'auto' }}
+        footer={(
+          <>
+            <Button variant="outlined" onClick={closeResetDialog} disabled={authOperation === 'reset'} sx={getConfirmActionGeometrySx(theme)}>Cancel</Button>
+            <Button variant="contained" onClick={handlePasswordReset} disabled={authBusy} startIcon={authOperation === 'reset' ? <ButtonLoadingSpinner size={14} /> : null} sx={getConfirmActionGeometrySx(theme)}>
+              {authOperation === 'reset' ? 'Sending…' : 'Send reset link'}
+            </Button>
+          </>
+        )}
+      >
+        <Box sx={{ width: '100%', p: { xs: 2.5, sm: 3 } }}>
           <Typography sx={{ color: 'text.secondary', mb: 2 }}>
             Enter your email and Moonlit will send you a reset link.
           </Typography>
@@ -357,7 +443,9 @@ function Auth() {
             fullWidth
             type="email"
             label="Email"
+            inputRef={resetEmailInputRef}
             value={resetEmail}
+            disabled={authOperation === 'reset'}
             onChange={(event) => {
               setResetEmail(event.target.value);
               clearFieldError('email');
@@ -365,17 +453,10 @@ function Auth() {
             onBlur={() => validateField('email', resetEmail)}
             error={Boolean(fieldErrors.email)}
             helperText={fieldErrors.email}
-            autoFocus
             sx={fieldSx}
           />
-        </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 3 }}>
-          <Button variant="outlined" onClick={() => setForgotDialogOpen(false)}>Cancel</Button>
-          <Button variant="contained" onClick={handlePasswordReset} disabled={resetLoading} startIcon={resetLoading ? <ButtonLoadingSpinner size={14} /> : null}>
-            {resetLoading ? 'Sending…' : 'Send reset link'}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        </Box>
+      </DialogShell>
 
       <Snackbar open={snackbarOpen} autoHideDuration={6000} onClose={handleSnackbarClose} anchorOrigin={{ vertical: 'top', horizontal: isSmall ? 'center' : 'right' }}>
         <Alert onClose={handleSnackbarClose} severity={snackbarSeverity} sx={{ width: '100%' }}>{snackbarMessage}</Alert>

@@ -132,9 +132,19 @@ try {
   );
 
   const composer = getComposerSurfaceSx(theme);
-  expectValue('chat composer background', composer.backgroundColor, inputSurface);
+  expectValue(
+    'chat composer background',
+    composer.backgroundColor,
+    inputSurface,
+  );
+  expectValue(
+    'chat composer idle boundary',
+    composer.border,
+    `1px solid ${theme.palette.border.idle}`,
+  );
+  expectValue('chat composer elevation', composer.boxShadow, 'none');
   if (composer['&:focus-within'] != null) {
-    fail('chat composer must not expose a visual focus-within state.');
+    fail('chat composer must not expose a surface-level focus state.');
   }
 
   const preferenceControl = getPreferenceControlSx(theme)['& .MuiInputBase-root'];
@@ -220,6 +230,6 @@ if (failures.length) {
   process.exitCode = 1;
 } else {
   console.log(
-    'PASS: MUI inputs use the neutral surface, expose no focus-driven visuals, and preserve non-input focus.',
+    'PASS: MUI inputs stay neutral, the composer keeps its subtle idle boundary while focused, and non-input focus is preserved.',
   );
 }

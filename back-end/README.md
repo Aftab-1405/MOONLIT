@@ -198,6 +198,7 @@ Place these in a `.env` file at the project root — it's auto-loaded by `python
 | `APP_ENV` | Selects the config class (`development` / `staging` / `production` / `testing`). Defaults to `development`. |
 | `FIREBASE_TYPE`, `FIREBASE_PROJECT_ID`, `FIREBASE_PRIVATE_KEY_ID`, `FIREBASE_PRIVATE_KEY`, `FIREBASE_CLIENT_EMAIL`, `FIREBASE_CLIENT_ID`, `FIREBASE_AUTH_URI`, `FIREBASE_TOKEN_URI` | All 8 required — `FirestoreService.initialize()` in lifespan validates and refuses to start without them. |
 | `FIREBASE_WEB_PROJECT_ID` | Must equal `FIREBASE_PROJECT_ID` — validated at startup by `Config.validate_firebase_project_consistency()`. |
+| `ADMIN_UID` | Firebase UID authorized for context metrics, metrics streaming, and metrics reset. The server starts when absent, but these routes fail closed with HTTP 403. |
 | `CORS_ORIGINS` | Comma-separated allowed origins. **Required in production** (`ProductionConfig.validate_production_settings()` raises if missing or contains `*`). |
 | `REDIS_URL` | **Required in staging/production** — lifespan raises `RuntimeError("REDIS_URL must be set for staging/production")`. Optional in dev (falls back to in-memory state). |
 | `RATELIMIT_STORAGE_URL` | Must NOT be `memory://` in staging/production — lifespan raises `RuntimeError`. Use a Redis URL. |
@@ -369,6 +370,7 @@ All values are sourced from `os.getenv(...)` calls in `config.py`. ~140 unique e
 | `DEV_AUTH_USER_ID` | `local-dev-user` | UID for the local dev user when `DEV_AUTH_BYPASS=True`. |
 | `DEV_AUTH_EMAIL` | `local-dev@moonlit.local` | Email for the local dev user. |
 | `DEV_AUTH_NAME` | `Local Dev` | Display name for the local dev user. |
+| `ADMIN_UID` | (unset) | Server-owned Firebase UID allowed to access administrative telemetry. Missing or blank configuration denies all admin telemetry requests with HTTP 403. |
 
 ### CORS
 

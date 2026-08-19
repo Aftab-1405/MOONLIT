@@ -16,9 +16,8 @@
  *   - Mobile: controls preserve 44px touch targets and remain horizontally
  *     scrollable when space is constrained.
  *
- * The composer surface itself uses `getComposerSurfaceSx` (resting) and
- * the shared composer hover/focus helpers from interfaceChrome — those are
- * the single source of truth for the composer's interaction hierarchy.
+ * The composer surface uses `getComposerSurfaceSx` as the single source of
+ * truth for its resting and focus interaction hierarchy.
  */
 
 import {
@@ -53,6 +52,7 @@ import {
 import SlashCommandMenu from '@/features/chat/SlashCommandMenu';
 import { extractSlashQuery } from '@/features/chat/slashCommandUtils';
 import {
+  COMPOSER_MAX_WIDTH,
   getComposerLayoutSx,
   getComposerSurfaceSx,
   getResponsivePillControlSx,
@@ -894,7 +894,7 @@ function ChatInput({
       <Box
         ref={setComposerElement}
         sx={{
-          maxWidth: UI_LAYOUT.chatInputMaxWidth,
+          maxWidth: COMPOSER_MAX_WIDTH,
           ...composerLayoutSx.surface,
           mx: 'auto',
           position: 'relative',

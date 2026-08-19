@@ -286,7 +286,7 @@ const MarkdownRenderer = memo(function MarkdownRenderer({
         lineHeight: 1.4,
         letterSpacing: '-0.008em',
       },
-      '& > :first-child': { mt: 0 },
+      '& > :first-of-type': { mt: 0 },
       '& > :last-child': { mb: 0 },
       '& table': {
         overflowWrap: 'normal',

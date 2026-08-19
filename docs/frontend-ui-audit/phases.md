@@ -468,15 +468,25 @@ keyboard accessibility.
 
 ### Known Issues
 
-The authentication screen is visually reachable and dark, but full state coverage has not been
-audited. The current dummy account is not an administrator and `/admin` correctly redirects to
-`/chat`. The backend metrics, stream, and reset routes require authentication but do not enforce the
-client dashboard's administrator UID boundary; client-side routing is not authoritative security.
+The current dummy account is not an administrator, so the authorized dashboard and live telemetry
+states do not have a safe browser fixture. Full Firebase/provider/reset submission was intentionally
+not exercised. Browser-only validation also reports Firebase initialization errors when the backend
+configuration endpoint is unavailable; this is an environment limitation rather than a Phase 4
+regression.
 
-### Planned Changes
+### Implemented Changes
 
-Align verified form, guard, loader, and administration inconsistencies with the canonical shared
-tokens and component patterns without altering authentication or authorization behavior.
+Auth initialization now uses the shared loader; email, provider, and reset operations share one
+deterministic operation lock and named busy state; the nonfunctional Remember Me control is gone;
+and password recovery uses the shared dialog/action geometry with deterministic entered focus and
+focus restoration. Pure route-decision tests cover loading, anonymous, authenticated, non-admin,
+configured-admin, and missing-admin-configuration paths. The server now owns a fail-closed
+`ADMIN_UID` check for metrics, metrics streaming, and metrics reset. Admin presentation uses
+canonical tokens, responsive action geometry, semantic live/busy states, and reduced motion while
+preserving telemetry URLs, transforms, credentials, timers, and cleanup. The subsequently approved
+B1/M1 Auth presentation replaces the redundant nested form card with a 44/56 editorial split from
+768px, a compact single-column mobile flow, and an extracted product-only brand panel; account
+behavior and ownership remain unchanged.
 
 ### Dependencies
 
@@ -484,8 +494,16 @@ Phase 1A and stable shared components.
 
 ### Validation
 
-Sign-in/sign-up states, validation, loading, provider actions, password recovery entry, guards,
-mobile layouts, and authorized admin states when access is available.
+Eleven frontend Node tests, six UI audits, ESLint, Knip, production build, six isolated backend
+authorization tests, Python compilation, diff checks, and safe browser checks passed. Browser
+coverage included public sign-in/sign-up switching, empty validation, reset-dialog focus/cancel,
+44px actions through a 767px CSS viewport, compact actions at 768px, zero horizontal overflow, and
+anonymous `/admin` redirection. Auth submissions, OAuth, password reset, sign-out, and live admin
+operations were not triggered. Full FastAPI route tests were unavailable because this workspace
+does not provide FastAPI/pytest dependencies; the pure authorization decision tests and source
+audit cover the new boundary. Phase 6 subsequently exercised the B1/M1 layout at 390px, 767px,
+768px, and desktop, including mode switching, validation, reset-dialog focus/restoration, field
+focus treatment, provider alignment, overflow, and the approved sign-out/sign-in cycle.
 
 ### Exit Criteria
 
@@ -493,8 +511,10 @@ Reachable states pass the phase report; inaccessible states are explicitly docum
 
 ### Status
 
-PLANNED — read-only architecture/source/browser audit complete. Implementation is waiting for an
-explicit decision on the recommended backend administrator-authorization scope.
+COMPLETE WITH FIXTURE LIMITATIONS — account entry, guards, server-owned administration
+authorization, reachable admin presentation contracts, and the approved Auth layout pass the
+automated and live responsive checks. Authorized live admin telemetry and full backend route-test
+dependencies remain unavailable as documented above.
 
 ## Phase 5 — Landing Page Compliance
 
@@ -518,11 +538,18 @@ hairline cards, no shadows, and 768px grid transition.
 
 ### Known Issues
 
-Recent commits substantially rebuilt this surface; it needs verification, not presumed rework.
+No unresolved landing defect remains. Phase 6 restored browser control and supplied the previously
+missing live 390px, 767px, 768px, and desktop interaction, screenshot, and overflow evidence.
 
-### Planned Changes
+### Implemented Changes
 
-Only verified inconsistencies.
+Preserved the recent landing structure, content, auth-aware CTA routing, sticky navigation, product
+walkthrough, database marquee, reveal behavior, FAQ semantics, and mobile drawer. Removed verified
+design-system inconsistencies: hero gradients and atmospheric blur, translucent header blur,
+mockup shadow and perspective tilt, elevated card hover motion, noncanonical 10–16px radii, excess
+card/section padding, uppercase hero treatment, and selected topology changes below 768px. A focused
+presentation helper and audit now own flat 8px hairline surfaces, 24px card padding, documented
+content-band spacing, and the canonical responsive boundary.
 
 ### Dependencies
 
@@ -530,8 +557,16 @@ Canonical dark theme foundation.
 
 ### Validation
 
-Existing landing test, keyboard navigation, reduced motion, mobile/desktop screenshots, lint, and
-build.
+- `node --test` — 12 passed, including landing CTA destination and presentation contracts.
+- `npm run audit:landing` — passed flat surfaces, canonical geometry, and 768px topology checks.
+- Auth/admin, dark-only, theme, interaction, input-focus, and workspace audits — passed.
+- Full ESLint and Knip — passed.
+- Production build — passed with the existing oversized Perspective vendor chunk warning.
+- `git diff --check` — passed.
+- Served `/` route — returned HTTP 200 from the local Vite server.
+- Phase 6 live browser checks — passed at 390px, 767px, 768px, and desktop: zero horizontal
+  overflow; mobile navigation through 767px and desktop navigation from 768px; correct one/two/three
+  column topology changes; flat header/cards/mockup; and Escape focus restoration for mobile nav.
 
 ### Exit Criteria
 
@@ -539,7 +574,9 @@ The landing page is classified and any verified gaps are resolved.
 
 ### Status
 
-NOT STARTED
+COMPLETE — the landing presentation contract, automated checks, served route, and Phase 6 live
+responsive interaction/screenshots pass without changing product behavior or recent content
+structure.
 
 ## Phase 6 — Cross-Application Responsive and Final Audit
 
@@ -562,11 +599,31 @@ No unapproved deviations from `DESIGN.md` and no duplicate visual language.
 
 ### Known Issues
 
-Depends on discoveries from preceding phases.
+Live fixtures remain unavailable for authorized admin telemetry; a safely connected database and
+its SQL/schema/Perspective states; active streaming; guided confirmation; paused execution; and
+error presentation. Initial history failure, successful empty history, and failed rename/delete
+also lack repeatable live fixtures. Their available source/model/authorization contracts remain in
+the automated suite. Production build continues to report the known oversized Perspective vendor
+chunk.
 
-### Planned Changes
+### Implemented Changes / Findings
 
-Focused corrections only; no final-pass architectural rewrite.
+Completed the public and authenticated viewport matrix at 390px, 767px, 768px, and desktop. Verified
+landing topology, Auth presentation and interactions, welcome/composer geometry, mobile drawer and
+overlay sequencing, expanded/collapsed profile/settings separation, long-transcript containment and
+sidebar timing, Database/Settings containment, and artifact fullscreen focus/Escape restoration.
+The approved dummy account was signed out only for Auth checks and returned to the same known
+conversation afterward. No message, reset link, OAuth request, account creation, database mutation,
+query, or preference reset was submitted.
+
+The only fresh console diagnostic was Emotion's SSR-safety warning for `:first-child` in
+`MarkdownRenderer`. A focused interaction-audit regression first reproduced the selector, the style
+was changed to the recommended `:first-of-type` form, and a fresh authenticated reload produced no
+new warning or error. No final-pass architectural rewrite was needed.
+
+The shared chat composer retains its user-approved 20px radius and the anchored welcome suggestion
+panel retains 16px. This is a recorded exception to the general 8px surface language; both remain
+flat, use one low-contrast hairline, and have no shadow. Internal controls remain 8px or pill-shaped.
 
 ### Dependencies
 
@@ -574,8 +631,21 @@ All intended implementation phases.
 
 ### Validation
 
-Lint, build, available tests, design audits, targeted browser workflows, viewport matrix, console
-diagnostics, and final changed-file review.
+- Live landing/Auth/chat viewport matrix at 390px, 767px, 768px, and desktop — passed with zero
+  document/workspace horizontal overflow and the canonical 768px topology switch.
+- Auth sign-in/sign-up switching, empty validation, reset-dialog entry focus/cancel restoration,
+  and the approved dummy sign-out/sign-in restoration — passed without reset/OAuth/account creation.
+- Long-conversation left-sidebar transitions — approximately 324–326ms including their intended
+  animation, with no seconds-long stall or jerking; right-side artifact behavior remained smooth.
+- Mobile drawer/Settings/Database sequencing, expanded/collapsed profile/settings ownership, and
+  artifact fullscreen focus/Escape restoration — passed.
+- Fresh browser console after the Markdown selector correction — no new warnings or errors.
+- `node --test` — 12 passed.
+- Landing, auth/admin, dark-only, theme, interaction, input-focus, and workspace audits — passed.
+- Full ESLint and Knip — passed.
+- Production build — passed with the known oversized Perspective vendor chunk warning.
+- Backend administration authorization — six unit tests passed; the focused Python modules compile.
+- `git diff --check`, debug-artifact scan, and final changed-file self-review — passed.
 
 ### Exit Criteria
 
@@ -583,4 +653,6 @@ All completed phases are stable, documentation is current, and remaining limitat
 
 ### Status
 
-NOT STARTED
+COMPLETE WITH FIXTURE LIMITATIONS — the live responsive matrix, sole reproducible final-pass warning
+correction, automated regression suite, final changed-file review, and audit documentation are
+complete. Only the explicit live-fixture and Perspective bundle-size limitations above remain.

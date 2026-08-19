@@ -9,6 +9,7 @@ import {
   ListItemButton,
   Tooltip,
   Typography,
+  useMediaQuery,
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -32,21 +33,12 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import logger from '@/utils/logger';
 
-const FONT_MONO = '"Geist Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, monospace';
-const FONT_SANS =
-  'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
-const SPACE = { 1: 4, 2: 8, 3: 12, 4: 16, 6: 24, 8: 32 };
-
-const LABEL_SX = {
+const getLabelSx = (theme) => ({
+  ...theme.typography.uiMonoLabel,
   color: 'text.secondary',
-  fontFamily: FONT_SANS,
-  fontSize: 11,
-  fontWeight: 400,
-  letterSpacing: '0.08em',
-  lineHeight: 1.35,
-  textTransform: 'uppercase',
-};
+});
 
 const ICON_PROPS = { sx: { fontSize: 18 }, 'aria-hidden': true };
 
@@ -101,7 +93,7 @@ function Card({ children, sx = {}, component = 'section', ...props }) {
         borderColor: 'divider',
         bgcolor: 'background.paper',
         boxShadow: 'none',
-        p: `${SPACE[6]}px`,
+        p: 3,
         ...sx,
       }}
       {...props}
@@ -118,17 +110,16 @@ function CardHeader({ label, title, icon: Icon }) {
         display: 'flex',
         alignItems: 'flex-start',
         justifyContent: 'space-between',
-        gap: `${SPACE[4]}px`,
-        mb: `${SPACE[6]}px`,
+        gap: 2,
+        mb: 3,
       }}
     >
       <Box sx={{ minWidth: 0 }}>
-        <Typography sx={LABEL_SX}>{label}</Typography>
+        <Typography sx={getLabelSx}>{label}</Typography>
         <Typography
           sx={{
-            mt: `${SPACE[1]}px`,
+            mt: 0.5,
             color: 'text.primary',
-            fontFamily: FONT_SANS,
             fontSize: 16,
             fontWeight: 400,
             lineHeight: 1.3,
@@ -157,8 +148,8 @@ function MetricRow({ icon, label, value, detail, tone = 'neutral' }) {
         display: 'grid',
         gridTemplateColumns: '32px minmax(0, 1fr) auto',
         alignItems: 'center',
-        gap: `${SPACE[3]}px`,
-        py: `${SPACE[3]}px`,
+        gap: 1.5,
+        py: 1.5,
         minHeight: 64,
       }}
     >
@@ -169,7 +160,6 @@ function MetricRow({ icon, label, value, detail, tone = 'neutral' }) {
         <Typography
           sx={{
             color: 'text.primary',
-            fontFamily: FONT_SANS,
             fontSize: 13,
             fontWeight: 400,
             lineHeight: 1.35,
@@ -179,9 +169,8 @@ function MetricRow({ icon, label, value, detail, tone = 'neutral' }) {
         </Typography>
         <Typography
           sx={{
-            mt: `${SPACE[1]}px`,
+            mt: 0.5,
             color: 'text.secondary',
-            fontFamily: FONT_SANS,
             fontSize: 12,
             lineHeight: 1.3,
           }}
@@ -192,7 +181,7 @@ function MetricRow({ icon, label, value, detail, tone = 'neutral' }) {
       <Typography
         sx={{
           color,
-          fontFamily: FONT_MONO,
+          fontFamily: (theme) => theme.typography.fontFamilyMono,
           fontSize: 15,
           fontWeight: 400,
           textAlign: 'right',
@@ -215,7 +204,7 @@ function HitRateCard({ hitRate, hits, misses }) {
         aria-label={`Cache hit rate ${hitRate}%`}
         sx={{
           color: 'text.primary',
-          fontFamily: FONT_MONO,
+          fontFamily: (theme) => theme.typography.fontFamilyMono,
           fontSize: 48,
           fontWeight: 400,
           lineHeight: 1,
@@ -224,17 +213,17 @@ function HitRateCard({ hitRate, hits, misses }) {
         {hitRate}
         <Box
           component="span"
-          sx={{ ml: `${SPACE[1]}px`, color: 'text.secondary', fontSize: 20, fontWeight: 400 }}
+          sx={{ ml: 0.5, color: 'text.secondary', fontSize: 20, fontWeight: 400 }}
         >
           %
         </Box>
       </Typography>
-      <Typography sx={{ ...LABEL_SX, mt: `${SPACE[2]}px` }}>Hit rate</Typography>
+      <Typography sx={(theme) => ({ ...getLabelSx(theme), mt: 1 })}>Hit rate</Typography>
       <LinearProgress
         variant="determinate"
         value={hitRate}
         sx={{
-          mt: `${SPACE[6]}px`,
+          mt: 3,
           height: 6,
           borderRadius: '999px',
           bgcolor: (theme) => alpha(theme.palette.text.primary, 0.08),
@@ -245,17 +234,17 @@ function HitRateCard({ hitRate, hits, misses }) {
         sx={{
           display: 'grid',
           gridTemplateColumns: '1fr 1fr',
-          gap: `${SPACE[4]}px`,
-          mt: `${SPACE[6]}px`,
+          gap: 2,
+          mt: 3,
         }}
       >
         <Box>
-          <Typography sx={LABEL_SX}>Cache hits</Typography>
+          <Typography sx={getLabelSx}>Cache hits</Typography>
           <Typography
             sx={{
-              mt: `${SPACE[1]}px`,
+              mt: 0.5,
               color: 'primary.main',
-              fontFamily: FONT_MONO,
+              fontFamily: (theme) => theme.typography.fontFamilyMono,
               fontSize: 16,
               fontWeight: 400,
             }}
@@ -264,12 +253,12 @@ function HitRateCard({ hitRate, hits, misses }) {
           </Typography>
         </Box>
         <Box>
-          <Typography sx={LABEL_SX}>Miss pressure</Typography>
+          <Typography sx={getLabelSx}>Miss pressure</Typography>
           <Typography
             sx={{
-              mt: `${SPACE[1]}px`,
+              mt: 0.5,
               color: missedRate > 30 ? 'warning.main' : 'text.primary',
-              fontFamily: FONT_MONO,
+              fontFamily: (theme) => theme.typography.fontFamilyMono,
               fontSize: 16,
               fontWeight: 400,
             }}
@@ -285,12 +274,14 @@ function HitRateCard({ hitRate, hits, misses }) {
 function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
   return (
     <Card
+      role="status"
+      aria-live="polite"
       sx={{
         display: 'grid',
         gridTemplateColumns: '40px minmax(0, 1fr) auto',
         alignItems: 'center',
-        gap: `${SPACE[4]}px`,
-        p: `${SPACE[4]}px`,
+        gap: 2,
+        p: 2,
       }}
     >
       <Box
@@ -310,7 +301,7 @@ function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
         <ServerIcon {...ICON_PROPS} />
       </Box>
       <Box sx={{ minWidth: 0 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: `${SPACE[2]}px` }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Box
             sx={{
               width: 7,
@@ -320,15 +311,15 @@ function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
               bgcolor: statusTone.color,
             }}
           />
-          <Typography sx={{ ...LABEL_SX, color: statusTone.color }}>
+          <Typography sx={(theme) => ({ ...getLabelSx(theme), color: statusTone.color })}>
             API relay · {statusTone.label}
           </Typography>
         </Box>
         <Typography
           sx={{
-            mt: `${SPACE[1]}px`,
+            mt: 0.5,
             color: 'text.primary',
-            fontFamily: FONT_MONO,
+            fontFamily: (theme) => theme.typography.fontFamilyMono,
             fontSize: 14,
             fontWeight: 400,
           }}
@@ -336,7 +327,7 @@ function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
           {formatLatency(apiHealth.latency)}
         </Typography>
         <Typography
-          sx={{ mt: `${SPACE[1]}px`, color: 'text.secondary', fontFamily: FONT_SANS, fontSize: 12 }}
+          sx={{ mt: 0.5, color: 'text.secondary', fontSize: 12 }}
         >
           {statusTone.copy}
         </Typography>
@@ -345,12 +336,13 @@ function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
         <span>
           <IconButton
             aria-label="Check API relay"
+            aria-busy={refreshing}
             onClick={onRefresh}
             disabled={refreshing}
             sx={{
-              width: 36,
-              height: 36,
-              borderRadius: '8px',
+              width: { xs: 44, md: 36 },
+              height: { xs: 44, md: 36 },
+              borderRadius: (theme) => theme.shape.radius.pill,
               color: 'text.secondary',
               '&:hover': {
                 bgcolor: (theme) => alpha(theme.palette.text.primary, 0.06),
@@ -382,6 +374,7 @@ function AdminDashboard() {
   const [metricsError, setMetricsError] = useState(null);
   const [ttlRemaining, setTtlRemaining] = useState(null);
   const [redisExpanded, setRedisExpanded] = useState(false);
+  const prefersReducedMotion = useMediaQuery(REDUCED_MOTION_QUERY);
   const { user } = useAuth();
 
   const applyMetrics = useCallback((nextMetrics) => {
@@ -624,39 +617,37 @@ function AdminDashboard() {
         overflowY: 'auto',
         color: 'text.primary',
         bgcolor: 'background.default',
-        fontFamily: FONT_SANS,
       }}
     >
       <Container
         maxWidth="xl"
         sx={{
           minHeight: '100%',
-          py: { xs: `${SPACE[6]}px`, lg: `${SPACE[8]}px` },
-          px: { xs: `${SPACE[4]}px`, sm: `${SPACE[6]}px` },
+          py: { xs: 3, lg: 4 },
+          px: { xs: 2, sm: 3 },
         }}
       >
-        <Fade in timeout={320}>
+        <Fade in timeout={prefersReducedMotion ? 0 : 320}>
           <Box>
             <Box
               sx={{
                 display: 'grid',
                 gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
-                gap: `${SPACE[6]}px`,
+                gap: 3,
                 alignItems: 'center',
-                pb: `${SPACE[8]}px`,
-                mb: `${SPACE[6]}px`,
+                pb: 4,
+                mb: 3,
                 borderBottom: '1px solid',
                 borderColor: 'divider',
               }}
             >
               <Box sx={{ minWidth: 0, gridColumn: { xs: '1 / -1', lg: 'span 8' } }}>
-                <Typography sx={LABEL_SX}>Moonlit runtime</Typography>
+                <Typography sx={getLabelSx}>Moonlit runtime</Typography>
                 <Typography
                   component="h1"
                   sx={{
-                    mt: `${SPACE[2]}px`,
+                    mt: 1,
                     color: 'text.primary',
-                    fontFamily: FONT_SANS,
                     fontSize: { xs: 26, sm: 32 },
                     fontWeight: 400,
                     letterSpacing: '-0.025em',
@@ -667,10 +658,9 @@ function AdminDashboard() {
                 </Typography>
                 <Typography
                   sx={{
-                    mt: `${SPACE[2]}px`,
+                    mt: 1,
                     maxWidth: 660,
                     color: 'text.secondary',
-                    fontFamily: FONT_SANS,
                     fontSize: 14,
                     lineHeight: 1.5,
                   }}
@@ -692,11 +682,11 @@ function AdminDashboard() {
               <Card
                 role="alert"
                 sx={{
-                  mb: `${SPACE[6]}px`,
-                  p: `${SPACE[4]}px`,
+                  mb: 3,
+                  p: 2,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: `${SPACE[3]}px`,
+                  gap: 1.5,
                   borderColor: (theme) => alpha(theme.palette.warning.main, 0.45),
                 }}
               >
@@ -706,7 +696,6 @@ function AdminDashboard() {
                 <Typography
                   sx={{
                     color: 'text.primary',
-                    fontFamily: FONT_SANS,
                     fontSize: 13,
                     lineHeight: 1.45,
                   }}
@@ -720,11 +709,11 @@ function AdminDashboard() {
               <Card
                 role="alert"
                 sx={{
-                  mb: `${SPACE[6]}px`,
-                  p: `${SPACE[4]}px`,
+                  mb: 3,
+                  p: 2,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: `${SPACE[3]}px`,
+                  gap: 1.5,
                   borderColor: (theme) => alpha(theme.palette.warning.main, 0.45),
                 }}
               >
@@ -734,7 +723,6 @@ function AdminDashboard() {
                 <Typography
                   sx={{
                     color: 'text.primary',
-                    fontFamily: FONT_SANS,
                     fontSize: 13,
                     lineHeight: 1.45,
                   }}
@@ -746,6 +734,9 @@ function AdminDashboard() {
 
             {loading ? (
               <Card
+                role="status"
+                aria-live="polite"
+                aria-label="Loading runtime telemetry"
                 sx={{
                   minHeight: 420,
                   display: 'grid',
@@ -754,7 +745,7 @@ function AdminDashboard() {
               >
                 <Box sx={{ textAlign: 'center' }}>
                   <CircularProgress size={32} thickness={3.5} sx={{ color: 'primary.main' }} />
-                  <Typography sx={{ ...LABEL_SX, mt: `${SPACE[4]}px` }}>
+                  <Typography sx={(theme) => ({ ...getLabelSx(theme), mt: 2 })}>
                     Reading runtime telemetry
                   </Typography>
                 </Box>
@@ -764,7 +755,7 @@ function AdminDashboard() {
                 sx={{
                   display: 'grid',
                   gridTemplateColumns: 'repeat(12, minmax(0, 1fr))',
-                  gap: `${SPACE[6]}px`,
+                  gap: 3,
                   '& > *': { minWidth: 0 },
                 }}
               >
@@ -844,7 +835,7 @@ function AdminDashboard() {
                           key={stat.label}
                           sx={{
                             gridColumn: { xs: 'span 12', sm: 'span 6', lg: 'span 3' },
-                            px: { xs: 0, sm: `${SPACE[4]}px` },
+                            px: { xs: 0, sm: 2 },
                             borderLeft: {
                               sm: index % 2 === 0 ? 'none' : '1px solid',
                               lg: index === 0 ? 'none' : '1px solid',
@@ -880,13 +871,16 @@ function AdminDashboard() {
                       ))}
                     </Box>
                     {metrics?.redis?.connected && (
-                      <Box sx={{ mt: 'auto', pt: `${SPACE[3]}px` }}>
+                      <Box sx={{ mt: 'auto', pt: 1.5 }}>
                         <ListItemButton
                           onClick={() => setRedisExpanded(!redisExpanded)}
+                          aria-expanded={redisExpanded}
+                          aria-controls="redis-advanced-telemetry"
                           sx={{
-                            py: `${SPACE[2]}px`,
-                            px: `${SPACE[3]}px`,
-                            borderRadius: '6px',
+                            py: 1,
+                            px: 1.5,
+                            minHeight: { xs: 44, md: 36 },
+                            borderRadius: (theme) => theme.shape.radius.pill,
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
@@ -905,18 +899,19 @@ function AdminDashboard() {
                             sx={{
                               fontSize: 16,
                               transform: redisExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                              transition: 'transform 0.2s ease',
+                              transition: prefersReducedMotion ? 'none' : 'transform 0.2s ease',
                               color: 'text.secondary',
                             }}
                           />
                         </ListItemButton>
-                        <Collapse in={redisExpanded} timeout={200}>
+                        <Collapse in={redisExpanded} timeout={prefersReducedMotion ? 0 : 200}>
                           <Box
+                            id="redis-advanced-telemetry"
                             sx={{
                               display: 'flex',
                               flexDirection: 'column',
-                              gap: `${SPACE[2]}px`,
-                              mt: `${SPACE[2]}px`,
+                              gap: 1,
+                              mt: 1,
                             }}
                           >
                             {[
@@ -951,7 +946,7 @@ function AdminDashboard() {
                                   sx={{
                                     fontSize: 11.5,
                                     color: 'text.secondary',
-                                    fontFamily: FONT_MONO,
+                                    fontFamily: (theme) => theme.typography.fontFamilyMono,
                                   }}
                                 >
                                   {item.label}
@@ -961,7 +956,7 @@ function AdminDashboard() {
                                     fontSize: 11.5,
                                     color: 'text.primary',
                                     fontWeight: 400,
-                                    fontFamily: FONT_MONO,
+                                    fontFamily: (theme) => theme.typography.fontFamilyMono,
                                   }}
                                 >
                                   {item.value}

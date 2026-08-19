@@ -36,6 +36,7 @@ const ChatColumn = memo(function ChatColumn({
   currentConversationId,
   isNarrowLayout,
   onOpenSidebar,
+  onOpenDatabase,
   openSidebarButtonRef,
   theme,
 }) {
@@ -80,6 +81,7 @@ const ChatColumn = memo(function ChatColumn({
           visible={showWelcomeState}
           user={user}
           chatInputProps={chatInputSharedProps}
+          onOpenDatabase={onOpenDatabase}
         />
 
         <Fade in={showConversationPanel} timeout={300} unmountOnExit>

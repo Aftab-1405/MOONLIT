@@ -123,6 +123,7 @@ function MainInterface() {
       currentConversationId={currentConversationId}
       isNarrowLayout={isNarrowLayout}
       onOpenSidebar={handleMobileDrawerOpen}
+      onOpenDatabase={handleSidebarOpenDbModal}
       openSidebarButtonRef={mobileSidebarTriggerRef}
       theme={theme}
     />

@@ -8,16 +8,19 @@
  * Conventions:
  *   - All hairline borders go through `getHairlineBorder` so they stay 1px
  *     and never disappear on non-retina displays.
- *   - Composer state changes use borders rather than elevation.
+ *   - The composer keeps its existing low-contrast hairline in every state.
  *
  * @module features/styles/interfaceChrome
  */
+
+export const COMPOSER_MAX_WIDTH = 672;
 
 /** Radius scale used by interface chrome. */
 export const INTERFACE_RADIUS = Object.freeze({
   row: '8px',
   control: '8px',
-  composer: '8px',
+  composer: '20px',
+  suggestionPanel: '16px',
   panel: '8px',
   popover: '8px',
 });
@@ -66,7 +69,66 @@ export function getWelcomeLayoutSx() {
   return {
     outer: { px: { xs: 1, md: 3 }, py: { xs: 2.5, md: 4 } },
     content: { gap: { xs: 2, md: 3 } },
-    suggestions: { gap: 1 },
+  };
+}
+
+/** Category control styling for welcome suggestions. */
+export function getWelcomeCategorySx(theme) {
+  return {
+    height: { xs: 44, md: 32 },
+    minHeight: { xs: 44, md: 32 },
+    minWidth: { xs: 44, md: 0 },
+    px: 1.5,
+    gap: 0.75,
+    borderRadius: INTERFACE_RADIUS.control,
+    border: 0,
+    backgroundColor: theme.palette.action.hover,
+    color: theme.palette.text.secondary,
+    boxShadow: 'none',
+    '& .MuiButton-startIcon': { m: 0 },
+    '&:hover': { backgroundColor: theme.palette.action.selected, color: theme.palette.text.primary },
+    '&.Mui-focusVisible': {
+      backgroundColor: theme.palette.action.selected,
+      outline: `2px solid ${theme.palette.border.focus}`,
+      outlineOffset: 2,
+      boxShadow: 'none',
+    },
+  };
+}
+
+/** Shared panel surface for welcome suggestions. */
+export function getWelcomeSuggestionPanelSx(theme) {
+  return {
+    width: '100%',
+    maxWidth: COMPOSER_MAX_WIDTH,
+    borderRadius: INTERFACE_RADIUS.suggestionPanel,
+    border: `1px solid ${theme.palette.border.idle}`,
+    backgroundColor: theme.palette.background.input,
+    backgroundImage: 'none',
+    boxShadow: 'none',
+    overflow: 'hidden',
+  };
+}
+
+/** Compact close control for the welcome suggestion panel header. */
+export function getWelcomeSuggestionCloseSx(theme) {
+  return {
+    width: { xs: 44, md: 28 },
+    height: { xs: 44, md: 28 },
+    minWidth: { xs: 44, md: 28 },
+    minHeight: { xs: 44, md: 28 },
+    p: 0,
+    borderRadius: INTERFACE_RADIUS.control,
+    color: theme.palette.text.secondary,
+    '&:hover': {
+      backgroundColor: theme.palette.action.hover,
+      color: theme.palette.text.primary,
+    },
+    '&.Mui-focusVisible': {
+      backgroundColor: theme.palette.action.hover,
+      outline: `2px solid ${theme.palette.border.focus}`,
+      outlineOffset: 1,
+    },
   };
 }
 
@@ -139,11 +201,6 @@ export function getComposerSurfaceSx(theme) {
     boxShadow: 'none',
     transition: 'border-color 140ms ease, background-color 140ms ease',
   };
-}
-
-/** Composer hover intentionally adds no surface or boundary effect. */
-export function getComposerHoverShadow(_theme) {
-  return 'none';
 }
 
 /** Artifact panel chrome — a sibling surface without a permanent seam. */

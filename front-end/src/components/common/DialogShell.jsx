@@ -15,11 +15,13 @@ function DialogShell({
   maxWidth = 'md',
   fullWidth = true,
   TransitionComponent,
+  transitionProps = {},
   desktopMaxHeight = 720,
   desktopMinHeight = 400,
   headerLeading,
   headerIcon,
   headerTitle,
+  headerTitleId,
   titleVariant = 'h6',
   showCloseButton = true,
   closeAriaLabel = 'Close dialog',
@@ -59,6 +61,7 @@ function DialogShell({
       transitionDuration={transitionDuration}
       sx={rootSx}
       slotProps={{
+        transition: transitionProps,
         backdrop: {
           sx: {
             backgroundColor: theme.palette.overlay.modal,
@@ -83,6 +86,7 @@ function DialogShell({
             {headerIcon}
             {headerTitle ? (
               <Typography
+                id={headerTitleId}
                 variant={titleVariant}
                 sx={{ minWidth: 0, fontWeight: 400, letterSpacing: '-0.015em' }}
               >

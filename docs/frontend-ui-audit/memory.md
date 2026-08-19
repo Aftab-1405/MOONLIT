@@ -2,15 +2,93 @@
 
 ## Current Focus
 
-Current phase: Phase 4 — Authentication and administration
-Current task: Audit authenticated entry, validation/provider states, guards, and authorized admin
-surfaces
-Current component: Auth page, route guards/loaders, and AdminDashboard
-Current file(s): `pages/Auth.jsx`, `pages/AdminDashboard.jsx`, `guards/**`, and directly shared form
-or dialog primitives
-Status: Phase 3 complete; Phase 4 audit/plan complete and awaiting authorization-scope approval
+Current phase: Phase 6 — Cross-application responsive and final audit
+Current task: Await user direction after completing the final audit
+Current component: Cross-route frontend, focused backend authorization boundary, and audit records
+Current file(s): Final browser matrix is complete; one Markdown SSR selector warning was corrected
+Status: Phase 6 browser validation, focused correction, automated regression, self-review, and
+documentation reconciliation are complete with explicit fixture limitations
 
 ## Recently Completed
+
+Date: 2026-08-19
+Task: Phase 6 live cross-application browser matrix
+Summary: Recovered browser control and exercised the public landing page, Auth, welcome chat,
+long-conversation transcript, both sidebar states, Settings, Database, and artifact/fullscreen paths
+at the canonical 390px, 767px, 768px, and desktop boundaries. Confirmed overflow, focus ownership,
+responsive target geometry, modal sequencing, flat semantic surfaces, and the previously corrected
+left-sidebar transition performance. Signed the approved dummy account out for Auth coverage and
+restored its authenticated conversation afterward. The only fresh browser warning came from a
+Markdown `:first-child` style; traced it to `MarkdownRenderer`, added a focused audit guard, changed
+it to Emotion's SSR-safe `:first-of-type` form, and confirmed a fresh reload emitted no new warning.
+Files changed: `MarkdownRenderer.jsx`, the focused interaction audit, and Phase 5/6 audit records.
+Validation: Landing and Auth screenshots plus computed layout/focus/overflow checks passed across
+all four widths; authenticated shell, mobile drawer/overlay sequencing, profile/settings behavior,
+long transcript, sidebar timing, and artifact focus restoration passed. Twelve frontend Node tests,
+all seven focused UI audits, full ESLint, Knip, the production build, six backend authorization
+tests, Python compilation, and final diff checks passed. The build retains only the known oversized
+Perspective vendor chunk warning.
+Important decisions: Preserve the approved 20px composer and 16px anchored suggestion-panel
+geometry as a documented exception to the general 8px surface language; retain 8px internal
+controls and pill actions. Treat unavailable live admin, connected-database, and streaming/error
+fixtures as explicit coverage limits rather than inferred success.
+
+Date: 2026-08-18
+Task: Phase 5 landing-page compliance
+Summary: Preserved the recent landing information architecture, copy, CTA routing, navigation,
+product walkthrough, marquee, and accessible motion behavior while removing noncanonical gradients,
+atmospheric/header blur, mockup shadow and tilt, and card lift. Centralized the landing presentation
+contract around flat 8px hairline surfaces, 24px card padding, documented content-band spacing,
+sentence-case display typography, and the canonical 768px topology boundary.
+Files changed: Landing presentation helper/tests; Hero, shared sections, capability/security/workflow
+cards, database strip, workspace illustration, page header/footer; focused landing audit; package
+script; and Phase 5 audit records. `front-end/DESIGN.md` was not changed.
+Validation: Twelve frontend Node tests, landing/auth-admin/dark/theme/interaction/input-focus/workspace
+audits, full ESLint, Knip, production build, diff checks, and a served `/` HTTP 200 check passed. The
+known Perspective vendor chunk-size warning remains. Live responsive browser interaction and
+screenshot checks were completed during Phase 6 after browser control became available again.
+Important decisions: Treat the existing workspace mockup as the approved product illustration and
+retain it with canonical flat chrome rather than deleting a recent content structure; keep the
+database marquee and reveal motion because both retain explicit reduced-motion fallbacks; centralize
+only the visual values shared across multiple landing components.
+
+Date: 2026-08-18
+Task: Approved B1/M1 authentication-page presentation
+Summary: Replaced the nested centered Auth card with the approved 44/56 editorial split at the
+canonical 768px boundary; added a focused Moonlit product panel and motion-free hairline orbit;
+placed concise product context near the mobile form; and preserved the completed account-entry,
+validation, provider, reset, loading, redirect, and operation-lock behavior.
+Files changed: `Auth.jsx`, the extracted presentational `AuthBrandPanel.jsx`, the pure responsive
+layout helper and regression tests, the focused auth/admin audit, `.gitignore`, and audit records.
+Validation: Eleven frontend Node tests, all six UI audits, full ESLint, Knip, production build, six
+backend authorization tests, Python compilation, and diff checks passed. The build retains the
+known Perspective vendor chunk-size warning. Live desktop/mobile browser checks could not be run
+at that time because the browser-control runtime rejected its own bundled `node:process` import;
+Phase 6 later completed the missing live Auth matrix without using a substitute browser.
+Important decisions: Keep all Auth behavior in `Auth.jsx` and presentation in `AuthBrandPanel`;
+switch to one column below 768px and 44/56 from 768px; omit the redundant nested form card; keep the
+decorative orbit non-interactive and motion-free; keep provider actions side-by-side on mobile.
+
+Date: 2026-08-17
+Task: Phase 4 authentication and administration compliance
+Summary: Unified account entry behind the shared loader/dialog system and one operation lock;
+removed the nonfunctional Remember Me control; made reset focus deterministic; contract-tested
+route decisions; added a server-owned, fail-closed `ADMIN_UID` boundary to metrics, stream, and
+reset; and aligned the admin dashboard to canonical responsive, semantic, and reduced-motion
+contracts without changing telemetry behavior.
+Files changed: Auth action styles/tests and page, shared DialogShell title/transition support,
+guard model/tests and guard call sites, AdminDashboard, the focused auth/admin audit, backend admin
+authorization/config/dependency/controller tests, environment documentation, and Phase 4 records.
+Validation: Ten frontend Node tests, six UI audits, ESLint, Knip, production build, six backend
+authorization unit tests, Python compilation, and safe browser checks passed. Browser coverage
+included sign-in/sign-up switching, empty validation, reset entry focus/cancel, 44px actions through
+767px, 36px actions from 768px, no overflow, and anonymous `/admin` redirect. Auth/OAuth/reset/admin
+mutations were not triggered. Authorized live admin telemetry was unavailable; full FastAPI/pytest
+route tests were unavailable because those dependencies are not installed in this workspace. The
+known Perspective chunk-size warning remains.
+Important decisions: The client guard remains navigation UX while the backend is authoritative;
+missing/blank `ADMIN_UID` fails closed; auth actions become compact at the canonical 768px boundary;
+reset input focus runs after dialog entry rather than racing MUI autofocus.
 
 Date: 2026-08-16
 Task: Phase 3C renderer internals and Phase 3 completion
@@ -209,15 +287,11 @@ requires an approved canonical design extension.
 
 ## In Progress
 
-Task: Phase 4 authentication and administration compliance.
-Files: Auth, AdminDashboard, guards/loaders, directly shared form/dialog primitives, and—only with
-explicit approval—the backend admin dependency/context metrics endpoints.
-Remaining work: Execute the approved Phase 4 plan for deterministic auth operations, shared reset
-dialog/loading states, guard contracts, admin presentation, and authoritative metrics authorization.
-Blockers: The dummy account is not an administrator and correctly redirects `/admin` to `/chat`.
-More importantly, the backend metrics/stream/reset endpoints currently authenticate users but do
-not enforce the client dashboard's administrator boundary; expanding the UI phase to correct this
-backend authorization behavior requires explicit approval.
+Task: None; Phase 6 is complete.
+Files: No active Phase 6 implementation files.
+Remaining work: Await user direction for the next product/design task.
+Blockers: Authorized live admin telemetry and connected-database/streaming error fixtures remain
+unavailable. Their boundaries continue to be covered by focused automated contracts where possible.
 
 ## Important Decisions
 
@@ -249,17 +323,31 @@ backend authorization behavior requires explicit approval.
   unchanged.
 - Perspective compliance changes stop at public React wrappers and semantic states; third-party
   worker/data/configuration/shadow-DOM behavior is out of scope without a verified defect.
+- The backend `ADMIN_UID` is the authoritative administration boundary and fails closed when absent
+  or blank; the client `AdminRoute` remains early navigation UX only.
+- Auth presentation uses one column below 768px and the approved 44/56 editorial split from 768px;
+  behavior remains owned by `Auth.jsx`, while `AuthBrandPanel.jsx` stays presentational.
+- Landing content and product structure remain intact; shared presentation values enforce flat 8px
+  hairline surfaces, 24px card padding, canonical section spacing, and 768px topology changes.
+- The approved shared chat composer uses a 20px radius and its anchored welcome suggestion panel
+  uses 16px; internal category/suggestion controls remain 8px and actions remain pill-shaped.
+- Emotion-authored frontend selectors must avoid SSR-unsafe `:first-child`/`:nth-child` forms when
+  an equivalent type selector preserves the intended presentation.
 
 ## Design Deviations Approved by User
 
-None.
+The shared chat composer uses a 20px radius and its anchored welcome suggestion panel uses 16px as
+approved during the Claude-inspired welcome redesign. This is a deliberate exception to the
+general 8px input/card surface language; the surfaces remain flat, hairline-bounded, and shadowless,
+while their internal controls retain canonical 8px or pill geometry.
 
 Removing light mode is compliance with the current canonical design, not a deviation. The desire
 to reintroduce it later does not authorize a deviation now.
 
 ## Known Issues
 
-- Chat-specific automated and visual regression coverage is limited.
+- Repeatable browser fixtures remain limited for the specific inaccessible chat and admin states
+  listed below; the available landing/Auth/chat responsive matrix is complete.
 - Production build reports an oversized Perspective vendor chunk.
 - Phase 1C lacks repeatable visual fixtures for fenced code, execution tables, active streaming,
   guided confirmation, paused execution, and error presentation; executable source contracts cover
@@ -269,9 +357,9 @@ to reintroduce it later does not authorize a deviation now.
 - Settings “Reset to defaults” applies immediately without confirmation.
 - Live SQL editor, schema mindmap, and Perspective browser coverage requires a safe connected
   database fixture that is not available for the current dummy account.
-- Admin metrics, stream, and reset endpoints currently lack server-side administrator enforcement;
-  client `AdminRoute` is not an authorization boundary. This is already corroborated by the
-  repository security audit and is the Phase 4 approval gate.
+- Authorized live admin telemetry has no safe browser fixture for the current dummy account.
+- Full backend route integration tests are unavailable in the current workspace because FastAPI
+  and pytest are not installed; isolated authorization tests and Python compilation pass.
 
 ## Technical Debt
 
@@ -287,6 +375,6 @@ to reintroduce it later does not authorize a deviation now.
 
 ## Next Recommended Task
 
-After approval, execute the Phase 4 plan including the recommended fail-closed backend admin check.
-If backend scope is declined, limit work to Auth/guard/admin presentation and retain the security
-finding as an explicit unresolved blocker rather than implying the dashboard is protected.
+Apply the user's requested Auth page visual redesign while preserving the completed Phase 4
+operation, validation, focus, guard, and responsive contracts. Start Phase 5 landing-page
+verification after that user-directed design work unless priorities change.

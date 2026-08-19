@@ -1,19 +1,24 @@
-import { Box, Chip, Fade, Typography } from '@mui/material';
+import { Box, Fade, Typography } from '@mui/material';
 import { keyframes, useTheme } from '@mui/material/styles';
-import { memo, useCallback, useMemo } from 'react';
-import { CodeEditorIcon, DatabaseIcon, SchemaIcon } from '@/components/icons';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ChatInput from '@/features/chat/ChatInput';
+import WelcomeSuggestions from '@/features/chat/WelcomeSuggestions';
 import {
-  getResponsivePillControlSx,
+  COMPOSER_MAX_WIDTH,
   getWelcomeHeroSx,
   getWelcomeLayoutSx,
 } from '@/features/styles/interfaceChrome';
-import { UI_LAYOUT } from '@/styles/shared';
+import {
+  getWelcomeCategories,
+  getWelcomeGreeting,
+  getWelcomePeriodBoundaryDelay,
+  runWelcomeEntry,
+} from './welcomeSuggestions.js';
 
 /**
  * WelcomeScreen — empty-state hero shown when no conversation is selected.
  *
- * Renders the greeting headline + composer + suggestion chips. The greeting
+ * Renders the greeting headline + composer + connection-aware suggestions. The greeting
  * stays monochrome so the composer remains the visual anchor.
  */
 
@@ -29,70 +34,56 @@ const softReveal = keyframes`
   }
 `;
 
-const WELCOME_PREFIX = 'How can I help today';
-
-const SUGGESTIONS = [
-  {
-    label: 'Check Connection',
-    icon: <DatabaseIcon sx={{ width: 16, height: 16 }} />,
-    prompt: 'Check my database connection status and show connection details',
-  },
-  {
-    label: 'Schema Details',
-    icon: <SchemaIcon sx={{ width: 16, height: 16 }} />,
-    prompt: 'Show me the database schema with all tables and their columns',
-  },
-  {
-    label: 'Draft SQL Query',
-    icon: <CodeEditorIcon sx={{ width: 16, height: 16 }} />,
-    prompt: 'Help me draft a SQL query for my database',
-  },
-];
-
 const WELCOME_LAYOUT = getWelcomeLayoutSx();
 
-function WelcomeScreen({ visible, user, chatInputProps }) {
+function WelcomeScreen({ visible, user, chatInputProps, onOpenDatabase }) {
   const theme = useTheme();
-  const firstName = user?.displayName?.split(' ')[0];
-  const suggestionChipSx = useMemo(
-    () => ({
-      ...getResponsivePillControlSx(theme, {
-        desktopHeight: 34,
-        mobileHeight: UI_LAYOUT.touchTarget,
+  const [activeCategoryId, setActiveCategoryId] = useState(null);
+  const [greetingRevision, setGreetingRevision] = useState(0);
+  const {
+    disabled = false,
+    isConnected = false,
+    isStreaming = false,
+    onSend,
+  } = chatInputProps || {};
+  const previousIsConnectedRef = useRef(isConnected);
+  const categories = useMemo(() => getWelcomeCategories(isConnected), [isConnected]);
+  const greeting = getWelcomeGreeting({
+    date: new Date(),
+    displayName: user?.displayName,
+  });
+
+  useEffect(() => {
+    if (!visible) return undefined;
+    const now = new Date();
+    const greetingTimerId = setTimeout(
+      () => setGreetingRevision((revision) => revision + 1),
+      getWelcomePeriodBoundaryDelay(now),
+    );
+    return () => clearTimeout(greetingTimerId);
+  }, [greetingRevision, visible]);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- Reset welcome-only UI state when Fade hides and unmounts its child.
+    if (!visible) setActiveCategoryId(null);
+  }, [visible]);
+
+  useEffect(() => {
+    if (previousIsConnectedRef.current !== isConnected) {
+      previousIsConnectedRef.current = isConnected;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- Connection changes replace the available welcome catalog.
+      setActiveCategoryId(null);
+    }
+  }, [isConnected]);
+
+  const handleActivate = useCallback(
+    (entry) =>
+      runWelcomeEntry(entry, {
+        canSend: !disabled && !isStreaming,
+        onSend,
+        onOpenDatabase,
       }),
-      border: `1px solid ${theme.palette.border.idle}`,
-      bgcolor: 'transparent',
-      color: 'text.secondary',
-      '& .MuiChip-icon': { color: 'inherit', ml: 1 },
-      '& .MuiChip-label': { px: 1.5, ...theme.typography.buttonMd },
-      '&:hover': {
-        bgcolor: theme.palette.action.selected,
-        color: 'text.primary',
-      },
-      '&:focus-visible': {
-        outline: `2px solid ${theme.palette.border.focus}`,
-        outlineOffset: 2,
-      },
-    }),
-    [theme],
-  );
-
-  const { onSend } = chatInputProps || {};
-
-  const handleSuggestionClick = useCallback(
-    (prompt) => {
-      onSend?.(prompt);
-    },
-    [onSend],
-  );
-
-  const nameAccentSx = useMemo(
-    () => ({
-      display: 'inline-block',
-      color: 'text.primary',
-      fontWeight: 400,
-    }),
-    [],
+    [disabled, isStreaming, onOpenDatabase, onSend],
   );
 
   return (
@@ -102,7 +93,7 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
           position: 'absolute',
           inset: 0,
           display: 'flex',
-          alignItems: 'center',
+          alignItems: 'safe center',
           justifyContent: 'center',
           overflowY: 'auto',
           ...WELCOME_LAYOUT.outer,
@@ -111,7 +102,6 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
         <Box
           sx={{
             width: '100%',
-            maxWidth: UI_LAYOUT.chatInputMaxWidth,
             mx: 'auto',
             display: 'flex',
             flexDirection: 'column',
@@ -133,36 +123,24 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.25em',
-                flexWrap: 'wrap',
-                maxWidth: { xs: 'min(100%, 680px)', md: 720 },
+                gap: 1.5,
+                maxWidth: COMPOSER_MAX_WIDTH,
               }}
             >
               <Box
-                component="span"
+                component="img"
+                src="/moonlit.svg"
+                alt=""
+                aria-hidden="true"
                 sx={{
-                  display: 'inline-block',
-                  color: 'text.primary',
+                  width: { xs: 28, md: 32 },
+                  height: { xs: 28, md: 32 },
+                  flexShrink: 0,
                 }}
-              >
-                {WELCOME_PREFIX}
-                {firstName ? ',' : ''}
+              />
+              <Box component="span" sx={{ minWidth: 0, overflowWrap: 'anywhere' }}>
+                {greeting}
               </Box>
-              {firstName ? (
-                <Box component="span" sx={nameAccentSx}>
-                  {` ${firstName}?`}
-                </Box>
-              ) : (
-                <Box
-                  component="span"
-                  sx={{
-                    display: 'inline-block',
-                    color: 'text.primary',
-                  }}
-                >
-                  ?
-                </Box>
-              )}
             </Typography>
           </Box>
 
@@ -175,40 +153,15 @@ function WelcomeScreen({ visible, user, chatInputProps }) {
             }}
           >
             <ChatInput {...chatInputProps}>
-              <Box
-                sx={{
-                  width: '100%',
-                  maxWidth: UI_LAYOUT.chatInputMaxWidth,
-                  mx: 'auto',
-                  mt: 1,
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  ...WELCOME_LAYOUT.suggestions,
-                  flexWrap: 'wrap',
-                }}
-              >
-                {SUGGESTIONS.map(({ label, icon, prompt }, index) => (
-                  <Box
-                    key={label}
-                    sx={{
-                      animation: visible ? `${softReveal} 220ms ease-out both` : 'none',
-                      animationDelay: visible ? `${70 + index * 35}ms` : '0ms',
-                      '@media (prefers-reduced-motion: reduce)': {
-                        animation: 'none',
-                      },
-                    }}
-                  >
-                    <Chip
-                      icon={icon}
-                      label={label}
-                      onClick={() => handleSuggestionClick(prompt)}
-                      size="small"
-                      sx={suggestionChipSx}
-                    />
-                  </Box>
-                ))}
-              </Box>
+              <WelcomeSuggestions
+                key={isConnected ? 'connected' : 'disconnected'}
+                categories={categories}
+                activeCategoryId={activeCategoryId}
+                onCategoryChange={setActiveCategoryId}
+                onActivate={handleActivate}
+                canOpenDatabase={typeof onOpenDatabase === 'function'}
+                disabled={disabled || isStreaming || typeof onSend !== 'function'}
+              />
             </ChatInput>
           </Box>
         </Box>
