@@ -1,10 +1,8 @@
 /**
  * useConversationDialogs
  *
- * Manages the delete-conversation and rename-conversation dialog flows.
- * Receives the underlying data operations (handleDeleteConversation,
- * handleRenameConversation) and a notification helper (showSnackbar) as
- * parameters so it stays decoupled from any specific context.
+ * Manages the delete-conversation dialog flow. Renaming is edited directly in
+ * the conversation row and therefore does not need global overlay state.
  *
  * Extracted from useChatPageController to give each dialog its own
  * clear responsibility boundary.
@@ -15,14 +13,9 @@ import { useCallback, useState } from 'react';
 /**
  * @param {Object} params
  * @param {Function} params.handleDeleteConversation - async fn(conversationId)
- * @param {Function} params.handleRenameConversation - async fn(conversationId, title)
  * @param {Function} params.showSnackbar             - fn(message, severity)
  */
-export function useConversationDialogs({
-  handleDeleteConversation,
-  handleRenameConversation,
-  showSnackbar,
-}) {
+export function useConversationDialogs({ handleDeleteConversation, showSnackbar }) {
   // ── Delete dialog ────────────────────────────────────────────────────────────
 
   const [deleteConversationDialog, setDeleteConversationDialog] = useState({
@@ -48,56 +41,10 @@ export function useConversationDialogs({
     }
   }, [deleteConversationDialog.conversationId, handleDeleteConversation, showSnackbar]);
 
-  // ── Rename dialog ────────────────────────────────────────────────────────────
-
-  const [renameConversationDialog, setRenameConversationDialog] = useState({
-    open: false,
-    conversationId: null,
-    title: '',
-  });
-
-  const handleRenameConversationRequest = useCallback((conversationId, title) => {
-    setRenameConversationDialog({
-      open: true,
-      conversationId,
-      title: title || '',
-    });
-  }, []);
-
-  const handleRenameConversationDialogClose = useCallback(() => {
-    setRenameConversationDialog({ open: false, conversationId: null, title: '' });
-  }, []);
-
-  const handleRenameConversationTitleChange = useCallback((event) => {
-    setRenameConversationDialog((prev) => ({
-      ...prev,
-      title: event.target.value,
-    }));
-  }, []);
-
-  const handleRenameConversationConfirm = useCallback(async () => {
-    const title = renameConversationDialog.title.trim();
-    if (!renameConversationDialog.conversationId || !title) return;
-    await handleRenameConversation(renameConversationDialog.conversationId, title);
-    handleRenameConversationDialogClose();
-  }, [
-    handleRenameConversation,
-    handleRenameConversationDialogClose,
-    renameConversationDialog.conversationId,
-    renameConversationDialog.title,
-  ]);
-
   return {
-    // Delete
     deleteConversationDialog,
     handleDeleteConversationRequest,
     handleDeleteConversationDialogClose,
     handleDeleteConversationConfirm,
-    // Rename
-    renameConversationDialog,
-    handleRenameConversationRequest,
-    handleRenameConversationDialogClose,
-    handleRenameConversationTitleChange,
-    handleRenameConversationConfirm,
   };
 }

@@ -31,6 +31,8 @@ export function useChatPageCanvas({
     workspaceCanvasOpen,
     workspaceCanvasArtifact: canvasArtifact,
     workspaceCanvasWidth,
+    workspaceCanvasMinWidth,
+    workspaceCanvasMaxWidth,
     handleOpenCanvasArtifact,
     handleOpenSqlEditor: openSqlEditorCanvas,
     handleCloseWorkspaceCanvas,
@@ -79,6 +81,19 @@ export function useChatPageCanvas({
     [isDbConnected, openSqlEditorCanvas, setDbModalOpen, setSettingsOpen, showSnackbar],
   );
 
+  const isSqlEditorOpen = Boolean(workspaceCanvasOpen && canvasArtifact?.type === 'sql-editor');
+
+  // The composer owns the user-facing SQL workspace entry point. Treat it as
+  // a real toggle when SQL is already visible; when another artifact is open,
+  // the same action switches the canvas to the SQL editor.
+  const handleToggleSqlEditor = useCallback(() => {
+    if (isSqlEditorOpen) {
+      handleCloseWorkspaceCanvas();
+      return;
+    }
+    handleOpenSqlEditor();
+  }, [handleCloseWorkspaceCanvas, handleOpenSqlEditor, isSqlEditorOpen]);
+
   // ── Open SQL editor early when agent starts writing a query ──────────────
   // When `write_sql_editor_query` enters `running` state, open the editor
   // immediately (with empty query) so the user sees the "Agent is writing…"
@@ -95,10 +110,14 @@ export function useChatPageCanvas({
     workspaceCanvasOpen,
     workspaceCanvasArtifact,
     workspaceCanvasWidth,
+    workspaceCanvasMinWidth,
+    workspaceCanvasMaxWidth,
     handleOpenCanvasArtifact,
     handleOpenSqlEditor,
+    handleToggleSqlEditor,
     handleCloseWorkspaceCanvas,
     handleCanvasResize,
+    isSqlEditorOpen,
     isSqlEditorStreaming,
   };
 }

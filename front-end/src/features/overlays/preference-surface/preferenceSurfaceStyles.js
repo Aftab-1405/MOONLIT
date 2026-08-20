@@ -1,4 +1,3 @@
-import { alpha } from '@mui/material/styles';
 import {
   getPreferencePanelPaperSx,
   getPreferenceSectionSurfaceSx,
@@ -6,6 +5,7 @@ import {
 } from '@/features/styles/interfaceChrome';
 import {
   getInteractiveControlSx,
+  getOutlinedFieldStateSx,
   getScrollbarStyles,
   getSegmentedToggleGroupSx,
   UI_Z_INDEX,
@@ -17,6 +17,9 @@ export const PREFERENCE_LAYOUT = Object.freeze({
   navWidth: 204,
   headerHeight: 96,
   controlHeight: 34,
+  responsiveControlHeight: { xs: 44, md: 34 },
+  responsiveToggleHeight: { xs: 44, md: 32 },
+  navHeight: { xs: 44, md: 36 },
 });
 
 export const getPreferenceRootSx = () => ({
@@ -55,44 +58,29 @@ export const getPreferenceBodySx = (theme) => ({
 });
 
 export const getPreferenceControlSx = (theme, { minWidth = 132 } = {}) => {
-  const isDark = theme.palette.mode === 'dark';
-  const fieldBg = alpha(theme.palette.text.primary, isDark ? 0.075 : 0.045);
-  const fieldHoverBg = alpha(theme.palette.text.primary, isDark ? 0.1 : 0.065);
-  const borderColor = alpha(theme.palette.text.primary, isDark ? 0.12 : 0.1);
-  const focusColor = theme.palette.border?.focus || theme.palette.primary.main;
+  const rootSelector = '& .MuiInputBase-root';
+  const fieldState = getOutlinedFieldStateSx(theme, {
+    rootSelector,
+    radius: INTERFACE_RADIUS.control,
+  });
 
   return {
     minWidth,
-    '& .MuiInputBase-root': {
-      minHeight: PREFERENCE_LAYOUT.controlHeight,
-      borderRadius: INTERFACE_RADIUS.control,
-      backgroundColor: fieldBg,
-      boxShadow: `inset 0 1px 2px ${alpha(theme.palette.common.black, isDark ? 0.12 : 0.04)}`,
-      transition: theme.transitions.create(['background-color', 'box-shadow'], {
-        duration: theme.transitions.duration.shorter,
-      }),
-      '&:hover': {
-        backgroundColor: fieldHoverBg,
-      },
+    [rootSelector]: {
+      ...fieldState[rootSelector],
+      minHeight: PREFERENCE_LAYOUT.responsiveControlHeight,
+      boxShadow: 'none',
       '&.Mui-focused': {
-        backgroundColor: fieldHoverBg,
-        boxShadow: `0 0 0 2px ${alpha(focusColor, isDark ? 0.26 : 0.18)}`,
+        backgroundColor: theme.palette.background.input,
+        outline: 'none',
+        boxShadow: 'none',
+      },
+      '&.Mui-focused:hover': {
+        backgroundColor: theme.palette.background.input,
       },
       '&.Mui-disabled': {
-        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.045 : 0.03),
+        backgroundColor: theme.palette.layer.faint,
       },
-    },
-    '& .MuiOutlinedInput-notchedOutline': {
-      borderColor,
-      transition: theme.transitions.create('border-color', {
-        duration: theme.transitions.duration.shorter,
-      }),
-    },
-    '& .MuiInputBase-root:hover .MuiOutlinedInput-notchedOutline': {
-      borderColor: alpha(theme.palette.text.primary, isDark ? 0.18 : 0.15),
-    },
-    '& .Mui-focused .MuiOutlinedInput-notchedOutline': {
-      borderColor: 'transparent',
     },
     '& .MuiInputBase-input': {
       ...theme.typography.uiInput,
@@ -119,11 +107,11 @@ export const getPreferenceControlSx = (theme, { minWidth = 132 } = {}) => {
       py: 0,
       pr: '30px !important',
       pl: '10px',
-      minHeight: PREFERENCE_LAYOUT.controlHeight,
+      minHeight: PREFERENCE_LAYOUT.responsiveControlHeight,
       display: 'flex',
       alignItems: 'center',
       ...theme.typography.uiNavItem,
-      fontWeight: 500,
+      fontWeight: 400,
       color: 'text.primary',
     },
     '& .MuiSelect-icon': {
@@ -134,7 +122,10 @@ export const getPreferenceControlSx = (theme, { minWidth = 132 } = {}) => {
 };
 
 export const getPreferenceToggleGroupSx = (theme) =>
-  getSegmentedToggleGroupSx(theme, { itemMinHeight: 32, itemRadius: INTERFACE_RADIUS.row });
+  getSegmentedToggleGroupSx(theme, {
+    itemMinHeight: PREFERENCE_LAYOUT.responsiveToggleHeight,
+    itemRadius: `${theme.shape.radius.pill}px`,
+  });
 
 export const getPreferenceButtonSx = (theme, { tone = 'neutral' } = {}) => {
   const interactionTone = tone === 'danger' ? 'error' : tone;
@@ -146,14 +137,14 @@ export const getPreferenceButtonSx = (theme, { tone = 'neutral' } = {}) => {
   return {
     ...getInteractiveControlSx(theme, {
       tone: interactionTone,
-      size: PREFERENCE_LAYOUT.controlHeight,
-      radius: '8px',
+      size: PREFERENCE_LAYOUT.responsiveControlHeight,
+      radius: theme.shape.radius.pill,
     }),
-    minHeight: PREFERENCE_LAYOUT.controlHeight,
+    minHeight: PREFERENCE_LAYOUT.responsiveControlHeight,
     px: 1.5,
     textTransform: 'none',
     ...theme.typography.uiNavItem,
-    fontWeight: 600,
+    fontWeight: 400,
     color: interactionTone === 'neutral' ? 'text.secondary' : color,
     boxShadow: 'none',
   };

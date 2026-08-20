@@ -1,6 +1,5 @@
-import { alpha } from '@mui/material/styles';
-import { getAppPanelSurfaceSx } from '@/features/styles/interfaceChrome';
-import { getInteractionColors } from '@/styles/shared';
+import { getInteractionColors, UI_LAYOUT } from '../../../styles/shared.js';
+import { getAppPanelSurfaceSx } from '../../styles/interfaceChrome.js';
 
 /**
  * Sidebar styling primitives.
@@ -12,12 +11,12 @@ import { getInteractionColors } from '@/styles/shared';
  * the shared `getInteractionColors` helper.
  *
  * Layout invariants:
- *   - `ICON_COL` (36px) is the fixed-width icon slot. Icon never reflows.
+ *   - `ICON_COL` (36px) is the fixed-width icon slot for navigation rows.
  *   - `ROW_PX` (8px) is the horizontal inset for every row's hover pill.
  *   - `ROW_HEIGHT` (36px) is the consistent height for every row.
  */
 
-const SIDEBAR_RADIUS = '10px';
+const SIDEBAR_RADIUS = '8px';
 
 // ─── Shared token ────────────────────────────────────────────────────────────
 // Every clickable row uses the same horizontal inset (px: ROW_PX = 8px each side).
@@ -25,9 +24,8 @@ const SIDEBAR_RADIUS = '10px';
 // Height is controlled by the row's minHeight, not the icon slot.
 export const ROW_PX = 1; // MUI spacing → 8px each side
 export const ICON_COL = 36; // px — fixed icon column width only (not height)
-const ROW_HEIGHT = 36; // px — single consistent row height for all items
-const focusRing = (theme) =>
-  `0 0 0 3px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.16 : 0.1)}`;
+const ROW_HEIGHT = UI_LAYOUT.controlRowHeight; // shared with popover action rows
+const focusRing = (theme) => `0 0 0 3px ${theme.palette.border.focus}`;
 
 export function getSidebarRailTooltipSlotProps(_theme) {
   return {
@@ -60,10 +58,11 @@ export function buildNavRowSx(
   const interaction = getInteractionColors(theme, { active: isActive });
   return {
     display: 'flex',
+    position: 'relative',
     alignItems: 'center',
     width: collapsed ? '36px' : '100%',
-    height: ROW_HEIGHT,
-    minHeight: ROW_HEIGHT,
+    height: { xs: UI_LAYOUT.touchTarget, md: ROW_HEIGHT },
+    minHeight: { xs: UI_LAYOUT.touchTarget, md: ROW_HEIGHT },
     px: ROW_PX,
     py: 0,
     gap: 0,
@@ -75,9 +74,21 @@ export function buildNavRowSx(
     borderRadius: SIDEBAR_RADIUS,
     boxSizing: 'border-box',
     backgroundColor: isActive ? interaction.activeBackground : 'transparent',
-    boxShadow: isActive ? `inset 0 0 0 1px ${interaction.activeBorder}` : 'none',
+    boxShadow: 'none',
     color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
     opacity: disabled ? 0.4 : 1,
+    '&::before': isActive
+      ? {
+          content: '""',
+          position: 'absolute',
+          left: 0,
+          top: 9,
+          bottom: 9,
+          width: 2,
+          borderRadius: 9999,
+          backgroundColor: theme.palette.primary.main,
+        }
+      : undefined,
     transition: theme.transitions.create(
       ['background-color', 'color', 'opacity', 'box-shadow', 'width'],
       {
@@ -91,31 +102,33 @@ export function buildNavRowSx(
     '&:focus-visible': {
       outline: 'none',
       // Use boxShadow (not outline) so the ring doesn't clip with borderRadius.
-      boxShadow: isActive
-        ? `inset 0 0 0 1px ${interaction.activeBorder}, ${focusRing(theme)}`
-        : focusRing(theme),
+      boxShadow: focusRing(theme),
     },
   };
 }
 
 // ─── Conversation row ─────────────────────────────────────────────────────────
-export function buildConversationRowSx(theme, { isActive = false, menuOpen = false } = {}) {
+export function buildConversationRowSx(theme, { isActive = false, isRenaming = false } = {}) {
   const interaction = getInteractionColors(theme, { active: isActive });
   return {
-    display: 'flex',
+    display: 'grid',
+    gridTemplateColumns: isRenaming
+      ? { xs: 'minmax(0, 1fr) 88px', md: 'minmax(0, 1fr) 56px' }
+      : 'minmax(0, 1fr) auto',
+    columnGap: 0,
     alignItems: 'center',
     position: 'relative',
     width: '100%',
-    height: ROW_HEIGHT,
-    minHeight: ROW_HEIGHT,
+    height: { xs: UI_LAYOUT.touchTarget, md: ROW_HEIGHT },
+    minHeight: { xs: UI_LAYOUT.touchTarget, md: ROW_HEIGHT },
     pl: 0,
-    pr: 3.5,
+    pr: 0,
     py: 0,
     mb: 0.125,
     border: 'none',
     outline: 'none',
     appearance: 'none',
-    cursor: 'pointer',
+    cursor: isRenaming ? 'default' : 'pointer',
     textAlign: 'left',
     borderRadius: SIDEBAR_RADIUS,
     boxSizing: 'border-box',
@@ -125,22 +138,48 @@ export function buildConversationRowSx(theme, { isActive = false, menuOpen = fal
     transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
       duration: theme.transitions.duration.shorter,
     }),
-    '& .options-btn': { opacity: menuOpen ? 1 : 0 },
-    '&:hover .options-btn, &:focus-within .options-btn': { opacity: 1 },
-    '&:hover .conv-title, &:focus-within .conv-title': {
-      maskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-      WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-    },
-    ...(menuOpen && {
-      '& .conv-title': {
-        maskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-        WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
+    '&:hover .conversation-options, & .conversation-options:focus-visible, & .conversation-options.Mui-focusVisible':
+      {
+        opacity: 1,
+        color: theme.palette.text.primary,
       },
-    }),
+    '&:hover .conversation-title-text, & .conversation-select:focus-visible .conversation-title-text':
+      {
+        transform: 'translateX(calc(-1 * var(--conversation-title-overflow)))',
+        transition: 'transform var(--conversation-title-duration) linear 300ms',
+      },
+    '@media (prefers-reduced-motion: reduce)': {
+      '&:hover .conversation-title-text, & .conversation-select:focus-visible .conversation-title-text':
+        {
+          transition: 'none',
+        },
+    },
     '&:hover': {
       backgroundColor: isActive ? interaction.activeHoverBackground : interaction.hoverBackground,
       color: theme.palette.text.primary,
     },
+  };
+}
+
+export function buildConversationSelectSx(theme) {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+    minWidth: 0,
+    pl: 1,
+    pr: 0,
+    py: 0,
+    border: 0,
+    outline: 0,
+    appearance: 'none',
+    borderRadius: SIDEBAR_RADIUS,
+    color: 'inherit',
+    backgroundColor: 'transparent',
+    cursor: 'pointer',
+    textAlign: 'left',
+    boxShadow: 'none',
     '&:focus-visible': {
       outline: 'none',
       boxShadow: focusRing(theme),
@@ -190,11 +229,12 @@ export function buildSidebarSectionLabelSx() {
     pt: 2,
     pb: 0.75,
     fontSize: '0.8125rem',
-    fontWeight: 650,
+    fontFamily: '"Geist Mono", ui-monospace, monospace',
+    fontWeight: 400,
     lineHeight: 1.3,
     color: 'text.secondary',
-    letterSpacing: 0,
-    textTransform: 'none',
+    letterSpacing: '1.2px',
+    textTransform: 'uppercase',
     opacity: 0.88,
   };
 }

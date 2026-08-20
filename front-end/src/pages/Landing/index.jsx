@@ -1,128 +1,335 @@
-import { Box } from '@mui/material';
-import GlobalStyles from '@mui/material/GlobalStyles';
-import { alpha, useTheme } from '@mui/material/styles';
-import { useCallback, useEffect } from 'react';
+import { Box, Button, Container, Drawer, IconButton, Stack, Typography } from '@mui/material';
+import { alpha } from '@mui/material/styles';
+import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { CloseIcon, MenuIcon } from '@/components/icons';
 import { useAuth } from '@/contexts/AuthContext';
-import DemoSection from '@/pages/Landing/DemoSection';
+import AnalysisSection from '@/pages/Landing/AnalysisSection';
+import AudienceBridge from '@/pages/Landing/AudienceBridge';
+import CapabilityGrid from '@/pages/Landing/CapabilityGrid';
+import DatabaseStrip from '@/pages/Landing/DatabaseStrip';
+import FaqSection from '@/pages/Landing/FaqSection';
 import FinalCTA from '@/pages/Landing/FinalCTA';
 import Hero from '@/pages/Landing/Hero';
-import StepsGrid from '@/pages/Landing/StepsGrid';
-import ValueGrid from '@/pages/Landing/ValueGrid';
-import {
-  HOVER_CAPABLE_QUERY as SHARED_HOVER_CAPABLE_QUERY,
-  REDUCED_MOTION_QUERY as SHARED_REDUCED_MOTION_QUERY,
-} from '@/styles/mediaQueries';
+import { getGlassNavSx } from '@/pages/Landing/landingAnimations';
+import { getLandingDestination, LANDING_COPY, NAV_LINKS } from '@/pages/Landing/landingContent';
+import { getLandingPresentationSx } from '@/pages/Landing/landingPresentation';
+import ProductShowcase from '@/pages/Landing/ProductShowcase';
+import SchemaIntelligenceSection from '@/pages/Landing/SchemaIntelligenceSection';
+import SecuritySection from '@/pages/Landing/SecuritySection';
+import SqlControlSection from '@/pages/Landing/SqlControlSection';
+import { useScrolled } from '@/pages/Landing/useScrollReveal';
+import { REDUCED_MOTION_QUERY } from '@/styles/mediaQueries';
 
-export const REDUCED_MOTION_QUERY = SHARED_REDUCED_MOTION_QUERY;
-export const HOVER_CAPABLE_QUERY = SHARED_HOVER_CAPABLE_QUERY;
+const MOBILE_NAVIGATION_ID = 'mobile-navigation';
+const landingPresentationSx = getLandingPresentationSx();
 
-export const Section = ({ children, sx = {}, id, fullHeight = true, tinted = false }) => {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
+const navLinkSx = (theme) => ({
+  minHeight: 36,
+  px: 1.5,
+  color: theme.palette.common.white,
+  borderColor: 'transparent',
+  '&:hover': {
+    borderColor: 'transparent',
+    backgroundColor: alpha(theme.palette.common.white, 0.08),
+  },
+});
+
+function MoonlitBrand({ onClick, color = 'text.primary' }) {
   return (
     <Box
-      id={id}
-      component="section"
-      sx={{
-        width: '100%',
-        maxWidth: '100%',
-        minHeight: fullHeight ? '100dvh' : 'auto',
-        '@supports not (min-height: 100dvh)': {
-          minHeight: fullHeight ? '100vh' : 'auto',
-        },
-        display: 'flex',
+      component="a"
+      href="#top"
+      onClick={onClick}
+      sx={(theme) => ({
+        display: 'inline-flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        position: 'relative',
-        py: { xs: 6, sm: 8, md: 10, lg: 12 },
-        px: { xs: 2, sm: 3, md: 4 },
-        boxSizing: 'border-box',
-        overflowX: 'clip',
-        scrollSnapAlign: 'start',
-        scrollSnapStop: 'always',
-        ...(tinted && {
-          backgroundColor: isDark
-            ? alpha(theme.palette.text.primary, 0.015)
-            : alpha(theme.palette.text.primary, 0.012),
-        }),
-        ...sx,
-      }}
+        gap: 1,
+        color,
+        textDecoration: 'none',
+        '&:focus-visible': {
+          outline: `2px solid ${theme.palette.border.focus}`,
+          outlineOffset: 2,
+        },
+      })}
     >
-      {children}
+      <Box component="img" src="/moonlit.svg" alt="" sx={{ width: 32, height: 32 }} />
+      <Typography component="span" sx={(theme) => theme.typography.uiBrandWordmark}>
+        Moonlit
+      </Typography>
     </Box>
   );
-};
+}
 
-const LANDING_KEYFRAMES = (
-  <GlobalStyles
-    styles={{
-      '@keyframes fadeIn': {
-        from: { opacity: 0, transform: 'translateY(10px)' },
-        to: { opacity: 1, transform: 'translateY(0)' },
-      },
-      '@keyframes shimmer': {
-        '0%': { backgroundPosition: '-200% center' },
-        '100%': { backgroundPosition: '200% center' },
-      },
-      '@keyframes pulse-dot': {
-        '0%, 100%': { opacity: 1, transform: 'scale(1)' },
-        '50%': { opacity: 0.4, transform: 'scale(0.85)' },
-      },
-    }}
-  />
-);
+function LandingNav({ onGetStarted }) {
+  const navigate = useNavigate();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [pendingMobileAnchor, setPendingMobileAnchor] = useState(null);
+  const scrolled = useScrolled();
+  const closeMobile = () => setMobileOpen(false);
+  const handleMobileAnchorClick = (event, href) => {
+    event.preventDefault();
+    setPendingMobileAnchor(href);
+    closeMobile();
+  };
+  const handleMobileDrawerExited = () => {
+    if (!pendingMobileAnchor) return;
+
+    const destination = document.querySelector(pendingMobileAnchor);
+    const destinationHeading = destination?.querySelector('h2[tabindex="-1"]');
+    destinationHeading?.focus({ preventScroll: true });
+    destination?.scrollIntoView({ block: 'start' });
+    if (window.location.hash !== pendingMobileAnchor) {
+      window.history.pushState(null, '', pendingMobileAnchor);
+    }
+    setPendingMobileAnchor(null);
+  };
+  const handleMobileSignIn = () => {
+    closeMobile();
+    navigate('/auth');
+  };
+  const handleMobileGetStarted = () => {
+    closeMobile();
+    onGetStarted();
+  };
+
+  return (
+    <>
+      <Box
+        component="header"
+        sx={{
+          ...landingPresentationSx.header,
+          ...getGlassNavSx(scrolled),
+        }}
+      >
+        <Container
+          maxWidth="lg"
+          sx={{
+            minHeight: 64,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <MoonlitBrand color="common.white" />
+
+          <Stack
+            component="nav"
+            aria-label="Desktop primary navigation"
+            direction="row"
+            spacing={0.5}
+            alignItems="center"
+            sx={{ display: { xs: 'none', md: 'flex' } }}
+          >
+            {NAV_LINKS.map((link) => (
+              <Button key={link.href} component="a" href={link.href} variant="text" sx={navLinkSx}>
+                {link.label}
+              </Button>
+            ))}
+            <Button
+              variant="outlined"
+              onClick={() => navigate('/auth')}
+              sx={(theme) => ({
+                ml: 1,
+                color: theme.palette.common.white,
+                borderColor: alpha(theme.palette.common.white, 0.5),
+                '&:hover': {
+                  borderColor: theme.palette.common.white,
+                  backgroundColor: alpha(theme.palette.common.white, 0.08),
+                },
+              })}
+            >
+              Sign in
+            </Button>
+            <Button
+              variant="contained"
+              onClick={onGetStarted}
+              sx={(theme) => ({
+                ml: 0.5,
+                color: theme.palette.common.black,
+                backgroundColor: theme.palette.common.white,
+                '&:hover': { backgroundColor: alpha(theme.palette.common.white, 0.88) },
+              })}
+            >
+              Get started
+            </Button>
+          </Stack>
+
+          <IconButton
+            aria-label="Open navigation"
+            aria-controls={MOBILE_NAVIGATION_ID}
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen(true)}
+            sx={{
+              display: { xs: 'inline-flex', md: 'none' },
+              width: 44,
+              height: 44,
+              color: 'common.white',
+            }}
+          >
+            <MenuIcon />
+          </IconButton>
+        </Container>
+      </Box>
+
+      <Drawer
+        anchor="right"
+        open={mobileOpen}
+        onClose={closeMobile}
+        onTransitionExited={handleMobileDrawerExited}
+        slotProps={{
+          paper: {
+            sx: {
+              width: 'min(88vw, 360px)',
+              borderRadius: 0,
+              borderLeft: '1px solid',
+              borderColor: 'border.subtle',
+              backgroundColor: 'background.default',
+              p: 2,
+            },
+          },
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 4 }}>
+          <MoonlitBrand onClick={closeMobile} />
+          <IconButton
+            aria-label="Close navigation"
+            onClick={closeMobile}
+            sx={{ width: 44, height: 44 }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
+        <Stack
+          id={MOBILE_NAVIGATION_ID}
+          component="nav"
+          aria-label="Mobile navigation"
+          spacing={1}
+          alignItems="stretch"
+        >
+          {NAV_LINKS.map((link) => (
+            <Button
+              key={link.href}
+              component="a"
+              href={link.href}
+              variant="text"
+              onClick={(event) => handleMobileAnchorClick(event, link.href)}
+              sx={{ minHeight: 44, justifyContent: 'flex-start' }}
+            >
+              {link.label}
+            </Button>
+          ))}
+          <Button variant="outlined" onClick={handleMobileSignIn} sx={{ minHeight: 44 }}>
+            Sign in
+          </Button>
+          <Button variant="contained" onClick={handleMobileGetStarted} sx={{ minHeight: 44 }}>
+            Get started
+          </Button>
+        </Stack>
+      </Drawer>
+    </>
+  );
+}
+
+function LandingFooter({ onGetStarted }) {
+  const navigate = useNavigate();
+
+  return (
+    <Box component="footer" sx={landingPresentationSx.footer}>
+      <Container maxWidth="lg">
+        <Box
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', md: 'row' },
+            alignItems: { xs: 'flex-start', md: 'center' },
+            justifyContent: 'space-between',
+            gap: 4,
+          }}
+        >
+          <Box>
+            <MoonlitBrand />
+            <Typography sx={{ mt: 1.5, color: 'text.secondary', maxWidth: 420 }}>
+              {LANDING_COPY.footer.tagline}
+            </Typography>
+            <Typography
+              sx={(theme) => ({
+                ...theme.typography.captionMonoSm,
+                mt: 1.5,
+                color: 'text.disabled',
+              })}
+            >
+              {LANDING_COPY.accountFlow}
+            </Typography>
+          </Box>
+          <Box
+            component="nav"
+            aria-label="Footer navigation"
+            sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1 }}
+          >
+            {NAV_LINKS.map((link) => (
+              <Button key={link.href} component="a" href={link.href} variant="text">
+                {link.label}
+              </Button>
+            ))}
+            <Button variant="text" onClick={() => navigate('/auth')}>
+              Sign in
+            </Button>
+            <Button variant="outlined" onClick={onGetStarted}>
+              Get started
+            </Button>
+          </Box>
+        </Box>
+        <Typography
+          sx={(theme) => ({ ...theme.typography.captionMonoSm, mt: 5, color: 'text.disabled' })}
+        >
+          © {new Date().getFullYear()} Moonlit
+        </Typography>
+      </Container>
+    </Box>
+  );
+}
 
 export default function Landing() {
   const navigate = useNavigate();
   const { isAuthenticated, loading } = useAuth();
 
   useEffect(() => {
-    document.title = 'Moonlit - AI Database Assistant';
-    // Preload large page chunks in the background to ensure instantaneous navigation transitions
-    const preloadChunks = () => {
-      import('@/pages/Chat').catch(() => {});
-      import('@/pages/Auth').catch(() => {});
-    };
-    const timer = setTimeout(preloadChunks, 1000);
-    return () => clearTimeout(timer);
+    document.title = LANDING_COPY.documentTitle;
   }, []);
 
   const handleGetStarted = useCallback(() => {
-    if (loading) {
-      navigate('/chat');
-    } else {
-      navigate(isAuthenticated ? '/chat' : '/auth');
-    }
+    navigate(getLandingDestination({ loading, isAuthenticated }));
   }, [navigate, isAuthenticated, loading]);
 
   return (
-    <>
-      {LANDING_KEYFRAMES}
-      <Box
-        sx={{
-          height: '100dvh',
-          '@supports not (height: 100dvh)': { height: '100vh' },
-          overflowY: 'auto',
-          overflowX: 'hidden',
-          backgroundColor: 'transparent',
-          scrollBehavior: 'smooth',
-          scrollSnapType: { xs: 'y proximity', md: 'y mandatory' },
-          position: 'relative',
-          [REDUCED_MOTION_QUERY]: {
-            scrollBehavior: 'auto',
-            scrollSnapType: 'none',
-            '& *': { animation: 'none !important', transition: 'none !important' },
-          },
-        }}
-        role="main"
-      >
+    <Box
+      data-landing-scroll
+      sx={{
+        height: '100dvh',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        backgroundColor: 'background.default',
+        color: 'text.primary',
+        scrollBehavior: 'smooth',
+        [REDUCED_MOTION_QUERY]: { scrollBehavior: 'auto' },
+      }}
+    >
+      <Box id="top" aria-hidden="true" sx={{ height: 0 }} />
+      <LandingNav onGetStarted={handleGetStarted} />
+      <Box component="main">
         <Hero onGetStarted={handleGetStarted} />
-        <ValueGrid />
-        <DemoSection />
-        <StepsGrid />
+        <ProductShowcase />
+        <SchemaIntelligenceSection />
+        <SqlControlSection />
+        <AnalysisSection />
+        <AudienceBridge />
+        <CapabilityGrid />
+        <SecuritySection />
+        <DatabaseStrip />
+        <FaqSection />
         <FinalCTA onGetStarted={handleGetStarted} />
       </Box>
-    </>
+      <LandingFooter onGetStarted={handleGetStarted} />
+    </Box>
   );
 }

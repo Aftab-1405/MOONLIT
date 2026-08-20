@@ -30,16 +30,3 @@ export function getSelectedDatabase(data) {
     null
   );
 }
-
-/**
- * Extract the connection-active flag from any supported response shape.
- *
- * @param {object|null} data
- * @returns {boolean}
- */
-export function getIsConnected(data) {
-  if (!data) return false;
-  // `connected` is the canonical field; fall back to boolean coercion of DB name
-  if (typeof data.connected === 'boolean') return data.connected;
-  return Boolean(getSelectedDatabase(data));
-}

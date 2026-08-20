@@ -1,7 +1,7 @@
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
 import { Box, ButtonBase, Collapse, Typography, useMediaQuery, useTheme } from '@mui/material';
-import { alpha, keyframes } from '@mui/material/styles';
+import { keyframes } from '@mui/material/styles';
 import { memo, useCallback, useMemo, useState } from 'react';
+import { ExpandMoreIcon } from '@/components/icons';
 import {
   DoneIndicator,
   SkillStep,
@@ -16,12 +16,10 @@ import {
   normalizeSteps,
 } from '@/features/chat/ai-response-steps/stepUtils';
 import {
-  shimmer,
+  getFlatStepControlSx,
   slideIn,
   TIMELINE_LINE_X,
 } from '@/features/chat/ai-response-steps/timelineShared';
-import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
-import { TRANSITIONS } from '@/theme/index';
 
 /**
  * StepsAccordion — collapsible summary of the AI's reasoning steps.
@@ -54,7 +52,6 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
   const [expanded, setExpanded] = useState(false);
   const theme = useTheme();
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const isDark = theme.palette.mode === 'dark';
 
   // Skill items are filtered out upstream (MessageList renders them directly).
   // normalizedSteps here will only ever contain thinking + tool steps.
@@ -87,18 +84,17 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
 
   if (normalizedSteps.length === 0) return null;
 
-  const summaryColor = alpha(theme.palette.text.secondary, isDark ? 0.65 : 0.55);
-  const summaryHighlight = alpha(theme.palette.text.primary, isDark ? 0.92 : 0.82);
+  const summaryColor = theme.palette.text.secondary;
 
   // Status dot color reflects the accordion's overall state.
-  //   - Live (streaming + active)  → text.primary (neutral, "working")
+  //   - Live (streaming + active)  → info.main (active work)
   //   - Error                      → error.main (red, "failed")
   //   - Done (all complete)        → success.main (green, "succeeded")
   //   - Default                    → text.secondary (muted)
   const statusDotColor = hasError
     ? theme.palette.error.main
     : isLive
-      ? theme.palette.text.primary
+      ? theme.palette.info.main
       : isAllComplete
         ? theme.palette.success.main
         : theme.palette.text.secondary;
@@ -126,34 +122,28 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
             : undefined
         }
         sx={{
+          ...(isExpandable
+            ? {
+                ...getFlatStepControlSx(theme),
+                transition: theme.transitions.create('color', {
+                  duration: theme.transitions.duration.shorter,
+                }),
+              }
+            : {
+                minHeight: { xs: 44, md: 32 },
+                color: theme.palette.text.secondary,
+                borderRadius: 0,
+              }),
           width: '100%',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          gap: { xs: 0.75, sm: 1 },
+          gap: 1,
           px: 0,
-          py: { xs: 0.35, sm: 0.45 },
-          minHeight: 32,
+          py: 0.5,
           minWidth: 0,
-          borderRadius: isExpandable ? '6px' : 0,
-          bgcolor: 'transparent',
           textAlign: 'left',
           cursor: isExpandable ? 'pointer' : 'default',
-          transition: TRANSITIONS.default,
-          ...(isExpandable && {
-            [HOVER_CAPABLE_QUERY]: {
-              '&:hover .summary-text': {
-                color: theme.palette.text.primary,
-              },
-              '&:hover .summary-arrow': {
-                color: theme.palette.text.primary,
-              },
-            },
-            '&:focus-visible': {
-              outline: `2px solid ${alpha(theme.palette.text.primary, isDark ? 0.16 : 0.11)}`,
-              outlineOffset: '2px',
-            },
-          }),
         }}
         disableRipple
       >
@@ -186,33 +176,20 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
           />
           <Typography
             className="summary-text"
+            title={summaryText}
             sx={{
-              color: summaryColor,
+              color: isLive ? summaryColor : 'inherit',
               ...theme.typography.uiBodySm,
               fontFamily: theme.typography.fontFamily,
-              fontWeight: 500,
+              fontWeight: 400,
               flex: 1,
               minWidth: 0,
               textAlign: 'left',
-              whiteSpace: 'normal',
-              overflowWrap: 'anywhere',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
               lineHeight: 1.4,
               transition: 'color 140ms ease',
-              ...(isLive && {
-                backgroundImage: `linear-gradient(90deg, ${summaryColor} 0%, ${summaryColor} 36%, ${summaryHighlight} 50%, ${summaryColor} 64%, ${summaryColor} 100%)`,
-                backgroundSize: '220% 100%',
-                backgroundClip: 'text',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent',
-                color: 'transparent',
-                animation: `${shimmer} 2.8s linear infinite`,
-                '@media (prefers-reduced-motion: reduce)': {
-                  backgroundImage: 'none',
-                  WebkitTextFillColor: 'currentColor',
-                  color: summaryColor,
-                  animation: 'none',
-                },
-              }),
             }}
           >
             {summaryText}
@@ -233,32 +210,25 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
                   of steps inside the accordion so users know what they're
                   expanding. */}
               <Typography
+                aria-hidden
                 sx={{
-                  color: alpha(theme.palette.text.secondary, isDark ? 0.62 : 0.54),
-                  fontSize: '11px',
-                  fontWeight: 500,
+                  color: theme.palette.text.disabled,
+                  ...theme.typography.uiCaption2xs,
+                  fontWeight: 400,
                   lineHeight: 1,
                   fontFamily: theme.typography.fontFamilyMono,
                   fontVariantNumeric: 'tabular-nums',
-                  minWidth: 18,
-                  height: 18,
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  borderRadius: '6px',
-                  border: '1px solid',
-                  borderColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06),
                 }}
               >
                 {normalizedSteps.length}
               </Typography>
 
-              <KeyboardArrowDownRoundedIcon
+              <ExpandMoreIcon
                 className="summary-arrow"
                 sx={{
                   fontSize: { xs: 15, sm: 16 },
                   flexShrink: 0,
-                  color: alpha(theme.palette.text.secondary, isDark ? 0.68 : 0.58),
+                  color: 'inherit',
                   transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
                   transition: 'transform 140ms cubic-bezier(0.4, 0, 0.2, 1), color 140ms',
                 }}
@@ -282,8 +252,8 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
                 transform: 'translateX(-50%)',
                 top: 16,
                 bottom: 16,
-                width: '1.5px',
-                backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.08 : 0.05),
+                width: '1px',
+                backgroundColor: theme.palette.border.separator,
               },
             }}
           >
@@ -310,21 +280,13 @@ export const StepsAccordion = memo(function StepsAccordion({ steps, isStreaming 
                     parsedResult={step.parsedResult}
                     isError={step.isError}
                     isRunning={step.isRunning}
-                    isCurrent={idx === currentStepIndex}
                     isCompactMobile={isCompactMobile}
                     animDelay={animDelay}
                   />
                 );
               }
               if (step.type === 'skill') {
-                return (
-                  <SkillStep
-                    key={step.id}
-                    skills={step.skills}
-                    isStreaming={isStreaming}
-                    animDelay={animDelay}
-                  />
-                );
+                return <SkillStep key={step.id} skills={step.skills} animDelay={animDelay} />;
               }
               return null;
             })}

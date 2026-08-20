@@ -48,6 +48,7 @@ class ConversationSummarizer(Protocol):
         new_messages: list[dict] | None = None,
         assistant_message: dict | None = None,
         pressure_budget_tokens: int | None = None,
+        model_id: str | None = None,
     ) -> dict:
         """Return cheap unsummarized-tail pressure used by summary scheduling."""
 

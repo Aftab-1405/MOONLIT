@@ -32,6 +32,8 @@ import {
 } from '@/features/styles/interfaceChrome';
 import { UI_LAYOUT, UI_Z_INDEX } from '@/styles/shared';
 
+const MotionDiv = motion.div;
+
 const SIDEBAR_EXPANDED = UI_LAYOUT.sidebarExpandedWidth; // 260
 const SIDEBAR_COLLAPSED = UI_LAYOUT.sidebarCollapsedWidth; // 52
 
@@ -112,7 +114,7 @@ const DesktopShell = memo(function DesktopShell({
       }}
     >
       {/* Column 1 — Sidebar */}
-      <motion.div
+      <MotionDiv
         animate={{ width: sidebarWidth }}
         transition={SPRING_TRANSITION}
         style={{
@@ -127,7 +129,7 @@ const DesktopShell = memo(function DesktopShell({
         <Box data-column="sidebar" aria-label="Sidebar column" sx={sidebarColumnSx}>
           {sidebarSlot}
         </Box>
-      </motion.div>
+      </MotionDiv>
 
       {/* Column 2 — Chat workspace */}
       <Box component="main" id="main-content" aria-label="Chat workspace" sx={chatColumnSx}>
@@ -148,7 +150,11 @@ const DesktopShell = memo(function DesktopShell({
           position: 'relative',
         }}
       >
-        <motion.div
+        <MotionDiv
+          // The panel's child keeps its full canvasWidth even while closed.
+          // Without this, Framer Motion paints that intrinsic width on mount
+          // and springs it down to 0, shifting the chat column on every reload.
+          initial={false}
           animate={{ width: canvasOpen ? canvasWidth : 0 }}
           transition={isResizingCanvas ? NO_TRANSITION : SPRING_TRANSITION}
           style={{
@@ -161,7 +167,7 @@ const DesktopShell = memo(function DesktopShell({
           <Box data-column="workspace" aria-label="Artifact panel column" sx={workspaceColumnSx}>
             {workspaceSlot}
           </Box>
-        </motion.div>
+        </MotionDiv>
       </Box>
     </Box>
   );

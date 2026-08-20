@@ -600,6 +600,13 @@ def _turn_is_complete(turn: list[int], messages: list) -> bool:
     return has_user and has_ai
 
 
+def _complete_empty_tail_result(result: dict, *, summarization_committed: bool) -> dict:
+    """Finalize a compaction result after the durable unsummarized tail is empty."""
+    result["tail_tokens"] = 0
+    result["reason"] = "complete" if summarization_committed else "empty_tail"
+    return result
+
+
 class ConversationCompactionService:
     """Handles checkpointer budget evaluation, locking, and VAMP summarization."""
 
@@ -743,11 +750,10 @@ class ConversationCompactionService:
                     # least one summary block in this call, the empty tail
                     # means every summarizable turn has been summarized —
                     # report "complete" instead of "empty_tail".
-                    if summarization_committed:
-                        result["reason"] = "complete"
-                    else:
-                        result["reason"] = "empty_tail"
-                    return result
+                    return _complete_empty_tail_result(
+                        result,
+                        summarization_committed=summarization_committed,
+                    )
 
                 # ENH [TOK]: Pass model_id for model-native tokenizer
                 tail_tokens = sum(_get_message_tokens_cheap(msg, model_id=model) for msg in unsummarized_tail)

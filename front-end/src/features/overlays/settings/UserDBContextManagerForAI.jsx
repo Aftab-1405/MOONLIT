@@ -1,8 +1,3 @@
-import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
-import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import ErrorRoundedIcon from '@mui/icons-material/ErrorRounded';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import {
   Alert,
   Box,
@@ -24,9 +19,18 @@ import {
 } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { memo, useMemo } from 'react';
-import { CodeViewer, ConfirmDialog } from '@/components';
-import DatabaseIcon from '@/components/icons/DatabaseIcon';
-import RecentChatIcon from '@/components/icons/RecentChatIcon';
+import { ConfirmDialog } from '@/components';
+import CodeViewer from '@/components/CodeViewer';
+import {
+  DatabaseIcon,
+  DeleteIcon,
+  ErrorIcon,
+  ExpandMoreIcon,
+  InfoIcon,
+  RecentChatIcon,
+  SuccessIcon,
+} from '@/components/icons';
+import { getPreferenceToggleGroupSx } from '@/features/overlays/preference-surface/preferenceSurfaceStyles';
 import { useUserDBContext } from '@/hooks/useUserDBContext';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { getUtilityIconButtonSx } from '@/styles/shared';
@@ -48,15 +52,14 @@ function ContextCard({ children, sx = {} }) {
   return (
     <Box
       sx={{
-        borderRadius: '12px',
-        border: '1px solid',
-        borderColor: 'divider',
-        backgroundColor: 'transparent',
+        borderRadius: '8px',
+        border: 0,
+        backgroundColor: theme.palette.layer.faint,
         overflow: 'hidden',
-        transition: theme.transitions.create(['border-color', 'background-color']),
+        transition: theme.transitions.create('background-color'),
         [HOVER_CAPABLE_QUERY]: {
           '&:hover': {
-            backgroundColor: alpha(theme.palette.text.primary, 0.02),
+            backgroundColor: theme.palette.layer.subtle,
           },
         },
         ...sx,
@@ -87,13 +90,13 @@ function ContextLoadingSkeleton({ isCompactMobile }) {
             variant="rounded"
             height={44}
             width={isCompactMobile ? '100%' : 124}
-            sx={{ borderRadius: 1.25, flex: 1 }}
+            sx={{ borderRadius: '8px', flex: 1 }}
           />
           <Skeleton
             variant="rounded"
             height={44}
             width={isCompactMobile ? '100%' : 124}
-            sx={{ borderRadius: 1.25, flex: 1 }}
+            sx={{ borderRadius: '8px', flex: 1 }}
           />
         </Box>
         <Skeleton
@@ -101,7 +104,7 @@ function ContextLoadingSkeleton({ isCompactMobile }) {
           height={44}
           width={isCompactMobile ? '100%' : 116}
           sx={{
-            borderRadius: 1.25,
+            borderRadius: '8px',
             alignSelf: { xs: 'stretch', sm: 'center' },
           }}
         />
@@ -143,9 +146,8 @@ function EmptyState({ icon: _Icon, title, subtitle }) {
         textAlign: 'center',
         py: 8,
         px: 2,
-        borderRadius: '12px',
-        border: '1px dashed',
-        borderColor: 'divider',
+        borderRadius: '8px',
+        backgroundColor: alpha(theme.palette.text.primary, theme.palette.opacity.faint),
       }}
     >
       <Icon
@@ -155,7 +157,7 @@ function EmptyState({ icon: _Icon, title, subtitle }) {
           mb: 1.5,
         }}
       />
-      <Typography variant="body2" color="text.secondary" fontWeight={500}>
+      <Typography variant="body2" color="text.secondary" fontWeight={400}>
         {title}
       </Typography>
       {subtitle && (
@@ -187,6 +189,7 @@ function UserDBContextManagerForAI() {
 
   const theme = useTheme();
   const utilityIconButtonSx = useMemo(() => getUtilityIconButtonSx(theme), [theme]);
+  const toggleGroupSx = useMemo(() => getPreferenceToggleGroupSx(theme), [theme]);
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const dialogContent = useMemo(() => {
@@ -230,14 +233,13 @@ function UserDBContextManagerForAI() {
           gap: 1.5,
           mb: 3,
           p: 1.5,
-          borderRadius: '10px',
-          border: '1px solid',
-          borderColor: 'divider',
-          backgroundColor: alpha(theme.palette.primary.main, 0.04),
+          borderRadius: '8px',
+          border: 0,
+          backgroundColor: alpha(theme.palette.text.primary, theme.palette.opacity.faint),
           alignItems: 'center',
         }}
       >
-        <InfoOutlinedIcon sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }} />
+        <InfoIcon sx={{ fontSize: 18, color: 'text.secondary', flexShrink: 0 }} />
         <Typography
           sx={{
             ...theme.typography.uiCaptionMd,
@@ -271,30 +273,7 @@ function UserDBContextManagerForAI() {
           exclusive
           onChange={(_e, v) => v && setActiveView(v)}
           size="small"
-          sx={{
-            gap: 0.5,
-            p: 0.5,
-            border: '1px solid',
-            borderColor: 'divider',
-            borderRadius: '10px',
-            '& .MuiToggleButton-root': {
-              border: 'none',
-              borderRadius: '6px !important',
-              px: 1.5,
-              py: 0.5,
-              textTransform: 'none',
-              ...theme.typography.uiNavItem,
-              color: 'text.secondary',
-              '&.Mui-selected': {
-                backgroundColor: alpha(theme.palette.text.primary, 0.08),
-                color: 'text.primary',
-                fontWeight: 600,
-              },
-              '&:hover:not(.Mui-selected)': {
-                backgroundColor: alpha(theme.palette.text.primary, 0.04),
-              },
-            },
-          }}
+          sx={toggleGroupSx}
         >
           <ToggleButton value="schemas">
             <DatabaseIcon sx={{ width: 15, height: 15, mr: 1 }} />
@@ -307,13 +286,13 @@ function UserDBContextManagerForAI() {
                   px: 0.75,
                   height: 18,
                   minWidth: 18,
-                  borderRadius: '9px',
+                  borderRadius: '8px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor: alpha(theme.palette.text.primary, 0.1),
                   ...theme.typography.uiCaptionMd,
-                  fontWeight: 600,
+                  fontWeight: 400,
                   lineHeight: 1,
                 }}
               >
@@ -332,13 +311,13 @@ function UserDBContextManagerForAI() {
                   px: 0.75,
                   height: 18,
                   minWidth: 18,
-                  borderRadius: '9px',
+                  borderRadius: '8px',
                   display: 'inline-flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   backgroundColor: alpha(theme.palette.text.primary, 0.1),
                   ...theme.typography.uiCaptionMd,
-                  fontWeight: 600,
+                  fontWeight: 400,
                   lineHeight: 1,
                 }}
               >
@@ -357,7 +336,7 @@ function UserDBContextManagerForAI() {
             sx={{
               ...theme.typography.uiNavItem,
               textTransform: 'none',
-              fontWeight: 500,
+              fontWeight: 400,
               px: 1.5,
               height: 32,
               borderRadius: '8px',
@@ -366,7 +345,7 @@ function UserDBContextManagerForAI() {
               transition: theme.transitions.create(['color', 'background-color']),
               '&:hover': {
                 color: 'error.main',
-                backgroundColor: alpha(theme.palette.error.main, 0.1),
+                backgroundColor: alpha(theme.palette.error.main, theme.palette.opacity.statusHover),
               },
             }}
           >
@@ -399,7 +378,7 @@ function UserDBContextManagerForAI() {
                     </ListItemIcon>
                     <ListItemText
                       primary={
-                        <Typography variant="body2" fontWeight={600}>
+                        <Typography variant="body2" fontWeight={400}>
                           {schema.database}
                         </Typography>
                       }
@@ -434,10 +413,10 @@ function UserDBContextManagerForAI() {
                             },
                           }}
                         >
-                          <DeleteOutlineRoundedIcon sx={{ fontSize: 15 }} />
+                          <DeleteIcon sx={{ fontSize: 15 }} />
                         </IconButton>
                       </Tooltip>
-                      <KeyboardArrowDownIcon
+                      <ExpandMoreIcon
                         sx={{
                           fontSize: 20,
                           color: 'text.secondary',
@@ -449,7 +428,11 @@ function UserDBContextManagerForAI() {
                     </Box>
                   </ListItemButton>
                   <Collapse in={expandedSchema === schema.database} timeout={200}>
-                    <Divider />
+                    <Divider
+                      sx={{
+                        borderColor: alpha(theme.palette.text.primary, theme.palette.opacity.soft),
+                      }}
+                    />
                     <Box
                       sx={{
                         p: 1.5,
@@ -457,7 +440,7 @@ function UserDBContextManagerForAI() {
                       }}
                     >
                       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                        {Object.entries(columnsByTable).map(([tableName, columns]) => (
+                        {Object.entries(columnsByTable).map(([tableName, columns], index) => (
                           <Box
                             key={tableName}
                             sx={{
@@ -465,9 +448,11 @@ function UserDBContextManagerForAI() {
                               flexDirection: { xs: 'column', sm: 'row' },
                               gap: { xs: 0.5, sm: 2 },
                               p: 1.5,
-                              backgroundColor: alpha(theme.palette.text.primary, 0.02),
-                              border: '1px solid',
-                              borderColor: alpha(theme.palette.text.primary, 0.05),
+                              backgroundColor:
+                                index % 2 === 0
+                                  ? alpha(theme.palette.text.primary, theme.palette.opacity.faint)
+                                  : 'transparent',
+                              border: 0,
                               borderRadius: '8px',
                               alignItems: 'flex-start',
                             }}
@@ -479,7 +464,7 @@ function UserDBContextManagerForAI() {
                                 fontFamily:
                                   'Consolas, Monaco, "Andale Mono", "Ubuntu Mono", monospace',
                                 fontSize: '12.5px',
-                                fontWeight: 650,
+                                fontWeight: 400,
                                 color: 'text.primary',
                                 mt: { xs: 0, sm: 0.25 },
                               }}
@@ -544,7 +529,7 @@ function UserDBContextManagerForAI() {
                     sx={{
                       width: 32,
                       height: 32,
-                      borderRadius: 1.5,
+                      borderRadius: '8px',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -556,9 +541,9 @@ function UserDBContextManagerForAI() {
                     }}
                   >
                     {query.status === 'success' ? (
-                      <CheckCircleRoundedIcon sx={{ fontSize: 18, color: 'success.main' }} />
+                      <SuccessIcon sx={{ fontSize: 18, color: 'success.main' }} />
                     ) : (
-                      <ErrorRoundedIcon sx={{ fontSize: 18, color: 'error.main' }} />
+                      <ErrorIcon sx={{ fontSize: 18, color: 'error.main' }} />
                     )}
                   </Box>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -576,7 +561,7 @@ function UserDBContextManagerForAI() {
                         label={query.database || 'Unknown DB'}
                         sx={{
                           height: 22,
-                          fontWeight: 500,
+                          fontWeight: 400,
                           '& .MuiChip-icon': { color: 'inherit' },
                         }}
                       />
@@ -589,7 +574,7 @@ function UserDBContextManagerForAI() {
                       </Typography>
                     </Box>
                   </Box>
-                  <KeyboardArrowDownIcon
+                  <ExpandMoreIcon
                     sx={{
                       fontSize: 20,
                       color: 'text.secondary',
@@ -600,7 +585,11 @@ function UserDBContextManagerForAI() {
                   />
                 </Box>
                 <Collapse in={expandedQuery === index} timeout={200}>
-                  <Divider />
+                  <Divider
+                    sx={{
+                      borderColor: alpha(theme.palette.text.primary, theme.palette.opacity.soft),
+                    }}
+                  />
                   <Box
                     sx={{
                       p: 2,
@@ -609,10 +598,13 @@ function UserDBContextManagerForAI() {
                   >
                     <Box
                       sx={{
-                        borderRadius: 2,
+                        borderRadius: '8px',
                         overflow: 'hidden',
-                        border: '1px solid',
-                        borderColor: 'divider',
+                        border: 0,
+                        backgroundColor: alpha(
+                          theme.palette.text.primary,
+                          theme.palette.opacity.faint,
+                        ),
                         height: Math.min(
                           Math.max(
                             80,

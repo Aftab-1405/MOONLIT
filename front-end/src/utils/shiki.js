@@ -1,4 +1,5 @@
 import { createHighlighter } from 'shiki';
+import { moonlitDarkShikiTheme } from '@/theme/syntaxPalettes';
 
 let highlighterInstance = null;
 let highlighterPromise = null;
@@ -13,7 +14,7 @@ export function getShikiHighlighter() {
   }
   if (!highlighterPromise) {
     highlighterPromise = createHighlighter({
-      themes: ['dracula-soft', 'github-light'],
+      themes: [moonlitDarkShikiTheme],
       langs: ['sql', 'javascript', 'python', 'json', 'html', 'css', 'bash'],
     }).then((instance) => {
       highlighterInstance = instance;

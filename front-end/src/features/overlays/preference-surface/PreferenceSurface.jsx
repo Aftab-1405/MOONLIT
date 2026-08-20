@@ -1,4 +1,5 @@
 import { Box, Button, Typography } from '@mui/material';
+import { alpha } from '@mui/material/styles';
 import {
   getPreferenceButtonSx,
   getPreferenceSectionSurfaceSx,
@@ -6,7 +7,7 @@ import {
 } from '@/features/overlays/preference-surface/preferenceSurfaceStyles';
 import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
 
-export function PreferencePageHeader({ title, onClose }) {
+export function PreferencePageHeader({ title, onClose, headingRef }) {
   return (
     <Box
       component="header"
@@ -24,15 +25,15 @@ export function PreferencePageHeader({ title, onClose }) {
       }}
     >
       <Typography
+        ref={headingRef}
         component="h1"
+        tabIndex={-1}
         sx={{
           typography: { xs: 'h4', md: 'h3' },
           color: 'text.primary',
-          fontWeight: 700,
+          fontWeight: 400,
           letterSpacing: 0,
           pb: { xs: 0, md: 2 },
-          borderBottom: { md: '1px solid' },
-          borderColor: { md: 'divider' },
           mb: { md: 0.5 },
         }}
       >
@@ -129,7 +130,7 @@ export function PreferenceNavList({ ariaLabel, children }) {
   );
 }
 
-export function PreferenceNavItem({ active, onClick, icon, textColor, children }) {
+export function PreferenceNavItem({ active, onClick, icon, children }) {
   return (
     <Box component="li" sx={{ flexShrink: 0 }}>
       <Button
@@ -141,28 +142,27 @@ export function PreferenceNavItem({ active, onClick, icon, textColor, children }
         sx={(theme) => {
           const interaction = getInteractionColors(theme, { active });
           return {
-            height: 36,
+            height: PREFERENCE_LAYOUT.navHeight,
+            minHeight: PREFERENCE_LAYOUT.navHeight,
             width: { xs: 'auto', md: '100%' },
             minWidth: 0,
             justifyContent: 'flex-start',
             gap: 1,
             px: 1.25,
             py: 0,
-            borderRadius: '10px',
+            borderRadius: '8px',
             border: 0,
             textTransform: 'none',
             whiteSpace: 'nowrap',
             backgroundClip: 'padding-box',
-            color: textColor || (active ? 'text.primary' : 'text.secondary'),
+            color: active ? 'text.primary' : 'text.secondary',
             ...theme.typography.uiNavItem,
-            fontWeight: active ? 600 : 450,
+            fontWeight: 400,
             backgroundColor: active ? interaction.activeBackground : 'transparent',
-            transition: theme.transitions.create(['background-color', 'box-shadow', 'color'], {
+            transition: theme.transitions.create(['background-color', 'color'], {
               duration: theme.transitions.duration.shorter,
             }),
-            boxShadow: active
-              ? `inset 0 0 0 1px ${interaction.activeBorder}`
-              : 'inset 0 0 0 1px transparent',
+            boxShadow: 'none',
             '& .MuiButton-startIcon': {
               mr: 0,
               ml: 0,
@@ -179,18 +179,16 @@ export function PreferenceNavItem({ active, onClick, icon, textColor, children }
               backgroundColor: active
                 ? interaction.activeHoverBackground
                 : interaction.hoverBackground,
-              color: textColor || 'text.primary',
+              color: 'text.primary',
               border: 0,
-              boxShadow: active
-                ? `inset 0 0 0 1px ${interaction.activeBorder}`
-                : 'inset 0 0 0 1px transparent',
+              boxShadow: 'none',
               '& .MuiButton-startIcon': {
                 color: 'text.primary',
                 opacity: 1,
               },
             },
             '&:focus-visible': {
-              outline: `2px solid ${theme.palette.border?.focus || theme.palette.primary.main}`,
+              outline: `2px solid ${theme.palette.border.focus}`,
               outlineOffset: 2,
             },
             '&.Mui-disabled': {
@@ -214,7 +212,7 @@ export function PreferenceSection({ title, description, children, sx = {} }) {
         sx={(theme) => ({
           ...theme.typography.uiCardTitle,
           color: 'text.primary',
-          fontWeight: 650,
+          fontWeight: 400,
           mb: description ? 0.5 : 0,
           pb: description ? 0 : { xs: 1.5, md: 2 },
           letterSpacing: 0,
@@ -264,11 +262,21 @@ export function PreferenceRow({
         }),
         minHeight: { sm: 62 },
         py: { xs: 1.5, sm: 1.375 },
-        borderBottom: '1px solid',
-        borderColor: 'divider',
+        px: { xs: 1, sm: 1.25 },
+        mx: { xs: -1, sm: -1.25 },
+        mb: 0.25,
+        borderRadius: '8px',
+        backgroundColor: theme.palette.layer.barely,
         cursor: onClick ? 'pointer' : 'default',
-        '&:first-of-type': { pt: { xs: 0.5, sm: 0.25 } },
-        '&:last-of-type': { borderBottom: 'none', pb: { xs: 0.5, sm: 0.25 } },
+        '&:nth-of-type(even)': { backgroundColor: 'transparent' },
+        '&:last-of-type': { mb: 0 },
+        ...(onClick
+          ? {
+              '&:hover': {
+                backgroundColor: theme.palette.layer.subtle,
+              },
+            }
+          : {}),
         ...sx,
       })}
     >
@@ -283,7 +291,7 @@ export function PreferenceRow({
           sx={(theme) => ({
             ...theme.typography.uiBodySm,
             color: 'text.primary',
-            fontWeight: 550,
+            fontWeight: 400,
           })}
         >
           {label}
@@ -323,7 +331,7 @@ export function PreferenceRow({
 export function PreferenceFooterActions({ children, sx = {} }) {
   return (
     <Box
-      sx={{
+      sx={(theme) => ({
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
@@ -331,9 +339,9 @@ export function PreferenceFooterActions({ children, sx = {} }) {
         mt: { xs: 6, md: 8 },
         pt: 2,
         borderTop: '1px solid',
-        borderColor: 'divider',
+        borderColor: alpha(theme.palette.text.primary, theme.palette.opacity.soft),
         ...sx,
-      }}
+      })}
     >
       {children}
     </Box>

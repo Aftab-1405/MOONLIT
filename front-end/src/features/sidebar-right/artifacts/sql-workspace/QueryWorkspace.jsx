@@ -5,7 +5,7 @@
  */
 
 import { Box, Skeleton } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 import { lazy, memo, Suspense } from 'react';
 import QueryTabs from '@/features/sidebar-right/artifacts/sql-workspace/QueryTabs';
 
@@ -15,8 +15,7 @@ const SqlEditorSurface = lazy(
 
 function EditorFallback() {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-  const skeletonColor = alpha(theme.palette.text.primary, isDark ? 0.08 : 0.06);
+  const skeletonColor = theme.palette.layer.soft;
 
   return (
     <Box
@@ -79,6 +78,9 @@ function QueryWorkspace({
 }) {
   return (
     <Box
+      id={`sql-query-panel-${activeTabId}`}
+      role="tabpanel"
+      aria-labelledby={`sql-query-tab-${activeTabId}`}
       sx={(theme) => ({
         flex: '1 1 0',
         display: 'flex',
@@ -86,9 +88,9 @@ function QueryWorkspace({
         minWidth: 0,
         minHeight: 0,
         overflow: 'hidden',
-        borderRadius: '12px',
+        borderRadius: '8px',
         bgcolor: 'background.paper',
-        boxShadow: `inset 0 0 0 1px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.065 : 0.055)}`,
+        border: `1px solid ${theme.palette.border.subtle}`,
         isolation: 'isolate',
       })}
     >

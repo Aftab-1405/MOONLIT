@@ -1,13 +1,13 @@
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
-import HelpOutlineRoundedIcon from '@mui/icons-material/HelpOutlineRounded';
-import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import { Box, Button, Typography, useMediaQuery, useTheme, Zoom } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { memo, useCallback, useId, useState } from 'react';
 import ButtonLoadingSpinner from '@/components/common/ButtonLoadingSpinner';
 import DialogShell from '@/components/common/DialogShell';
+import {
+  CONFIRM_ACTION_HEIGHT,
+  getConfirmActionGeometrySx,
+} from '@/components/common/dialogActionStyles';
+import { ErrorIcon, HelpIcon, InfoIcon, SuccessIcon, WarningIcon } from '@/components/icons';
 import {
   getInsetPanelSx,
   getInteractiveControlSx,
@@ -18,27 +18,26 @@ import {
 const INTENT_CONFIG = {
   default: {
     color: 'primary',
-    icon: HelpOutlineRoundedIcon,
+    icon: HelpIcon,
   },
   info: {
-    color: 'primary',
-    icon: InfoOutlinedIcon,
+    color: 'info',
+    icon: InfoIcon,
   },
   warning: {
     color: 'warning',
-    icon: WarningAmberRoundedIcon,
+    icon: WarningIcon,
   },
   danger: {
     color: 'error',
-    icon: ErrorOutlineRoundedIcon,
+    icon: ErrorIcon,
   },
   success: {
     color: 'success',
-    icon: CheckCircleOutlineRoundedIcon,
+    icon: SuccessIcon,
   },
 };
 
-const ACTION_BUTTON_HEIGHT = 38;
 const DEFAULT_DESCRIPTION = 'Are you sure you want to proceed?';
 
 function getIntentConfig(intent) {
@@ -52,18 +51,17 @@ function getPaperMaxWidth(maxWidth) {
   return undefined;
 }
 
-function getDetailsSx(theme, variant, isDarkMode) {
+function getDetailsSx(theme, variant) {
   const intentColor = variant === 'danger' ? theme.palette.error.main : theme.palette.text.primary;
 
   return {
     ...getInsetPanelSx(theme, {
-      backgroundOpacity: isDarkMode ? 0.12 : 0.04,
-      borderRadius: '10px',
+      borderRadius: '8px',
     }),
-    borderColor:
+    backgroundColor:
       variant === 'danger'
-        ? alpha(theme.palette.error.main, isDarkMode ? 0.36 : 0.24)
-        : alpha(theme.palette.text.primary, isDarkMode ? 0.12 : 0.1),
+        ? alpha(theme.palette.error.main, theme.palette.opacity.soft)
+        : theme.palette.layer.faint,
     maxHeight: variant === 'code' ? 220 : 180,
     overflow: 'auto',
     color: intentColor,
@@ -119,7 +117,6 @@ function ConfirmDialog({
   rootSx = {},
 }) {
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
   const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const titleId = useId();
   const descriptionId = useId();
@@ -201,14 +198,15 @@ function ConfirmDialog({
             fullWidth={isCompactMobile}
             sx={{
               minWidth: { xs: '100%', sm: 72 },
-              minHeight: ACTION_BUTTON_HEIGHT,
-              height: ACTION_BUTTON_HEIGHT,
-              borderRadius: '10px',
               px: 1.25,
               py: 0,
               ...theme.typography.uiNavItem,
-              fontWeight: 500,
-              ...getInteractiveControlSx(theme, { size: ACTION_BUTTON_HEIGHT, radius: '10px' }),
+              fontWeight: 400,
+              ...getInteractiveControlSx(theme, {
+                size: CONFIRM_ACTION_HEIGHT,
+                radius: theme.shape.radius.pill,
+              }),
+              ...getConfirmActionGeometrySx(theme),
               ...secondaryActionSx,
             }}
           >
@@ -225,16 +223,14 @@ function ConfirmDialog({
             startIcon={isLoading ? <ButtonLoadingSpinner /> : null}
             sx={{
               minWidth: { xs: '100%', sm: 78 },
-              minHeight: ACTION_BUTTON_HEIGHT,
-              height: ACTION_BUTTON_HEIGHT,
-              borderRadius: '10px',
+              ...getConfirmActionGeometrySx(theme),
               px: 1.5,
               py: 0,
               ...theme.typography.uiNavItem,
-              fontWeight: 600,
-              boxShadow: `0 5px 14px ${alpha(accentColor, isDarkMode ? 0.16 : 0.14)}`,
+              fontWeight: 400,
+              boxShadow: 'none',
               '&:hover': {
-                boxShadow: `0 7px 18px ${alpha(accentColor, isDarkMode ? 0.2 : 0.18)}`,
+                boxShadow: 'none',
               },
               '& .MuiButton-startIcon': {
                 ml: 0,
@@ -282,14 +278,14 @@ function ConfirmDialog({
               sx={{
                 width: 42,
                 height: 42,
-                borderRadius: '12px',
+                borderRadius: '8px',
                 display: 'grid',
                 placeItems: 'center',
                 flexShrink: 0,
                 color: accentColor,
-                backgroundColor: alpha(accentColor, isDarkMode ? 0.14 : 0.08),
-                border: `1px solid ${alpha(accentColor, isDarkMode ? 0.26 : 0.16)}`,
-                boxShadow: `inset 0 1px 0 ${alpha(theme.palette.common.white, isDarkMode ? 0.08 : 0.7)}`,
+                backgroundColor: alpha(accentColor, theme.palette.opacity.medium),
+                border: 0,
+                boxShadow: 'none',
               }}
             >
               {icon || <IconComponent sx={{ fontSize: 22 }} />}
@@ -302,7 +298,7 @@ function ConfirmDialog({
                 variant="h6"
                 sx={{
                   color: 'text.primary',
-                  fontWeight: 650,
+                  fontWeight: 400,
                   fontSize: '1.075rem',
                   lineHeight: 1.25,
                   letterSpacing: '-0.015em',
@@ -338,7 +334,7 @@ function ConfirmDialog({
                 {detailsLabel}
               </Typography>
             ) : null}
-            <Box sx={getDetailsSx(theme, detailsVariant, isDarkMode)}>{details}</Box>
+            <Box sx={getDetailsSx(theme, detailsVariant)}>{details}</Box>
           </Box>
         ) : null}
       </Box>

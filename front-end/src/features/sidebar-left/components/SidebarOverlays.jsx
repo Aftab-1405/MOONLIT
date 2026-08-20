@@ -1,36 +1,15 @@
-import AddCircleOutlineRoundedIcon from '@mui/icons-material/AddCircleOutlineRounded';
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import { Box, List, TextField, Typography } from '@mui/material';
-import { alpha } from '@mui/material/styles';
-import { memo, useMemo } from 'react';
-import { AppPopover } from '@/components';
-import DatabaseIcon from '@/components/icons/DatabaseIcon';
-import { HistoryPopoverItem } from '@/features/sidebar-left/components/SidebarPrimitives';
-import { ICON_COL } from '@/features/sidebar-left/styles/sidebarStyles';
+import { Box, TextField } from '@mui/material';
+import { memo, useRef } from 'react';
 import {
-  getInteractionColors,
-  getPopoverSectionLabelSx,
-  getScrollbarStyles,
-  getSelectableMenuItemSx,
-} from '@/styles/shared';
-
-const getPopoverScrollSx = (theme, maxHeight = 360) => ({
-  maxHeight,
-  overflowY: 'auto',
-  mt: 0.5,
-  pr: 0.25,
-  ...getScrollbarStyles(theme),
-});
-
-const getPopoverEmptyStateSx = (theme) => ({
-  mx: 0.5,
-  px: 1.25,
-  py: 1.25,
-  borderRadius: '8px',
-  border: '1px solid',
-  borderColor: alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.06),
-  bgcolor: alpha(theme.palette.background.paper, theme.palette.mode === 'dark' ? 0.35 : 0.65),
-});
+  AppPopover,
+  AppPopoverEmptyState,
+  AppPopoverItem,
+  AppPopoverList,
+  AppPopoverSectionLabel,
+} from '@/components';
+import { AddIcon, CheckIcon, DatabaseIcon } from '@/components/icons';
+import { HistoryPopoverItem } from '@/features/sidebar-left/components/SidebarPrimitives';
+import { getPopoverDividerSx, UI_POPOVER } from '@/styles/shared';
 
 function SidebarOverlays({
   theme,
@@ -53,9 +32,14 @@ function SidebarOverlays({
   currentConversationId,
   onSelectConversation,
   onDeleteConversation,
-  onRenameConversation,
+  inlineRename,
+  handleInlineRenameStart,
+  handleInlineRenameChange,
+  handleInlineRenameCancel,
+  handleInlineRenameCommit,
 }) {
-  const neutralInteraction = useMemo(() => getInteractionColors(theme), [theme]);
+  const searchInputRef = useRef(null);
+  const historyFirstItemRef = useRef(null);
   const normalizedSearchQuery = searchQuery.trim().toLowerCase();
   const searchedConversations = normalizedSearchQuery
     ? conversations.filter((conv) =>
@@ -71,116 +55,35 @@ function SidebarOverlays({
         onClose={handleCloseDbPopover}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        width={220}
+        width={260}
         paperSx={{ mt: 1 }}
       >
-        <Typography sx={getPopoverSectionLabelSx(theme)}>Switch Database</Typography>
-        <Box sx={getPopoverScrollSx(theme, 280)}>
+        <AppPopoverSectionLabel>Switch database</AppPopoverSectionLabel>
+        <AppPopoverList role="menu" aria-label="Databases" maxHeight={280}>
           {availableDatabases.map((db) => {
             const isActive = db === currentDatabase;
             return (
-              <Box
-                component="div"
+              <AppPopoverItem
                 role="menuitemradio"
-                aria-checked={isActive}
+                ariaChecked={isActive}
                 key={db}
                 onClick={() => handleDatabaseSelect(db)}
-                sx={{
-                  ...getSelectableMenuItemSx(theme, {
-                    isActive,
-                    minHeight: 36,
-                    columns: `${ICON_COL}px minmax(0, 1fr)`,
-                    gap: 0,
-                  }),
-                  height: 36,
-                  py: 0,
-                  pl: 0,
-                  pr: 1,
-                  boxShadow: 'none',
-                  '&:hover': {
-                    boxShadow: 'none',
-                  },
-                }}
-              >
-                <Box
-                  component="span"
-                  aria-hidden
-                  sx={{
-                    width: ICON_COL,
-                    minWidth: ICON_COL,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: isActive ? 'primary.main' : 'text.secondary',
-                  }}
-                >
-                  {isActive ? (
-                    <CheckCircleOutlineRoundedIcon sx={{ fontSize: 18 }} />
-                  ) : (
-                    <DatabaseIcon sx={{ fontSize: 18 }} />
-                  )}
-                </Box>
-                <Typography
-                  sx={{
-                    ...theme.typography.uiNavItem,
-                    minWidth: 0,
-                    color: 'text.primary',
-                    fontWeight: isActive ? 500 : 400,
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'clip',
-                    maskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-                    WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-                  }}
-                >
-                  {db}
-                </Typography>
-              </Box>
+                selected={isActive}
+                icon={<DatabaseIcon />}
+                label={db}
+                reserveTrailing
+                trailing={isActive ? <CheckIcon /> : null}
+              />
             );
           })}
-        </Box>
-        <Box
-          sx={{
-            height: '0.5px',
-            backgroundColor: alpha(theme.palette.text.primary, 0.07),
-            my: 0.75,
-            mx: 0.5,
-          }}
-        />
-        <Box
-          component="div"
+        </AppPopoverList>
+        <Box aria-hidden sx={getPopoverDividerSx(theme, { my: 0.5 })} />
+        <AppPopoverItem
           role="menuitem"
           onClick={handleOpenNewConnection}
-          sx={{
-            ...getSelectableMenuItemSx(theme, {
-              minHeight: 36,
-              columns: `${ICON_COL}px minmax(0, 1fr)`,
-              gap: 0,
-            }),
-            height: 36,
-            py: 0,
-            pl: 0,
-            pr: 1,
-          }}
-        >
-          <Box
-            component="span"
-            aria-hidden
-            sx={{
-              width: ICON_COL,
-              minWidth: ICON_COL,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'text.secondary',
-            }}
-          >
-            <AddCircleOutlineRoundedIcon sx={{ fontSize: 18 }} />
-          </Box>
-          <Typography sx={{ ...theme.typography.uiNavItem, color: 'text.primary' }}>
-            New Connection
-          </Typography>
-        </Box>
+          icon={<AddIcon />}
+          label="New connection"
+        />
       </AppPopover>
 
       <AppPopover
@@ -191,9 +94,14 @@ function SidebarOverlays({
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
         paperSx={{ mt: 1 }}
         width={280}
+        slotProps={{
+          transition: {
+            onEntered: () => searchInputRef.current?.focus(),
+          },
+        }}
       >
         <TextField
-          autoFocus
+          inputRef={searchInputRef}
           fullWidth
           value={searchQuery}
           onChange={(event) => setSearchQuery(event.target.value)}
@@ -203,28 +111,12 @@ function SidebarOverlays({
           InputProps={{ disableUnderline: true }}
           sx={{
             px: 1,
-            py: 0.75,
+            py: 0.5,
+            minHeight: UI_POPOVER.rowMinHeight,
             mb: 0.5,
             borderRadius: '8px',
-            border: '1px solid',
-            borderColor: alpha(
-              theme.palette.text.primary,
-              theme.palette.mode === 'dark' ? 0.08 : 0.06,
-            ),
-            backgroundColor: neutralInteraction.hoverBackground,
-            transition: theme.transitions.create(['background-color', 'border-color'], {
-              duration: theme.transitions.duration.shorter,
-            }),
-            '&:focus-within': {
-              borderColor: alpha(
-                theme.palette.text.primary,
-                theme.palette.mode === 'dark' ? 0.18 : 0.14,
-              ),
-              backgroundColor: alpha(
-                theme.palette.background.paper,
-                theme.palette.mode === 'dark' ? 0.48 : 0.8,
-              ),
-            },
+            border: 0,
+            backgroundColor: theme.palette.background.input,
             '& .MuiInputBase-input': {
               ...theme.typography.uiNavItem,
               fontSize: '0.88rem',
@@ -237,32 +129,38 @@ function SidebarOverlays({
             },
           }}
         />
-        <Box sx={getPopoverScrollSx(theme)}>
+        <AppPopoverList role="list" aria-label="Search results" maxHeight={360}>
           {searchedConversations.length === 0 ? (
-            <Box role="status" aria-live="polite" sx={getPopoverEmptyStateSx(theme)}>
-              <Typography
-                sx={{ ...theme.typography.uiNavItem, color: 'text.secondary', lineHeight: 1.35 }}
-              >
-                {conversations.length === 0 ? 'No conversations yet' : 'No matching chats'}
-              </Typography>
+            <Box component="li" sx={{ listStyle: 'none' }}>
+              <AppPopoverEmptyState
+                aria-live="polite"
+                title={conversations.length === 0 ? 'No conversations yet' : 'No matching chats'}
+              />
             </Box>
           ) : (
-            <List disablePadding>
-              {searchedConversations.map((conv) => (
-                <HistoryPopoverItem
-                  key={conv.id}
-                  conv={conv}
-                  isActive={conv.id === currentConversationId}
-                  onSelect={onSelectConversation}
-                  onDelete={onDeleteConversation}
-                  onRename={onRenameConversation}
-                  onClosePopover={handleCloseSearchPopover}
-                  theme={theme}
-                />
-              ))}
-            </List>
+            searchedConversations.map((conv) => (
+              <HistoryPopoverItem
+                key={conv.id}
+                conv={conv}
+                isActive={conv.id === currentConversationId}
+                onSelect={onSelectConversation}
+                onDelete={onDeleteConversation}
+                inlineRename={
+                  inlineRename.surface === 'search' && inlineRename.conversationId === conv.id
+                    ? inlineRename
+                    : null
+                }
+                renameSurface="search"
+                onRenameStart={handleInlineRenameStart}
+                onRenameChange={handleInlineRenameChange}
+                onRenameCancel={handleInlineRenameCancel}
+                onRenameCommit={handleInlineRenameCommit}
+                onClosePopover={handleCloseSearchPopover}
+                theme={theme}
+              />
+            ))
           )}
-        </Box>
+        </AppPopoverList>
       </AppPopover>
 
       <AppPopover
@@ -272,35 +170,45 @@ function SidebarOverlays({
         anchorOrigin={{ vertical: 'center', horizontal: 'right' }}
         transformOrigin={{ vertical: 'center', horizontal: 'left' }}
         paperSx={{ ml: 1 }}
-        width={240}
+        width={280}
+        slotProps={{
+          transition: {
+            onEntered: () => historyFirstItemRef.current?.focus(),
+          },
+        }}
       >
-        <Typography sx={getPopoverSectionLabelSx(theme)}>Conversation History</Typography>
-        <Box sx={getPopoverScrollSx(theme)}>
+        <AppPopoverSectionLabel>Conversation history</AppPopoverSectionLabel>
+        <AppPopoverList role="list" aria-label="Conversation history" maxHeight={360}>
           {conversations.length === 0 ? (
-            <Box role="status" aria-live="polite" sx={getPopoverEmptyStateSx(theme)}>
-              <Typography
-                sx={{ ...theme.typography.uiNavItem, color: 'text.secondary', lineHeight: 1.35 }}
-              >
-                No conversations yet
-              </Typography>
+            <Box component="li" sx={{ listStyle: 'none' }}>
+              <AppPopoverEmptyState aria-live="polite" title="No conversations yet" />
             </Box>
           ) : (
-            <List disablePadding>
-              {conversations.map((conv) => (
-                <HistoryPopoverItem
-                  key={conv.id}
-                  conv={conv}
-                  isActive={conv.id === currentConversationId}
-                  onSelect={onSelectConversation}
-                  onDelete={onDeleteConversation}
-                  onRename={onRenameConversation}
-                  onClosePopover={handleCloseHistoryPopover}
-                  theme={theme}
-                />
-              ))}
-            </List>
+            conversations.map((conv, index) => (
+              <HistoryPopoverItem
+                key={conv.id}
+                conv={conv}
+                isActive={conv.id === currentConversationId}
+                onSelect={onSelectConversation}
+                onDelete={onDeleteConversation}
+                inlineRename={
+                  inlineRename.surface === 'history' && inlineRename.conversationId === conv.id
+                    ? inlineRename
+                    : null
+                }
+                renameSurface="history"
+                onRenameStart={handleInlineRenameStart}
+                onRenameChange={handleInlineRenameChange}
+                onRenameCancel={handleInlineRenameCancel}
+                onRenameCommit={handleInlineRenameCommit}
+                onClosePopover={handleCloseHistoryPopover}
+                autoFocus={index === 0}
+                selectionRef={index === 0 ? historyFirstItemRef : undefined}
+                theme={theme}
+              />
+            ))
           )}
-        </Box>
+        </AppPopoverList>
       </AppPopover>
     </>
   );

@@ -2,8 +2,8 @@
  * SqlEditorSurface — CodeMirror 6 SQL editor (read/write).
  *
  * Uses the Shiki-matched theme from themeCodeMirror.js so SQL in the editor
- * looks identical to SQL in chat code blocks (both use dracula-soft / github-light
- * color palettes).
+ * looks identical to SQL in chat code blocks (both use the dark dracula-soft
+ * color palette).
  *
  * Streaming mode: when `isStreaming` is true, the editor is read-only and
  * the query text arrives incrementally. CodeMirror's `dispatch` is used to
@@ -42,22 +42,15 @@ function SqlEditorSurface({
   onClearError,
 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
 
   // Resolve the run handler from props. CodeMirror efficiently reconfigures
   // extensions when this reference changes, so no ref/effect indirection needed.
   const runQuery = onRunQuery ?? onQueryExecute;
 
-  const codeMirrorTheme = useMemo(
-    () => getCodeMirrorTheme(theme.palette.mode, true),
-    [theme.palette.mode],
-  );
+  const codeMirrorTheme = useMemo(() => getCodeMirrorTheme(true), []);
 
   // Syntax highlighting — now uses Shiki-matched colors instead of empty array.
-  const highlighting = useMemo(
-    () => getCodeMirrorHighlighting(theme.palette.mode),
-    [theme.palette.mode],
-  );
+  const codeMirrorHighlighting = useMemo(() => getCodeMirrorHighlighting(), []);
 
   const extensions = useMemo(
     () => [
@@ -76,9 +69,9 @@ function SqlEditorSurface({
           },
         ]),
       ),
-      highlighting,
+      codeMirrorHighlighting,
     ],
-    [highlighting, runQuery],
+    [codeMirrorHighlighting, runQuery],
   );
 
   const scrollbarSx = useMemo(() => getScrollbarStyles(theme), [theme]);
@@ -133,7 +126,7 @@ function SqlEditorSurface({
         flexDirection: 'column',
         position: 'relative',
         bgcolor: 'background.default',
-        borderRadius: '0 0 12px 12px',
+        borderRadius: '0 0 8px 8px',
       }}
     >
       {/* Editor */}
@@ -156,14 +149,14 @@ function SqlEditorSurface({
           '& .cm-gutters': {
             borderRight: '0 !important',
             boxShadow: 'none',
-            backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.018 : 0.014),
+            backgroundColor: theme.palette.layer.barely,
           },
           '& .cm-placeholder': {
             color: theme.palette.text.disabled,
             fontStyle: 'normal',
           },
           '& .cm-activeLine, & .cm-activeLineGutter': {
-            backgroundColor: alpha(theme.palette.primary.main, isDark ? 0.055 : 0.035),
+            backgroundColor: alpha(theme.palette.primary.main, theme.palette.opacity.subtle),
           },
         }}
       >
@@ -220,8 +213,8 @@ function SqlEditorSurface({
             py: 0.5,
             borderRadius: '8px',
             backgroundColor: alpha(theme.palette.background.paper, 0.85),
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
+            backdropFilter: 'none',
+            WebkitBackdropFilter: 'none',
             border: '1px solid',
             borderColor: alpha(theme.palette.text.primary, 0.08),
             zIndex: 5,
@@ -245,7 +238,7 @@ function SqlEditorSurface({
             sx={{
               ...theme.typography.uiCaptionSm,
               color: 'text.secondary',
-              fontWeight: 500,
+              fontWeight: 400,
             }}
           >
             Agent is writing…

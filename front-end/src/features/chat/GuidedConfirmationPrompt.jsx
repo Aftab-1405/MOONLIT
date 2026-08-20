@@ -19,7 +19,10 @@
 import { Box, Button, Collapse, Fade, Typography } from '@mui/material';
 import { alpha } from '@mui/material/styles';
 import { memo } from 'react';
-import { getAppPanelSurfaceSx } from '@/features/styles/interfaceChrome';
+import {
+  getAppPanelSurfaceSx,
+  getResponsivePillControlSx,
+} from '@/features/styles/interfaceChrome';
 import { UI_LAYOUT } from '@/styles/shared';
 
 const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
@@ -32,7 +35,6 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
   onConfirm,
   theme,
 }) {
-  const isDark = theme.palette.mode === 'dark';
   const compactMessage = message || 'Task paused';
 
   return (
@@ -69,21 +71,23 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
           <Box
             sx={{
               display: 'flex',
-              flexDirection: { xs: 'column', sm: 'row' },
-              alignItems: { xs: 'stretch', sm: 'center' },
+              flexDirection: { xs: 'column', md: 'row' },
+              alignItems: { xs: 'stretch', md: 'center' },
               justifyContent: 'space-between',
-              gap: { xs: 1, sm: 1.5 },
-              borderTopLeftRadius: '14px',
-              borderTopRightRadius: '14px',
+              gap: { xs: 1, md: 1.5 },
+              borderTopLeftRadius: '8px',
+              borderTopRightRadius: '8px',
               border: '1px solid',
-              borderColor: alpha(theme.palette.warning.main, isDark ? 0.32 : 0.24),
+              borderColor: alpha(
+                theme.palette.warning.main,
+                theme.palette.opacity.statusBorderSelected,
+              ),
               borderBottom: 0,
               ...getAppPanelSurfaceSx(theme),
-              px: { xs: 1.75, sm: 2.25 },
+              px: { xs: 2, md: 2.5 },
               py: 1,
-              bgcolor: (th) =>
-                alpha(th.palette.warning.main, th.palette.mode === 'dark' ? 0.08 : 0.05),
-              boxShadow: `0 -4px 16px ${alpha(theme.palette.common.black, isDark ? 0.3 : 0.08)}`,
+              bgcolor: (th) => alpha(th.palette.warning.main, th.palette.opacity.soft),
+              boxShadow: 'none',
             }}
           >
             {/* Compact single-line message with icon */}
@@ -104,7 +108,7 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                 sx={{
                   ...theme.typography.uiBodySm,
                   color: 'text.primary',
-                  fontWeight: 600,
+                  fontWeight: 400,
                   lineHeight: 1.3,
                   overflowWrap: 'anywhere',
                   maxHeight: '2.6em',
@@ -120,28 +124,28 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
               sx={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 0.75,
+                gap: 1,
                 flexShrink: 0,
-                alignSelf: { xs: 'flex-end', sm: 'center' },
+                alignSelf: { xs: 'flex-end', md: 'center' },
               }}
             >
               <Button
                 size="small"
                 onClick={onCancel}
                 sx={{
-                  minHeight: 28,
-                  borderRadius: '6px',
+                  ...getResponsivePillControlSx(theme, { desktopHeight: 32 }),
                   textTransform: 'none',
                   color: 'text.secondary',
-                  px: 1.25,
+                  px: 1.5,
                   ...theme.typography.uiCaptionMd,
-                  fontWeight: 500,
+                  fontWeight: 400,
                   '&:hover': {
-                    bgcolor: alpha(theme.palette.text.primary, 0.06),
+                    bgcolor: theme.palette.action.hover,
                   },
                   '&.Mui-focusVisible': {
-                    boxShadow: `0 0 0 3px ${alpha(theme.palette.text.primary, isDark ? 0.18 : 0.12)}`,
-                    outline: 'none',
+                    boxShadow: 'none',
+                    outline: `2px solid ${theme.palette.border.focus}`,
+                    outlineOffset: 2,
                   },
                 }}
               >
@@ -152,12 +156,11 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                 variant="contained"
                 onClick={onConfirm}
                 sx={{
-                  minHeight: 28,
-                  borderRadius: '6px',
+                  ...getResponsivePillControlSx(theme, { desktopHeight: 32 }),
                   textTransform: 'none',
                   px: 1.5,
                   ...theme.typography.uiCaptionMd,
-                  fontWeight: 700,
+                  fontWeight: 400,
                   bgcolor: 'primary.main',
                   color: 'primary.contrastText',
                   boxShadow: 'none',
@@ -166,8 +169,9 @@ const GuidedConfirmationPrompt = memo(function GuidedConfirmationPrompt({
                     boxShadow: 'none',
                   },
                   '&.Mui-focusVisible': {
-                    boxShadow: `0 0 0 3px ${alpha(theme.palette.primary.main, isDark ? 0.28 : 0.2)}`,
-                    outline: 'none',
+                    boxShadow: 'none',
+                    outline: `2px solid ${theme.palette.border.focus}`,
+                    outlineOffset: 2,
                   },
                 }}
               >

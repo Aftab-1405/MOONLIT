@@ -1,14 +1,17 @@
 /**
- * Theme context that adapts MUI theme from SettingsContext.
+ * Theme context for the canonical Moonlit dark theme.
  * @module ThemeContext
  */
 
 import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
-import { createContext, useContext, useLayoutEffect, useMemo, useRef } from 'react';
+import { createContext, useContext, useLayoutEffect, useMemo } from 'react';
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext';
-import { createDarkTheme, createLightTheme } from '@/theme/index';
+import { createDarkTheme } from '@/theme/index';
+import { CANONICAL_THEME_MODE, INPUT_MODALITY_ATTRIBUTE, THEME_ATTRIBUTE } from '@/theme/mode';
 
 const ThemeContext = createContext(null);
+const EFFECTIVE_THEME = CANONICAL_THEME_MODE;
+const IS_DARK_MODE = true;
 
 /** Returns theme-related settings and actions. */
 // eslint-disable-next-line react-refresh/only-export-components -- Hook export alongside Provider is valid React pattern
@@ -20,57 +23,37 @@ export const useTheme = () => {
   return context;
 };
 function ThemeProviderInner({ children }) {
-  const { settings, isDarkMode, updateSetting, updateSettings, resetSettings } = useSettings();
-  const previousThemeRef = useRef(settings.theme);
-
-  const theme = useMemo(() => {
-    return settings.theme === 'light' ? createLightTheme() : createDarkTheme();
-  }, [settings.theme]);
-
+  const { settings, updateSetting, updateSettings, resetSettings } = useSettings();
+  const theme = useMemo(() => createDarkTheme(), []);
   const value = useMemo(
     () => ({
       settings,
       updateSetting,
       updateSettings,
       resetSettings,
-      isDarkMode,
+      isDarkMode: IS_DARK_MODE,
+      effectiveTheme: EFFECTIVE_THEME,
     }),
-    [settings, updateSetting, updateSettings, resetSettings, isDarkMode],
+    [settings, updateSetting, updateSettings, resetSettings],
   );
 
   useLayoutEffect(() => {
-    if (typeof window === 'undefined') return;
-    document.documentElement.style.colorScheme = settings.theme;
+    document.documentElement.style.colorScheme = CANONICAL_THEME_MODE;
+    document.documentElement.setAttribute(THEME_ATTRIBUTE, CANONICAL_THEME_MODE);
+  }, []);
 
-    if (previousThemeRef.current === settings.theme) return;
-    previousThemeRef.current = settings.theme;
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const markKeyboardInput = () => root.setAttribute(INPUT_MODALITY_ATTRIBUTE, 'keyboard');
+    const markPointerInput = () => root.setAttribute(INPUT_MODALITY_ATTRIBUTE, 'pointer');
 
-    const style = document.createElement('style');
-    style.setAttribute('data-mui-theme-switch', 'true');
-    style.textContent = `
-      *, *::before, *::after {
-        transition: none !important;
-        animation: none !important;
-      }
-    `;
-    document.head.appendChild(style);
-
-    const remove = () => {
-      if (style.parentNode) {
-        style.parentNode.removeChild(style);
-      }
-    };
-    let raf2 = 0;
-    const raf1 = requestAnimationFrame(() => {
-      raf2 = requestAnimationFrame(remove);
-    });
-
+    document.addEventListener('keydown', markKeyboardInput, true);
+    document.addEventListener('pointerdown', markPointerInput, true);
     return () => {
-      cancelAnimationFrame(raf1);
-      cancelAnimationFrame(raf2);
-      remove();
+      document.removeEventListener('keydown', markKeyboardInput, true);
+      document.removeEventListener('pointerdown', markPointerInput, true);
     };
-  }, [settings.theme]);
+  }, []);
 
   return (
     <ThemeContext.Provider value={value}>

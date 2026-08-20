@@ -378,6 +378,7 @@ class Config:
     DEV_AUTH_USER_ID = os.getenv("DEV_AUTH_USER_ID", "local-dev-user")
     DEV_AUTH_EMAIL = os.getenv("DEV_AUTH_EMAIL", "local-dev@moonlit.local")
     DEV_AUTH_NAME = os.getenv("DEV_AUTH_NAME", "Local Dev")
+    ADMIN_UID = os.getenv("ADMIN_UID", "").strip()
     SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "firebase_session")
     CSRF_COOKIE_NAME = os.getenv("CSRF_COOKIE_NAME", "csrf_token")
     CSRF_HEADER_NAME = os.getenv("CSRF_HEADER_NAME", "x-csrf-token")

@@ -22,7 +22,7 @@ import { UI_LAYOUT } from '@/styles/shared';
 const DRAWER_WIDTH = UI_LAYOUT.sidebarExpandedWidth;
 const COLLAPSED_WIDTH = UI_LAYOUT.sidebarCollapsedWidth;
 
-export function useChatPageSidebar({ isDesktop, onCloseModals } = {}) {
+export function useChatPageSidebar({ isDesktop, onOpenSettings } = {}) {
   const { user, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useLocalStorage('moonlit-sidebar-open', true);
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -58,12 +58,13 @@ export function useChatPageSidebar({ isDesktop, onCloseModals } = {}) {
     await logout();
   }, [logout]);
 
-  const handleOpenSettings = useCallback(() => {
-    handleMenuClose();
-    onCloseModals?.();
-    // The caller wires the actual settings-open state via onCloseModals +
-    // its own settings open setter. Here we just close the menu and notify.
-  }, [handleMenuClose, onCloseModals]);
+  const handleOpenSettings = useCallback(
+    (event) => {
+      handleMenuClose();
+      onOpenSettings?.(event);
+    },
+    [handleMenuClose, onOpenSettings],
+  );
 
   return {
     user,

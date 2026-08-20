@@ -1,5 +1,5 @@
 import { Box } from '@mui/material';
-import { alpha, useTheme as useMuiTheme } from '@mui/material/styles';
+import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
 
 /**
@@ -18,7 +18,15 @@ import { memo, useCallback, useEffect, useRef, useState } from 'react';
  * @param {Function} onResizeEnd - Callback fired when drag ends
  * @param {boolean} disabled - When true, hides the handle completely
  */
-function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }) {
+function ResizeHandle({
+  onResize,
+  onResizeStart,
+  onResizeEnd,
+  disabled = false,
+  valueMin,
+  valueMax,
+  valueNow,
+}) {
   const theme = useMuiTheme();
   const isDragging = useRef(false);
   const startX = useRef(0);
@@ -95,19 +103,23 @@ function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }
   }, [handlePointerMove, handlePointerUp, restoreBodyStyles]);
   if (disabled) return null;
 
-  // Resolve handle colours. We use theme.primary for the active/hover state
-  // and a low-alpha foreground for the resting state so the handle reads as
-  // "grab me" without being visually loud.
-  const restingColor = theme.palette.border?.subtle || alpha(theme.palette.text.primary, 0.14);
-  const activeColor = theme.palette.primary.main;
-  const activeGlow = alpha(theme.palette.primary.main, 0.38);
-  const hoverGlow = alpha(theme.palette.primary.main, 0.28);
+  const restingColor = theme.palette.border.idle;
+  const hoverColor = theme.palette.border.hover;
+  const focusColor = theme.palette.border.focus;
+  const hasRange = [valueMin, valueMax, valueNow].every(Number.isFinite);
+  const boundedValueNow = hasRange
+    ? Math.min(valueMax, Math.max(valueMin, Math.round(valueNow)))
+    : undefined;
 
   return (
     <Box
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize panels"
+      aria-valuemin={hasRange ? valueMin : undefined}
+      aria-valuemax={hasRange ? valueMax : undefined}
+      aria-valuenow={boundedValueNow}
+      aria-valuetext={hasRange ? `${boundedValueNow} pixels` : undefined}
       tabIndex={0}
       onPointerDown={handlePointerDown}
       onKeyDown={handleKeyDown}
@@ -137,16 +149,20 @@ function ResizeHandle({ onResize, onResizeStart, onResizeEnd, disabled = false }
           width: 3,
           height: 36,
           borderRadius: 999,
-          backgroundColor: dragging ? activeColor : restingColor,
-          boxShadow: dragging ? `0 0 12px ${activeGlow}` : 'none',
+          backgroundColor: dragging ? hoverColor : restingColor,
+          boxShadow: 'none',
           transition: theme.transitions.create(['background-color', 'box-shadow', 'height'], {
             duration: theme.transitions.duration.shorter,
           }),
         },
-        '&:hover::after, &:focus-visible::after': {
-          backgroundColor: activeColor,
+        '&:hover::after': {
+          backgroundColor: hoverColor,
           height: 40,
-          boxShadow: `0 0 12px ${hoverGlow}`,
+        },
+        '&:focus-visible::after': {
+          backgroundColor: focusColor,
+          height: 40,
+          boxShadow: `0 0 0 2px ${focusColor}`,
         },
       }}
     />

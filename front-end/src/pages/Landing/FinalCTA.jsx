@@ -1,102 +1,67 @@
-import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
-import { Box, Button, Container, Stack, Typography } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import { REDUCED_MOTION_QUERY, Section } from '@/pages/Landing/index';
-import { BRAND } from '@/theme/tokens';
+import { Box, Button, Container, Typography } from '@mui/material';
+import { ArrowForwardIcon } from '@/components/icons';
+import { LandingSection, Reveal } from './LandingSection';
+import { LANDING_COPY } from './landingContent';
 
 function FinalCTA({ onGetStarted }) {
-  const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
-
   return (
-    <Section sx={{ flexDirection: 'column', py: { xs: 6, md: 8 } }}>
-      <Container maxWidth="md" sx={{ textAlign: 'center', position: 'relative', zIndex: 1 }}>
-        <Stack spacing={3} alignItems="center">
+    <LandingSection sx={{ pt: { xs: 10, md: 18 }, pb: { xs: 10, md: 16 } }}>
+      <Container maxWidth="lg">
+        <Reveal>
           <Typography
-            variant="h2"
-            fontWeight="bold"
-            sx={{ ...theme.typography.uiHeadingLandingLg, lineHeight: 1.2 }}
+            sx={(theme) => ({ ...theme.typography.captionMono, color: 'text.secondary' })}
           >
-            Ready to Talk to{' '}
-            <Box
-              component="span"
-              sx={{
-                color: BRAND.main,
-              }}
-            >
-              Your Database?
-            </Box>
+            {LANDING_COPY.finalCta.eyebrow}
           </Typography>
-
-          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 420, opacity: 0.7 }}>
-            Join developers and analysts who've simplified their database workflows. Start free, no
-            credit card required.
+          <Typography
+            component="h2"
+            sx={(theme) => ({
+              ...theme.typography.displayLg,
+              maxWidth: 920,
+              mt: 2,
+              textWrap: 'balance',
+            })}
+          >
+            {LANDING_COPY.finalCta.title}
           </Typography>
-
-          <Button
-            size="large"
-            variant="contained"
-            color="primary"
-            onClick={onGetStarted}
-            endIcon={<ArrowForwardRoundedIcon />}
+          <Box
             sx={{
-              px: 5,
-              py: 1.75,
-              borderRadius: 2,
-              fontWeight: 600,
-              // Solid brand purple — matches the hero CTA.
-              backgroundColor: BRAND.main,
-              '&:hover': {
-                backgroundColor: BRAND.dark,
-              },
-              boxShadow: `0 4px 14px ${alpha(BRAND.main, isDark ? 0.4 : 0.24)}`,
-              transition: theme.transitions.create(
-                ['box-shadow', 'transform', 'background-color'],
-                { duration: 200 },
-              ),
-              [REDUCED_MOTION_QUERY]: { transition: 'none' },
-              '@media (hover: hover)': {
-                '&:hover': {
-                  transform: 'translateY(-2px)',
-                  boxShadow: `0 8px 22px ${alpha(BRAND.main, isDark ? 0.5 : 0.32)}`,
-                },
-              },
-              '&:active': { transform: 'scale(0.98)' },
+              display: 'grid',
+              gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: 'minmax(0, 1fr) auto' },
+              alignItems: { md: 'end' },
+              gap: { xs: 4, md: 8 },
+              mt: { xs: 3, md: 5 },
+              pt: { xs: 3, md: 4 },
+              borderTop: '1px solid',
+              borderColor: 'border.subtle',
             }}
           >
-            Get Started Free
-          </Button>
-
-          {/* Trust badges */}
-          <Stack
-            direction="row"
-            spacing={0}
-            alignItems="center"
-            divider={
-              <Box
-                sx={{
-                  width: '1px',
-                  height: 12,
-                  backgroundColor: alpha(theme.palette.text.primary, 0.12),
-                  mx: 2,
-                }}
-              />
-            }
-          >
-            {['No credit card', 'Your existing databases', 'Cancel anytime'].map((item) => (
-              <Typography
-                key={item}
-                variant="caption"
-                color="text.secondary"
-                sx={{ opacity: 0.5, ...theme.typography.uiCaptionXs }}
-              >
-                {item}
+            <Box sx={{ maxWidth: 620 }}>
+              <Typography sx={(theme) => ({ ...theme.typography.bodyLg, color: 'text.secondary' })}>
+                {LANDING_COPY.finalCta.description}
               </Typography>
-            ))}
-          </Stack>
-        </Stack>
+              <Typography
+                sx={(theme) => ({
+                  ...theme.typography.captionMonoSm,
+                  mt: 2,
+                  color: 'text.disabled',
+                })}
+              >
+                {LANDING_COPY.accountFlow}
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={onGetStarted}
+              endIcon={<ArrowForwardIcon />}
+            >
+              Get started
+            </Button>
+          </Box>
+        </Reveal>
       </Container>
-    </Section>
+    </LandingSection>
   );
 }
 

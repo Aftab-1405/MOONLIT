@@ -1,7 +1,7 @@
 {
   "models": {
     "moonshotai.kimi-k2.5": {
-      "context_window": 256000,
+      "context_window": 32000,
       "max_output_tokens": 16000,
       "local_estimate_multiplier": 1.2,
       "supports_count_tokens": false,

@@ -1,13 +1,5 @@
 import { keyframes } from '@mui/material/styles';
-
-/**
- * Shimmer sweep used for "live" / waiting text across chat surfaces.
- * Exported so MessageList and StepsAccordion share exactly the same animation.
- */
-export const shimmer = keyframes`
-  0%   { background-position: -200% 0; }
-  100% { background-position:  200% 0; }
-`;
+import { HOVER_CAPABLE_QUERY } from '../../../styles/mediaQueries.js';
 
 /**
  * Entry animation for timeline items and accordion.
@@ -20,3 +12,43 @@ export const slideIn = keyframes`
 `;
 
 export const TIMELINE_LINE_X = { xs: 12, sm: 14 };
+
+/**
+ * Interactive reasoning controls share the surrounding timeline surface.
+ * Hover and pressed states change ink only; focus retains the accessible ring.
+ */
+export function getFlatStepControlSx(
+  theme,
+  { size = { xs: 44, md: 32 }, radius = theme.shape.radius.pill } = {},
+) {
+  return {
+    minHeight: size,
+    borderRadius: radius,
+    color: theme.palette.text.secondary,
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    boxShadow: 'none',
+    transition: theme.transitions.create(['color', 'box-shadow'], {
+      duration: theme.transitions.duration.shorter,
+    }),
+    [HOVER_CAPABLE_QUERY]: {
+      '&:hover': {
+        color: theme.palette.text.primary,
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
+        boxShadow: 'none',
+      },
+    },
+    '&:active': {
+      backgroundColor: 'transparent',
+      boxShadow: 'none',
+    },
+    '&:focus-visible': {
+      color: theme.palette.text.primary,
+      backgroundColor: 'transparent',
+      boxShadow: 'none',
+      outline: `2px solid ${theme.palette.border.focus}`,
+      outlineOffset: 2,
+    },
+  };
+}

@@ -64,6 +64,10 @@ from langchain_core.messages.utils import merge_message_runs
 from langgraph.errors import GraphRecursionError
 from langgraph.types import Command
 
+from langgraph_orchestration.context_usage import (
+    build_summary_completed_events,
+    get_pre_call_summary_pressure,
+)
 from langgraph_orchestration.conversation_access import (
     get_default_conversation_state_reader,
     get_default_conversation_summarizer,
@@ -818,51 +822,8 @@ async def stream_conversation(
                 task_checkpoint_summary=task_checkpoint_summary,
                 task_mode=task_mode,
                 conversation=conv_data,
-                message=message,
             )
 
-            # ENH [CTX-MONOTONIC]: Seed input_payload_tokens with the last-known
-            # value from the previous turn so the indicator never goes DOWN
-            # across turns. The model's input_tokens for this turn may be
-            # lower than the previous turn's final value (e.g., a simple text
-            # response after a heavy tool loop), but the indicator should only
-            # grow as the conversation grows. The max() in _translate_message
-            # ensures within-turn monotonicity; this ensures cross-turn
-            # monotonicity.
-            #
-            # ENH [CTX-RESET]: SKIP the seed if the previous turn had
-            # summarization (contextPhase="post_summary"). After summarization,
-            # the context was compacted — old messages replaced by a summary.
-            # The indicator SHOULD drop to reflect the smaller context. Seeding
-            # from the pre-summarization peak would keep it stuck at 100%+ and
-            # cause the pressure check to re-trigger summarization on every
-            # subsequent turn.
-            if conv_data:
-                messages_list = conv_data.get("messages", []) or []
-                for msg in reversed(messages_list):
-                    msg_usage = msg.get("usage") if isinstance(msg, dict) else None
-                    if isinstance(msg_usage, dict):
-                        # Check if this turn had summarization
-                        prev_phase = msg_usage.get("contextPhase")
-                        if prev_phase == "post_summary":
-                            logger.debug(
-                                "Skipping cross-turn seed — previous turn had summarization "
-                                "(contextPhase=post_summary). Indicator will reset."
-                            )
-                            break
-
-                        prev_input = (
-                            msg_usage.get("inputPayloadTokens")
-                            or msg_usage.get("inputTokens")
-                            or msg_usage.get("totalTokens")
-                        )
-                        if prev_input is not None and prev_input > 0:
-                            budget_info["input_payload_tokens"] = int(prev_input)
-                            logger.debug(
-                                "Seeded input_payload_tokens from previous turn: %s",
-                                prev_input,
-                            )
-                            break
         except Exception as count_err:
             # ENH [LATENCY]: TokenCountingError imported at module level
 
@@ -1006,6 +967,7 @@ async def stream_conversation(
             logger.debug("Could not restore activated_skills from checkpoint: %s", e)
 
         graph_input = None
+        post_summary_events = []
         # FIX [CTX-SUMMARY]: Pre-call summarization must run for ALL new turns,
         # not just the first one. Previously this block was inside
         # `elif not await _has_checkpoint(...)` which only runs when there is
@@ -1017,94 +979,26 @@ async def stream_conversation(
         # the graph_input branches.
         if resume is None:
             try:
-                # ENH [LATENCY]: module-level import
                 summarizer = get_default_conversation_summarizer()
-                summary_pressure = summarizer.get_background_summary_pressure(
-                    conv_data,
-                    pressure_budget_tokens=budget_info["hot_history_budget"],
+                summary_pressure = get_pre_call_summary_pressure(
+                    summarizer,
+                    conversation=conv_data,
+                    budget_info=budget_info,
                     model_id=selected_model,
                 )
-
-                # ENH [TOK]: Simplified 2-tier pressure check using the same
-                # source of truth the indicator uses. This replaces the old
-                # 3-tier logic and the chars/3 tail_tokens estimate.
-                #
-                # Tier 1 (preferred): Provider-reported usage.inputTokens from
-                #   the last model call (stored on message.usage in Firestore).
-                #   This is the EXACT count the model received — zero estimation
-                #   error. Same value the front-end indicator uses, so they
-                #   always agree. Available for ALL Bedrock models.
-                #
-                # Tier 2 (pre-call sum, first turn only): When no prior model
-                #   call exists, sum the measured static sections (already
-                #   counted via Bedrock CountTokens or model-native tokenizer)
-                #   plus the model-native-tokenized history estimate. This is
-                #   only used on the very first turn.
-                pressure_trigger = budget_info.get("pressure_trigger_tokens") or budget_info["hot_history_budget"]
-                threshold = int(float(pressure_trigger) * 0.90)
-
-                actual_input_payload = budget_info.get("input_payload_tokens")
-                if actual_input_payload is None and conv_data:
-                    # Tier 1: Read provider-reported input_tokens from last assistant message
-                    messages_list = conv_data.get("messages", []) or []
-                    for msg in reversed(messages_list):
-                        msg_usage = msg.get("usage") if isinstance(msg, dict) else None
-                        if isinstance(msg_usage, dict):
-                            val = (
-                                msg_usage.get("inputPayloadTokens")
-                                or msg_usage.get("inputTokens")
-                                or msg_usage.get("totalTokens")
-                            )
-                            if val is not None and val > 0:
-                                actual_input_payload = int(val)
-                                break
-
-                if actual_input_payload is None:
-                    # Tier 2: Sum measured sections + model-native-tokenized history
-                    actual_input_payload = (
-                        (budget_info.get("system_prompt_tokens") or 0)
-                        + (budget_info.get("tool_schema_tokens") or 0)
-                        + (budget_info.get("vamp_memory_tokens") or 0)
-                        + (budget_info.get("task_checkpoint_tokens") or 0)
-                        + (budget_info.get("context_map_tokens") or 0)
-                        + (summary_pressure.get("tail_tokens") or 0)
-                    )
-                    logger.info(
-                        "Pressure check (Tier 2 pre-call sum): total=%s, threshold=%s",
-                        actual_input_payload,
-                        threshold,
-                    )
-                else:
-                    logger.info(
-                        "Pressure check (Tier 1 provider-reported): input=%s, threshold=%s",
-                        actual_input_payload,
-                        threshold,
-                    )
-
-                summary_pressure["tail_tokens"] = actual_input_payload
-                summary_pressure["pressure_budget"] = pressure_trigger
-                summary_pressure["threshold_tokens"] = threshold
-                summary_pressure["should_schedule"] = actual_input_payload >= threshold
+                budget_info["tail_tokens"] = summary_pressure["tail_tokens"]
+                budget_info["active_context_tokens"] = summary_pressure["tail_tokens"]
 
                 if summary_pressure["should_schedule"]:
                     yield sse_encode(
                         build_usage_metrics(
                             budget_info,
-                            inputPayloadTokens=summary_pressure["tail_tokens"],
+                            activeContextTokens=summary_pressure["tail_tokens"],
                             activeContextBudget=summary_pressure["pressure_budget"],
-                            pressureTriggerTokens=summary_pressure["pressure_budget"],
                             contextPhase="pre_summary",
                             summaryThresholdTokens=summary_pressure["threshold_tokens"],
                             summaryCompleteTurns=summary_pressure["complete_turn_count"],
                         )
-                    )
-                    yield sse_encode(
-                        {
-                            "type": "workflow_status",
-                            "stage": "summarizing_context",
-                            "status": "running",
-                            "content": "Compacting conversation context...",
-                        }
                     )
                     summary_result = await summarizer.check_and_summarize(
                         conversation_id,
@@ -1112,28 +1006,25 @@ async def stream_conversation(
                         selected_model,
                         pressure_budget_tokens=budget_info["hot_history_budget"],
                     )
-                    if summary_result and summary_result.get("tail_tokens") is not None:
-                        budget_info["tail_tokens"] = summary_result["tail_tokens"]
 
                     if summary_result and summary_result.get("created"):
-                        # ENH [CTX-RESET]: After summarization, the context has
-                        # been compacted — old messages replaced by a summary.
-                        # Reset input_payload_tokens to 0 so the model's next
-                        # reported input_tokens becomes the new (lower) value.
-                        # Without this, the max() in _translate_message keeps
-                        # the indicator stuck at the pre-summarization peak,
-                        # and the pressure check re-triggers summarization on
-                        # every subsequent turn (even though there's nothing
-                        # left to summarize).
-                        budget_info["input_payload_tokens"] = 0
-
-                        summary_pressure_post = {
-                            "tail_tokens": budget_info.get("tail_tokens", 0),
-                            "threshold_tokens": None,
-                            "complete_turn_count": None,
-                        }
+                        # The summary service advances the durable boundary.
+                        # Build the matching fallback state locally so a failed
+                        # reread cannot leave the indicator at its pre-summary
+                        # peak.
+                        fallback_conversation = dict(conv_data or {})
+                        fallback_conversation["last_summarized_idx"] = summary_result.get(
+                            "end_idx",
+                            len(fallback_conversation.get("messages", []) or []),
+                        )
+                        summary_pressure_post = get_pre_call_summary_pressure(
+                            summarizer,
+                            conversation=fallback_conversation,
+                            budget_info=budget_info,
+                            model_id=selected_model,
+                        )
+                        conv_data_post = None
                         try:
-                            # ENH [LATENCY]: Use cached reader (module-level import)
                             conv_data_post = await asyncio.wait_for(
                                 run_in_threadpool(
                                     _cached_conversation_reader().get_conversation,
@@ -1141,39 +1032,32 @@ async def stream_conversation(
                                 ),
                                 timeout=5.0,
                             )
-                            summary_pressure_post = summarizer.get_background_summary_pressure(
-                                conv_data_post,
-                                pressure_budget_tokens=budget_info["hot_history_budget"],
-                            )
-                            budget_info["tail_tokens"] = summary_pressure_post["tail_tokens"]
-                            logger.info(
-                                "Recalculated tail_tokens post-summarization: %s",
-                                budget_info["tail_tokens"],
-                            )
+                            if conv_data_post is not None:
+                                summary_pressure_post = get_pre_call_summary_pressure(
+                                    summarizer,
+                                    conversation=conv_data_post,
+                                    budget_info=budget_info,
+                                    model_id=selected_model,
+                                )
+                                logger.info(
+                                    "Recalculated tail_tokens post-summarization: %s",
+                                    summary_pressure_post["tail_tokens"],
+                                )
+                            else:
+                                logger.warning(
+                                    "Post-summarization conversation reread returned no data; "
+                                    "using the locally advanced summary boundary."
+                                )
                         except Exception as e:
                             logger.warning(
                                 "Failed to recalculate tail_tokens post-summarization: %s",
                                 e,
                             )
 
-                        yield sse_encode(
-                            {
-                                "type": "workflow_status",
-                                "stage": "summarizing_context",
-                                "status": "done",
-                                "content": "Conversation context summarized.",
-                            }
-                        )
-                        yield sse_encode(
-                            build_usage_metrics(
-                                budget_info,
-                                inputPayloadTokens=budget_info.get("tail_tokens", 0),
-                                activeContextBudget=budget_info["hot_history_budget"],
-                                pressureTriggerTokens=budget_info["hot_history_budget"],
-                                contextPhase="post_summary",
-                                summaryThresholdTokens=summary_pressure_post.get("threshold_tokens"),
-                                summaryCompleteTurns=summary_pressure_post.get("complete_turn_count"),
-                            )
+                        post_summary_events = build_summary_completed_events(
+                            budget_info,
+                            summary_result=summary_result,
+                            summary_pressure=summary_pressure_post,
                         )
 
                         # Reload VAMP historical context to include the newly generated summary block.
@@ -1201,20 +1085,10 @@ async def stream_conversation(
                                 vamp_err,
                             )
 
-                        # Reload conv_data so the history loader sees the updated last_summarized_idx
-                        try:
-                            conv_data = await asyncio.wait_for(
-                                run_in_threadpool(
-                                    get_default_conversation_state_reader().get_conversation,
-                                    conversation_id,
-                                ),
-                                timeout=5.0,
-                            )
-                        except Exception as cd_err:
-                            logger.warning(
-                                "Could not reload conv_data after summarization: %s",
-                                cd_err,
-                            )
+                        if conv_data_post is not None:
+                            conv_data = conv_data_post
+                        else:
+                            conv_data = fallback_conversation
 
                     else:
                         logger.info(
@@ -1225,24 +1099,8 @@ async def stream_conversation(
                             summary_result.get("tail_tokens") if summary_result else None,
                             summary_result.get("threshold_tokens") if summary_result else None,
                         )
-                        yield sse_encode(
-                            {
-                                "type": "workflow_status",
-                                "stage": "summarizing_context",
-                                "status": "done",
-                                "content": "Context summarization bypassed.",
-                            }
-                        )
             except Exception as sum_err:
                 logger.warning("Pre-call summarization failed: %s", sum_err)
-                yield sse_encode(
-                    {
-                        "type": "workflow_status",
-                        "stage": "summarizing_context",
-                        "status": "done",
-                        "content": "Context summarization bypassed.",
-                    }
-                )
 
         if resume is not None:
             if is_continue_task:
@@ -1339,10 +1197,11 @@ async def stream_conversation(
             initial_messages = [HumanMessage(content=format_current_user_request(_current_message_text))]
             graph_input = {"messages": initial_messages}
 
-        # ENH [TOK]: _baseline_tail removed — we now use the model-reported
-        # input_payload_tokens (set by stream_events._translate_message) as
-        # the single source of truth for context usage. No running estimate
-        # needed.
+        # Publish the reset only after graph history has been rebuilt from the
+        # same post-summary boundary. This keeps the user-visible event and the
+        # agent's active context transition ordered together.
+        for summary_event in post_summary_events:
+            yield sse_encode(summary_event)
 
         # WENH [1]: Register the current task with the lease so the renew loop
         # can cancel it on ownership loss (FIX [M2]). Without this, a

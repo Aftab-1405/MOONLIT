@@ -48,6 +48,7 @@ from firebase_admin.auth import (
 )
 
 from config import get_config
+from core.admin_authorization import get_admin_authorization_decision
 
 logger = logging.getLogger(__name__)
 Config = get_config()
@@ -301,6 +302,20 @@ async def get_current_user_optional(request: Request) -> Optional[dict]:
         return await get_current_user(request)
     except HTTPException:
         return None
+
+
+async def require_admin_user(user: dict = Depends(get_current_user)) -> dict:
+    """Require the server-configured administrator identity, failing closed."""
+    decision = get_admin_authorization_decision(user, Config.ADMIN_UID)
+    if decision.allowed:
+        return user
+
+    detail = (
+        "Administrative access is not configured"
+        if decision.reason == "missing_configuration"
+        else "Administrative access required"
+    )
+    raise HTTPException(status_code=decision.status_code, detail=detail)
 
 
 async def get_db_config(request: Request) -> Optional[dict]:

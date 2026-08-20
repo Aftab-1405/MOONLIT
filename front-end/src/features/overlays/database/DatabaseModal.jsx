@@ -1,8 +1,3 @@
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import LinkRoundedIcon from '@mui/icons-material/LinkRounded';
-import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined';
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
-import VpnKeyRoundedIcon from '@mui/icons-material/VpnKeyRounded';
 import {
   Alert,
   Box,
@@ -19,12 +14,19 @@ import {
   Typography,
   useMediaQuery,
 } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
+import { useTheme } from '@mui/material/styles';
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { connectDb, disconnectDb, getDatabases } from '@/api';
 import { queryClient, queryKeys } from '@/api/queryClient';
 import { ButtonLoadingSpinner, DialogShell } from '@/components';
-import DatabaseIcon from '@/components/icons/DatabaseIcon';
+import {
+  CredentialIcon,
+  DatabaseIcon,
+  LinkIcon,
+  SuccessIcon,
+  VisibilityOffIcon,
+  VisibilityOnIcon,
+} from '@/components/icons';
 import { DB_TYPES } from '@/config/databases';
 import { useSettings } from '@/contexts/SettingsContext';
 import {
@@ -106,16 +108,12 @@ const VisibilityToggleAdornment = memo(({ show, onToggle }) => (
           },
           '&:focus-visible': {
             outline: '2px solid',
-            outlineColor: 'primary.main',
+            outlineColor: (theme) => theme.palette.border.focus,
             outlineOffset: 2,
           },
         }}
       >
-        {show ? (
-          <VisibilityOffOutlinedIcon fontSize="small" />
-        ) : (
-          <VisibilityOutlinedIcon fontSize="small" />
-        )}
+        {show ? <VisibilityOffIcon fontSize="small" /> : <VisibilityOnIcon fontSize="small" />}
       </IconButton>
     </Tooltip>
   </InputAdornment>
@@ -127,7 +125,7 @@ function EmptyState({ icon, title, subtitle }) {
   return (
     <Box sx={{ textAlign: 'center', py: 6, px: 3 }}>
       <Icon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
-      <Typography sx={{ ...theme.typography.uiBodySm, color: 'text.secondary', fontWeight: 500 }}>
+      <Typography sx={{ ...theme.typography.uiBodySm, color: 'text.secondary', fontWeight: 400 }}>
         {title}
       </Typography>
       {subtitle ? (
@@ -144,17 +142,6 @@ function EmptyState({ icon, title, subtitle }) {
       ) : null}
     </Box>
   );
-}
-
-const DATABASE_TEXT_COLORS = {
-  mysql: '#00758f',
-  postgresql: '#336791',
-  sqlserver: '#a91d22',
-  oracle: '#f80000',
-};
-
-function getDatabaseTextColor(dbValue, theme) {
-  return DATABASE_TEXT_COLORS[dbValue] || theme.palette.text.primary;
 }
 
 /**
@@ -178,7 +165,6 @@ function getDatabaseOptions(connectionData = {}) {
 
 const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) => {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
 
   if (databases.length === 0) {
     return (
@@ -198,7 +184,7 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
         gap: 0.75,
       }}
     >
-      {databases.map((db) => {
+      {databases.map((db, index) => {
         const isSelected = db === currentDatabase;
         return (
           <Box
@@ -225,35 +211,33 @@ const DatabaseList = memo(({ databases, currentDatabase, onSelect, loading }) =>
               alignItems: 'center',
               gap: 1.5,
               minWidth: 0,
-              border: '1px solid',
-              borderColor: isSelected ? alpha(theme.palette.primary.main, 0.3) : 'divider',
               backgroundColor: isSelected
-                ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.07)
-                : 'transparent',
+                ? theme.palette.action.selected
+                : index % 2 === 0
+                  ? theme.palette.layer.barely
+                  : 'transparent',
               '&:hover': !loading
                 ? {
-                  backgroundColor: isSelected
-                    ? alpha(theme.palette.text.primary, isDark ? 0.12 : 0.09)
-                    : alpha(theme.palette.text.primary, isDark ? 0.06 : 0.05),
-                }
+                    backgroundColor: isSelected
+                      ? theme.palette.layer.medium
+                      : theme.palette.action.hover,
+                  }
                 : undefined,
               '&:focus-visible': {
-                outline: `2px solid ${theme.palette.primary.main}`,
+                outline: `2px solid ${theme.palette.border.focus}`,
                 outlineOffset: 1,
               },
             }}
           >
             {isSelected ? (
-              <CheckCircleOutlineRoundedIcon
-                sx={{ fontSize: 18, color: 'primary.main', flexShrink: 0 }}
-              />
+              <SuccessIcon sx={{ fontSize: 18, color: 'text.primary', flexShrink: 0 }} />
             ) : (
               <DatabaseIcon sx={{ width: 16, height: 16, opacity: 0.78 }} />
             )}
             <Typography
               sx={{
                 ...theme.typography.uiBodySm,
-                fontWeight: isSelected ? 600 : 400,
+                fontWeight: 400,
                 color: isSelected ? 'text.primary' : 'text.secondary',
                 minWidth: 0,
                 overflow: 'hidden',
@@ -280,6 +264,7 @@ function DatabaseModal({
   availableDatabases = [],
   initialDbType = null,
 }) {
+  const headingRef = useRef(null);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { settings } = useSettings();
@@ -389,6 +374,12 @@ function DatabaseModal({
       }
     }
   }, [open, initialDbType]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const frame = requestAnimationFrame(() => headingRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   const fetchDatabases = useCallback(async () => {
     try {
@@ -560,19 +551,7 @@ function DatabaseModal({
 
   const toggleGroupSx = useMemo(() => getPreferenceToggleGroupSx(theme), [theme]);
   const dangerButtonSx = useMemo(() => getPreferenceButtonSx(theme, { tone: 'danger' }), [theme]);
-  const successButtonSx = useMemo(
-    () => ({
-      minHeight: 34,
-      borderRadius: '8px',
-      px: 1.5,
-      textTransform: 'none',
-      ...theme.typography.uiNavItem,
-      fontWeight: 600,
-      boxShadow: 'none',
-      '&:hover': { boxShadow: 'none' },
-    }),
-    [theme],
-  );
+  const successButtonSx = useMemo(() => getPreferenceButtonSx(theme, { tone: 'success' }), [theme]);
 
   const navContent = (
     <PreferenceNavList ariaLabel="Database type">
@@ -581,28 +560,12 @@ function DatabaseModal({
           key={type.value}
           active={dbType === type.value}
           onClick={() => handleDbTypeChange(type.value)}
-          textColor={getDatabaseTextColor(type.value, theme)}
         >
           {type.label}
         </PreferenceNavItem>
       ))}
     </PreferenceNavList>
   );
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const handleEscapeKey = (event) => {
-      if (event.key !== 'Escape') return;
-      event.preventDefault();
-      onClose?.(event, 'escapeKeyDown');
-    };
-
-    document.addEventListener('keydown', handleEscapeKey);
-    return () => {
-      document.removeEventListener('keydown', handleEscapeKey);
-    };
-  }, [onClose, open]);
 
   const renderConnectionForm = () => (
     <Box
@@ -617,6 +580,7 @@ function DatabaseModal({
           <PreferenceRow
             label="Connection mode"
             description="Choose credentials or a full connection URI"
+            sx={{ backgroundColor: 'transparent' }}
           >
             <ToggleButtonGroup
               value={connectionMode}
@@ -626,11 +590,11 @@ function DatabaseModal({
               sx={toggleGroupSx}
             >
               <ToggleButton value="credentials">
-                <VpnKeyRoundedIcon sx={{ fontSize: 16 }} />
+                <CredentialIcon sx={{ fontSize: 16 }} />
                 Credentials
               </ToggleButton>
               <ToggleButton value="connection_string">
-                <LinkRoundedIcon sx={{ fontSize: 16 }} />
+                <LinkIcon sx={{ fontSize: 16 }} />
                 Connection String
               </ToggleButton>
             </ToggleButtonGroup>
@@ -740,12 +704,12 @@ function DatabaseModal({
         </FieldGrid>
       </DatabaseSection>
       {error ? (
-        <Alert severity="error" sx={{ borderRadius: 2, mt: 1 }}>
+        <Alert severity="error" sx={{ borderRadius: '8px', mt: 1 }}>
           {error}
         </Alert>
       ) : null}
       {success ? (
-        <Alert severity="success" sx={{ borderRadius: 2, mt: 1 }}>
+        <Alert severity="success" sx={{ borderRadius: '8px', mt: 1 }}>
           {success}
         </Alert>
       ) : null}
@@ -791,7 +755,7 @@ function DatabaseModal({
       backdropSx={getPreferenceBackdropSx(databaseSurfaceLeft, databaseSurfaceWidth)}
       bodySx={getPreferenceBodySx(theme)}
     >
-      <PreferencePageHeader title="Connect Database" onClose={onClose} />
+      <PreferencePageHeader title="Connect Database" onClose={onClose} headingRef={headingRef} />
 
       <PreferenceLayout sidebar={navContent}>
         {showTabs ? (
@@ -804,7 +768,7 @@ function DatabaseModal({
               sx={toggleGroupSx}
             >
               <ToggleButton value="connect">
-                <LinkRoundedIcon sx={{ fontSize: 16 }} />
+                <LinkIcon sx={{ fontSize: 16 }} />
                 Connection
               </ToggleButton>
               <ToggleButton value="databases">
@@ -820,12 +784,12 @@ function DatabaseModal({
             {mobileSection === 'databases' && showTabs
               ? renderDatabaseSection()
               : // Connection tab is rendered in two scenarios:
-              //   1. No connection yet — user is setting up credentials.
-              //   2. Connection is active AND databases are available — user
-              //      has explicitly switched back to the Connection tab.
-              // In scenario 2 we do NOT render the database list below the
-              // form (the user has a dedicated Databases tab for that).
-              renderConnectionForm()}
+                //   1. No connection yet — user is setting up credentials.
+                //   2. Connection is active AND databases are available — user
+                //      has explicitly switched back to the Connection tab.
+                // In scenario 2 we do NOT render the database list below the
+                // form (the user has a dedicated Databases tab for that).
+                renderConnectionForm()}
           </Box>
         </Fade>
 

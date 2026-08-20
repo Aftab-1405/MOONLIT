@@ -68,7 +68,6 @@ async def prepare_stream_budget(
     task_checkpoint_summary: str,
     task_mode: str,
     conversation: dict | None,
-    message: str | None,
 ) -> dict:
     """Count independent payload sections concurrently and compute one budget.
 
@@ -202,10 +201,14 @@ async def prepare_stream_budget(
     try:
         pressure = get_default_conversation_summarizer().get_background_summary_pressure(
             conversation,
-            new_messages=[{"role": "user", "text": message}] if message else [],
+            # The streaming service persists the current prompt before this
+            # orchestration phase, so it is already part of ``conversation``.
+            new_messages=[],
             pressure_budget_tokens=hot_history_budget,
+            model_id=selected_model,
         )
         budget["tail_tokens"] = pressure["tail_tokens"]
+        budget["active_context_tokens"] = pressure["tail_tokens"]
         # FIX [CTX-INDICATOR]: Log the baseline tail_tokens so we can
         # diagnose when the indicator stays at 0. If this logs 0 for a
         # multi-turn conversation, the summarizer's cheap token estimate
@@ -222,6 +225,7 @@ async def prepare_stream_budget(
     except Exception as exc:
         logger.warning("Failed to calculate tail_tokens for usage metrics: %s", exc)
         budget["tail_tokens"] = 0
+        budget["active_context_tokens"] = 0
     return budget
 
 

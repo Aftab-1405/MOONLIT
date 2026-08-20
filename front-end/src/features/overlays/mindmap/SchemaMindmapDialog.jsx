@@ -10,6 +10,7 @@
 // The dialog itself is unchanged visually — only its mount point moved.
 
 import { Box, Button, CircularProgress, Dialog, DialogContent, Typography } from '@mui/material';
+import { useReducedMotion } from 'framer-motion';
 import { lazy, memo, Suspense } from 'react';
 import {
   getDialogHeaderSx,
@@ -20,23 +21,23 @@ import {
 
 const SchemaFlowDiagram = lazy(() => import('@/features/overlays/database/SchemaFlowDiagram'));
 
-const schemaDialogRootSx = {
+const getSchemaDialogRootSx = (transitionDuration) => ({
   pointerEvents: 'none',
   '& .MuiBackdrop-root': {
     pointerEvents: 'auto',
   },
   '& .MuiDialog-container': {
     pointerEvents: 'none',
-    transition: 'opacity 300ms ease',
+    transition: `opacity ${transitionDuration}ms ease`,
   },
   '& .MuiDialog-paper': {
     pointerEvents: 'auto',
-    transition: 'opacity 300ms ease',
+    transition: `opacity ${transitionDuration}ms ease`,
   },
   '&.MuiModal-hidden .react-flow': {
     display: 'none',
   },
-};
+});
 
 const SchemaMindmapDialog = memo(
   function SchemaMindmapDialog({
@@ -47,6 +48,8 @@ const SchemaMindmapDialog = memo(
     schemaLoading,
     schemaData,
   }) {
+    const reduceMotion = useReducedMotion();
+    const transitionDuration = reduceMotion ? 0 : 300;
     const schemaSurfaceLeft = '0px';
     const schemaSurfaceWidth = '100vw';
 
@@ -54,18 +57,16 @@ const SchemaMindmapDialog = memo(
       <Dialog
         open={open}
         onClose={onClose}
+        aria-labelledby="schema-mindmap-title"
         fullScreen={false}
         maxWidth={false}
         fullWidth={false}
-        disableAutoFocus
-        disableEnforceFocus
-        disableRestoreFocus
         keepMounted
-        transitionDuration={300}
-        sx={schemaDialogRootSx}
+        transitionDuration={transitionDuration}
+        sx={getSchemaDialogRootSx(transitionDuration)}
         slotProps={{
           backdrop: {
-            transitionDuration: 300,
+            transitionDuration,
             sx: {
               left: schemaSurfaceLeft,
               width: schemaSurfaceWidth,
@@ -90,13 +91,13 @@ const SchemaMindmapDialog = memo(
             backgroundColor: theme.palette.background.default,
             boxShadow: 'none',
             opacity: open ? 1 : 0,
-            transition: 'opacity 300ms ease',
+            transition: `opacity ${transitionDuration}ms ease`,
           },
         }}
       >
         <Box
           sx={{
-            ...getDialogHeaderSx(),
+            ...getDialogHeaderSx(theme),
             px: { xs: 2.5, sm: 5, md: 8, lg: 10 },
             height: { xs: 'auto', md: 96 },
             pt: { xs: 2, md: 0 },
@@ -110,6 +111,8 @@ const SchemaMindmapDialog = memo(
         >
           <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, flex: 1 }}>
             <Typography
+              id="schema-mindmap-title"
+              component="h2"
               sx={{
                 ...theme.typography.h3,
                 color: 'text.primary',
@@ -123,6 +126,8 @@ const SchemaMindmapDialog = memo(
             </Typography>
           </Box>
           <Button
+            type="button"
+            autoFocus
             onClick={onClose}
             size="small"
             aria-label="Close schema mindmap"
@@ -130,12 +135,14 @@ const SchemaMindmapDialog = memo(
               ...theme.typography.uiNavItem,
               mb: { xs: 0, md: 1.5 },
               textTransform: 'none',
-              fontWeight: 500,
+              fontWeight: 400,
               color: 'text.secondary',
-              borderRadius: '8px',
+              ...getInteractiveControlSx(theme, {
+                size: { xs: 44, md: 34 },
+                radius: theme.shape.radius.pill,
+              }),
               px: 1.5,
-              height: 34,
-              ...getInteractiveControlSx(theme, { size: 34, radius: '8px' }),
+              height: { xs: 44, md: 34 },
             }}
           >
             Close
@@ -160,7 +167,12 @@ const SchemaMindmapDialog = memo(
           }}
         >
           {schemaLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+            <Box
+              role="status"
+              aria-live="polite"
+              aria-label="Loading schema mindmap"
+              sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}
+            >
               <CircularProgress />
             </Box>
           ) : schemaData ? (
@@ -169,6 +181,9 @@ const SchemaMindmapDialog = memo(
                 <Suspense
                   fallback={
                     <Box
+                      role="status"
+                      aria-live="polite"
+                      aria-label="Loading schema diagram"
                       sx={{
                         display: 'flex',
                         justifyContent: 'center',
@@ -190,7 +205,11 @@ const SchemaMindmapDialog = memo(
               </Box>
             </Box>
           ) : (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}>
+            <Box
+              role="status"
+              aria-live="polite"
+              sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', flex: 1 }}
+            >
               <Typography color="text.secondary">
                 No schema data available. Connect to a database first.
               </Typography>

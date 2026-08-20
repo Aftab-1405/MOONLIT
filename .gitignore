@@ -145,4 +145,10 @@ commands.txt
 /back-end/scripts
 /back-end/config/
 agent/
-back-end/tests/
+/back-end/tests/*
+!/back-end/tests/test_admin_authorization.py
+!/back-end/tests/test_context_summary_sync.py
+!/back-end/tests/test_skill_registry.py
+security-audit/
+.superpowers/
+/docs/superpowers/

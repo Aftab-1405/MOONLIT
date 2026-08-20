@@ -1,13 +1,15 @@
-import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
-import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
-import TableRowsOutlinedIcon from '@mui/icons-material/TableRowsOutlined';
-import ViewColumnOutlinedIcon from '@mui/icons-material/ViewColumnOutlined';
 import { Box, Collapse, Fade, IconButton, Skeleton, Tooltip, Typography } from '@mui/material';
 import { alpha, useTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { ButtonLoadingSpinner } from '@/components';
-import SchemaIcon from '@/components/icons/SchemaIcon';
+import {
+  ChevronRightIcon,
+  CloseIcon,
+  ColumnIcon,
+  RefreshIcon,
+  SchemaIcon,
+  TableIcon,
+} from '@/components/icons';
 import { useDatabaseConnection } from '@/contexts/DatabaseContext';
 import { getArtifactActionButtonSx } from '@/features/sidebar-right/artifact-loader';
 import { getInteractionColors, getScrollbarStyles } from '@/styles/shared';
@@ -44,7 +46,7 @@ function getTreeRowSx(theme, interaction, { radius = '7px' } = {}) {
     }),
     '&:hover': { bgcolor: interaction.hoverBackground },
     '&:focus-visible': {
-      outline: `2px solid ${alpha(theme.palette.primary.main, 0.36)}`,
+      outline: `2px solid ${theme.palette.border.focus}`,
       outlineOffset: -2,
     },
   };
@@ -115,7 +117,7 @@ function ColumnItem({ column }) {
       }}
     >
       <TreeIconSlot color="text.disabled">
-        <ViewColumnOutlinedIcon sx={{ fontSize: 14 }} />
+        <ColumnIcon sx={{ fontSize: 14 }} />
       </TreeIconSlot>
       <Typography
         sx={{
@@ -197,7 +199,7 @@ function TableItem({ table, currentDatabase, fetchTableSchema }) {
         }}
       >
         <TreeIconSlot>
-          <ChevronRightRoundedIcon
+          <ChevronRightIcon
             sx={{
               fontSize: 16,
               transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
@@ -208,7 +210,7 @@ function TableItem({ table, currentDatabase, fetchTableSchema }) {
           />
         </TreeIconSlot>
         <TreeIconSlot color={expanded ? 'primary.main' : 'text.secondary'}>
-          <TableRowsOutlinedIcon sx={{ fontSize: 16 }} />
+          <TableIcon sx={{ fontSize: 16 }} />
         </TreeIconSlot>
         <Typography
           component="span"
@@ -263,7 +265,7 @@ function SchemaItem({ schema, currentDatabase, fetchTableSchema }) {
         }}
       >
         <TreeIconSlot>
-          <ChevronRightRoundedIcon
+          <ChevronRightIcon
             sx={{
               fontSize: 17,
               transform: expanded ? 'rotate(90deg)' : 'rotate(0deg)',
@@ -282,7 +284,7 @@ function SchemaItem({ schema, currentDatabase, fetchTableSchema }) {
             ...theme.typography.uiCaptionMd,
             minWidth: 0,
             flex: 1,
-            fontWeight: 650,
+            fontWeight: 400,
             color: 'text.primary',
             whiteSpace: 'nowrap',
             overflow: 'hidden',
@@ -360,11 +362,11 @@ function SchemaEmptyState({ message, tone }) {
             height: 38,
             display: 'grid',
             placeItems: 'center',
-            borderRadius: '11px',
+            borderRadius: '8px',
             color: tone === 'error' ? 'error.main' : 'text.disabled',
             bgcolor: alpha(
               tone === 'error' ? theme.palette.error.main : theme.palette.text.primary,
-              theme.palette.mode === 'dark' ? 0.08 : 0.045,
+              theme.palette.opacity.soft,
             ),
           }}
         >
@@ -468,9 +470,9 @@ function SchemaSidebar({
         minHeight: 0,
         position: 'relative',
         overflow: 'hidden',
-        borderRadius: '12px',
+        borderRadius: '8px',
         bgcolor: 'background.paper',
-        boxShadow: `inset 0 0 0 1px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.065 : 0.055)}`,
+        border: `1px solid ${theme.palette.border.subtle}`,
       }}
     >
       <Box
@@ -487,7 +489,7 @@ function SchemaSidebar({
       >
         <Box sx={{ minWidth: 0 }}>
           <Typography
-            sx={{ ...theme.typography.uiCaptionMd, fontWeight: 650, color: 'text.primary' }}
+            sx={{ ...theme.typography.uiCaptionMd, fontWeight: 400, color: 'text.primary' }}
           >
             Schema explorer
           </Typography>
@@ -518,7 +520,7 @@ function SchemaSidebar({
                 {schemaLoading ? (
                   <ButtonLoadingSpinner size={14} />
                 ) : (
-                  <RefreshRoundedIcon sx={{ fontSize: 16 }} />
+                  <RefreshIcon sx={{ fontSize: 16 }} />
                 )}
               </IconButton>
             </span>
@@ -530,7 +532,7 @@ function SchemaSidebar({
               aria-label="Hide schema explorer"
               sx={getArtifactActionButtonSx(theme, { size: 30 })}
             >
-              <CloseRoundedIcon sx={{ fontSize: 16 }} />
+              <CloseIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Tooltip>
         </Box>
@@ -582,15 +584,13 @@ function SchemaSidebar({
             height: 34,
             borderRadius: 999,
             bgcolor: resizing ? 'primary.main' : 'transparent',
-            boxShadow: resizing ? `0 0 10px ${alpha(theme.palette.primary.main, 0.28)}` : 'none',
             transform: 'translateY(-50%)',
-            transition: theme.transitions.create(['background-color', 'box-shadow'], {
+            transition: theme.transitions.create('background-color', {
               duration: theme.transitions.duration.shorter,
             }),
           },
           '&:hover::after, &:active::after': {
             bgcolor: 'primary.main',
-            boxShadow: `0 0 10px ${alpha(theme.palette.primary.main, 0.28)}`,
           },
         }}
       />

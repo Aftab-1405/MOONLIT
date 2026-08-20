@@ -13,6 +13,8 @@ import re
 
 from langchain_core.messages import AIMessage, AIMessageChunk
 
+from langgraph_orchestration.context_usage import build_usage_metrics
+
 # ENH [TAG-STRIP]: Context-structure tags that should NEVER appear in the
 # model's output. These are internal envelopes used to structure the model's
 # INPUT — if the model mimics them in its output, they must be stripped
@@ -234,65 +236,6 @@ def _delimiter_suffix_length(value: str, delimiter: str) -> int:
     return 0
 
 
-def build_usage_metrics(budget_info: dict, **kwargs) -> dict:
-    # ENH [CTX-SINGLE-SOURCE]: The back-end now computes the FINAL
-    # percentages that the front-end displays. The front-end does ZERO
-    # calculation — it just renders these values. This eliminates all
-    # sync issues between what the indicator shows and when summarization
-    # triggers, because both use the same formula in the same code.
-    #
-    # The front-end receives:
-    #   activePercent: 0-100 (when this hits 90, summarization triggers)
-    #   modelPercent:  0-100 (total payload vs. model's context window)
-    #
-    # Both are computed here from the same budget_info that the
-    # summarization pressure check uses. No more front-end math.
-    input_payload = (
-        budget_info.get("input_payload_tokens")
-        if budget_info.get("input_payload_tokens") is not None
-        else budget_info.get("tail_tokens")
-    ) or 0
-
-    pressure_trigger = budget_info.get("pressure_trigger_tokens") or budget_info.get("active_context_budget") or 1
-    model_window = budget_info.get("model_context_window") or 1
-
-    # Compute the EXACT percentages the front-end will display
-    active_pct = min(100, max(0, round((input_payload / pressure_trigger) * 100))) if pressure_trigger > 0 else 0
-    model_pct = min(100, max(0, round((input_payload / model_window) * 100))) if model_window > 0 else 0
-
-    event = {
-        "type": "usage_metrics",
-        "activePercent": active_pct,
-        "modelPercent": model_pct,
-        "inputPayloadTokens": input_payload,
-        "pressureTriggerTokens": budget_info.get("pressure_trigger_tokens"),
-        "modelContextWindow": budget_info.get("model_context_window"),
-        "activeContextBudget": budget_info.get("active_context_budget"),
-        "hotHistoryBudget": budget_info.get("hot_history_budget"),
-        "contextPhase": budget_info.get("context_phase"),
-        "systemPromptTokens": budget_info.get("system_prompt_tokens"),
-        "toolSchemaTokens": budget_info.get("tool_schema_tokens"),
-        "vampMemoryTokens": budget_info.get("vamp_memory_tokens"),
-        "taskCheckpointTokens": budget_info.get("task_checkpoint_tokens"),
-        "contextMapTokens": budget_info.get("context_map_tokens"),
-        "tokenCountingMode": budget_info.get("token_counting_mode"),
-        "tokenCountingReason": budget_info.get("token_counting_reason"),
-    }
-    event.update(kwargs)
-
-    # Recalculate percentages if kwargs overrode inputPayloadTokens
-    if "inputPayloadTokens" in kwargs and kwargs["inputPayloadTokens"] is not None:
-        override_input = kwargs["inputPayloadTokens"]
-        event["activePercent"] = (
-            min(100, max(0, round((override_input / pressure_trigger) * 100))) if pressure_trigger > 0 else 0
-        )
-        event["modelPercent"] = (
-            min(100, max(0, round((override_input / model_window) * 100))) if model_window > 0 else 0
-        )
-
-    return event
-
-
 def translate_stream_part(
     part: dict,
     think_parser: ThinkTagParser,
@@ -356,19 +299,15 @@ def _translate_message(
     if input_tokens is None and total_tokens is not None and output_tokens is not None:
         input_tokens = max(0, total_tokens - output_tokens)
 
-    # ENH [TOK]: Store the ACTUAL input payload size reported by the model.
-    # This is the true "active context used" value — the model is telling
-    # us exactly how many input tokens it received. We store it on
-    # budget_info so build_usage_metrics uses it for the indicator.
+    # Store the complete input payload reported by the provider. This drives
+    # modelPercent only; activePercent is based on the independently counted
+    # unsummarized conversation tail.
     #
-    # Use max() so the indicator is monotonically non-decreasing within a
-    # turn. During a multi-step tool loop, each model invocation reports a
-    # different input_tokens (because tool results get added). The last
-    # invocation has the highest value and is the most accurate. Taking the
-    # max prevents the indicator from jumping down mid-loop.
+    # Use max() within one turn because later tool-loop model invocations
+    # include earlier tool activity and therefore represent the peak payload.
     if input_tokens is not None:
         new_payload = int(input_tokens)
-        prev_payload = budget_info.get("input_payload_tokens", 0)
+        prev_payload = int(budget_info.get("input_payload_tokens") or 0)
         budget_info["input_payload_tokens"] = max(prev_payload, new_payload)
 
     if total_tokens is not None or latency_ms is not None:

@@ -19,6 +19,7 @@ from dependencies import (
     _expire_db_config,
     get_current_user,
     get_session_data,
+    require_admin_user,
     require_db_config,
     update_session_data,
 )
@@ -253,7 +254,7 @@ async def get_redis_info() -> dict:
 
 
 @router.get("/context/metrics")
-async def get_context_metrics(user: dict = Depends(get_current_user)):
+async def get_context_metrics(user: dict = Depends(require_admin_user)):
     """
     Get context hit/miss metrics for monitoring effectiveness.
 
@@ -278,7 +279,7 @@ async def get_context_metrics(user: dict = Depends(get_current_user)):
 
 
 @router.get("/context/metrics/stream")
-async def stream_context_metrics(request: Request, user: dict = Depends(get_current_user)):
+async def stream_context_metrics(request: Request, user: dict = Depends(require_admin_user)):
     """Stream per-user context metrics whenever the Firestore context document changes."""
     from service.context.context_service import ContextService
 
@@ -335,7 +336,7 @@ async def stream_context_metrics(request: Request, user: dict = Depends(get_curr
 
 
 @router.post("/context/metrics/reset")
-async def reset_context_metrics(user: dict = Depends(get_current_user)):
+async def reset_context_metrics(user: dict = Depends(require_admin_user)):
     """Reset context metrics counters (for testing/monitoring)."""
     from config import get_config
     from service.context.context_service import ContextMetrics

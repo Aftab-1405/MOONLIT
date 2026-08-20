@@ -30,14 +30,26 @@
 // artifact column — so the artifact didn't actually get bigger — AND the
 // duplicate instance lost all internal state on every toggle.
 
-import ErrorOutlineRoundedIcon from '@mui/icons-material/ErrorOutlineRounded';
 import { Box, Skeleton } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { AnimatePresence, motion } from 'framer-motion';
-import { Component, lazy, memo, Suspense, useCallback, useMemo, useState } from 'react';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import {
+  Component,
+  lazy,
+  memo,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { ErrorIcon } from '@/components/icons';
 import { ArtifactEmptyState } from '@/features/sidebar-right/artifact-loader/ArtifactLayout';
 import { getAppSunkenSurfaceSx } from '@/features/styles/interfaceChrome';
 import { UI_Z_INDEX } from '@/styles/shared';
+
+const MotionDiv = motion.div;
 
 // ─── Lazy-loaded renderers ───────────────────────────────────────────────────
 const DataVisualizationPanel = lazy(
@@ -55,6 +67,8 @@ function RendererFallback() {
   return (
     <Box
       role="status"
+      aria-live="polite"
+      aria-atomic="true"
       aria-label="Loading artifact"
       sx={{
         flex: 1,
@@ -168,7 +182,9 @@ class ArtifactErrorBoundary extends Component {
     if (this.state.error) {
       return (
         <ArtifactEmptyState
-          icon={<ErrorOutlineRoundedIcon sx={{ fontSize: 44 }} />}
+          role="alert"
+          ariaLive="assertive"
+          icon={<ErrorIcon sx={{ fontSize: 44 }} />}
           title="Artifact failed to render"
           message={
             this.state.error?.message || 'Try opening another artifact or rerun the request.'
@@ -185,7 +201,9 @@ function UnknownArtifactFallback({ type }) {
   return (
     <Box sx={{ height: '100%', minHeight: 0 }}>
       <ArtifactEmptyState
-        icon={<ErrorOutlineRoundedIcon sx={{ fontSize: 44 }} />}
+        role="alert"
+        ariaLive="assertive"
+        icon={<ErrorIcon sx={{ fontSize: 44 }} />}
         title="Unsupported artifact"
         message={
           type ? `No renderer is registered for "${type}".` : 'No artifact renderer is registered.'
@@ -254,21 +272,53 @@ function ArtifactLoader({
   onNotify,
 }) {
   const theme = useTheme();
+  const reduceMotion = useReducedMotion();
+  const fullscreenRootRef = useRef(null);
+  const fullscreenReturnFocusRef = useRef(null);
+  const wasFullscreenRef = useRef(false);
   const [isArtifactFullscreen, setIsArtifactFullscreen] = useState(false);
   const artifactSignature = useMemo(() => getArtifactSignature(artifact), [artifact]);
   const effectiveFullscreen = Boolean(isArtifactFullscreen && artifact && isOpen);
 
-  const handleEnterFullscreen = useCallback(() => {
-    setIsArtifactFullscreen(true);
+  const captureFullscreenReturnFocus = useCallback(() => {
+    if (
+      typeof document !== 'undefined' &&
+      typeof HTMLElement !== 'undefined' &&
+      document.activeElement instanceof HTMLElement
+    ) {
+      fullscreenReturnFocusRef.current = document.activeElement;
+    }
   }, []);
+
+  const handleEnterFullscreen = useCallback(() => {
+    captureFullscreenReturnFocus();
+    setIsArtifactFullscreen(true);
+  }, [captureFullscreenReturnFocus]);
 
   const handleExitFullscreen = useCallback(() => {
     setIsArtifactFullscreen(false);
   }, []);
 
   const handleToggleFullscreen = useCallback(() => {
-    setIsArtifactFullscreen((value) => !value);
-  }, []);
+    if (effectiveFullscreen) {
+      setIsArtifactFullscreen(false);
+      return;
+    }
+
+    captureFullscreenReturnFocus();
+    setIsArtifactFullscreen(true);
+  }, [captureFullscreenReturnFocus, effectiveFullscreen]);
+
+  const handleFullscreenKeyDown = useCallback(
+    (event) => {
+      if (!effectiveFullscreen || event.key !== 'Escape') return;
+
+      event.preventDefault();
+      event.stopPropagation();
+      handleExitFullscreen();
+    },
+    [effectiveFullscreen, handleExitFullscreen],
+  );
 
   const handleRequestClose = useCallback(() => {
     setIsArtifactFullscreen(false);
@@ -279,11 +329,34 @@ function ArtifactLoader({
     (nextArtifact, options = {}) => {
       onOpenArtifact?.(nextArtifact);
       if (options.preserveFullscreen || isArtifactFullscreen) {
+        if (!isArtifactFullscreen) captureFullscreenReturnFocus();
         setIsArtifactFullscreen(true);
       }
     },
-    [isArtifactFullscreen, onOpenArtifact],
+    [captureFullscreenReturnFocus, isArtifactFullscreen, onOpenArtifact],
   );
+
+  useEffect(() => {
+    let animationFrameId;
+
+    if (effectiveFullscreen) {
+      wasFullscreenRef.current = true;
+      animationFrameId = window.requestAnimationFrame(() => {
+        fullscreenRootRef.current?.focus();
+      });
+    } else if (wasFullscreenRef.current) {
+      wasFullscreenRef.current = false;
+      const returnFocusTarget = fullscreenReturnFocusRef.current;
+      fullscreenReturnFocusRef.current = null;
+      animationFrameId = window.requestAnimationFrame(() => {
+        if (returnFocusTarget?.isConnected) returnFocusTarget.focus();
+      });
+    }
+
+    return () => {
+      if (animationFrameId !== undefined) window.cancelAnimationFrame(animationFrameId);
+    };
+  }, [effectiveFullscreen]);
 
   // When the panel is closed, render nothing — AppShell animates the column
   // width to 0 (so the layout still transitions smoothly).
@@ -302,6 +375,11 @@ function ArtifactLoader({
   // on every toggle.
   return (
     <Box
+      ref={fullscreenRootRef}
+      role="region"
+      aria-label={effectiveFullscreen ? 'Fullscreen artifact' : 'Artifact panel'}
+      tabIndex={-1}
+      onKeyDown={handleFullscreenKeyDown}
       sx={{
         // When NOT fullscreen: fill the artifact column (in-flow).
         // When fullscreen: break out of the column via `position: fixed` and
@@ -309,23 +387,23 @@ function ArtifactLoader({
         // doesn't see it, so the renderer instance is preserved.
         ...(effectiveFullscreen
           ? {
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: UI_Z_INDEX.artifactFullscreen,
-            // Smooth fade-in when entering fullscreen. The transition is
-            // one-shot (no exit animation) because we can't animate a
-            // position change from fixed → in-flow cleanly. The opacity
-            // transition is handled by Framer Motion below.
-          }
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: UI_Z_INDEX.artifactFullscreen,
+              // Smooth fade-in when entering fullscreen. The transition is
+              // one-shot (no exit animation) because we can't animate a
+              // position change from fixed → in-flow cleanly. The opacity
+              // transition is handled by Framer Motion below.
+            }
           : {
-            position: 'relative',
-            flex: 1,
-            minWidth: 0,
-            minHeight: 0,
-          }),
+              position: 'relative',
+              flex: 1,
+              minWidth: 0,
+              minHeight: 0,
+            }),
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -337,20 +415,19 @@ function ArtifactLoader({
     >
       <AnimatePresence>
         {effectiveFullscreen && (
-          <motion.div
+          <MotionDiv
             key="fullscreen-backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
+            transition={{ duration: reduceMotion ? 0 : 0.18, ease: 'easeOut' }}
             style={{
               position: 'absolute',
               inset: 0,
               pointerEvents: 'none',
               // Subtle backdrop tint to visually separate the fullscreen
               // artifact from the workspace beneath it.
-              backgroundColor:
-                theme.palette.mode === 'dark' ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.06)',
+              backgroundColor: theme.palette.overlay.fullscreen,
             }}
           />
         )}

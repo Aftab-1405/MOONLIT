@@ -1,98 +1,159 @@
 /**
  * Premium surface tokens for the logged-in interface shell.
  *
- * Mode-aware (light + dark) styling shared across sidebar, chat, artifacts,
- * settings. Anything that needs to look like "the app chrome" should source
+ * Dark interface styling shared across sidebar, chat, artifacts, and settings.
+ * Anything that needs to look like "the app chrome" should source
  * its visual language from this module so the whole shell stays cohesive.
  *
  * Conventions:
  *   - All hairline borders go through `getHairlineBorder` so they stay 1px
  *     and never disappear on non-retina displays.
- *   - Composer (chat input) has a clearly differentiated resting vs hover
- *     vs focus state — the previous version had identical resting/hover
- *     shadows which made hover feel dead.
- *   - Elevation tokens (`ELEVATION.*`) are the only sanctioned shadow values
- *     for app chrome. Don't hand-roll box-shadows elsewhere.
+ *   - The composer keeps its existing low-contrast hairline in every state.
  *
  * @module features/styles/interfaceChrome
  */
 
-import { alpha } from '@mui/material/styles';
+export const COMPOSER_MAX_WIDTH = 672;
 
 /** Radius scale used by interface chrome. */
 export const INTERFACE_RADIUS = Object.freeze({
-  row: '10px',
+  row: '8px',
   control: '8px',
-  composer: '18px',
-  panel: '14px',
-  popover: '14px',
+  composer: '20px',
+  suggestionPanel: '16px',
+  panel: '8px',
+  popover: '8px',
 });
 
-/**
- * Elevation tokens — the sanctioned shadow values for app chrome.
- *
- * Each token has a `light` and `dark` variant because dark-mode shadows
- * need stronger alpha to read against dark surfaces.
- *
- * Usage:
- *   boxShadow: ELEVATION.resting[isDark ? 'dark' : 'light']
- */
-export const ELEVATION = Object.freeze({
-  // Flat surface with a hairline ring (sidebar, panel)
-  resting: {
-    light: 'none',
-    dark: 'none',
-  },
-  // Slightly raised surface (composer resting, cards)
-  subtle: {
-    light: `0 1px 2px ${alpha('#000', 0.04)}, 0 1px 1px ${alpha('#000', 0.03)}`,
-    dark: `0 1px 2px ${alpha('#000', 0.28)}, 0 1px 1px ${alpha('#000', 0.22)}`,
-  },
-  // Hovering surface (composer hover, popover)
-  raised: {
-    light: `0 4px 14px ${alpha('#000', 0.06)}, 0 1px 3px ${alpha('#000', 0.04)}`,
-    dark: `0 4px 14px ${alpha('#000', 0.42)}, 0 1px 3px ${alpha('#000', 0.28)}`,
-  },
-  // Floating surface (modal, fullscreen artifact)
-  floating: {
-    light: `0 18px 48px ${alpha('#000', 0.12)}, 0 4px 12px ${alpha('#000', 0.05)}`,
-    dark: `0 18px 48px ${alpha('#000', 0.6)}, 0 4px 12px ${alpha('#000', 0.36)}`,
-  },
-});
+/** Responsive pill geometry for labeled chat controls. */
+export function getResponsivePillControlSx(theme, { desktopHeight, mobileHeight = 44 } = {}) {
+  return {
+    height: { xs: mobileHeight, md: desktopHeight },
+    minHeight: { xs: mobileHeight, md: desktopHeight },
+    borderRadius: theme.shape.radius.pill,
+  };
+}
+
+/** Responsive pill geometry for square chat icon buttons. */
+export function getResponsivePillIconButtonSx(theme, { desktopSize, mobileSize = 44 } = {}) {
+  return {
+    width: { xs: mobileSize, md: desktopSize },
+    height: { xs: mobileSize, md: desktopSize },
+    minWidth: { xs: mobileSize, md: desktopSize },
+    minHeight: { xs: mobileSize, md: desktopSize },
+    borderRadius: theme.shape.radius.pill,
+  };
+}
+
+/** Spacing and minimum-height contract for the chat composer. */
+export function getComposerLayoutSx(theme) {
+  return {
+    form: {
+      px: { xs: 0.5, md: 1 },
+      pb: { xs: `max(${theme.spacing(1)}, env(safe-area-inset-bottom))`, md: 1 },
+    },
+    surface: { minHeight: { xs: 132, md: 124 } },
+    content: { px: { xs: 1.5, md: 2 }, py: 1.5, gap: 1.5 },
+    toolbar: { gap: 1 },
+  };
+}
+
+/** Responsive spacing contract for the empty chat state. */
+export function getWelcomeLayoutSx() {
+  return {
+    outer: { px: { xs: 1, md: 3 }, py: { xs: 2.5, md: 4 } },
+    content: { gap: { xs: 2, md: 3 } },
+  };
+}
+
+/** Category control styling for welcome suggestions. */
+export function getWelcomeCategorySx(theme) {
+  return {
+    height: { xs: 44, md: 32 },
+    minHeight: { xs: 44, md: 32 },
+    minWidth: { xs: 44, md: 0 },
+    px: 1.5,
+    gap: 0.75,
+    borderRadius: INTERFACE_RADIUS.control,
+    border: 0,
+    backgroundColor: theme.palette.action.hover,
+    color: theme.palette.text.secondary,
+    boxShadow: 'none',
+    '& .MuiButton-startIcon': { m: 0 },
+    '&:hover': {
+      backgroundColor: theme.palette.action.selected,
+      color: theme.palette.text.primary,
+    },
+    '&.Mui-focusVisible': {
+      backgroundColor: theme.palette.action.selected,
+      outline: `2px solid ${theme.palette.border.focus}`,
+      outlineOffset: 2,
+      boxShadow: 'none',
+    },
+  };
+}
+
+/** Shared panel surface for welcome suggestions. */
+export function getWelcomeSuggestionPanelSx(theme) {
+  return {
+    width: '100%',
+    maxWidth: COMPOSER_MAX_WIDTH,
+    borderRadius: INTERFACE_RADIUS.suggestionPanel,
+    border: `1px solid ${theme.palette.border.idle}`,
+    backgroundColor: theme.palette.background.input,
+    backgroundImage: 'none',
+    boxShadow: 'none',
+    overflow: 'hidden',
+  };
+}
+
+/** Compact close control for the welcome suggestion panel header. */
+export function getWelcomeSuggestionCloseSx(theme) {
+  return {
+    width: { xs: 44, md: 28 },
+    height: { xs: 44, md: 28 },
+    minWidth: { xs: 44, md: 28 },
+    minHeight: { xs: 44, md: 28 },
+    p: 0,
+    borderRadius: INTERFACE_RADIUS.control,
+    color: theme.palette.text.secondary,
+    '&:hover': {
+      backgroundColor: theme.palette.action.hover,
+      color: theme.palette.text.primary,
+    },
+    '&.Mui-focusVisible': {
+      backgroundColor: theme.palette.action.hover,
+      outline: `2px solid ${theme.palette.border.focus}`,
+      outlineOffset: 1,
+    },
+  };
+}
 
 /**
  * Hairline border — 1px solid with low-alpha foreground.
  * We never use `0.5px` borders because they vanish on non-retina displays.
  */
-function getHairlineBorder(theme, opacity = null) {
-  const isDark = theme.palette.mode === 'dark';
-  const o = opacity ?? (isDark ? 0.1 : 0.08);
-  return `1px solid ${alpha(theme.palette.text.primary, o)}`;
+function getHairlineBorder(theme) {
+  return `1px solid ${theme.palette.border.separator}`;
 }
 
 /** Standardised divider colour used between major interface sections. */
 export function getAppDividerColor(theme) {
-  return alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.09 : 0.07);
+  return theme.palette.border.separator;
 }
 
 /** Panel surface — sidebar, artifact panel, settings sections. */
 export function getAppPanelSurfaceSx(theme) {
-  const isDark = theme.palette.mode === 'dark';
   return {
-    backgroundColor: isDark
-      ? theme.palette.background.paper
-      : alpha(theme.palette.background.paper, 0.98),
+    backgroundColor: theme.palette.background.default,
     backgroundImage: 'none',
   };
 }
 
 /** Bar surface — toolbar / header strips inside panels. */
 export function getAppBarSurfaceSx(theme) {
-  const isDark = theme.palette.mode === 'dark';
   return {
-    backgroundColor: isDark
-      ? theme.palette.background.paper
-      : alpha(theme.palette.background.paper, 0.98),
+    backgroundColor: theme.palette.background.paper,
     backgroundImage: 'none',
   };
 }
@@ -113,11 +174,11 @@ export function getShellWorkspaceSx(theme) {
   };
 }
 
-/** Sidebar chrome — applies the right-side border that separates it from the workspace. */
+/** Sidebar chrome — a quiet tonal shift, without a dividing rule. */
 export function getSidebarChromeSx(theme) {
-  const isDark = theme.palette.mode === 'dark';
   return {
-    borderRight: getHairlineBorder(theme, isDark ? 0.09 : 0.07),
+    borderRight: '1px solid',
+    borderColor: theme.palette.border.separator,
     boxShadow: 'none',
   };
 }
@@ -125,45 +186,24 @@ export function getSidebarChromeSx(theme) {
 /**
  * Composer (chat input) surface.
  *
- * Resting state: subtle hairline ring + barely-visible shadow.
- * This used to share the same ring colour for both resting AND hover which
- * made hover feel dead — now `getComposerHoverShadow` returns a stronger
- * ring + actual elevation so the composer visibly lifts on hover.
+ * The composer uses a solid tone one step lighter than the surrounding canvas.
  */
 export function getComposerSurfaceSx(theme) {
-  const isDark = theme.palette.mode === 'dark';
-  const restingRing = alpha(theme.palette.text.primary, isDark ? 0.14 : 0.1);
-
   return {
     borderRadius: INTERFACE_RADIUS.composer,
-    border: '1px solid transparent',
+    border: `1px solid ${theme.palette.border.idle}`,
     overflow: 'hidden',
-    backgroundColor: isDark
-      ? alpha(theme.palette.background.paper, 0.94)
-      : alpha(theme.palette.background.paper, 1),
+    backgroundColor: theme.palette.background.input,
     backgroundImage: 'none',
-    boxShadow: `${ELEVATION.subtle[isDark ? 'dark' : 'light']}, 0 0 0 1px ${restingRing}`,
-    transition:
-      'box-shadow 200ms cubic-bezier(0.2, 0.8, 0.2, 1), background-color 160ms ease, transform 160ms ease',
+    boxShadow: 'none',
+    transition: 'border-color 140ms ease, background-color 140ms ease',
   };
 }
 
-/**
- * Composer hover/focus shadow — visibly stronger than resting.
- * Pairs with `getComposerSurfaceSx` to give the input a clear "lift" on
- * interaction. The ring alpha and elevation both step up.
- */
-export function getComposerHoverShadow(theme) {
-  const isDark = theme.palette.mode === 'dark';
-  const hoverRing = alpha(theme.palette.text.primary, isDark ? 0.28 : 0.22);
-  return `${ELEVATION.raised[isDark ? 'dark' : 'light']}, 0 0 0 1px ${hoverRing}`;
-}
-
-/** Artifact panel chrome — left border separating it from the workspace. */
+/** Artifact panel chrome — a sibling surface without a permanent seam. */
 export function getArtifactPanelChromeSx(theme) {
-  const isDark = theme.palette.mode === 'dark';
   return {
-    borderLeft: getHairlineBorder(theme, isDark ? 0.09 : 0.07),
+    borderLeft: getHairlineBorder(theme),
     ...getAppPanelSurfaceSx(theme),
   };
 }
@@ -173,7 +213,6 @@ export function getArtifactPanelChromeSx(theme) {
  * settings overlay. Stretches to viewport height, full-width column.
  */
 export function getPreferencePanelPaperSx(theme, left, width) {
-  const isDark = theme.palette.mode === 'dark';
   return {
     position: 'fixed',
     inset: '0 auto auto auto',
@@ -186,7 +225,7 @@ export function getPreferencePanelPaperSx(theme, left, width) {
     minHeight: '100vh',
     m: 0,
     borderRadius: 0,
-    borderLeft: getHairlineBorder(theme, isDark ? 0.1 : 0.08),
+    borderLeft: getHairlineBorder(theme),
     backgroundColor: theme.palette.background.default,
     backgroundImage: 'none',
     backdropFilter: 'none',
@@ -197,11 +236,10 @@ export function getPreferencePanelPaperSx(theme, left, width) {
 
 /** Preference section surface — individual cards inside the settings panel. */
 export function getPreferenceSectionSurfaceSx(theme) {
-  const isDark = theme.palette.mode === 'dark';
   return {
     borderRadius: INTERFACE_RADIUS.panel,
-    border: getHairlineBorder(theme, isDark ? 0.08 : 0.06),
-    backgroundColor: alpha(theme.palette.background.paper, isDark ? 0.72 : 0.86),
+    border: getHairlineBorder(theme),
+    backgroundColor: theme.palette.layer.surfaceMuted,
     backgroundImage: 'none',
     overflow: 'hidden',
     boxSizing: 'border-box',
@@ -213,9 +251,7 @@ export function getPreferenceSectionSurfaceSx(theme) {
 /** Welcome hero typography — the large headline on the empty chat state. */
 export function getWelcomeHeroSx(theme) {
   return {
-    ...theme.typography.uiHeadingHero,
-    fontWeight: 560,
-    letterSpacing: 0,
+    ...theme.typography.uiDisplaySm,
     color: 'text.primary',
     textWrap: 'balance',
   };

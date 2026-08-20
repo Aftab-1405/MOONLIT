@@ -5,7 +5,7 @@
  *   ┌────────────────────────────────────────────┐
  *   │  multiline text field                       │
  *   ├────────────────────────────────────────────┤
- *   │  [Database] [Schema] [SQL Editor]   [Model] [→] │
+ *   │  [Context] [SQL]                [Model] [→] │
  *   └────────────────────────────────────────────┘
  *
  * Features:
@@ -13,18 +13,13 @@
  *   - Toolbar buttons open AppPopover menus for database/schema/model selection.
  *   - Context-usage ring on the model button when `usageMetrics` is provided.
  *   - Streaming state: send button becomes stop; input is disabled.
- *   - Mobile: toolbar buttons shrink to icons (SQL Editor) or use smaller
- *     maxWidth; all buttons stay accessible.
+ *   - Mobile: controls preserve 44px touch targets and remain horizontally
+ *     scrollable when space is constrained.
  *
- * The composer surface itself uses `getComposerSurfaceSx` (resting) and
- * `getComposerHoverShadow` (hover/focus) from interfaceChrome — those are
- * the single source of truth for the composer's elevation.
+ * The composer surface uses `getComposerSurfaceSx` as the single source of
+ * truth for its resting and focus interaction hierarchy.
  */
 
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import KeyboardArrowDownRoundedIcon from '@mui/icons-material/KeyboardArrowDownRounded';
-import SendRoundedIcon from '@mui/icons-material/SendRounded';
-import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import {
   Box,
   Button,
@@ -34,40 +29,43 @@ import {
   TextField,
   Tooltip,
   Typography,
-  useMediaQuery,
 } from '@mui/material';
-import { alpha, keyframes, useTheme } from '@mui/material/styles';
-import { memo, useCallback, useMemo, useRef, useState } from 'react';
-import { AppPopover } from '@/components';
-import CodeEditorIcon from '@/components/icons/CodeEditorIcon';
-import DatabaseIcon from '@/components/icons/DatabaseIcon';
-import SchemaIcon from '@/components/icons/SchemaIcon';
-import SlashCommandMenu, { extractSlashQuery } from '@/features/chat/SlashCommandMenu';
-import { getComposerHoverShadow, getComposerSurfaceSx } from '@/features/styles/interfaceChrome';
-import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
+import { alpha, useTheme } from '@mui/material/styles';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  getInteractionColors,
-  getPopoverSectionLabelSx,
-  getSelectableMenuItemSx,
-  UI_LAYOUT,
-} from '@/styles/shared';
-import { BRAND } from '@/theme/tokens';
+  AppPopover,
+  AppPopoverEmptyState,
+  AppPopoverItem,
+  AppPopoverList,
+  AppPopoverSectionLabel,
+} from '@/components';
+import {
+  AddIcon,
+  CheckIcon,
+  CodeEditorIcon,
+  DatabaseIcon,
+  ExpandMoreIcon,
+  SchemaIcon,
+  SendIcon,
+  StopIcon,
+} from '@/components/icons';
+import { getContextUsage } from '@/features/chat/contextUsage';
+import SlashCommandMenu from '@/features/chat/SlashCommandMenu';
+import { extractSlashQuery } from '@/features/chat/slashCommandUtils';
+import {
+  COMPOSER_MAX_WIDTH,
+  getComposerLayoutSx,
+  getComposerSurfaceSx,
+  getResponsivePillControlSx,
+  getResponsivePillIconButtonSx,
+} from '@/features/styles/interfaceChrome';
+import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
+import { getInteractionColors, getPopoverDividerSx, UI_LAYOUT, UI_POPOVER } from '@/styles/shared';
 import logger from '@/utils/logger';
 
-const softReveal = keyframes`
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-`;
-
-const ContextProgressRing = ({ total, budget, theme }) => {
-  if (total == null || budget == null || budget <= 0) return null;
-  const ratio = Math.min(1, total / budget);
+const ContextProgressRing = ({ value, theme }) => {
+  if (value == null || value < 70) return null;
+  const ratio = Math.min(1, Math.max(0, value) / 100);
   const radius = 7;
   const strokeWidth = 2.2;
   const size = 18;
@@ -75,7 +73,7 @@ const ContextProgressRing = ({ total, budget, theme }) => {
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - ratio * circumference;
 
-  let color = theme.palette.primary.main;
+  let color = theme.palette.text.secondary;
   if (ratio > 0.9) {
     color = theme.palette.error.main;
   } else if (ratio > 0.75) {
@@ -121,25 +119,66 @@ const ContextProgressRing = ({ total, budget, theme }) => {
   );
 };
 
-const toFiniteNumber = (value) => {
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
-};
+const ModelSelectorLabel = memo(function ModelSelectorLabel({ label }) {
+  const viewportRef = useRef(null);
+  const textRef = useRef(null);
+  const [overflowWidth, setOverflowWidth] = useState(0);
 
-const TruncatedLabel = ({ children, sx = {} }) => (
-  <Box
-    component="span"
-    sx={{
-      minWidth: 0,
-      overflow: 'hidden',
-      textOverflow: 'ellipsis',
-      whiteSpace: 'nowrap',
-      ...sx,
-    }}
-  >
-    {children}
-  </Box>
-);
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const text = textRef.current;
+    if (!viewport || !text) return undefined;
+
+    const measureOverflow = () => {
+      const nextOverflow = Math.max(0, Math.ceil(text.scrollWidth - viewport.clientWidth));
+      setOverflowWidth((currentOverflow) =>
+        currentOverflow === nextOverflow ? currentOverflow : nextOverflow,
+      );
+    };
+
+    measureOverflow();
+
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const resizeObserver = new ResizeObserver(measureOverflow);
+    resizeObserver.observe(viewport);
+    resizeObserver.observe(text);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  const travelDuration = Math.min(5000, Math.max(1200, overflowWidth * 25));
+
+  return (
+    <Box
+      ref={viewportRef}
+      component="span"
+      className="model-selector-label"
+      sx={{
+        minWidth: 0,
+        flex: 1,
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        textAlign: 'left',
+        '--model-label-overflow': `${overflowWidth}px`,
+        '--model-label-duration': `${travelDuration}ms`,
+      }}
+    >
+      <Box
+        ref={textRef}
+        component="span"
+        className="model-selector-label-text"
+        sx={{
+          display: 'inline-block',
+          minWidth: 'max-content',
+          whiteSpace: 'nowrap',
+          transform: 'translateX(0)',
+          transition: 'transform 180ms ease-out',
+        }}
+      >
+        {label}
+      </Box>
+    </Box>
+  );
+});
 
 const ContextUsageBar = ({ label, value, color }) => (
   <Box>
@@ -152,7 +191,7 @@ const ContextUsageBar = ({ label, value, color }) => (
         gap: 2,
       }}
     >
-      <Typography variant="caption" sx={{ fontWeight: 550 }}>
+      <Typography variant="caption" sx={{ fontWeight: 400 }}>
         {label}
       </Typography>
       <Typography variant="caption" sx={{ opacity: 0.78 }}>
@@ -165,7 +204,7 @@ const ContextUsageBar = ({ label, value, color }) => (
       color={color}
       sx={{
         height: 6,
-        borderRadius: 3,
+        borderRadius: '9999px',
         bgcolor: 'background.default',
       }}
     />
@@ -180,7 +219,7 @@ const getUsageColor = (value) => {
 
 const ContextUsageTooltip = ({ contextUsage, selectedModel }) => (
   <Box sx={{ width: 252, p: 0.5 }}>
-    <Typography variant="body2" sx={{ fontWeight: 650, color: 'inherit', mb: 0.5 }}>
+    <Typography variant="body2" sx={{ fontWeight: 400, color: 'inherit', mb: 0.5 }}>
       {selectedModel || 'Select model'}
     </Typography>
     <Box sx={{ display: 'grid', gap: 1.25, mt: 1.5, mb: 1 }}>
@@ -220,7 +259,6 @@ function ChatInput({
   currentSchema = null,
   onSchemaChange,
   onDatabaseSwitch,
-  onOpenSqlEditor,
   selectedProvider = '',
   selectedModel = '',
   providerOptions = [],
@@ -233,18 +271,18 @@ function ChatInput({
   taskMode = 'auto',
   onTaskModeChange = null,
   effectiveTaskMode = null,
+  onToggleSqlEditor = null,
+  sqlEditorOpen = false,
   children,
 }) {
   const [message, setMessage] = useState('');
   const theme = useTheme();
-  const isCompactMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const [schemaAnchor, setSchemaAnchor] = useState(null);
-  const [dbAnchor, setDbAnchor] = useState(null);
+  const [contextAnchor, setContextAnchor] = useState(null);
   const [llmAnchor, setLlmAnchor] = useState(null);
   // ENH [SLASH-COMMAND]: Ref to the composer wrapper so the slash command
   // menu can anchor to it. The menu only opens when the message starts
   // with "/" — zero chrome at rest.
-  const composerRef = useRef(null);
+  const [composerElement, setComposerElement] = useState(null);
 
   const isPostgreSQL = useMemo(() => dbType?.toLowerCase() === 'postgresql', [dbType]);
 
@@ -252,53 +290,42 @@ function ChatInput({
     () => Boolean(isConnected && currentDatabase && dbType),
     [isConnected, currentDatabase, dbType],
   );
-  const connectionChipKey = useMemo(
-    () => `${dbType || 'unknown'}:${currentDatabase || ''}`,
-    [dbType, currentDatabase],
-  );
   const showSchemaSelector = useMemo(
     () => connectionMetadataReady && isPostgreSQL && Boolean(currentSchema),
     [connectionMetadataReady, isPostgreSQL, currentSchema],
   );
   const showDatabaseSelector = useMemo(() => connectionMetadataReady, [connectionMetadataReady]);
-  const canSwitchDatabase = useMemo(
-    () => availableDatabases.length > 1,
-    [availableDatabases.length],
-  );
 
   const hasText = useMemo(() => message.trim().length > 0, [message]);
 
   const neutralInteraction = useMemo(() => getInteractionColors(theme), [theme]);
   const toolbarActionButtonStyles = useMemo(
     () => ({
-      height: 30,
-      minHeight: 30,
-      minWidth: 32,
+      ...getResponsivePillControlSx(theme, {
+        desktopHeight: 36,
+        mobileHeight: UI_LAYOUT.touchTarget,
+      }),
+      minWidth: { xs: UI_LAYOUT.touchTarget, md: 32 },
       // Mobile toolbar buttons get a bit more breathing room so labels don't
       // truncate awkwardly. The previous `min(42vw, 152px)` was too tight —
       // even short labels like "public" got clipped.
-      maxWidth: { xs: 'min(46vw, 168px)', sm: 208 },
+      maxWidth: { xs: 'min(42vw, 168px)', md: 208 },
       flexShrink: 0,
-      borderRadius: '8px',
-      px: { xs: 1, sm: 1.25 },
+      px: { xs: 1, md: 1.5 },
       py: 0,
       gap: 0.5,
       justifyContent: 'flex-start',
-      borderColor: neutralInteraction.border,
       color: 'text.secondary',
       backgroundColor: 'transparent',
       ...theme.typography.uiBodySm,
       lineHeight: 1,
-      transition: theme.transitions.create(
-        ['background-color', 'border-color', 'color', 'transform'],
-        {
-          duration: theme.transitions.duration.shorter,
-        },
-      ),
+      transition: theme.transitions.create(['background-color', 'color', 'transform'], {
+        duration: theme.transitions.duration.shorter,
+      }),
       '& .MuiButton-startIcon': {
         m: 0,
         mr: 0.5,
-        color: alpha(theme.palette.text.primary, 0.45),
+        color: 'text.disabled',
         flexShrink: 0,
         '& > *:nth-of-type(1)': {
           fontSize: 16,
@@ -320,29 +347,47 @@ function ChatInput({
         },
       },
       '&:active': { transform: 'translateY(1px)' },
-      [HOVER_CAPABLE_QUERY]: {
-        '&:hover': {
-          borderColor: neutralInteraction.hoverBorder,
-          backgroundColor: neutralInteraction.hoverBackground,
-          color: 'text.primary',
-          '& .MuiButton-startIcon': {
-            color: alpha(theme.palette.text.primary, 0.65),
-          },
-        },
-      },
       '&[aria-expanded="true"]': {
-        borderColor: neutralInteraction.activeBorder,
         backgroundColor: neutralInteraction.activeBackground,
         color: 'text.primary',
       },
+      '&[aria-pressed="true"]': {
+        backgroundColor: neutralInteraction.activeBackground,
+        color: 'text.primary',
+        '& .MuiButton-startIcon': {
+          color: 'text.primary',
+        },
+      },
+      [HOVER_CAPABLE_QUERY]: {
+        '&:hover': {
+          backgroundColor: neutralInteraction.hoverBackground,
+          color: 'text.primary',
+          '& .MuiButton-startIcon': {
+            color: 'text.primary',
+          },
+          '& .model-selector-label-text': {
+            transform: 'translateX(calc(-1 * var(--model-label-overflow)))',
+            transition: 'transform var(--model-label-duration) linear 300ms',
+          },
+        },
+      },
+      '&.Mui-focusVisible .model-selector-label-text': {
+        transform: 'translateX(calc(-1 * var(--model-label-overflow)))',
+        transition: 'transform var(--model-label-duration) linear 300ms',
+      },
+      '@media (prefers-reduced-motion: reduce)': {
+        '&:hover .model-selector-label-text, &.Mui-focusVisible .model-selector-label-text': {
+          transform: 'none',
+          transition: 'none',
+        },
+      },
       // Visible focus ring for keyboard navigation — consistent with the rest of the app.
       '&.Mui-focusVisible': {
-        outline: `2px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.32 : 0.22)}`,
+        outline: `2px solid ${theme.palette.border.focus}`,
         outlineOffset: 2,
       },
       '&.Mui-disabled': {
         opacity: 0.68,
-        borderColor: 'transparent',
         color: 'text.secondary',
         backgroundColor: 'transparent',
       },
@@ -353,9 +398,13 @@ function ChatInput({
   const errorInteraction = useMemo(() => getInteractionColors(theme, { tone: 'error' }), [theme]);
   const inputSx = useMemo(
     () => ({
-      '& .MuiInputBase-root': { p: 0 },
+      '& .MuiInputBase-root': {
+        p: 0,
+        minHeight: { xs: 48, md: 50 },
+        alignItems: 'flex-start',
+      },
       '& .MuiInputBase-input': {
-        py: 0.1,
+        py: 0.25,
         ...theme.typography.uiInput,
         lineHeight: 1.55,
         '&::placeholder': {
@@ -382,34 +431,30 @@ function ChatInput({
   );
   const sendActionSx = useMemo(
     () => ({
-      width: 36,
-      height: 36,
+      ...getResponsivePillIconButtonSx(theme, {
+        desktopSize: 36,
+        mobileSize: UI_LAYOUT.touchTarget,
+      }),
       flexShrink: 0,
-      borderRadius: '9px',
-      // Solid brand purple when there's text to send — the semantic "primary
-      // action" signal. Empty state is neutral monochrome. Streaming switches
-      // to the error tone (stop button).
+      // The ready-to-send state is a high-contrast monochrome action. Streaming
+      // switches to the semantic error tone because the action becomes "stop".
       color: isStreaming
         ? theme.palette.error.main
         : hasText
-          ? '#ffffff'
-          : alpha(theme.palette.text.primary, 0.28),
+          ? theme.palette.primary.contrastText
+          : theme.palette.text.disabled,
       backgroundColor: isStreaming
         ? errorInteraction.activeBackground
         : hasText
-          ? BRAND.main
-          : alpha(theme.palette.text.primary, 0.05),
+          ? theme.palette.primary.main
+          : theme.palette.action.hover,
       border: '1px solid',
       borderColor: isStreaming
-        ? alpha(theme.palette.error.main, 0.2)
+        ? errorInteraction.border
         : hasText
           ? 'transparent'
-          : alpha(theme.palette.text.primary, 0.07),
-      // Subtle resting elevation on the active send button.
-      boxShadow:
-        hasText && !isStreaming
-          ? `0 1px 3px ${alpha(BRAND.main, theme.palette.mode === 'dark' ? 0.45 : 0.25)}`
-          : 'none',
+          : theme.palette.border.idle,
+      boxShadow: 'none',
       transition: theme.transitions.create(
         ['transform', 'background-color', 'color', 'box-shadow', 'border-color'],
         { duration: theme.transitions.duration.shorter },
@@ -420,48 +465,39 @@ function ChatInput({
           backgroundColor: isStreaming
             ? errorInteraction.activeHoverBackground
             : hasText
-              ? BRAND.dark
-              : alpha(theme.palette.text.primary, 0.08),
+              ? theme.palette.primary.dark
+              : theme.palette.action.selected,
           color: isStreaming
             ? theme.palette.error.main
             : hasText
-              ? '#ffffff'
-              : alpha(theme.palette.text.primary, 0.45),
-          boxShadow:
-            hasText && !isStreaming
-              ? `0 2px 8px ${alpha(BRAND.main, theme.palette.mode === 'dark' ? 0.55 : 0.32)}`
-              : 'none',
+              ? theme.palette.primary.contrastText
+              : theme.palette.text.secondary,
+          borderColor: isStreaming
+            ? errorInteraction.hoverBorder
+            : hasText
+              ? 'transparent'
+              : theme.palette.border.hover,
+          boxShadow: 'none',
         },
       },
       '&:active': { transform: 'translateY(0) scale(0.97)' },
       '&.Mui-focusVisible': {
-        outline: `2px solid ${alpha(BRAND.main, 0.6)}`,
+        outline: `2px solid ${theme.palette.border.focus}`,
         outlineOffset: 2,
       },
       '&.Mui-disabled': {
-        backgroundColor: alpha(theme.palette.text.primary, 0.04),
-        borderColor: alpha(theme.palette.text.primary, 0.06),
-        color: alpha(theme.palette.text.primary, 0.2),
+        backgroundColor: theme.palette.action.disabledBackground,
+        borderColor: theme.palette.border.idle,
+        color: theme.palette.action.disabled,
         boxShadow: 'none',
       },
     }),
     [errorInteraction, hasText, isStreaming, theme],
   );
-  const connectedControlSx = useMemo(
-    () => ({
-      borderColor: neutralInteraction.border,
-      [HOVER_CAPABLE_QUERY]: {
-        '&:hover': {
-          borderColor: neutralInteraction.hoverBorder,
-          backgroundColor: neutralInteraction.hoverBackground,
-        },
-      },
-    }),
-    [neutralInteraction],
-  );
   const composerSurfaceSx = useMemo(() => getComposerSurfaceSx(theme), [theme]);
+  const composerLayoutSx = useMemo(() => getComposerLayoutSx(theme), [theme]);
   const inputPlaceholder = isStreaming
-    ? 'Please wait for response to finish...'
+    ? 'Draft your next message…'
     : isConnected
       ? 'Ask about your database… (type / for commands)'
       : 'How can I help you today?… (type / for commands)';
@@ -480,65 +516,14 @@ function ChatInput({
       }));
   }, [providerOptions]);
   const hasLlmOptions = llmSections.length > 0;
-  const contextUsage = useMemo(() => {
-    if (!usageMetrics) return null;
-    // ENH [CTX-SINGLE-SOURCE]: The back-end now computes the percentages.
-    // The front-end does ZERO calculation — just renders the values.
-    // This eliminates all sync issues between the indicator and the
-    // summarization trigger, because both use the same formula in the
-    // same code (build_usage_metrics in stream_events.py).
-    //
-    // The back-end sends:
-    //   activePercent: 0-100 (when this hits 90, summarization triggers)
-    //   modelPercent:  0-100 (total payload vs. model's context window)
-    //
-    // Fallback: for OLD conversations (stored before the back-end computed
-    // percentages), compute from raw values so the indicator still works.
-    const activePercent =
-      usageMetrics.activePercent ??
-      (usageMetrics.inputPayloadTokens && usageMetrics.pressureTriggerTokens
-        ? Math.min(
-            100,
-            Math.max(
-              0,
-              Math.round(
-                (usageMetrics.inputPayloadTokens / usageMetrics.pressureTriggerTokens) * 100,
-              ),
-            ),
-          )
-        : null);
-    const modelPercent =
-      usageMetrics.modelPercent ??
-      (usageMetrics.inputPayloadTokens &&
-      (usageMetrics.modelContextWindow || usageMetrics.totalContextWindow)
-        ? Math.min(
-            100,
-            Math.max(
-              0,
-              Math.round(
-                (usageMetrics.inputPayloadTokens /
-                  (usageMetrics.modelContextWindow || usageMetrics.totalContextWindow)) *
-                  100,
-              ),
-            ),
-          )
-        : null);
-    if (activePercent == null) return null;
-    return {
-      activePercent,
-      modelPercent,
-      contextPhase: usageMetrics.contextPhase,
-      tokenCountingMode: usageMetrics.tokenCountingMode,
-    };
-  }, [usageMetrics]);
+  const contextUsage = useMemo(() => getContextUsage(usageMetrics), [usageMetrics]);
 
-  const handleCloseDbMenu = useCallback(() => setDbAnchor(null), []);
-  const handleCloseSchemaMenu = useCallback(() => setSchemaAnchor(null), []);
+  const handleCloseContextMenu = useCallback(() => setContextAnchor(null), []);
   const handleCloseLlmPopover = useCallback(() => setLlmAnchor(null), []);
 
   const handleSchemaChange = useCallback(
     async (schema) => {
-      setSchemaAnchor(null);
+      setContextAnchor(null);
       if (schema === currentSchema) return;
 
       const result = await onSchemaChange?.(schema);
@@ -551,7 +536,7 @@ function ChatInput({
 
   const handleDatabaseChange = useCallback(
     (dbName) => {
-      setDbAnchor(null);
+      setContextAnchor(null);
       if (dbName === currentDatabase) return;
       onDatabaseSwitch?.(dbName);
     },
@@ -646,13 +631,8 @@ function ChatInput({
     setMessage(e.target.value);
   }, []);
 
-  const handleOpenDbMenu = useCallback((e) => setDbAnchor(e.currentTarget), []);
-  const handleOpenSchemaMenu = useCallback((e) => setSchemaAnchor(e.currentTarget), []);
+  const handleOpenContextMenu = useCallback((e) => setContextAnchor(e.currentTarget), []);
   const handleOpenLlmPopover = useCallback((e) => setLlmAnchor(e.currentTarget), []);
-
-  const handleOpenSqlEditorClick = useCallback(() => {
-    onOpenSqlEditor?.();
-  }, [onOpenSqlEditor]);
 
   const handleStopClick = useCallback(() => {
     onStop?.();
@@ -711,119 +691,79 @@ function ChatInput({
       component="form"
       onSubmit={handleSubmit}
       sx={{
-        px: { xs: 0.5, sm: 0.75 },
-        pb: { xs: 'max(env(safe-area-inset-bottom), 8px)', sm: 0.75 },
+        ...composerLayoutSx.form,
         position: 'relative',
         zIndex: 2,
       }}
     >
       <AppPopover
-        anchorEl={dbAnchor}
-        open={Boolean(dbAnchor)}
-        onClose={handleCloseDbMenu}
+        anchorEl={contextAnchor}
+        open={Boolean(contextAnchor)}
+        onClose={handleCloseContextMenu}
         anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
         transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        width={220}
+        width={260}
         paperSx={{ mt: -1 }}
       >
-        <Typography sx={getPopoverSectionLabelSx(theme)}>Switch Database</Typography>
-        <Box
-          role="menu"
-          aria-label="Switch database"
-          sx={{ maxHeight: 280, overflowY: 'auto', mt: 0.5 }}
-        >
-          {availableDatabases.map((db) => {
-            const isActive = db === currentDatabase;
-            return (
-              <Box
-                component="div"
-                role="menuitemradio"
-                aria-checked={isActive}
-                tabIndex={0}
-                key={db}
-                onClick={() => handleDatabaseChange(db)}
-                onKeyDown={(event) => handleMenuItemKeyDown(event, () => handleDatabaseChange(db))}
-                sx={getSelectableMenuItemSx(theme, { isActive, columns: '16px minmax(0, 1fr)' })}
-              >
-                {isActive ? (
-                  <CheckCircleOutlineRoundedIcon
-                    sx={{
-                      fontSize: 16,
-                      color: 'primary.main',
-                      flexShrink: 0,
-                    }}
+        <AppPopoverList role="menu" aria-label="Chat context" maxHeight={360}>
+          {showDatabaseSelector ? (
+            <>
+              <AppPopoverSectionLabel>Database</AppPopoverSectionLabel>
+              {availableDatabases.map((db) => {
+                const isActive = db === currentDatabase;
+                return (
+                  <AppPopoverItem
+                    role="menuitemradio"
+                    ariaChecked={isActive}
+                    key={db}
+                    onClick={() => handleDatabaseChange(db)}
+                    onKeyDown={(event) =>
+                      handleMenuItemKeyDown(event, () => handleDatabaseChange(db))
+                    }
+                    selected={isActive}
+                    icon={<DatabaseIcon />}
+                    label={db}
+                    reserveTrailing
+                    trailing={isActive ? <CheckIcon /> : null}
                   />
-                ) : (
-                  <Box sx={{ width: 16, height: 16 }} />
-                )}
-                <Typography
-                  sx={{
-                    ...theme.typography.uiNavItem,
-                    color: 'text.primary',
-                    fontWeight: isActive ? 500 : 400,
-                  }}
-                >
-                  {db}
-                </Typography>
-              </Box>
-            );
-          })}
-        </Box>
-      </AppPopover>
-      <AppPopover
-        anchorEl={schemaAnchor}
-        open={Boolean(schemaAnchor)}
-        onClose={handleCloseSchemaMenu}
-        anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
-        transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
-        width={200}
-        paperSx={{ mt: -1 }}
-      >
-        <Typography sx={getPopoverSectionLabelSx(theme)}>PostgreSQL Schema</Typography>
-        <Box
-          role="menu"
-          aria-label="Select PostgreSQL schema"
-          sx={{ maxHeight: 260, overflowY: 'auto', mt: 0.5 }}
-        >
-          {availableSchemas.map((schema) => {
-            const isActive = schema === currentSchema;
-            return (
-              <Box
-                component="div"
-                role="menuitemradio"
-                aria-checked={isActive}
-                tabIndex={0}
-                key={schema}
-                onClick={() => handleSchemaChange(schema)}
-                onKeyDown={(event) =>
-                  handleMenuItemKeyDown(event, () => handleSchemaChange(schema))
-                }
-                sx={getSelectableMenuItemSx(theme, { isActive, columns: '16px minmax(0, 1fr)' })}
-              >
-                {isActive ? (
-                  <CheckCircleOutlineRoundedIcon
-                    sx={{
-                      fontSize: 16,
-                      color: 'primary.main',
-                      flexShrink: 0,
-                    }}
-                  />
-                ) : (
-                  <Box sx={{ width: 16, height: 16 }} />
-                )}
-                <Typography
-                  sx={{
-                    ...theme.typography.uiNavItem,
-                    color: 'text.primary',
-                    fontWeight: isActive ? 500 : 400,
-                  }}
-                >
-                  {schema}
-                </Typography>
-              </Box>
-            );
-          })}
-        </Box>
+                );
+              })}
+
+              {showSchemaSelector && (
+                <>
+                  <Box aria-hidden sx={getPopoverDividerSx(theme, { my: 0.5 })} />
+                  <AppPopoverSectionLabel sx={{ pt: 0.25 }}>
+                    PostgreSQL schema
+                  </AppPopoverSectionLabel>
+                  {availableSchemas.map((schema) => {
+                    const isActive = schema === currentSchema;
+                    return (
+                      <AppPopoverItem
+                        role="menuitemradio"
+                        ariaChecked={isActive}
+                        key={schema}
+                        onClick={() => handleSchemaChange(schema)}
+                        onKeyDown={(event) =>
+                          handleMenuItemKeyDown(event, () => handleSchemaChange(schema))
+                        }
+                        selected={isActive}
+                        icon={<SchemaIcon />}
+                        label={schema}
+                        reserveTrailing
+                        trailing={isActive ? <CheckIcon /> : null}
+                      />
+                    );
+                  })}
+                </>
+              )}
+            </>
+          ) : (
+            <AppPopoverEmptyState
+              title="No database connected"
+              description="Connect a database from the sidebar to add schema context."
+            />
+          )}
+        </AppPopoverList>
       </AppPopover>
       <AppPopover
         anchorEl={llmAnchor}
@@ -835,27 +775,24 @@ function ChatInput({
         paperSx={{ mt: -1 }}
       >
         {/* Model list */}
-        <Box role="menu" aria-label="Select model" sx={{ maxHeight: 280, overflowY: 'auto' }}>
+        <AppPopoverList role="menu" aria-label="Select model" maxHeight={280}>
           {llmOptionsLoading ? (
-            // Model-list loading skeleton — mimics the structure of a real
-            // menu item: a 16px circular avatar-like slot + a 70%-width
-            // text bar. Reads as "model list is loading" rather than a
-            // generic gray block.
-            <Box sx={{ display: 'grid', gap: 0.5, p: 0.5 }}>
+            // Match the real row geometry: model label first, compact status
+            // slot second. This prevents layout movement when options arrive.
+            <Box sx={{ display: 'grid', gap: 0.25 }}>
               {[0, 1, 2].map((i) => (
                 <Box
                   key={i}
                   sx={{
                     display: 'grid',
-                    gridTemplateColumns: '16px minmax(0, 1fr)',
+                    gridTemplateColumns: 'minmax(0, 1fr) 16px',
                     alignItems: 'center',
                     gap: 1,
-                    height: 44,
+                    minHeight: UI_POPOVER.rowMinHeight,
                     px: 1,
-                    py: 0.75,
+                    py: UI_POPOVER.rowPaddingY,
                   }}
                 >
-                  <Skeleton variant="circular" width={16} height={16} animation="wave" />
                   <Skeleton
                     variant="rounded"
                     animation="wave"
@@ -865,136 +802,76 @@ function ChatInput({
                       borderRadius: 999,
                     }}
                   />
+                  <Skeleton variant="circular" width={14} height={14} animation="wave" />
                 </Box>
               ))}
             </Box>
           ) : hasLlmOptions ? (
             llmSections.map((section, sectionIndex) => (
               <Box key={section.name}>
-                {sectionIndex > 0 && (
-                  <Box
-                    sx={{
-                      height: '0.5px',
-                      backgroundColor: alpha(theme.palette.text.primary, 0.07),
-                      my: 0.75,
-                      mx: 0.5,
-                    }}
-                  />
-                )}
-                <Typography sx={getPopoverSectionLabelSx(theme, { pt: 0.75 })}>
+                {sectionIndex > 0 && <Box aria-hidden sx={getPopoverDividerSx(theme)} />}
+                <AppPopoverSectionLabel sx={{ pt: sectionIndex > 0 ? 0.25 : 0.5 }}>
                   {section.label}
-                </Typography>
+                </AppPopoverSectionLabel>
                 {section.models.map((model) => {
                   const isActive = section.name === selectedProvider && model === selectedModel;
                   return (
-                    <Box
-                      component="div"
+                    <AppPopoverItem
                       role="menuitemradio"
-                      aria-checked={isActive}
-                      tabIndex={0}
+                      ariaChecked={isActive}
                       key={`${section.name}-${model}`}
                       onClick={() => handleLlmSelection(section.name, model)}
                       onKeyDown={(event) =>
                         handleMenuItemKeyDown(event, () => handleLlmSelection(section.name, model))
                       }
-                      sx={getSelectableMenuItemSx(theme, {
-                        isActive,
-                        columns: '16px minmax(0, 1fr)',
-                      })}
-                    >
-                      {isActive ? (
-                        <CheckCircleOutlineRoundedIcon
-                          sx={{
-                            fontSize: 16,
-                            color: 'primary.main',
-                            flexShrink: 0,
-                          }}
-                        />
-                      ) : (
-                        <Box sx={{ width: 16, height: 16 }} />
-                      )}
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-                        <Typography
-                          sx={{
-                            ...theme.typography.uiNavItem,
-                            color: 'text.primary',
-                            fontWeight: isActive ? 500 : 400,
-                          }}
-                        >
-                          {model}
-                        </Typography>
-                      </Box>
-                    </Box>
+                      selected={isActive}
+                      label={model}
+                      reserveTrailing
+                      trailing={isActive ? <CheckIcon /> : null}
+                    />
                   );
                 })}
               </Box>
             ))
           ) : (
-            <Box sx={{ px: 1, py: 1 }}>
-              <Typography
-                sx={{
-                  ...theme.typography.uiNavItem,
-                  fontWeight: 500,
-                  color: 'text.primary',
-                }}
-              >
-                No models available
-              </Typography>
-              <Typography
-                sx={{
-                  ...theme.typography.uiNavShortcut,
-                  color: 'text.secondary',
-                  mt: 0.25,
-                }}
-              >
-                Model options could not be loaded.
-              </Typography>
-            </Box>
+            <AppPopoverEmptyState
+              title="No models available"
+              description="Model options could not be loaded."
+            />
           )}
-        </Box>
+        </AppPopoverList>
       </AppPopover>
 
       <Box
-        ref={composerRef}
+        ref={setComposerElement}
         sx={{
-          maxWidth: UI_LAYOUT.chatInputMaxWidth,
+          maxWidth: COMPOSER_MAX_WIDTH,
+          ...composerLayoutSx.surface,
           mx: 'auto',
           position: 'relative',
           ...composerSurfaceSx,
-          opacity: isStreaming ? 0.72 : 1,
-          transition: theme.transitions.create(['opacity', 'box-shadow', 'border-color'], {
-            duration: theme.transitions.duration.shorter,
-          }),
-          [HOVER_CAPABLE_QUERY]: {
-            '&:hover': {
-              boxShadow: getComposerHoverShadow(theme),
-            },
-          },
-          // Visible focus-within ring so keyboard users see the composer is active.
-          '&:focus-within': {
-            boxShadow: getComposerHoverShadow(theme),
-          },
-          cursor: isStreaming ? 'wait' : 'text',
+          cursor: 'text',
         }}
       >
         <Box
           sx={{
-            p: { xs: 1.25, sm: 1.5 },
+            minHeight: 'inherit',
+            ...composerLayoutSx.content,
             display: 'flex',
             flexDirection: 'column',
-            gap: { xs: 1.1, sm: 1.25 },
+            justifyContent: 'space-between',
           }}
         >
           <TextField
             fullWidth
             multiline
-            minRows={isCompactMobile ? 1 : 2}
+            minRows={1}
             maxRows={6}
             placeholder={inputPlaceholder}
             value={message}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
-            disabled={disabled || isStreaming}
+            disabled={disabled}
             variant="standard"
             InputProps={{
               disableUnderline: true,
@@ -1006,7 +883,10 @@ function ChatInput({
                 alignItems: 'flex-start',
               },
             }}
-            inputProps={{ 'data-ui-target': 'chat_input' }}
+            inputProps={{
+              'data-ui-target': 'chat_input',
+              'aria-label': 'Message Moonlit',
+            }}
             sx={inputSx}
           />
 
@@ -1015,109 +895,69 @@ function ChatInput({
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              gap: 0.75,
+              ...composerLayoutSx.toolbar,
             }}
           >
             <Box sx={toolbarScrollSx}>
-              {showDatabaseSelector && (
-                <Box
-                  key={`database-${connectionChipKey}`}
+              <Tooltip title="Database and schema context">
+                <Button
+                  variant="text"
+                  size="small"
+                  startIcon={<AddIcon />}
+                  onClick={handleOpenContextMenu}
+                  aria-expanded={Boolean(contextAnchor)}
+                  aria-label="Open chat context menu"
                   sx={{
-                    display: 'inline-flex',
-                    flexShrink: 0,
-                    animation: `${softReveal} 180ms ease-out both`,
-                    '@media (prefers-reduced-motion: reduce)': {
-                      animation: 'none',
-                    },
+                    ...toolbarActionButtonStyles,
+                    maxWidth: 116,
+                    px: { xs: 1, md: 1.5 },
                   }}
                 >
-                  <Tooltip
-                    title={
-                      canSwitchDatabase
-                        ? `Database: ${currentDatabase} (click to switch)`
-                        : `Database: ${currentDatabase}`
-                    }
-                  >
-                    <span>
-                      <Button
-                        variant="outlined"
-                        size="small"
-                        startIcon={<DatabaseIcon />}
-                        onClick={canSwitchDatabase ? handleOpenDbMenu : undefined}
-                        disabled={!canSwitchDatabase}
-                        sx={{
-                          ...toolbarActionButtonStyles,
-                          ...connectedControlSx,
-                          '&.Mui-disabled': {
-                            opacity: 1,
-                            borderColor: neutralInteraction.border,
-                            color: 'text.secondary',
-                            backgroundColor: 'transparent',
-                          },
-                        }}
-                      >
-                        <TruncatedLabel>{currentDatabase}</TruncatedLabel>
-                      </Button>
-                    </span>
-                  </Tooltip>
-                </Box>
-              )}
-              {showSchemaSelector && (
-                <Box
-                  key={`schema-${connectionChipKey}`}
+                  Context
+                </Button>
+              </Tooltip>
+
+              <Tooltip
+                title={
+                  sqlEditorOpen
+                    ? 'Close SQL editor'
+                    : isConnected
+                      ? 'Open SQL editor'
+                      : 'Connect a database to open SQL editor'
+                }
+              >
+                <Button
+                  type="button"
+                  variant="text"
+                  size="small"
+                  startIcon={<CodeEditorIcon />}
+                  onClick={onToggleSqlEditor ?? undefined}
+                  aria-label={sqlEditorOpen ? 'Close SQL editor' : 'Open SQL editor'}
+                  aria-pressed={sqlEditorOpen}
                   sx={{
-                    display: 'inline-flex',
-                    flexShrink: 0,
-                    animation: `${softReveal} 180ms ease-out both`,
-                    animationDelay: '35ms',
-                    '@media (prefers-reduced-motion: reduce)': {
-                      animation: 'none',
-                    },
+                    ...toolbarActionButtonStyles,
+                    width: 'auto',
+                    px: { xs: 1, md: 1.5 },
                   }}
                 >
-                  <Tooltip title={`Schema: ${currentSchema}`}>
-                    <Button
-                      variant="outlined"
-                      size="small"
-                      startIcon={<SchemaIcon />}
-                      onClick={handleOpenSchemaMenu}
-                      sx={{
-                        ...toolbarActionButtonStyles,
-                        ...connectedControlSx,
-                      }}
-                    >
-                      <TruncatedLabel>{currentSchema}</TruncatedLabel>
-                    </Button>
-                  </Tooltip>
-                </Box>
-              )}
-              {onOpenSqlEditor && (
-                <Tooltip title="Open SQL Editor">
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<CodeEditorIcon />}
-                    onClick={handleOpenSqlEditorClick}
-                    sx={{
-                      ...toolbarActionButtonStyles,
-                      maxWidth: { xs: 40, sm: 128 },
-                      px: { xs: 0, sm: 1.25 },
-                      justifyContent: 'center',
-                      '& .MuiButton-startIcon': {
-                        ...toolbarActionButtonStyles['& .MuiButton-startIcon'],
-                        mr: { xs: 0, sm: 0.5 },
-                      },
-                    }}
-                  >
-                    <TruncatedLabel
-                      sx={{
-                        display: { xs: 'none', sm: 'inline' },
-                      }}
-                    >
-                      SQL Editor
-                    </TruncatedLabel>
-                  </Button>
-                </Tooltip>
+                  SQL
+                </Button>
+              </Tooltip>
+
+              {effectiveTaskMode && (
+                <Typography
+                  aria-label={`Effective task mode: ${effectiveTaskMode.label}`}
+                  sx={{
+                    display: { xs: 'none', md: 'block' },
+                    px: 0.5,
+                    color: 'text.disabled',
+                    fontSize: '0.7rem',
+                    fontWeight: 400,
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {effectiveTaskMode.label}
+                </Typography>
               )}
             </Box>
 
@@ -1145,7 +985,7 @@ function ChatInput({
               >
                 <span>
                   <Button
-                    variant="outlined"
+                    variant="text"
                     size="small"
                     onClick={handleOpenLlmPopover}
                     disabled={!hasLlmOptions && !llmOptionsLoading}
@@ -1153,15 +993,11 @@ function ChatInput({
                     aria-label="Select model"
                     startIcon={
                       contextUsage ? (
-                        <ContextProgressRing
-                          total={contextUsage.indicatorUsed}
-                          budget={contextUsage.indicatorBudget}
-                          theme={theme}
-                        />
+                        <ContextProgressRing value={contextUsage.activePercent} theme={theme} />
                       ) : undefined
                     }
                     endIcon={
-                      <KeyboardArrowDownRoundedIcon
+                      <ExpandMoreIcon
                         sx={{
                           transform: llmAnchor ? 'rotate(180deg)' : 'rotate(0deg)',
                           transition: theme.transitions.create('transform', {
@@ -1172,18 +1008,14 @@ function ChatInput({
                     }
                     sx={{
                       ...toolbarActionButtonStyles,
-                      width: { xs: 124, sm: 164 },
+                      width: { xs: 116, md: 156 },
                       flexShrink: 0,
                     }}
                   >
-                    <TruncatedLabel
-                      sx={{
-                        flex: 1,
-                        textAlign: 'left',
-                      }}
-                    >
-                      {selectedModel || (llmOptionsLoading ? 'Loading...' : 'Choose model')}
-                    </TruncatedLabel>
+                    <ModelSelectorLabel
+                      key={selectedModel || (llmOptionsLoading ? 'loading' : 'choose-model')}
+                      label={selectedModel || (llmOptionsLoading ? 'Loading...' : 'Choose model')}
+                    />
                   </Button>
                 </span>
               </Tooltip>
@@ -1202,9 +1034,9 @@ function ChatInput({
                     sx={sendActionSx}
                   >
                     {isStreaming ? (
-                      <StopRoundedIcon sx={{ fontSize: 14 }} />
+                      <StopIcon sx={{ fontSize: 14 }} />
                     ) : (
-                      <SendRoundedIcon sx={{ fontSize: 14, ml: '1px' }} />
+                      <SendIcon sx={{ fontSize: 14, ml: '1px' }} />
                     )}
                   </IconButton>
                 </span>
@@ -1212,63 +1044,6 @@ function ChatInput({
             </Box>
           </Box>
         </Box>
-
-        {/*
-          ENH [SLASH-COMMAND]: Subtle effective-mode chip in the top-right
-          corner of the composer. Shows the backend-reported effective mode
-          when the agent is running (or just finished) a turn. Hidden when
-          there's no effective mode (resting state) so the composer stays
-          clean. The chip is non-interactive — it's a status indicator, not
-          a control. Mode selection happens via the slash command menu
-          (type "/" at the start of the input).
-        */}
-        {effectiveTaskMode && (
-          <Box
-            aria-label={`Effective task mode: ${effectiveTaskMode.label}`}
-            sx={{
-              position: 'absolute',
-              top: 6,
-              right: 6,
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: 0.5,
-              px: 0.85,
-              py: 0.25,
-              borderRadius: 0.75,
-              fontSize: 10,
-              fontWeight: 600,
-              letterSpacing: 0.3,
-              textTransform: 'uppercase',
-              lineHeight: 1.4,
-              bgcolor: alpha(theme.palette.primary.main, 0.12),
-              color: theme.palette.primary.main,
-              border: `1px solid ${alpha(theme.palette.primary.main, 0.28)}`,
-              pointerEvents: 'none',
-              opacity: isStreaming ? 0.95 : 0.7,
-              transition: theme.transitions.create('opacity', {
-                duration: theme.transitions.duration.shorter,
-              }),
-            }}
-          >
-            {effectiveTaskMode.label}
-            {effectiveTaskMode.recursion_limit ? ` · ${effectiveTaskMode.recursion_limit}` : ''}
-            {effectiveTaskMode.source === 'auto' && (
-              <Box
-                component="span"
-                sx={{
-                  fontSize: 8,
-                  px: 0.4,
-                  py: 0.1,
-                  borderRadius: 0.5,
-                  bgcolor: alpha(theme.palette.primary.main, 0.22),
-                  lineHeight: 1,
-                }}
-              >
-                Auto
-              </Box>
-            )}
-          </Box>
-        )}
       </Box>
 
       {/*
@@ -1280,9 +1055,10 @@ function ChatInput({
         Esc close. On select, the slash text is stripped from the message
         and the mode is applied.
       */}
-      {isSlashMenuOpen && composerRef.current && (
+      {isSlashMenuOpen && composerElement && (
         <SlashCommandMenu
-          anchorEl={composerRef.current}
+          key={slashQuery}
+          anchorEl={composerElement}
           query={slashQuery}
           currentTaskMode={taskMode ?? 'auto'}
           onSelect={handleSlashCommandSelect}
@@ -1306,7 +1082,6 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.providerOptions !== nextProps.providerOptions) return false;
   if (prevProps.onSend !== nextProps.onSend) return false;
   if (prevProps.onStop !== nextProps.onStop) return false;
-  if (prevProps.onOpenSqlEditor !== nextProps.onOpenSqlEditor) return false;
   if (prevProps.onDatabaseSwitch !== nextProps.onDatabaseSwitch) return false;
   if (prevProps.onSelectLlm !== nextProps.onSelectLlm) return false;
   if (prevProps.onSchemaChange !== nextProps.onSchemaChange) return false;
@@ -1317,6 +1092,8 @@ function arePropsEqual(prevProps, nextProps) {
   if (prevProps.taskMode !== nextProps.taskMode) return false;
   if (prevProps.onTaskModeChange !== nextProps.onTaskModeChange) return false;
   if (prevProps.effectiveTaskMode !== nextProps.effectiveTaskMode) return false;
+  if (prevProps.onToggleSqlEditor !== nextProps.onToggleSqlEditor) return false;
+  if (prevProps.sqlEditorOpen !== nextProps.sqlEditorOpen) return false;
   if (prevProps.children !== nextProps.children) return false;
   if (prevProps.availableDatabases?.length !== nextProps.availableDatabases?.length) return false;
   // Compare actual database identifiers, not just count, so a rename still

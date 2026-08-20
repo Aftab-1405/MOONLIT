@@ -1,214 +1,117 @@
-/**
- * Moonlit typography factory.
- *
- * Returns the MUI `typography` config object for a given set of color tokens.
- * Called once per theme (dark / light) with the matching token palette so that
- * color-bearing variants (h1, subtitle1, label, etc.) resolve correctly.
- *
- * Two font families are used:
- *   - `sans` (Inter, system fallbacks) for body, UI controls, labels.
- *   - `serif` (Merriweather) for hero/heading display text only.
- *   - `mono` (JetBrains Mono) for code, labels, and tabular numerals.
- *
- * Usage:
- *   import { createTypography } from '@/theme/typography';
- *   const typography = createTypography(DARK);  // or LIGHT
- *
- * Custom variants follow a `ui<Purpose><Size>` naming convention so they're
- * easy to discover via autocomplete in component sx props.
- */
-
 import { FONTS } from '@/theme/tokens';
 
-/**
- * @param {object} H - Color token object (DARK or LIGHT from tokens.js)
- * @returns {object} MUI-compatible typography config
- */
+const display = (fontSize, lineHeight, letterSpacing) => ({
+  fontFamily: FONTS.sans,
+  fontSize,
+  fontWeight: 400,
+  lineHeight,
+  letterSpacing,
+});
+
+const body = (fontSize, lineHeight) => ({
+  fontFamily: FONTS.sans,
+  fontSize,
+  fontWeight: 400,
+  lineHeight,
+  letterSpacing: 0,
+});
+
+const monoCaption = (fontSize, lineHeight, letterSpacing) => ({
+  fontFamily: FONTS.mono,
+  fontSize,
+  fontWeight: 400,
+  lineHeight,
+  letterSpacing,
+  textTransform: 'uppercase',
+});
+
+/** Typography roles from DESIGN.md, with compatibility aliases for existing UI code. */
 export const createTypography = (H) => ({
   fontFamily: FONTS.sans,
   fontFamilyMono: FONTS.mono,
-  fontWeightLight: 300,
+  fontWeightLight: 400,
   fontWeightRegular: 400,
-  fontWeightMedium: 500,
-  fontWeightBold: 700,
+  fontWeightMedium: 400,
+  fontWeightBold: 400,
 
-  // ── Standard MUI variants ──────────────────────────────────────────────────
+  displayXl: display({ xs: '3rem', md: '6rem' }, 1, { xs: '-1.2px', md: '-2.4px' }),
+  displayLg: display({ xs: '3rem', md: '4.5rem' }, 1, { xs: '-1.2px', md: '-1.8px' }),
+  displayMd: display({ xs: '2rem', md: '3rem' }, 1, { xs: '-0.6px', md: '-1.2px' }),
+  displaySm: display({ xs: '1.75rem', md: '2rem' }, 1.125, '-0.6px'),
+  displayXs: display('1.25rem', 1.4, 0),
+  bodyLg: body('1.125rem', 1.5556),
+  bodyMd: body('1rem', 1.5),
+  bodySm: body('0.875rem', 1.4286),
+  captionMono: monoCaption('0.875rem', 1.4286, '1.4px'),
+  captionMonoSm: monoCaption('0.75rem', 1.3333, '1.2px'),
+  buttonMd: body('0.875rem', 1.4286),
+
   h1: {
-    fontSize: '2.5rem',
-    fontWeight: 700,
-    lineHeight: 1.2,
-    letterSpacing: '-0.03em',
+    ...display({ xs: '3rem', md: '6rem' }, 1, { xs: '-1.2px', md: '-2.4px' }),
     color: H.text000,
-    fontFamily: FONTS.serif,
   },
   h2: {
-    fontSize: '2rem',
-    fontWeight: 700,
-    lineHeight: 1.25,
-    letterSpacing: '-0.025em',
+    ...display({ xs: '2rem', md: '3rem' }, 1, { xs: '-0.6px', md: '-1.2px' }),
     color: H.text000,
-    fontFamily: FONTS.serif,
   },
-  h3: {
-    fontSize: '1.5rem',
-    fontWeight: 600,
-    lineHeight: 1.35,
-    letterSpacing: '-0.015em',
-    fontFamily: FONTS.serif,
-  },
-  h4: { fontSize: '1.25rem', fontWeight: 600, lineHeight: 1.4 },
-  h5: { fontSize: '1.125rem', fontWeight: 600, lineHeight: 1.5 },
-  h6: { fontSize: '1rem', fontWeight: 600, lineHeight: 1.5 },
+  h3: display({ xs: '1.75rem', md: '2rem' }, 1.125, '-0.6px'),
+  h4: display('1.25rem', 1.4, 0),
+  h5: display('1.125rem', 1.4, 0),
+  h6: display('1rem', 1.5, 0),
+  subtitle1: { ...body('1rem', 1.5), color: H.text000 },
+  subtitle2: { ...body('0.875rem', 1.4286), color: H.text200 },
+  body1: { ...body('1rem', 1.5), color: H.text000 },
+  body2: { ...body('0.875rem', 1.4286), color: H.text000 },
+  caption: { ...body('0.75rem', 1.3333), color: H.text200 },
+  overline: { ...monoCaption('0.75rem', 1.3333, '1.2px'), color: H.text200 },
+  button: { ...body('0.875rem', 1.4286), textTransform: 'none' },
 
-  subtitle1: { fontSize: '1rem', fontWeight: 500, lineHeight: 1.55, color: H.text000 },
-  subtitle2: { fontSize: '0.875rem', fontWeight: 500, lineHeight: 1.5, color: H.text200 },
-  // body1/2 line-heights tightened from 1.75/1.7 → 1.65/1.6 for denser reading.
-  // The previous values left too much vertical air between paragraphs which
-  // made longer AI responses feel sparse and disconnected.
-  body1: { fontSize: '1rem', lineHeight: 1.65, letterSpacing: 0, color: H.text000 },
-  body2: { fontSize: '0.875rem', lineHeight: 1.6, letterSpacing: 0, color: H.text000 },
-  caption: { fontSize: '0.75rem', lineHeight: 1.5, letterSpacing: 0, color: H.text200 },
-  overline: {
-    fontSize: '0.625rem',
-    fontWeight: 600,
-    letterSpacing: 0,
-    lineHeight: 1.5,
-    textTransform: 'none',
-    color: H.text200,
-  },
-  button: {
-    fontFamily: FONTS.sans,
-    textTransform: 'none',
-    fontWeight: 500,
-    fontSize: '0.875rem',
-    letterSpacing: 0,
-  },
+  mono: { fontFamily: FONTS.mono, fontSize: '0.875rem', fontWeight: 400, lineHeight: 1.6 },
+  label: { ...monoCaption('0.75rem', 1.3333, '1.2px'), color: H.text400 },
 
-  // ── Custom Moonlit variants ────────────────────────────────────────────────
-  mono: { fontFamily: FONTS.mono, fontSize: '0.875rem', lineHeight: 1.6 },
-  label: {
+  uiDisplayLg: display({ xs: '3rem', md: '4.5rem' }, 1, { xs: '-1.2px', md: '-1.8px' }),
+  uiDisplayMd: display({ xs: '2rem', md: '3rem' }, 1, { xs: '-0.6px', md: '-1.2px' }),
+  uiDisplaySm: display({ xs: '1.75rem', md: '2rem' }, 1.125, '-0.6px'),
+  uiBodyLg: body({ xs: '1rem', md: '1.125rem' }, 1.5556),
+  uiBodyMd: body({ xs: '0.875rem', sm: '1rem' }, 1.5),
+  uiBodySm: body('0.875rem', 1.4286),
+  uiBodyXs: body('0.75rem', 1.3333),
+  uiBodyTable: body('0.875rem', 1.4286),
+  uiResponseBody: body({ xs: '0.9375rem', sm: '1rem' }, 1.65),
+  uiResponseCompact: body({ xs: '0.8rem', sm: '0.875rem' }, 1.55),
+  uiResponseHeading1: display({ xs: '1.25rem', sm: '1.5rem' }, 1.3, '-0.4px'),
+  uiResponseHeading2: display({ xs: '1.125rem', sm: '1.25rem' }, 1.35, '-0.3px'),
+  uiResponseHeading3: display({ xs: '1rem', sm: '1.125rem' }, 1.4, '-0.2px'),
+  uiCaptionMd: body({ xs: '0.75rem', sm: '0.8125rem' }, 1.45),
+  uiCaptionSm: body({ xs: '0.72rem', sm: '0.8rem' }, 1.45),
+  uiCaptionXs: body({ xs: '0.68rem', sm: '0.75rem' }, 1.4),
+  uiCaption2xs: body({ xs: '0.65rem', sm: '0.7rem' }, 1.4),
+  uiMonoLabel: monoCaption({ xs: '0.68rem', sm: '0.75rem' }, 1.3333, '1.2px'),
+  uiCodeBlock: {
     fontFamily: FONTS.mono,
-    fontSize: '0.6875rem',
-    fontWeight: 500,
-    lineHeight: 1.1,
-    letterSpacing: 0,
-    textTransform: 'none',
-    color: H.text400,
+    fontSize: { xs: '0.79rem', sm: '0.825rem' },
+    fontWeight: 400,
+    lineHeight: 1.62,
   },
-
-  // ── Display / hero variants ────────────────────────────────────────────────
-  // These are "moments" — the welcome hero on the empty chat state, the
-  // landing page hero, auth page headlines. They use the serif face and
-  // tighter letter-spacing + line-height for an editorial, premium feel.
-  // Use sparingly: body copy should always use the uiBody* scale.
-  uiDisplayLg: {
-    fontFamily: FONTS.serif,
-    fontSize: { xs: '2.25rem', sm: '2.85rem', md: '3.5rem' },
-    fontWeight: 600,
-    lineHeight: 1.1,
-    letterSpacing: '-0.035em',
-    color: H.text000,
-  },
-  uiDisplayMd: {
-    fontFamily: FONTS.serif,
-    fontSize: { xs: '1.85rem', sm: '2.25rem', md: '2.75rem' },
-    fontWeight: 600,
-    lineHeight: 1.15,
-    letterSpacing: '-0.03em',
-    color: H.text000,
-  },
-  uiDisplaySm: {
-    fontFamily: FONTS.serif,
-    fontSize: { xs: '1.5rem', sm: '1.85rem', md: '2.15rem' },
-    fontWeight: 600,
-    lineHeight: 1.2,
-    letterSpacing: '-0.025em',
-    color: H.text000,
-  },
-
-  // Body scale
-  uiBodyLg: { fontSize: { xs: '1rem', md: '1.125rem' }, lineHeight: 1.7 },
-  uiBodyMd: { fontSize: { xs: '0.82rem', sm: '0.9rem' }, lineHeight: 1.65, letterSpacing: 0 },
-  uiBodySm: { fontSize: { xs: '0.8rem', sm: '0.875rem' }, lineHeight: 1.55, letterSpacing: 0 },
-  uiBodyTable: { fontSize: { xs: '0.78rem', sm: '0.875rem' }, lineHeight: 1.55, letterSpacing: 0 },
-
-  // Caption scale
-  uiCaptionMd: { fontSize: { xs: '0.75rem', sm: '0.8125rem' }, lineHeight: 1.45, letterSpacing: 0 },
-  uiCaptionSm: { fontSize: { xs: '0.72rem', sm: '0.8rem' }, lineHeight: 1.45, letterSpacing: 0 },
-  uiCaptionXs: { fontSize: { xs: '0.68rem', sm: '0.75rem' }, lineHeight: 1.4, letterSpacing: 0 },
-  uiCaption2xs: { fontSize: { xs: '0.65rem', sm: '0.7rem' }, lineHeight: 1.4, letterSpacing: 0 },
-
-  // Mono / code
-  uiMonoLabel: {
-    fontFamily: FONTS.mono,
-    fontSize: { xs: '0.62rem', sm: '0.6875rem' },
-    fontWeight: 500,
-    lineHeight: 1.1,
-    letterSpacing: 0,
-    textTransform: 'none',
-  },
-  uiCodeBlock: { fontSize: '0.85rem', lineHeight: 1.5 },
   uiCode: { fontSizePx: 13 },
   uiCodeCompact: { fontSizePx: 12 },
 
-  // Heading / display
-  uiBrandWordmark: {
-    fontFamily: FONTS.serif,
-    fontSize: { xs: '2rem', sm: '2.5rem' },
-    fontWeight: 800,
-    lineHeight: 1.1,
-    letterSpacing: 0,
-  },
-  uiLoaderWordmark: {
-    fontFamily: FONTS.serif,
-    fontSize: { xs: '2.5rem', md: '3.5rem' },
-    fontWeight: 800,
-    lineHeight: 1.1,
-    letterSpacing: 0,
-  },
-  uiHeadingHero: {
-    fontFamily: FONTS.serif,
-    fontSize: { xs: '2rem', sm: '2.5rem', md: '3.25rem' },
-    lineHeight: 1.15,
-    letterSpacing: '-0.03em',
-  },
-  uiHeadingLandingLg: {
-    fontFamily: FONTS.serif,
-    fontSize: { xs: '1.75rem', md: '2.25rem' },
-    lineHeight: 1.2,
-    letterSpacing: '-0.02em',
-  },
-  uiHeadingLandingMd: {
-    fontFamily: FONTS.serif,
-    fontSize: { xs: '1.5rem', md: '2rem' },
-    lineHeight: 1.2,
-    letterSpacing: '-0.015em',
-  },
-
-  // Card
-  uiCardTitle: { fontSize: '1.1rem', lineHeight: 1.35 },
-  uiCardBody: { fontSize: '0.9rem', lineHeight: 1.7 },
-
-  // UI controls
-  uiInput: { fontSize: { xs: '1rem', sm: '0.95rem' } },
-  uiButtonSm: { fontSize: '0.75rem', fontWeight: 600, letterSpacing: 0 },
-  uiMenuItemSm: { fontSize: '0.8125rem', lineHeight: 1.5 },
-  uiStepNumber: { fontSize: '0.85rem', lineHeight: 1.1, letterSpacing: 0 },
-
-  // Sidebar
-  uiNavItem: { fontSize: '0.875rem', lineHeight: 1.3, letterSpacing: 0 },
-  uiNavShortcut: { fontSize: '0.72rem', lineHeight: 1.4, letterSpacing: 0 },
-  uiSectionLabel: {
-    fontSize: '0.75rem',
-    fontWeight: 700,
-    lineHeight: 1.25,
-    letterSpacing: 0,
-    textTransform: 'none',
-  },
-
-  // Schema viewer
-  uiSchemaDbLabel: { fontSize: { xs: '0.9rem', sm: '0.8rem' }, lineHeight: 1.3 },
-  uiSchemaTableLabel: { fontSize: { xs: '0.85rem', sm: '0.75rem' }, lineHeight: 1.3 },
-  uiSchemaColumnLabel: { fontSize: { xs: '0.75rem', sm: '0.7rem' }, lineHeight: 1.3 },
-  uiSchemaColumnType: { fontSize: { xs: '0.65rem', sm: '0.6rem' }, lineHeight: 1.2 },
+  uiBrandWordmark: display({ xs: '1.25rem', sm: '1.5rem' }, 1.1, '-0.4px'),
+  uiLoaderWordmark: display({ xs: '2rem', md: '3rem' }, 1, '-1px'),
+  uiHeadingHero: display({ xs: '3rem', md: '6rem' }, 1, { xs: '-1.2px', md: '-2.4px' }),
+  uiHeadingLandingLg: display({ xs: '2rem', md: '3rem' }, 1, { xs: '-0.6px', md: '-1.2px' }),
+  uiHeadingLandingMd: display({ xs: '1.75rem', md: '2rem' }, 1.125, '-0.6px'),
+  uiCardTitle: display('1.25rem', 1.4, 0),
+  uiCardBody: body('0.875rem', 1.55),
+  uiInput: body({ xs: '1rem', sm: '0.95rem' }, 1.5),
+  uiButtonSm: body('0.75rem', 1.3333),
+  uiMenuItemSm: body('0.8125rem', 1.5),
+  uiStepNumber: monoCaption('0.75rem', 1.3333, '1.2px'),
+  uiNavItem: body('0.875rem', 1.3),
+  uiNavShortcut: monoCaption('0.7rem', 1.4, '1px'),
+  uiSectionLabel: monoCaption('0.75rem', 1.3333, '1.2px'),
+  uiSchemaDbLabel: body({ xs: '0.9rem', sm: '0.8rem' }, 1.3),
+  uiSchemaTableLabel: body({ xs: '0.85rem', sm: '0.75rem' }, 1.3),
+  uiSchemaColumnLabel: body({ xs: '0.75rem', sm: '0.7rem' }, 1.3),
+  uiSchemaColumnType: monoCaption({ xs: '0.65rem', sm: '0.6rem' }, 1.2, '0.6px'),
 });

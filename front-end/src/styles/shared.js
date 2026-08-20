@@ -16,13 +16,18 @@
  *     behaviour) removed a key navigation affordance in long conversations.
  */
 import { alpha } from '@mui/material/styles';
-import { BACKDROP_FILTER_FALLBACK_QUERY, HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
+import {
+  BACKDROP_FILTER_FALLBACK_QUERY,
+  HOVER_CAPABLE_QUERY,
+  TOUCH_DEVICE_QUERY,
+} from './mediaQueries.js';
 
 const DIALOG_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
 
 export const UI_LAYOUT = Object.freeze({
   touchTarget: 44,
   compactTouchTarget: 40,
+  controlRowHeight: 36,
   sidebarExpandedWidth: 260,
   sidebarCollapsedWidth: 52,
   chatInputMaxWidth: 768,
@@ -53,39 +58,45 @@ export const UI_Z_INDEX = Object.freeze({
 });
 
 export const UI_POPOVER = Object.freeze({
+  paperRadius: '8px',
   paperPadding: 0.75,
   rowRadius: '8px',
-  rowMinHeight: 34,
+  // Match the expanded-sidebar action/conversation rows on pointer devices.
+  // Touch devices are promoted to `touchTarget` by getPopoverMenuItemSx.
+  rowMinHeight: UI_LAYOUT.controlRowHeight,
+  descriptiveRowMinHeight: 60,
   rowPaddingX: 1,
   rowPaddingY: 0.75,
   rowGap: 1,
   iconSlotWidth: 24,
-  iconSize: 16,
+  iconSize: 18,
   sectionGap: 0.5,
 });
 
-/**
- * Scrollbar styling — hidden by default for a unibody look.
- *
- * The Moonlit design language intentionally hides scrollbars to reduce visual
- * clutter and keep the interface feeling "intact" (one continuous surface
- * rather than a stack of scrollable regions). Scroll still works — the
- * scrollbar affordance is just invisible.
- *
- * This is a deliberate design decision, not an oversight. If you need a
- * visible scrollbar in a specific context (e.g. a data table where scroll
- * position is critical), override locally rather than changing this default.
- *
- * Firefox: `scrollbar-width: none`
- * WebKit/Blink: `::-webkit-scrollbar { display: none }`
- */
-export const getScrollbarStyles = (_theme, _opts = {}) => ({
-  scrollbarWidth: 'none',
-  '&::-webkit-scrollbar': { display: 'none' },
+/** Subtle but discoverable scrollbar styling for product scroll regions. */
+export const getScrollbarStyles = (theme, { compact = false } = {}) => ({
+  scrollbarWidth: 'thin',
+  scrollbarColor: `${theme.palette.scrollbar?.thumb || 'var(--scrollbar-thumb)'} transparent`,
+  '&::-webkit-scrollbar': {
+    display: 'block',
+    width: compact ? 6 : 8,
+    height: compact ? 6 : 8,
+  },
+  '&::-webkit-scrollbar-track': { backgroundColor: 'transparent' },
+  '&::-webkit-scrollbar-thumb': {
+    minHeight: 32,
+    border: '2px solid transparent',
+    borderRadius: 999,
+    backgroundColor: theme.palette.scrollbar?.thumb || 'var(--scrollbar-thumb)',
+    backgroundClip: 'padding-box',
+  },
+  '&::-webkit-scrollbar-thumb:hover': {
+    backgroundColor: theme.palette.scrollbar?.thumbHover || 'var(--scrollbar-thumb-hover)',
+  },
+  '&::-webkit-scrollbar-corner': { backgroundColor: 'transparent' },
 });
 
-export const getPaletteInteractionColors = (palette, { active = false, tone = 'neutral' } = {}) => {
-  const isDark = palette.mode === 'dark';
+const getPaletteInteractionColors = (palette, { active = false, tone = 'neutral' } = {}) => {
   const semanticColor = palette[tone]?.main;
   const color = tone === 'neutral' ? palette.text.primary : semanticColor || palette.text.primary;
   const textColor = tone === 'neutral' ? palette.text.primary : color;
@@ -97,41 +108,85 @@ export const getPaletteInteractionColors = (palette, { active = false, tone = 'n
       restingColor: restingTextColor,
       hoverColor: textColor,
       activeColor: textColor,
-      background: active ? alpha(color, isDark ? 0.16 : 0.1) : 'transparent',
-      hoverBackground: alpha(color, isDark ? 0.2 : 0.08),
-      activeBackground: alpha(color, isDark ? 0.24 : 0.12),
-      activeHoverBackground: alpha(color, isDark ? 0.28 : 0.16),
-      border: alpha(color, isDark ? 0.18 : 0.14),
-      hoverBorder: alpha(color, isDark ? 0.28 : 0.22),
-      activeBorder: alpha(color, isDark ? 0.34 : 0.28),
-      focusRing: alpha(color, isDark ? 0.22 : 0.16),
+      background: active ? alpha(color, palette.opacity.statusBackground) : 'transparent',
+      hoverBackground: alpha(color, palette.opacity.statusHover),
+      activeBackground: alpha(color, palette.opacity.statusSelected),
+      activeHoverBackground: alpha(color, palette.opacity.statusSelectedHover),
+      border: alpha(color, palette.opacity.statusBorder),
+      hoverBorder: alpha(color, palette.opacity.statusBorderHover),
+      activeBorder: alpha(color, palette.opacity.statusBorder),
+      focusRing: palette.border.focus,
     };
   }
-
-  const black = palette.common?.black || '#000000';
 
   return {
     color: active ? palette.text.primary : palette.text.secondary,
     restingColor: palette.text.secondary,
     hoverColor: palette.text.primary,
     activeColor: palette.text.primary,
-    background: active
-      ? isDark
-        ? alpha(black, 0.78)
-        : alpha(palette.text.primary, 0.08)
-      : 'transparent',
-    hoverBackground: isDark ? alpha(black, 0.58) : alpha(palette.text.primary, 0.045),
-    activeBackground: isDark ? alpha(black, 0.78) : alpha(palette.text.primary, 0.08),
-    activeHoverBackground: isDark ? black : alpha(palette.text.primary, 0.11),
-    border: alpha(palette.text.primary, isDark ? 0.1 : 0.08),
-    hoverBorder: alpha(palette.text.primary, isDark ? 0.16 : 0.14),
-    activeBorder: alpha(palette.text.primary, isDark ? 0.2 : 0.16),
-    focusRing: alpha(palette.text.primary, isDark ? 0.18 : 0.12),
+    background: active ? palette.action.selected : 'transparent',
+    hoverBackground: palette.action.hover,
+    activeBackground: palette.action.selected,
+    activeHoverBackground: palette.layer.medium,
+    border: palette.border.idle,
+    hoverBorder: palette.border.hover,
+    activeBorder: palette.border.idle,
+    focusRing: palette.border.focus,
   };
 };
 
 export const getInteractionColors = (theme, options = {}) =>
   getPaletteInteractionColors(theme.palette, options);
+
+/** Shared idle → hover → focus treatment for outlined inputs and selects. */
+export const getOutlinedFieldStateSx = (
+  theme,
+  {
+    rootSelector = '& .MuiOutlinedInput-root',
+    radius = '8px',
+    backgroundColor = theme.palette.background.input,
+  } = {},
+) => ({
+  [rootSelector]: {
+    borderRadius: radius,
+    backgroundColor,
+    transition: theme.transitions.create(['background-color', 'border-color', 'box-shadow'], {
+      duration: theme.transitions.duration.shorter,
+    }),
+    '& .MuiOutlinedInput-notchedOutline': {
+      borderColor: theme.palette.border.idle,
+    },
+    '&:hover': {
+      backgroundColor,
+    },
+    '&:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: theme.palette.border.hover,
+    },
+    '&.Mui-focused': {
+      backgroundColor,
+      outline: 'none',
+      boxShadow: 'none',
+    },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: theme.palette.border.idle,
+      borderWidth: 1,
+    },
+    '&.Mui-focused:hover': {
+      backgroundColor,
+    },
+    '&.Mui-focused:hover .MuiOutlinedInput-notchedOutline': {
+      borderColor: theme.palette.border.hover,
+      borderWidth: 1,
+    },
+    '&.Mui-error .MuiOutlinedInput-notchedOutline': {
+      borderColor: theme.palette.error.main,
+    },
+    '&.Mui-error.Mui-focused .MuiOutlinedInput-notchedOutline': {
+      borderColor: theme.palette.error.main,
+      borderWidth: 1,
+    },
+  },
+});
 
 export const getInteractiveControlSx = (
   theme,
@@ -149,7 +204,11 @@ export const getInteractiveControlSx = (
     borderRadius: radius,
     color: interaction.color,
     backgroundColor: interaction.background,
-    borderColor: showBorder && active ? interaction.activeBorder : 'transparent',
+    borderColor: showBorder
+      ? active
+        ? interaction.activeBorder
+        : interaction.border
+      : 'transparent',
     transition: theme.transitions.create(
       ['background-color', 'border-color', 'color', 'box-shadow'],
       {
@@ -160,11 +219,7 @@ export const getInteractiveControlSx = (
       '&:hover': {
         color: interaction.hoverColor,
         backgroundColor: active ? interaction.activeHoverBackground : interaction.hoverBackground,
-        borderColor: showBorder
-          ? active
-            ? interaction.activeBorder
-            : interaction.hoverBorder
-          : 'transparent',
+        borderColor: showBorder ? interaction.hoverBorder : 'transparent',
       },
     },
     '&:focus-visible': {
@@ -223,7 +278,7 @@ export const getSegmentedToggleGroupSx = (
       ml: '0 !important',
       textTransform: 'none',
       ...theme.typography.uiNavItem,
-      fontWeight: 500,
+      fontWeight: 400,
       color: 'text.secondary',
       backgroundColor: 'transparent',
       transition: theme.transitions.create(['background-color', 'border-color', 'color'], {
@@ -240,7 +295,7 @@ export const getSegmentedToggleGroupSx = (
         color: 'text.primary',
         backgroundColor: interaction.activeBackground,
         borderColor: 'transparent',
-        fontWeight: 600,
+        fontWeight: 400,
         [HOVER_CAPABLE_QUERY]: {
           '&:hover': {
             backgroundColor: interaction.activeHoverBackground,
@@ -250,6 +305,10 @@ export const getSegmentedToggleGroupSx = (
       },
       '&.Mui-disabled': {
         borderColor: 'transparent',
+      },
+      '&.Mui-focusVisible': {
+        outline: `2px solid ${interaction.focusRing}`,
+        outlineOffset: 2,
       },
     },
   };
@@ -270,8 +329,10 @@ export const getPopoverMenuItemSx = (
   const interaction = getInteractionColors(theme, { active, tone });
 
   return {
-    ...theme.typography.uiMenuItemSm,
+    ...theme.typography.uiNavItem,
+    height: UI_POPOVER.rowMinHeight,
     minHeight: UI_POPOVER.rowMinHeight,
+    boxSizing: 'border-box',
     borderRadius: UI_POPOVER.rowRadius,
     px: UI_POPOVER.rowPaddingX,
     py: UI_POPOVER.rowPaddingY,
@@ -306,12 +367,28 @@ export const getPopoverMenuItemSx = (
     '&.Mui-selected': {
       color: interaction.activeColor,
       backgroundColor: interaction.activeBackground,
-      fontWeight: 600,
+      fontWeight: 400,
       [HOVER_CAPABLE_QUERY]: {
         '&:hover': {
           backgroundColor: interaction.activeHoverBackground,
         },
       },
+    },
+    '&.Mui-focusVisible': {
+      color: interaction.hoverColor,
+      backgroundColor: active ? interaction.activeHoverBackground : interaction.hoverBackground,
+      outline: `2px solid ${interaction.focusRing}`,
+      outlineOffset: -2,
+    },
+    '&.Mui-selected.Mui-focusVisible': {
+      color: interaction.activeColor,
+      backgroundColor: interaction.activeHoverBackground,
+      outline: `2px solid ${interaction.focusRing}`,
+      outlineOffset: -2,
+    },
+    [TOUCH_DEVICE_QUERY]: {
+      height: UI_LAYOUT.touchTarget,
+      minHeight: UI_LAYOUT.touchTarget,
     },
   };
 };
@@ -321,15 +398,14 @@ export const getInsetPanelSx = (
   { backgroundOpacity = 0.5, borderRadius = 2, enableHover = false } = {},
 ) => ({
   borderRadius,
-  border: '1px solid',
-  borderColor: 'divider',
+  border: 0,
   backgroundColor: alpha(theme.palette.background.paper, backgroundOpacity),
   ...(enableHover
     ? {
-        transition: 'border-color 0.15s ease',
+        transition: 'background-color 0.15s ease',
         [HOVER_CAPABLE_QUERY]: {
           '&:hover': {
-            borderColor: alpha(theme.palette.text.primary, 0.15),
+            backgroundColor: theme.palette.layer.soft,
           },
         },
       }
@@ -357,70 +433,27 @@ export const getUtilityIconButtonSx = (theme, { padding = 0.5, radius = '6px' } 
 export const getPopoverSectionLabelSx = (theme, { pt = 0.5 } = {}) => ({
   px: UI_POPOVER.rowPaddingX,
   pt,
-  pb: 0.25,
-  ...theme.typography.uiMenuItemSm,
-  fontWeight: 650,
-  letterSpacing: 0,
-  textTransform: 'none',
-  color: 'text.secondary',
+  pb: 0.375,
+  ...theme.typography.uiSectionLabel,
+  fontWeight: 400,
+  color: 'text.disabled',
   display: 'block',
-  lineHeight: 1.35,
+  lineHeight: 1.4,
 });
 
-export const getSelectableMenuItemSx = (
-  theme,
-  {
-    isActive = false,
-    minHeight = UI_POPOVER.rowMinHeight,
-    columns = 'minmax(0, 1fr) auto',
-    gap = UI_POPOVER.rowGap,
-  } = {},
-) => {
-  const interaction = getInteractionColors(theme, { active: isActive });
-
-  return {
-    borderRadius: UI_POPOVER.rowRadius,
-    my: 0.125,
-    px: UI_POPOVER.rowPaddingX,
-    py: UI_POPOVER.rowPaddingY,
-    minHeight,
-    cursor: 'pointer',
-    display: 'grid',
-    gridTemplateColumns: columns,
-    gap,
-    alignItems: 'center',
-    userSelect: 'none',
-    backgroundClip: 'padding-box',
-    transition: theme.transitions.create(['background-color', 'box-shadow'], {
-      duration: theme.transitions.duration.shorter,
-    }),
-    backgroundColor: isActive ? interaction.activeBackground : 'transparent',
-    boxShadow: isActive
-      ? `inset 0 0 0 1px ${interaction.activeBorder}`
-      : 'inset 0 0 0 1px transparent',
-    [HOVER_CAPABLE_QUERY]: {
-      '&:hover': {
-        backgroundColor: isActive ? interaction.activeHoverBackground : interaction.hoverBackground,
-        boxShadow: isActive
-          ? `inset 0 0 0 1px ${interaction.activeBorder}`
-          : 'inset 0 0 0 1px transparent',
-      },
-    },
-    '&:first-of-type': {
-      mt: 0,
-    },
-    '&:last-of-type': {
-      mb: 0,
-    },
-  };
-};
+export const getPopoverDividerSx = (theme, { my = 0.75, mx = 0.5 } = {}) => ({
+  height: '1px',
+  mx,
+  my,
+  backgroundColor: theme.palette.border.separator,
+});
 
 export const getDialogPaperSx = (
   theme,
   { isMobile = false, desktopMaxHeight = 720, desktopMinHeight = 400 } = {},
 ) => ({
-  ...getPopoverPaperSx(theme, theme.palette.mode === 'dark', {
-    borderRadius: isMobile ? 0 : '16px',
+  ...getPopoverPaperSx(theme, {
+    borderRadius: isMobile ? 0 : '8px',
     height: isMobile ? '100vh' : `calc(100vh - ${UI_LAYOUT.dialogDesktopOffset}px)`,
     maxHeight: isMobile ? '100vh' : desktopMaxHeight,
     minHeight: isMobile ? '100vh' : desktopMinHeight,
@@ -435,25 +468,25 @@ export const getDialogPaperSx = (
   }),
 });
 
-export const getDialogHeaderSx = () => ({
+export const getDialogHeaderSx = (theme) => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
   px: { xs: 2, sm: 3 },
   py: 2,
-  borderBottom: 1,
-  borderColor: 'divider',
+  borderBottom: '1px solid',
+  borderColor: theme.palette.border.separator,
 });
 
-export const getDialogFooterSx = () => ({
+export const getDialogFooterSx = (theme) => ({
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
   px: { xs: 2, sm: 3 },
   py: 2,
   paddingBottom: { xs: 'max(env(safe-area-inset-bottom), 12px)', sm: 2 },
-  borderTop: 1,
-  borderColor: 'divider',
+  borderTop: '1px solid',
+  borderColor: theme.palette.border.separator,
 });
 
 /**
@@ -462,15 +495,14 @@ export const getDialogFooterSx = () => ({
  * floating surfaces look identical regardless of which primitive is used.
  *
  * @example — MUI Menu
- *   PaperProps={{ sx: getPopoverPaperSx(theme, isDark) }}
+ *   PaperProps={{ sx: getPopoverPaperSx(theme) }}
  *
  * @example — MUI Select
- *   MenuProps={{ PaperProps: { sx: getPopoverPaperSx(theme, isDark) } }}
+ *   MenuProps={{ PaperProps: { sx: getPopoverPaperSx(theme) } }}
  *
  * @example — AppPopover (handled internally, no need to call directly)
  *
  * @param {object} theme     — MUI theme
- * @param {boolean} isDark   — whether dark mode is active
  * @param {object} overrides — extra sx merged last (e.g. width, mt, p overrides)
  */
 /**
@@ -489,17 +521,16 @@ export const getDialogFooterSx = () => ({
  *   <Button size="small" variant="outlined" sx={getSecondaryActionButtonSx(theme)}>...</Button>
  */
 export const getSecondaryActionButtonSx = (theme) => {
-  const isDark = theme.palette.mode === 'dark';
   return {
-    borderRadius: '8px',
+    borderRadius: 9999,
     textTransform: 'none',
     ...theme.typography.uiBodySm,
-    fontWeight: 600,
+    fontWeight: 400,
     px: 1.75,
     py: 0.5,
     minHeight: 30,
     color: 'text.secondary',
-    borderColor: alpha(theme.palette.text.primary, isDark ? 0.16 : 0.12),
+    borderColor: theme.palette.border.idle,
     backgroundColor: 'transparent',
     transition: theme.transitions.create(['background-color', 'border-color', 'color'], {
       duration: theme.transitions.duration.shorter,
@@ -507,101 +538,26 @@ export const getSecondaryActionButtonSx = (theme) => {
     [HOVER_CAPABLE_QUERY]: {
       '&:hover': {
         color: 'text.primary',
-        borderColor: alpha(theme.palette.text.primary, isDark ? 0.24 : 0.18),
-        backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.04),
+        borderColor: theme.palette.border.hover,
+        backgroundColor: theme.palette.action.hover,
       },
     },
     '&.Mui-focusVisible': {
-      outline: `2px solid ${alpha(theme.palette.text.primary, isDark ? 0.32 : 0.22)}`,
+      outline: `2px solid ${theme.palette.border.focus}`,
       outlineOffset: 2,
     },
   };
 };
 
-/**
- * Shared pill/chip sx for suggestion chips and similar inline action pills.
- *
- * Used by:
- *   - WelcomeScreen suggestion chips
- *
- * Pills are bordered, transparent by default, lift slightly on hover.
- * Keep this as the single source of truth for pill geometry so every
- * pill in the app looks identical.
- */
-export const getPillSx = (theme, interaction) => ({
-  height: 30,
-  borderRadius: '8px',
-  border: '1px solid',
-  borderColor: interaction.border,
-  color: 'text.secondary',
-  backgroundColor: 'transparent',
-  cursor: 'pointer',
-  transition: theme.transitions.create(['background-color', 'color', 'transform', 'box-shadow'], {
-    duration: theme.transitions.duration.shorter,
-  }),
-  '&:active': {
-    backgroundColor: interaction.activeBackground,
-    transform: 'translateY(0.5px)',
-  },
-  '& .MuiChip-label': {
-    px: 1.2,
-    ...theme.typography.uiCaptionSm,
-    lineHeight: 1,
-    display: 'flex',
-    alignItems: 'center',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-  },
-  '& .MuiChip-icon': {
-    color: alpha(theme.palette.text.primary, 0.45),
-    ml: 1,
-    mr: -0.25,
-    fontSize: 16,
-    flexShrink: 0,
-    display: 'flex',
-    alignItems: 'center',
-    transition: theme.transitions.create('color', {
-      duration: theme.transitions.duration.shorter,
-    }),
-  },
-  [HOVER_CAPABLE_QUERY]: {
-    '&:hover': {
-      borderColor: interaction.hoverBorder,
-      backgroundColor: interaction.hoverBackground,
-      color: 'text.primary',
-      transform: 'translateY(-1.5px)',
-      boxShadow: `0 3px 10px ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.08 : 0.03)}`,
-      '& .MuiChip-icon': {
-        color: alpha(theme.palette.text.primary, 0.65),
-      },
-    },
-  },
-  '&.Mui-focusVisible': {
-    borderColor: interaction.hoverBorder,
-    boxShadow: `0 0 0 3px ${interaction.focusRing}`,
-  },
-});
-
-export const getPopoverPaperSx = (theme, isDark, overrides = {}) => ({
-  borderRadius: '14px',
-  // 1px (not 0.5px) so the border survives on non-retina displays.
-  border: `1px solid ${
-    isDark ? alpha(theme.palette.text.primary, 0.12) : alpha(theme.palette.text.primary, 0.09)
-  }`,
-  backgroundColor: isDark
-    ? alpha(theme.palette.background.paper, 0.96)
-    : alpha(theme.palette.background.paper, 0.99),
-  backgroundImage: isDark
-    ? `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.04)} 0%, transparent 100%)`
-    : `linear-gradient(180deg, ${alpha(theme.palette.common.white, 0.65)} 0%, transparent 100%)`,
-  backdropFilter: 'blur(24px) saturate(1.15)',
-  WebkitBackdropFilter: 'blur(24px) saturate(1.15)',
-  // Layered shadow = premium feel. Two-stop shadow (close + ambient)
-  // reads as "elevated but not floating" rather than a hard drop shadow.
-  boxShadow: isDark
-    ? `0 12px 40px ${alpha('#000', 0.42)}, 0 2px 8px ${alpha('#000', 0.28)}, 0 0 0 0.5px ${alpha(theme.palette.common.white, 0.04)}`
-    : `0 12px 36px ${alpha('#000', 0.1)}, 0 2px 8px ${alpha('#000', 0.06)}, 0 0 0 0.5px ${alpha(theme.palette.common.white, 0.8)}`,
+export const getPopoverPaperSx = (theme, overrides = {}) => ({
+  borderRadius: UI_POPOVER.paperRadius,
+  border: `1px solid ${theme.palette.border.subtle}`,
+  color: 'text.primary',
+  backgroundColor: theme.palette.background.elevated || theme.palette.background.paper,
+  backgroundImage: 'none',
+  backdropFilter: 'none',
+  WebkitBackdropFilter: 'none',
+  boxShadow: 'none',
   [BACKDROP_FILTER_FALLBACK_QUERY]: {
     backdropFilter: 'none',
     WebkitBackdropFilter: 'none',

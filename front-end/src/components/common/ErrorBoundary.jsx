@@ -1,13 +1,14 @@
-import BugReportRoundedIcon from '@mui/icons-material/BugReportRounded';
-import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
-import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
-import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
-import HomeRoundedIcon from '@mui/icons-material/HomeRounded';
-import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import { Box, Button, Collapse, Paper, Tooltip, Typography } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
+import { useTheme } from '@mui/material/styles';
 import { Component, useState } from 'react';
-import { ELEVATION } from '@/features/styles/interfaceChrome';
+import {
+  BugIcon,
+  CheckIcon,
+  CopyIcon,
+  ExpandMoreIcon,
+  HomeIcon,
+  RefreshIcon,
+} from '@/components/icons';
 import { getScrollbarStyles } from '@/styles/shared';
 
 /**
@@ -65,32 +66,22 @@ function CopyErrorButton({ report }) {
         onClick={handleCopy}
         aria-label="Copy error details"
         startIcon={
-          copied ? (
-            <CheckRoundedIcon sx={{ fontSize: 15 }} />
-          ) : (
-            <ContentCopyRoundedIcon sx={{ fontSize: 15 }} />
-          )
+          copied ? <CheckIcon sx={{ fontSize: 15 }} /> : <CopyIcon sx={{ fontSize: 15 }} />
         }
         sx={(theme) => ({
           color: copied ? 'success.main' : 'text.secondary',
           textTransform: 'none',
-          fontWeight: 600,
+          fontWeight: 400,
           fontSize: '0.78rem',
           borderRadius: '8px',
-          border: `1px solid ${alpha(theme.palette.text.primary, theme.palette.mode === 'dark' ? 0.12 : 0.08)}`,
-          backgroundColor: alpha(
-            theme.palette.background.paper,
-            theme.palette.mode === 'dark' ? 0.4 : 0.6,
-          ),
+          border: `1px solid ${theme.palette.border.default}`,
+          backgroundColor: theme.palette.layer.surfaceTranslucent,
           px: 1.25,
           py: 0.4,
           minWidth: 0,
           '&:hover': {
             color: copied ? 'success.main' : 'text.primary',
-            backgroundColor: alpha(
-              theme.palette.text.primary,
-              theme.palette.mode === 'dark' ? 0.08 : 0.04,
-            ),
+            backgroundColor: theme.palette.action.hover,
           },
         })}
       >
@@ -109,12 +100,9 @@ function DevErrorDetails({ error, errorInfo }) {
     <Box
       sx={{
         mt: 2.5,
-        borderRadius: '14px',
+        borderRadius: '8px',
         border: `1px solid ${theme.palette.divider}`,
-        backgroundColor: alpha(
-          theme.palette.text.primary,
-          theme.palette.mode === 'dark' ? 0.02 : 0.01,
-        ),
+        backgroundColor: theme.palette.layer.barely,
         overflow: 'hidden',
       }}
     >
@@ -136,7 +124,7 @@ function DevErrorDetails({ error, errorInfo }) {
           aria-expanded={expanded}
           aria-controls="error-stack-trace"
           startIcon={
-            <ExpandMoreRoundedIcon
+            <ExpandMoreIcon
               sx={{
                 fontSize: 18,
                 transition: theme.transitions.create('transform', {
@@ -149,7 +137,7 @@ function DevErrorDetails({ error, errorInfo }) {
           sx={{
             color: 'text.secondary',
             textTransform: 'none',
-            fontWeight: 650,
+            fontWeight: 400,
             fontSize: '0.78rem',
             letterSpacing: '0.04em',
             minWidth: 0,
@@ -195,7 +183,6 @@ function DevErrorDetails({ error, errorInfo }) {
 
 function MinimalErrorFallback({ onRetry }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   return (
     <Box
       role="alert"
@@ -216,16 +203,16 @@ function MinimalErrorFallback({ onRetry }) {
           height: 44,
           display: 'grid',
           placeItems: 'center',
-          borderRadius: '12px',
+          borderRadius: '8px',
           color: 'text.secondary',
-          backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.03),
+          backgroundColor: theme.palette.layer.subtle,
           border: `1px solid ${theme.palette.divider}`,
         }}
       >
-        <BugReportRoundedIcon sx={{ fontSize: 23 }} />
+        <BugIcon sx={{ fontSize: 23 }} />
       </Box>
       <Box>
-        <Typography variant="subtitle2" sx={{ fontWeight: 650, color: 'text.primary' }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 400, color: 'text.primary' }}>
           This section could not load
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
@@ -236,8 +223,8 @@ function MinimalErrorFallback({ onRetry }) {
         size="small"
         variant="outlined"
         onClick={onRetry}
-        startIcon={<RefreshRoundedIcon sx={{ fontSize: 17 }} />}
-        sx={{ borderRadius: '10px', px: 1.75 }}
+        startIcon={<RefreshIcon sx={{ fontSize: 17 }} />}
+        sx={{ px: 1.75 }}
       >
         Try again
       </Button>
@@ -247,7 +234,6 @@ function MinimalErrorFallback({ onRetry }) {
 
 function FullPageErrorFallback({ error, errorInfo, onReload, onGoHome }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
 
   return (
     <Box
@@ -272,7 +258,7 @@ function FullPageErrorFallback({ error, errorInfo, onReload, onGoHome }) {
           p: { xs: 2.75, sm: 4, md: 4.5 },
           border: '1px solid',
           borderColor: theme.palette.divider,
-          borderRadius: '20px',
+          borderRadius: '8px',
           bgcolor: 'background.paper',
         }}
       >
@@ -292,14 +278,14 @@ function FullPageErrorFallback({ error, errorInfo, onReload, onGoHome }) {
               height: 56,
               display: 'grid',
               placeItems: 'center',
-              borderRadius: '16px',
+              borderRadius: '8px',
               color: 'text.secondary',
-              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.06 : 0.03),
+              backgroundColor: theme.palette.layer.subtle,
               border: `1px solid ${theme.palette.divider}`,
               mb: 2,
             }}
           >
-            <BugReportRoundedIcon sx={{ fontSize: 28 }} />
+            <BugIcon sx={{ fontSize: 28 }} />
           </Box>
 
           <Typography
@@ -310,14 +296,14 @@ function FullPageErrorFallback({ error, errorInfo, onReload, onGoHome }) {
               color: 'text.secondary',
               letterSpacing: '0.1em',
               textTransform: 'uppercase',
-              fontWeight: 650,
+              fontWeight: 400,
             }}
           >
             Recovery mode
           </Typography>
           <Typography
             variant="h5"
-            sx={{ fontWeight: 650, letterSpacing: '-0.025em', color: 'text.primary' }}
+            sx={{ fontWeight: 400, letterSpacing: '-0.025em', color: 'text.primary' }}
           >
             Moonlit hit an unexpected error
           </Typography>
@@ -339,15 +325,15 @@ function FullPageErrorFallback({ error, errorInfo, onReload, onGoHome }) {
               flexDirection: 'column',
               gap: 1,
               p: 2,
-              borderRadius: '12px',
+              borderRadius: '8px',
               border: `1px solid ${theme.palette.divider}`,
-              backgroundColor: alpha(theme.palette.text.primary, isDark ? 0.02 : 0.01),
+              backgroundColor: theme.palette.layer.barely,
             }}
           >
             <Typography
               variant="subtitle2"
               sx={{
-                fontWeight: 650,
+                fontWeight: 400,
                 color: 'text.primary',
                 fontFamily: theme.typography.fontFamilyMono || 'ui-monospace, monospace',
                 fontSize: '0.85rem',
@@ -387,16 +373,16 @@ function FullPageErrorFallback({ error, errorInfo, onReload, onGoHome }) {
           <Button
             variant="contained"
             color="primary"
-            startIcon={<RefreshRoundedIcon />}
+            startIcon={<RefreshIcon />}
             onClick={onReload}
             sx={{
-              borderRadius: '12px',
+              borderRadius: '9999px',
               px: 2.25,
               py: 1,
               fontSize: '0.9rem',
-              fontWeight: 600,
+              fontWeight: 400,
               minWidth: 150,
-              boxShadow: ELEVATION.subtle[isDark ? 'dark' : 'light'],
+              boxShadow: 'none',
             }}
           >
             Reload page
@@ -404,14 +390,14 @@ function FullPageErrorFallback({ error, errorInfo, onReload, onGoHome }) {
           <Button
             variant="outlined"
             color="inherit"
-            startIcon={<HomeRoundedIcon />}
+            startIcon={<HomeIcon />}
             onClick={onGoHome}
             sx={{
-              borderRadius: '12px',
+              borderRadius: '9999px',
               px: 2.25,
               py: 1,
               fontSize: '0.9rem',
-              fontWeight: 600,
+              fontWeight: 400,
               minWidth: 150,
             }}
           >

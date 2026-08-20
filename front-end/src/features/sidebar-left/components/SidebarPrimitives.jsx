@@ -1,12 +1,8 @@
-import CheckCircleOutlineRoundedIcon from '@mui/icons-material/CheckCircleOutlineRounded';
-import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import DriveFileRenameOutlineRoundedIcon from '@mui/icons-material/DriveFileRenameOutlineRounded';
-import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
-import QuestionAnswerOutlinedIcon from '@mui/icons-material/QuestionAnswerOutlined';
 import {
   Box,
+  CircularProgress,
   IconButton,
-  ListItemButton,
+  InputBase,
   ListItemIcon,
   Menu,
   MenuItem,
@@ -14,25 +10,27 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material';
-import { alpha, useTheme } from '@mui/material/styles';
-import { memo, useCallback, useState } from 'react';
+import { useTheme } from '@mui/material/styles';
+import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { CheckIcon, CloseIcon, DeleteIcon, MoreIcon, RenameIcon } from '@/components/icons';
 import {
   buildConversationRowSx,
+  buildConversationSelectSx,
   buildNavRowSx,
   getCollapsingLabelSx,
   getSidebarRailTooltipSlotProps,
   ICON_COL,
 } from '@/features/sidebar-left/styles/sidebarStyles';
-import { INTERFACE_RADIUS } from '@/features/styles/interfaceChrome';
-import { HOVER_CAPABLE_QUERY, TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
+import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import {
   getPopoverMenuItemSx,
   getPopoverMenuListSx,
   getPopoverPaperSx,
-  getSelectableMenuItemSx,
   getUtilityIconButtonSx,
+  UI_LAYOUT,
+  UI_POPOVER,
 } from '@/styles/shared';
-import { BRAND } from '@/theme/tokens';
+import { getConversationDisplayTitle } from '@/utils/conversationTitles';
 
 /**
  * Sidebar primitive components — the building blocks rendered inside the
@@ -48,22 +46,267 @@ import { BRAND } from '@/theme/tokens';
  * `buildNavRowSx` / `buildConversationRowSx` in sidebarStyles.js.
  */
 
+const ConversationTitle = memo(function ConversationTitle({ title, theme }) {
+  const viewportRef = useRef(null);
+  const textRef = useRef(null);
+  const [overflowWidth, setOverflowWidth] = useState(0);
+
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    const text = textRef.current;
+    if (!viewport || !text) return undefined;
+
+    const measureOverflow = () => {
+      const nextOverflow = Math.max(0, Math.ceil(text.scrollWidth - viewport.clientWidth));
+      setOverflowWidth((currentOverflow) =>
+        currentOverflow === nextOverflow ? currentOverflow : nextOverflow,
+      );
+    };
+
+    measureOverflow();
+
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const resizeObserver = new ResizeObserver(measureOverflow);
+    resizeObserver.observe(viewport);
+    resizeObserver.observe(text);
+    return () => resizeObserver.disconnect();
+  }, []);
+
+  const travelDuration = Math.min(5000, Math.max(1200, overflowWidth * 25));
+
+  return (
+    <Box
+      ref={viewportRef}
+      component="span"
+      className="conversation-title"
+      sx={{
+        width: '100%',
+        height: '100%',
+        minWidth: 0,
+        display: 'flex',
+        alignItems: 'center',
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        '--conversation-title-overflow': `${overflowWidth}px`,
+        '--conversation-title-duration': `${travelDuration}ms`,
+      }}
+    >
+      <Typography
+        ref={textRef}
+        component="span"
+        className="conversation-title-text"
+        sx={{
+          ...theme.typography.uiNavItem,
+          display: 'inline-block',
+          minWidth: 'max-content',
+          fontWeight: 400,
+          lineHeight: theme.typography.uiNavItem.lineHeight,
+          whiteSpace: 'nowrap',
+          transform: 'translateX(0)',
+          transition: 'transform 180ms ease-out',
+          '@media (prefers-reduced-motion: reduce)': {
+            transition: 'none',
+          },
+        }}
+      >
+        {title}
+      </Typography>
+    </Box>
+  );
+});
+
+const InlineConversationTitle = memo(function InlineConversationTitle({
+  title,
+  saving,
+  onChange,
+  onCommit,
+  onCancel,
+  theme,
+}) {
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  const handleKeyDown = useCallback(
+    (event) => {
+      event.stopPropagation();
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        onCommit?.();
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        onCancel?.();
+      }
+    },
+    [onCancel, onCommit],
+  );
+
+  const actionButtonSx = {
+    width: { xs: UI_LAYOUT.touchTarget, md: 26 },
+    height: { xs: UI_LAYOUT.touchTarget, md: 26 },
+    minWidth: { xs: UI_LAYOUT.touchTarget, md: 26 },
+    minHeight: { xs: UI_LAYOUT.touchTarget, md: 26 },
+    p: 0,
+    border: 0,
+    borderRadius: 9999,
+    color: 'text.secondary',
+    backgroundColor: 'transparent',
+    boxShadow: 'none',
+    '&:hover, &:active': {
+      color: 'text.primary',
+      backgroundColor: 'transparent',
+    },
+    '&:focus-visible': {
+      outline: `1px solid ${theme.palette.border.focus}`,
+      outlineOffset: -1,
+      backgroundColor: 'transparent',
+    },
+  };
+
+  return (
+    <>
+      <Box component="span" sx={{ minWidth: 0, px: 0.25 }}>
+        <InputBase
+          inputRef={inputRef}
+          value={title}
+          disabled={saving}
+          onChange={(event) => onChange?.(event.target.value)}
+          onKeyDown={handleKeyDown}
+          onClick={(event) => event.stopPropagation()}
+          inputProps={{ maxLength: 80, 'aria-label': 'Conversation title' }}
+          sx={{
+            width: '100%',
+            height: { xs: UI_LAYOUT.touchTarget, md: 28 },
+            minWidth: 0,
+            px: 0.875,
+            border: '1px solid',
+            borderColor: theme.palette.border.hover,
+            borderRadius: '8px',
+            color: 'text.primary',
+            backgroundColor: theme.palette.background.input,
+            boxShadow: 'none',
+            '&.Mui-focused': {
+              borderColor: theme.palette.border.hover,
+              outline: 'none',
+              boxShadow: 'none',
+            },
+            '& .MuiInputBase-input': {
+              minWidth: 0,
+              p: 0,
+              ...theme.typography.uiNavItem,
+              lineHeight: '26px',
+            },
+          }}
+        />
+      </Box>
+      <Box
+        component="span"
+        sx={{
+          width: { xs: 88, md: 56 },
+          height: '100%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: { xs: 0, md: 0.25 },
+        }}
+      >
+        <Tooltip title="Save rename">
+          <span>
+            <IconButton
+              size="small"
+              disableRipple
+              disabled={saving || !title.trim()}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.stopPropagation();
+                onCommit?.();
+              }}
+              aria-label="Save conversation title"
+              sx={actionButtonSx}
+            >
+              {saving ? (
+                <CircularProgress size={13} thickness={5} color="inherit" />
+              ) : (
+                <CheckIcon sx={{ fontSize: 16 }} />
+              )}
+            </IconButton>
+          </span>
+        </Tooltip>
+        <Tooltip title="Cancel rename">
+          <span>
+            <IconButton
+              size="small"
+              disableRipple
+              disabled={saving}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.stopPropagation();
+                onCancel?.();
+              }}
+              aria-label="Cancel renaming conversation"
+              sx={actionButtonSx}
+            >
+              <CloseIcon sx={{ fontSize: 15 }} />
+            </IconButton>
+          </span>
+        </Tooltip>
+      </Box>
+    </>
+  );
+});
+
+function getConversationOptionsButtonSx(theme, menuOpen) {
+  return {
+    ...getUtilityIconButtonSx(theme),
+    width: { xs: UI_LAYOUT.touchTarget, md: 28 },
+    height: { xs: UI_LAYOUT.touchTarget, md: 28 },
+    minWidth: { xs: UI_LAYOUT.touchTarget, md: 28 },
+    minHeight: { xs: UI_LAYOUT.touchTarget, md: 28 },
+    borderRadius: 9999,
+    opacity: { xs: 1, md: menuOpen ? 1 : 0 },
+    color: menuOpen ? 'text.primary' : 'text.secondary',
+    backgroundColor: 'transparent',
+    transition: theme.transitions.create(['background-color', 'color', 'opacity'], {
+      duration: theme.transitions.duration.shorter,
+    }),
+    [HOVER_CAPABLE_QUERY]: {
+      '&:hover': {
+        color: 'text.primary',
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
+      },
+    },
+    '&:active, &:focus-visible': {
+      backgroundColor: 'transparent',
+    },
+  };
+}
+
 // ─── ConversationItem ─────────────────────────────────────────────────────────
 export const ConversationItem = memo(function ConversationItem({
   conv,
   isActive,
   onSelect,
   onDelete,
-  onRename,
+  inlineRename,
+  renameSurface,
+  onRenameStart,
+  onRenameChange,
+  onRenameCancel,
+  onRenameCommit,
 }) {
   const theme = useTheme();
-  const isDark = theme.palette.mode === 'dark';
   const [menuAnchor, setMenuAnchor] = useState(null);
   const menuOpen = Boolean(menuAnchor);
-  const utilityIconButtonSx = getUtilityIconButtonSx(theme);
+  const optionsButtonSx = getConversationOptionsButtonSx(theme, menuOpen);
   const renameMenuItemSx = getPopoverMenuItemSx(theme);
   const deleteMenuItemSx = getPopoverMenuItemSx(theme, { tone: 'error' });
   const title = conv.title || 'New Conversation';
+  const displayTitle = getConversationDisplayTitle(title);
+  const isRenaming = inlineRename?.conversationId === conv.id;
 
   const handleClick = useCallback(() => onSelect(conv.id), [onSelect, conv.id]);
   const handleMenuOpen = useCallback((e) => {
@@ -83,124 +326,65 @@ export const ConversationItem = memo(function ConversationItem({
     (e) => {
       e.stopPropagation();
       setMenuAnchor(null);
-      onRename(conv.id, title);
+      onRenameStart?.(renameSurface, conv.id, title);
     },
-    [onRename, conv.id, title],
-  );
-
-  const handleKeyDown = useCallback(
-    (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        handleClick();
-      }
-    },
-    [handleClick],
+    [conv.id, onRenameStart, renameSurface, title],
   );
 
   return (
     <Box component="li" sx={{ listStyle: 'none' }}>
-      <Box
-        component="div"
-        role="button"
-        tabIndex={0}
-        onClick={handleClick}
-        onKeyDown={handleKeyDown}
-        aria-current={isActive ? 'true' : undefined}
-        aria-label={`Open ${title}`}
-        sx={{
-          ...buildConversationRowSx(theme, { isActive, menuOpen }),
-          [TOUCH_DEVICE_QUERY]: {
-            '& .options-btn': { opacity: 1 },
-            '& .conv-title': {
-              maskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-              WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-            },
-          },
-        }}
-      >
-        <Box
-          component="span"
-          aria-hidden
-          sx={{
-            width: ICON_COL,
-            minWidth: ICON_COL,
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            // Active conversation icon uses the brand purple as a semantic
-            // "this is the current conversation" signal — the only place in
-            // the sidebar where brand color appears.
-            color: isActive ? BRAND.main : 'text.secondary',
-          }}
-        >
-          {isActive ? (
-            <CheckCircleOutlineRoundedIcon sx={{ fontSize: 18 }} />
-          ) : (
-            <QuestionAnswerOutlinedIcon sx={{ fontSize: 18 }} />
-          )}
-        </Box>
-        <Typography
-          className="conv-title"
-          sx={{
-            flex: '1 1 auto',
-            minWidth: 0,
-            ...theme.typography.uiNavItem,
-            fontWeight: isActive ? 500 : 400,
-            lineHeight: 1.35,
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'clip',
-            maskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-            WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-          }}
-        >
-          {title}
-        </Typography>
-
-        <Tooltip title="Conversation options" arrow>
-          <IconButton
-            className="options-btn"
-            size="small"
-            onClick={handleMenuOpen}
-            aria-label={`Options for ${title}`}
-            aria-haspopup="true"
-            aria-expanded={menuOpen}
-            sx={{
-              ...utilityIconButtonSx,
-              position: 'absolute',
-              right: 4,
-              top: '50%',
-              opacity: menuOpen ? 1 : undefined,
-              color: menuOpen ? 'text.primary' : undefined,
-              bgcolor: menuOpen
-                ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06)
-                : undefined,
-              transform: 'translateY(-50%)',
-              transition: theme.transitions.create(['background-color', 'color', 'opacity'], {
-                duration: theme.transitions.duration.shorter,
-              }),
-              '&:active': {
-                transform: 'translateY(-50%)',
-              },
-            }}
-          >
-            <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
-          </IconButton>
-        </Tooltip>
+      <Box sx={buildConversationRowSx(theme, { isActive, menuOpen, isRenaming })}>
+        {isRenaming ? (
+          <InlineConversationTitle
+            title={inlineRename.title}
+            saving={inlineRename.saving}
+            onChange={onRenameChange}
+            onCommit={onRenameCommit}
+            onCancel={onRenameCancel}
+            theme={theme}
+          />
+        ) : (
+          <>
+            <Box
+              component="button"
+              type="button"
+              className="conversation-select"
+              onClick={handleClick}
+              aria-current={isActive ? 'page' : undefined}
+              aria-label={`Open ${title}`}
+              sx={buildConversationSelectSx(theme)}
+            >
+              <ConversationTitle key={displayTitle} title={displayTitle} theme={theme} />
+            </Box>
+            <Tooltip title="Conversation options" arrow>
+              <IconButton
+                className="conversation-options"
+                size="small"
+                disableRipple
+                onClick={handleMenuOpen}
+                aria-label={`Options for ${title}`}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                sx={optionsButtonSx}
+              >
+                <MoreIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
       </Box>
 
       <Menu
         anchorEl={menuAnchor}
         open={menuOpen}
+        disableRestoreFocus={isRenaming}
         onClose={handleMenuClose}
         onClick={(e) => e.stopPropagation()}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{
           paper: {
-            sx: getPopoverPaperSx(theme, isDark, {
-              borderRadius: INTERFACE_RADIUS.row,
+            sx: getPopoverPaperSx(theme, {
               minWidth: 160,
               mt: 0.75,
               p: 0,
@@ -216,13 +400,13 @@ export const ConversationItem = memo(function ConversationItem({
           }}
         >
           <ListItemIcon>
-            <DriveFileRenameOutlineRoundedIcon />
+            <RenameIcon />
           </ListItemIcon>
           Rename
         </MenuItem>
         <MenuItem onClick={handleDelete} sx={deleteMenuItemSx}>
           <ListItemIcon>
-            <DeleteOutlineRoundedIcon />
+            <DeleteIcon />
           </ListItemIcon>
           Delete
         </MenuItem>
@@ -240,7 +424,6 @@ export const SidebarNavItem = memo(function SidebarNavItem({
   isActive = false,
   showStatus = false,
   disabled = false,
-  shortcut,
   uiTarget,
 }) {
   const theme = useTheme();
@@ -268,7 +451,6 @@ export const SidebarNavItem = memo(function SidebarNavItem({
           sx={{
             ...buildNavRowSx(theme, { isActive, disabled, collapsed: isCollapsed }),
             px: 0,
-            '&:hover:not(:disabled) .shortcut-hint': { opacity: 1 },
           }}
         >
           {/* ── Icon column ── always ICON_COL wide, icon centered inside ── */}
@@ -300,7 +482,7 @@ export const SidebarNavItem = memo(function SidebarNavItem({
               noWrap
               sx={{
                 ...theme.typography.uiNavItem,
-                fontWeight: isActive ? 500 : 400,
+                fontWeight: 400,
                 color: 'inherit',
                 textAlign: 'left',
               }}
@@ -308,25 +490,6 @@ export const SidebarNavItem = memo(function SidebarNavItem({
               {label}
             </Typography>
           </Box>
-
-          {/* ── Shortcut hint — only visible on hover when expanded ── */}
-          {shortcut && !isCollapsed && (
-            <Typography
-              className="shortcut-hint"
-              component="span"
-              sx={{
-                ...theme.typography.uiNavShortcut,
-                color: 'text.secondary',
-                flexShrink: 0,
-                opacity: 0,
-                transition: 'opacity 0.15s ease',
-                whiteSpace: 'nowrap',
-                pr: 0.5,
-              }}
-            >
-              {shortcut}
-            </Typography>
-          )}
         </Box>
       </Box>
     </Tooltip>
@@ -339,23 +502,25 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
   isActive,
   onSelect,
   onDelete,
-  onRename,
+  inlineRename,
+  renameSurface,
+  onRenameStart,
+  onRenameChange,
+  onRenameCancel,
+  onRenameCommit,
   onClosePopover,
+  autoFocus = false,
+  selectionRef,
   theme,
 }) {
-  const isDark = theme.palette.mode === 'dark';
   const [menuAnchor, setMenuAnchor] = useState(null);
   const menuOpen = Boolean(menuAnchor);
-  const utilityIconButtonSx = getUtilityIconButtonSx(theme);
+  const optionsButtonSx = getConversationOptionsButtonSx(theme, menuOpen);
   const renameMenuItemSx = getPopoverMenuItemSx(theme);
   const deleteMenuItemSx = getPopoverMenuItemSx(theme, { tone: 'error' });
-  const rowSx = getSelectableMenuItemSx(theme, {
-    isActive,
-    minHeight: 36,
-    columns: `${ICON_COL}px minmax(0, 1fr) 26px`,
-    gap: 0,
-  });
   const title = conv.title || 'New Conversation';
+  const displayTitle = getConversationDisplayTitle(title);
+  const isRenaming = inlineRename?.conversationId === conv.id;
 
   const handleClick = useCallback(() => {
     onClosePopover();
@@ -382,109 +547,66 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
     (e) => {
       e.stopPropagation();
       setMenuAnchor(null);
-      onClosePopover();
-      onRename?.(conv.id, title);
+      onRenameStart?.(renameSurface, conv.id, title);
     },
-    [conv.id, onClosePopover, onRename, title],
+    [conv.id, onRenameStart, renameSurface, title],
   );
 
   return (
-    <>
-      <ListItemButton
-        selected={isActive}
-        onClick={handleClick}
-        sx={{
-          ...rowSx,
-          height: 36,
-          py: 0,
-          pl: 0,
-          pr: 0.5,
-          boxShadow: 'none',
-          '&.Mui-selected': {
-            backgroundColor: rowSx.backgroundColor,
-            boxShadow: 'none',
-          },
-          '&.Mui-selected:hover': {
-            backgroundColor:
-              rowSx[HOVER_CAPABLE_QUERY]?.['&:hover']?.backgroundColor || rowSx.backgroundColor,
-            boxShadow: 'none',
-          },
-          '& .history-options-btn': { opacity: menuOpen ? 1 : 0 },
-          '&:hover .history-options-btn, &:focus-within .history-options-btn': {
-            opacity: 1,
-          },
-          [TOUCH_DEVICE_QUERY]: {
-            '& .history-options-btn': { opacity: 1 },
-          },
-        }}
-      >
-        <ListItemIcon
-          sx={{
-            minWidth: ICON_COL,
-            width: ICON_COL,
-            justifyContent: 'center',
-            // Active conversation icon uses brand purple — matches the sidebar
-            // conversation row treatment.
-            color: isActive ? BRAND.main : 'text.secondary',
-          }}
-        >
-          {isActive ? (
-            <CheckCircleOutlineRoundedIcon sx={{ fontSize: 18, color: BRAND.main }} />
-          ) : (
-            <QuestionAnswerOutlinedIcon
-              sx={{ fontSize: 18, color: theme.palette.text.secondary }}
-            />
-          )}
-        </ListItemIcon>
-        <Typography
-          sx={{
-            ...theme.typography.uiNavItem,
-            minWidth: 0,
-            fontWeight: isActive ? 500 : 400,
-            color: 'text.primary',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'clip',
-            maskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-            WebkitMaskImage: 'linear-gradient(to right, black 78%, transparent 98%)',
-          }}
-        >
-          {title}
-        </Typography>
-        <Tooltip title="Conversation options">
-          <IconButton
-            className="history-options-btn"
-            size="small"
-            onClick={handleMenuOpen}
-            aria-label={`Options for ${title}`}
-            aria-haspopup="true"
-            aria-expanded={menuOpen}
-            sx={{
-              ...utilityIconButtonSx,
-              width: 26,
-              height: 26,
-              opacity: menuOpen ? 1 : 0,
-              color: menuOpen ? 'text.primary' : undefined,
-              bgcolor: menuOpen
-                ? alpha(theme.palette.text.primary, isDark ? 0.1 : 0.06)
-                : undefined,
-            }}
-          >
-            <MoreHorizRoundedIcon sx={{ fontSize: 16 }} />
-          </IconButton>
-        </Tooltip>
-      </ListItemButton>
+    <Box component="li" sx={{ listStyle: 'none' }}>
+      <Box sx={buildConversationRowSx(theme, { isActive, menuOpen, isRenaming })}>
+        {isRenaming ? (
+          <InlineConversationTitle
+            title={inlineRename.title}
+            saving={inlineRename.saving}
+            onChange={onRenameChange}
+            onCommit={onRenameCommit}
+            onCancel={onRenameCancel}
+            theme={theme}
+          />
+        ) : (
+          <>
+            <Box
+              component="button"
+              type="button"
+              className="conversation-select"
+              ref={selectionRef}
+              autoFocus={autoFocus}
+              onClick={handleClick}
+              aria-current={isActive ? 'page' : undefined}
+              aria-label={`Open ${title}`}
+              sx={buildConversationSelectSx(theme)}
+            >
+              <ConversationTitle key={displayTitle} title={displayTitle} theme={theme} />
+            </Box>
+            <Tooltip title="Conversation options">
+              <IconButton
+                className="conversation-options"
+                size="small"
+                disableRipple
+                onClick={handleMenuOpen}
+                aria-label={`Options for ${title}`}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                sx={optionsButtonSx}
+              >
+                <MoreIcon sx={{ fontSize: 16 }} />
+              </IconButton>
+            </Tooltip>
+          </>
+        )}
+      </Box>
       <Menu
         anchorEl={menuAnchor}
         open={menuOpen}
+        disableRestoreFocus={isRenaming}
         onClose={handleMenuClose}
         onClick={(e) => e.stopPropagation()}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
         transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         slotProps={{
           paper: {
-            sx: getPopoverPaperSx(theme, isDark, {
-              borderRadius: INTERFACE_RADIUS.row,
+            sx: getPopoverPaperSx(theme, {
               minWidth: 160,
               mt: 0.75,
               p: 0,
@@ -493,29 +615,28 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
           list: { sx: getPopoverMenuListSx() },
         }}
       >
-        {onRename && (
+        {onRenameStart && (
           <MenuItem onClick={handleRename} sx={renameMenuItemSx}>
             <ListItemIcon>
-              <DriveFileRenameOutlineRoundedIcon />
+              <RenameIcon />
             </ListItemIcon>
             Rename
           </MenuItem>
         )}
         <MenuItem onClick={handleDelete} sx={deleteMenuItemSx}>
           <ListItemIcon>
-            <DeleteOutlineRoundedIcon />
+            <DeleteIcon />
           </ListItemIcon>
           Delete
         </MenuItem>
       </Menu>
-    </>
+    </Box>
   );
 });
 
 // ─── HistoryListSkeleton ──────────────────────────────────────────────────────
-// Skeleton rows that match the geometry of ConversationItem (icon column +
-// title). The MuiSkeleton theme override provides the layered fill + highlight,
-// so we only specify geometry here.
+// Skeleton rows match the two-column conversation-row geometry. The options
+// column is intentionally empty until interaction.
 export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
   return (
     <Box role="status" aria-label="Loading recent conversations" sx={{ px: 1, pb: 1 }}>
@@ -525,17 +646,15 @@ export const HistoryListSkeleton = memo(function HistoryListSkeleton() {
           sx={{
             display: 'grid',
             alignItems: 'center',
-            gridTemplateColumns: `${ICON_COL}px minmax(0, 1fr)`,
-            px: 0,
+            gridTemplateColumns: 'minmax(0, 1fr) 32px',
+            pl: 1,
+            pr: 0,
             py: 0,
             mb: 0.25,
-            height: 36,
-            minHeight: 36,
+            height: { xs: UI_LAYOUT.touchTarget, md: UI_POPOVER.rowMinHeight },
+            minHeight: { xs: UI_LAYOUT.touchTarget, md: UI_POPOVER.rowMinHeight },
           }}
         >
-          <Box sx={{ width: ICON_COL, display: 'flex', justifyContent: 'center' }}>
-            <Skeleton variant="circular" width={16} height={16} animation="wave" />
-          </Box>
           <Skeleton
             variant="rounded"
             animation="wave"

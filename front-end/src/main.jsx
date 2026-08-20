@@ -5,7 +5,7 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from '@/App';
 import { queryClient } from '@/api/queryClient';
-import { ErrorBoundary } from '@/components';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { DatabaseProvider } from '@/contexts/DatabaseContext';
 import { ThemeProvider } from '@/contexts/ThemeContext';

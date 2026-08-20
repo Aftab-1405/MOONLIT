@@ -17,6 +17,7 @@ import {
   createUserMessage,
   MESSAGE_STATUS,
 } from '@/utils/chatMessages';
+import { buildConversationTitle } from '@/utils/conversationTitles';
 import logger from '@/utils/logger';
 import { parseSSEStream } from '@/utils/streamParser';
 
@@ -134,9 +135,7 @@ export function useMessageStreaming({
         setCurrentConversationId(newConversationId);
         navigate(`/chat/${newConversationId}`, { replace: true });
 
-        const tempTitle =
-          promptForNewConversation.substring(0, 50) +
-          (promptForNewConversation.length > 50 ? '...' : '');
+        const tempTitle = buildConversationTitle(promptForNewConversation);
         setConversations((prev) => [
           { id: newConversationId, title: tempTitle, created_at: new Date().toISOString() },
           ...prev,

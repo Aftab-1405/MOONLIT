@@ -72,7 +72,7 @@ Moonlit removes that friction. You connect your database, describe your goal, an
 | **Result Visualization** | Chart.js charts and formatted data tables for query results |
 | **React Flow Diagrams** | AI can render structured `diagram-flow` ER diagrams and flowcharts inline |
 | **Markdown Rendering** | Full markdown + code block support in AI responses |
-| **Dark / Light Theme** | User-selectable with custom colour palettes |
+| **Dark Theme** | Canonical near-black interface defined by `front-end/DESIGN.md` |
 | **Conversation Sidebar** | Browse, resume, and delete past conversations |
 
 ### Security & Reliability
@@ -259,6 +259,7 @@ FIREBASE_CLIENT_EMAIL=your-service-account@your-project.iam.gserviceaccount.com
 FIREBASE_CLIENT_ID=123456789
 FIREBASE_AUTH_URI=https://accounts.google.com/o/oauth2/auth
 FIREBASE_TOKEN_URI=https://oauth2.googleapis.com/token
+ADMIN_UID=your-firebase-admin-uid  # Sole UID authorized for admin telemetry endpoints
 
 # ── Firebase Web SDK (required) ────────────────────────────────────────────────
 FIREBASE_WEB_API_KEY=your-web-api-key
