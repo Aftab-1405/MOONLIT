@@ -85,6 +85,9 @@ class UsageMetricsEvent(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     type: Literal["usage_metrics"]
+    activePercent: int | None = None
+    modelPercent: int | None = None
+    activeContextTokens: int | None = None
     activeContextBudget: int | None = None
     totalContextWindow: int | None = None
     availableInputPayloadTokens: int | None = None

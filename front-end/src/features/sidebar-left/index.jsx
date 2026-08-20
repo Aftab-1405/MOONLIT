@@ -13,14 +13,14 @@ import {
 import { Drawer as CustomDrawer, DrawerContent, DrawerOverlay } from '@/components/ui/Drawer';
 import SidebarOverlays from '@/features/sidebar-left/components/SidebarOverlays';
 import {
-  getProfileControlGeometry,
-  getProfileSettingsMode,
-} from '@/features/sidebar-left/profileSettingsModel';
-import {
   ConversationItem,
   HistoryListSkeleton,
   SidebarNavItem,
 } from '@/features/sidebar-left/components/SidebarPrimitives';
+import {
+  getProfileControlGeometry,
+  getProfileSettingsMode,
+} from '@/features/sidebar-left/profileSettingsModel';
 import {
   buildDesktopNavSx,
   buildMobileDrawerPaperStyles,
@@ -105,13 +105,14 @@ function Sidebar({
         .join('') || 'M'
     );
   }, [user?.displayName]);
-  const conversationListView = conversations.length > 0
-    ? 'list'
-    : isConversationsLoading
-      ? 'loading'
-      : conversationListError
-        ? 'error'
-        : 'empty';
+  const conversationListView =
+    conversations.length > 0
+      ? 'list'
+      : isConversationsLoading
+        ? 'loading'
+        : conversationListError
+          ? 'error'
+          : 'empty';
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   const handleDatabaseSelect = useCallback(
@@ -169,10 +170,13 @@ function Sidebar({
     },
     [onProfileOpen],
   );
-  const handleOpenNewConnection = useCallback((event) => {
-    setDbPopoverAnchor(null);
-    onOpenDbModal?.(event);
-  }, [onOpenDbModal]);
+  const handleOpenNewConnection = useCallback(
+    (event) => {
+      setDbPopoverAnchor(null);
+      onOpenDbModal?.(event);
+    },
+    [onOpenDbModal],
+  );
   const handleSelectConversation = useCallback(
     (id) => {
       onSelectConversation?.(id);
@@ -748,7 +752,6 @@ function Sidebar({
                   {user?.displayName || 'Profile'}
                 </Typography>
               </Box>
-
             </Box>
           </Tooltip>
 

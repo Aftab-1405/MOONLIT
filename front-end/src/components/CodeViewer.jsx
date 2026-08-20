@@ -1,11 +1,12 @@
 import { Box, IconButton, Tooltip, Typography, useTheme } from '@mui/material';
-import { alpha, keyframes } from '@mui/material/styles';
+import { keyframes } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import ButtonLoadingSpinner from '@/components/common/ButtonLoadingSpinner';
 import { CheckIcon, CopyIcon, ExecuteIcon, WrapTextIcon } from '@/components/icons';
 import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
 import { HOVER_CAPABLE_QUERY } from '@/styles/mediaQueries';
 import { copyToClipboard } from '@/utils/clipboard';
+import { getFullCodeBlockStyles } from './codeViewerStyles';
 
 /**
  * CodeViewer — renders code blocks inside AI messages.
@@ -61,7 +62,7 @@ const ActionButton = memo(function ActionButton({ title, onClick, disabled, icon
           disabled={disabled}
           aria-label={title}
           sx={{
-            ...getResponsivePillIconButtonSx(theme, { desktopSize: 28 }),
+            ...getResponsivePillIconButtonSx(theme, { desktopSize: 32 }),
             color: active ? 'text.primary' : 'text.secondary',
             transition: 'all 0.15s ease',
             backgroundColor: 'transparent',
@@ -262,11 +263,6 @@ function CodeViewer({
     }
   }, [code]);
 
-  // Layout styling definitions
-  const containerBg = transparent || simple ? 'transparent' : theme.palette.code.background;
-  const containerBorder =
-    transparent || simple ? 'transparent' : alpha(theme.palette.text.primary, 0.1);
-
   // Shared sx for the outer <pre> — used by both the simple and full variants.
   // Forces the nested pre.shiki-stream (rendered by ShikiStreamRenderer) to
   // inherit ALL typography from the outer pre so streaming and static modes
@@ -320,6 +316,8 @@ function CodeViewer({
     [wrapLongLines],
   );
 
+  const fullCodeBlockStyles = useMemo(() => getFullCodeBlockStyles(theme), [theme]);
+
   // The stream might not be ready yet (highlighter still loading). Fall back
   // to plain text so the user sees the code immediately — Shiki will swap in
   // highlighted tokens as soon as the stream is piped.
@@ -363,138 +361,100 @@ function CodeViewer({
   // ── Full variant (used by MarkdownRenderer for code blocks in AI messages)
   return (
     <Box
+      role="group"
+      aria-label={`${detectedLanguage || 'code'} code`}
+      tabIndex={0}
       sx={{
-        my: 2,
-        borderRadius: '8px',
-        border: simple ? 'none' : '1px solid',
-        borderColor: containerBorder,
-        backgroundColor: containerBg,
-        overflow: 'hidden',
-        width: '100%',
-        minWidth: 0,
+        ...fullCodeBlockStyles.frame,
+        ...(transparent && { backgroundColor: 'transparent', borderColor: 'transparent' }),
         ...style,
       }}
     >
-      {/* Top Header Row */}
-      <Box
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          minHeight: 42,
-          pt: 1,
-          pb: 0.5,
-          px: { xs: 1.5, md: 2 },
-        }}
-      >
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
-          <Typography
-            sx={{
-              color: 'text.secondary',
-              fontFamily: theme.typography.fontFamilyMono,
-              ...theme.typography.uiMonoLabel,
-              textTransform: 'lowercase',
-              opacity: 0.82,
-              userSelect: 'none',
-            }}
-          >
-            {detectedLanguage || 'code'}
-          </Typography>
-          {isStreaming && (
-            <Box
-              role="status"
-              aria-label="Code is streaming"
-              sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}
-            >
-              <Box
-                aria-hidden
-                sx={{
-                  width: 5,
-                  height: 5,
-                  borderRadius: '50%',
-                  bgcolor: 'text.secondary',
-                  animation: `${livePulse} 1.25s ease-in-out infinite`,
-                  '@media (prefers-reduced-motion: reduce)': { animation: 'none', opacity: 0.6 },
-                }}
-              />
-              <Typography
-                component="span"
-                sx={{
-                  ...theme.typography.uiCaption2xs,
-                  color: 'text.secondary',
-                  opacity: 0.72,
-                  userSelect: 'none',
-                }}
-              >
-                streaming
-              </Typography>
-            </Box>
-          )}
-        </Box>
-
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-          {hasLongLines && (
-            <ActionButton
-              title={wrapLongLines ? 'Unwrap lines' : 'Wrap lines'}
-              onClick={() => setWrapLongLines((v) => !v)}
-              active={wrapLongLines}
-              icon={<WrapTextIcon sx={{ fontSize: 18 }} />}
-            />
-          )}
-          {isSQL && onRunQuery && (
-            <ActionButton
-              title={isRunning ? 'Running…' : 'Run query'}
-              onClick={handleRun}
-              disabled={isRunning || isStreaming}
-              icon={
-                isRunning ? (
-                  <ButtonLoadingSpinner size={14} />
-                ) : (
-                  <ExecuteIcon sx={{ fontSize: 18 }} />
-                )
-              }
-            />
-          )}
+      <Box className="code-block-actions" sx={fullCodeBlockStyles.actions}>
+        {hasLongLines && (
           <ActionButton
-            title={copied ? 'Copied!' : 'Copy code'}
-            onClick={handleCopy}
-            disabled={isStreaming}
+            title={wrapLongLines ? 'Unwrap lines' : 'Wrap lines'}
+            onClick={() => setWrapLongLines((v) => !v)}
+            active={wrapLongLines}
+            icon={<WrapTextIcon sx={{ fontSize: 18 }} />}
+          />
+        )}
+        {isSQL && onRunQuery && (
+          <ActionButton
+            title={isRunning ? 'Running…' : 'Run query'}
+            onClick={handleRun}
+            disabled={isRunning || isStreaming}
             icon={
-              copied ? (
-                <CheckIcon sx={{ fontSize: 18, color: 'success.main' }} />
-              ) : (
-                <CopyIcon sx={{ fontSize: 16 }} />
-              )
+              isRunning ? <ButtonLoadingSpinner size={14} /> : <ExecuteIcon sx={{ fontSize: 18 }} />
             }
           />
-        </Box>
+        )}
+        <ActionButton
+          title={copied ? 'Copied!' : 'Copy code'}
+          onClick={handleCopy}
+          disabled={isStreaming}
+          icon={
+            copied ? (
+              <CheckIcon sx={{ fontSize: 18, color: 'success.main' }} />
+            ) : (
+              <CopyIcon sx={{ fontSize: 16 }} />
+            )
+          }
+        />
       </Box>
 
-      {/* Code Text Window */}
-      <Box
-        sx={{
-          overflowX: 'auto',
-          pt: 0.5,
-          pb: { xs: 1.5, md: 2 },
-          px: { xs: 1.5, md: 2 },
-          scrollbarWidth: 'thin',
-          scrollbarColor: `${alpha(theme.palette.text.primary, 0.2)} transparent`,
-          '&::-webkit-scrollbar': { height: 6 },
-          '&::-webkit-scrollbar-thumb': {
-            borderRadius: 999,
-            bgcolor: alpha(theme.palette.text.primary, 0.18),
-          },
-        }}
-      >
+      <Box sx={fullCodeBlockStyles.languageLabel}>
+        <Typography
+          sx={{
+            color: 'text.secondary',
+            fontFamily: theme.typography.fontFamilyMono,
+            ...theme.typography.uiMonoLabel,
+            textTransform: 'lowercase',
+            opacity: 0.82,
+            userSelect: 'none',
+          }}
+        >
+          {detectedLanguage || 'code'}
+        </Typography>
+        {isStreaming && (
+          <Box
+            role="status"
+            aria-label="Code is streaming"
+            sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}
+          >
+            <Box
+              aria-hidden
+              sx={{
+                width: 5,
+                height: 5,
+                borderRadius: '50%',
+                bgcolor: 'text.secondary',
+                animation: `${livePulse} 1.25s ease-in-out infinite`,
+                '@media (prefers-reduced-motion: reduce)': { animation: 'none', opacity: 0.6 },
+              }}
+            />
+            <Typography
+              component="span"
+              sx={{
+                ...theme.typography.uiCaption2xs,
+                color: 'text.secondary',
+                opacity: 0.72,
+                userSelect: 'none',
+              }}
+            >
+              streaming
+            </Typography>
+          </Box>
+        )}
+      </Box>
+
+      <Box sx={fullCodeBlockStyles.scroller}>
         <Box
           component="pre"
           className={`shiki ${shikiTheme}`}
           sx={{
             ...preSx,
-            fontSize: theme.typography.uiCodeBlock.fontSize,
-            lineHeight: theme.typography.uiCodeBlock.lineHeight,
-            fontFamily: theme.typography.fontFamilyMono,
-            color: 'text.primary',
+            ...fullCodeBlockStyles.pre,
           }}
         >
           <code>{renderCode()}</code>

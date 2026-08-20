@@ -45,10 +45,8 @@ export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
   const [hasBeenResized, setHasBeenResized] = useState(false);
   const [workspaceCanvasWidth, setWorkspaceCanvasWidth] = useState(DEFAULT_CANVAS_WIDTH);
   const sidebarWidthRef = useRef(sidebarWidth);
-  const {
-    minWidth: workspaceCanvasMinWidth,
-    maxWidth: workspaceCanvasMaxWidth,
-  } = getCanvasWidthBounds(sidebarWidth);
+  const { minWidth: workspaceCanvasMinWidth, maxWidth: workspaceCanvasMaxWidth } =
+    getCanvasWidthBounds(sidebarWidth);
 
   useEffect(() => {
     sidebarWidthRef.current = sidebarWidth;
@@ -88,9 +86,7 @@ export function useWorkspaceCanvas({ sidebarWidth = 260 } = {}) {
 
   const handleCanvasResize = useCallback((deltaX) => {
     setHasBeenResized(true);
-    setWorkspaceCanvasWidth((prev) =>
-      clampCanvasWidth(prev - deltaX, sidebarWidthRef.current),
-    );
+    setWorkspaceCanvasWidth((prev) => clampCanvasWidth(prev - deltaX, sidebarWidthRef.current));
   }, []);
 
   useEffect(() => {

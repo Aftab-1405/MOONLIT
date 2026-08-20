@@ -58,10 +58,13 @@ export function useChatPageSidebar({ isDesktop, onOpenSettings } = {}) {
     await logout();
   }, [logout]);
 
-  const handleOpenSettings = useCallback((event) => {
-    handleMenuClose();
-    onOpenSettings?.(event);
-  }, [handleMenuClose, onOpenSettings]);
+  const handleOpenSettings = useCallback(
+    (event) => {
+      handleMenuClose();
+      onOpenSettings?.(event);
+    },
+    [handleMenuClose, onOpenSettings],
+  );
 
   return {
     user,

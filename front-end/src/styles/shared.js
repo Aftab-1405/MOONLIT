@@ -20,7 +20,7 @@ import {
   BACKDROP_FILTER_FALLBACK_QUERY,
   HOVER_CAPABLE_QUERY,
   TOUCH_DEVICE_QUERY,
-} from '@/styles/mediaQueries';
+} from './mediaQueries.js';
 
 const DIALOG_VIEWPORT_SUPPORT_QUERY = '@supports (height: 100dvh)';
 

@@ -16,14 +16,29 @@ const createShikiTheme = (name, type, palette) => ({
     'editorWhitespace.foreground': palette.whitespaceForeground,
   },
   tokenColors: [
-    { scope: ['comment', 'punctuation.definition.comment'], settings: { foreground: palette.comment } },
+    {
+      scope: ['comment', 'punctuation.definition.comment'],
+      settings: { foreground: palette.comment },
+    },
     { scope: ['keyword', 'storage', 'storage.type'], settings: { foreground: palette.keyword } },
     { scope: ['string', 'string.quoted'], settings: { foreground: palette.string } },
-    { scope: ['constant', 'constant.numeric', 'constant.language'], settings: { foreground: palette.constant } },
-    { scope: ['entity.name.function', 'support.function'], settings: { foreground: palette.functionCall } },
+    {
+      scope: ['constant', 'constant.numeric', 'constant.language'],
+      settings: { foreground: palette.constant },
+    },
+    {
+      scope: ['entity.name.function', 'support.function'],
+      settings: { foreground: palette.functionCall },
+    },
     { scope: ['entity.name.type', 'support.type'], settings: { foreground: palette.entity } },
-    { scope: ['variable', 'meta.object-literal.key'], settings: { foreground: palette.variableOther } },
-    { scope: ['variable.other.property', 'support.variable.property'], settings: { foreground: palette.propertyName } },
+    {
+      scope: ['variable', 'meta.object-literal.key'],
+      settings: { foreground: palette.variableOther },
+    },
+    {
+      scope: ['variable.other.property', 'support.variable.property'],
+      settings: { foreground: palette.propertyName },
+    },
     { scope: ['keyword.operator', 'punctuation'], settings: { foreground: palette.operator } },
     { scope: ['entity.name.tag'], settings: { foreground: palette.tagName } },
     { scope: ['entity.other.attribute-name'], settings: { foreground: palette.attributeName } },
@@ -31,8 +46,4 @@ const createShikiTheme = (name, type, palette) => ({
   ],
 });
 
-export const moonlitDarkShikiTheme = createShikiTheme(
-  'moonlit-dark',
-  'dark',
-  moonlitDarkSyntax,
-);
+export const moonlitDarkShikiTheme = createShikiTheme('moonlit-dark', 'dark', moonlitDarkSyntax);

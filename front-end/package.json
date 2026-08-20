@@ -11,12 +11,6 @@
     "biome": "biome check",
     "biome:fix": "biome check --write",
     "knip": "knip",
-    "audit:interaction": "node scripts/audit-interaction-contrast.mjs",
-    "audit:input-focus": "node scripts/audit-input-focus.mjs",
-    "audit:workspace": "node scripts/audit-workspace-overlays.mjs",
-    "audit:auth-admin": "node scripts/audit-auth-admin.mjs",
-    "audit:dark": "node scripts/audit-dark-only.mjs",
-    "audit:theme": "node scripts/audit-theme-contrast.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

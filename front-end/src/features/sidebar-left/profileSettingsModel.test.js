@@ -1,9 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  getProfileControlGeometry,
-  getProfileSettingsMode,
-} from './profileSettingsModel.js';
+import { getProfileControlGeometry, getProfileSettingsMode } from './profileSettingsModel.js';
 
 test('expanded surfaces expose direct Settings without duplicating it in Profile', () => {
   assert.deepEqual(getProfileSettingsMode(true), {

@@ -1,29 +1,19 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import {
-  getAdminRouteDecision,
-  getProtectedRouteDecision,
-} from './routeGuardModel.js';
+import { getAdminRouteDecision, getProtectedRouteDecision } from './routeGuardModel.js';
 
 test('protected route waits for authentication resolution', () => {
-  assert.equal(
-    getProtectedRouteDecision({ loading: true, isAuthenticated: false }),
-    'loading',
-  );
+  assert.equal(getProtectedRouteDecision({ loading: true, isAuthenticated: false }), 'loading');
 });
 
 test('protected route sends anonymous users to auth', () => {
-  assert.deepEqual(
-    getProtectedRouteDecision({ loading: false, isAuthenticated: false }),
-    { redirectTo: '/auth' },
-  );
+  assert.deepEqual(getProtectedRouteDecision({ loading: false, isAuthenticated: false }), {
+    redirectTo: '/auth',
+  });
 });
 
 test('protected route allows authenticated users', () => {
-  assert.equal(
-    getProtectedRouteDecision({ loading: false, isAuthenticated: true }),
-    'allow',
-  );
+  assert.equal(getProtectedRouteDecision({ loading: false, isAuthenticated: true }), 'allow');
 });
 
 test('admin route waits before evaluating access', () => {

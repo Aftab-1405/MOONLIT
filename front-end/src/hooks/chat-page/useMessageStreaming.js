@@ -8,7 +8,6 @@
  */
 
 import { useCallback, useEffect, useRef } from 'react';
-import { buildConversationTitle } from '@/utils/conversationTitles';
 import { resumeAgent, sendMessage } from '@/api';
 import { queryClient, queryKeys } from '@/api/queryClient';
 import { toBackendTaskMode } from '@/config/userSettings';
@@ -18,6 +17,7 @@ import {
   createUserMessage,
   MESSAGE_STATUS,
 } from '@/utils/chatMessages';
+import { buildConversationTitle } from '@/utils/conversationTitles';
 import logger from '@/utils/logger';
 import { parseSSEStream } from '@/utils/streamParser';
 

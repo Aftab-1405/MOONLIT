@@ -2,8 +2,8 @@ import { Box, Button, IconButton, Typography } from '@mui/material';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
-  AnalyticsIcon,
   AiSparkleIcon,
+  AnalyticsIcon,
   CloseIcon,
   CodeEditorIcon,
   DatabaseIcon,
@@ -132,9 +132,7 @@ function WelcomeSuggestions({
     [isSuggestionDisabled, onActivate, onCategoryChange],
   );
 
-  const transition = reduceMotion
-    ? { duration: 0.08 }
-    : { duration: 0.22, ease: 'easeOut' };
+  const transition = reduceMotion ? { duration: 0.08 } : { duration: 0.22, ease: 'easeOut' };
 
   return (
     <MotionBox
@@ -207,9 +205,7 @@ function WelcomeSuggestions({
             transition={transition}
             sx={(theme) => getWelcomeSuggestionPanelSx(theme)}
           >
-            <Box
-              sx={{ display: 'flex', alignItems: 'center', minHeight: 48, px: 2, gap: 1 }}
-            >
+            <Box sx={{ display: 'flex', alignItems: 'center', minHeight: 48, px: 2, gap: 1 }}>
               <CategoryIcon icon={activeCategory.icon} />
               <Typography
                 sx={(theme) => ({

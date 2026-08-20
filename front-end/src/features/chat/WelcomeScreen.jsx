@@ -53,6 +53,7 @@ function WelcomeScreen({ visible, user, chatInputProps, onOpenDatabase }) {
     displayName: user?.displayName,
   });
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the revision deliberately reschedules at each greeting boundary.
   useEffect(() => {
     if (!visible) return undefined;
     const now = new Date();

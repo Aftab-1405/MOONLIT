@@ -2,11 +2,11 @@ import { Box, Button, Typography, useMediaQuery, useTheme, Zoom } from '@mui/mat
 import { alpha } from '@mui/material/styles';
 import { memo, useCallback, useId, useState } from 'react';
 import ButtonLoadingSpinner from '@/components/common/ButtonLoadingSpinner';
+import DialogShell from '@/components/common/DialogShell';
 import {
   CONFIRM_ACTION_HEIGHT,
   getConfirmActionGeometrySx,
 } from '@/components/common/dialogActionStyles';
-import DialogShell from '@/components/common/DialogShell';
 import { ErrorIcon, HelpIcon, InfoIcon, SuccessIcon, WarningIcon } from '@/components/icons';
 import {
   getInsetPanelSx,

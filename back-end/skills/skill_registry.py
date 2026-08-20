@@ -163,17 +163,14 @@ class SkillRegistry:
         ENH [5]: ``db_connected`` (default ``True`` for backward compat)
         controls whether the database-related skill cards are advertised.
         When the user has no live database connection, advertising
-        ``database-querying``, ``query-history``, and ``react-flow-diagram``
-        wastes ~250 tokens of context for zero benefit (the user can't act
-        on them). Only ``web-research`` survives the filter because the
-        user may still ask general questions even without a database.
+        ``database-querying`` and ``query-history`` wastes context for zero
+        benefit (the user cannot act on them). Diagram generation remains
+        available because workflows and conceptual graphs need no database.
         """
         # ENH [5]: skills that require a live database connection. They are
         # hidden from <available_skills> when db_connected=False so the LLM
         # does not waste tokens considering them.
-        DB_DEPENDENT_SKILLS = frozenset(
-            {"database-querying", "query-history", "react-flow-diagram"}
-        )
+        DB_DEPENDENT_SKILLS = frozenset({"database-querying", "query-history"})
 
         if not self._skills:
             return ""

@@ -7,13 +7,11 @@ import { ThemeProvider as MuiThemeProvider } from '@mui/material/styles';
 import { createContext, useContext, useLayoutEffect, useMemo } from 'react';
 import { SettingsProvider, useSettings } from '@/contexts/SettingsContext';
 import { createDarkTheme } from '@/theme/index';
-import {
-  CANONICAL_THEME_MODE,
-  INPUT_MODALITY_ATTRIBUTE,
-  THEME_ATTRIBUTE,
-} from '@/theme/mode';
+import { CANONICAL_THEME_MODE, INPUT_MODALITY_ATTRIBUTE, THEME_ATTRIBUTE } from '@/theme/mode';
 
 const ThemeContext = createContext(null);
+const EFFECTIVE_THEME = CANONICAL_THEME_MODE;
+const IS_DARK_MODE = true;
 
 /** Returns theme-related settings and actions. */
 // eslint-disable-next-line react-refresh/only-export-components -- Hook export alongside Provider is valid React pattern
@@ -27,19 +25,16 @@ export const useTheme = () => {
 function ThemeProviderInner({ children }) {
   const { settings, updateSetting, updateSettings, resetSettings } = useSettings();
   const theme = useMemo(() => createDarkTheme(), []);
-  const effectiveTheme = CANONICAL_THEME_MODE;
-  const isDarkMode = true;
-
   const value = useMemo(
     () => ({
       settings,
       updateSetting,
       updateSettings,
       resetSettings,
-      isDarkMode,
-      effectiveTheme,
+      isDarkMode: IS_DARK_MODE,
+      effectiveTheme: EFFECTIVE_THEME,
     }),
-    [settings, updateSetting, updateSettings, resetSettings, isDarkMode, effectiveTheme],
+    [settings, updateSetting, updateSettings, resetSettings],
   );
 
   useLayoutEffect(() => {

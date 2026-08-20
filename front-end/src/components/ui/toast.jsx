@@ -91,9 +91,7 @@ const Notification = ({ type, title, message, showIcon = true, duration, onClose
       initial={reduceMotion ? false : { opacity: 0, y: 25, scale: 0.95 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={
-        reduceMotion
-          ? { opacity: 1 }
-          : { opacity: 0, scale: 0.9, transition: { duration: 0.18 } }
+        reduceMotion ? { opacity: 1 } : { opacity: 0, scale: 0.9, transition: { duration: 0.18 } }
       }
       transition={reduceMotion ? { duration: 0 } : { type: 'spring', stiffness: 380, damping: 28 }}
       style={{

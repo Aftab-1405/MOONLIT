@@ -26,10 +26,7 @@ export const INTERFACE_RADIUS = Object.freeze({
 });
 
 /** Responsive pill geometry for labeled chat controls. */
-export function getResponsivePillControlSx(
-  theme,
-  { desktopHeight, mobileHeight = 44 } = {},
-) {
+export function getResponsivePillControlSx(theme, { desktopHeight, mobileHeight = 44 } = {}) {
   return {
     height: { xs: mobileHeight, md: desktopHeight },
     minHeight: { xs: mobileHeight, md: desktopHeight },
@@ -38,10 +35,7 @@ export function getResponsivePillControlSx(
 }
 
 /** Responsive pill geometry for square chat icon buttons. */
-export function getResponsivePillIconButtonSx(
-  theme,
-  { desktopSize, mobileSize = 44 } = {},
-) {
+export function getResponsivePillIconButtonSx(theme, { desktopSize, mobileSize = 44 } = {}) {
   return {
     width: { xs: mobileSize, md: desktopSize },
     height: { xs: mobileSize, md: desktopSize },
@@ -86,7 +80,10 @@ export function getWelcomeCategorySx(theme) {
     color: theme.palette.text.secondary,
     boxShadow: 'none',
     '& .MuiButton-startIcon': { m: 0 },
-    '&:hover': { backgroundColor: theme.palette.action.selected, color: theme.palette.text.primary },
+    '&:hover': {
+      backgroundColor: theme.palette.action.selected,
+      color: theme.palette.text.primary,
+    },
     '&.Mui-focusVisible': {
       backgroundColor: theme.palette.action.selected,
       outline: `2px solid ${theme.palette.border.focus}`,

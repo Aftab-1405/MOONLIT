@@ -13,6 +13,7 @@ import { Box, Fade, IconButton, Tooltip } from '@mui/material';
 import { memo } from 'react';
 import { MenuIcon, ScrollDownIcon } from '@/components/icons';
 import { ChatInput, MessageList, WelcomeScreen } from '@/features/chat';
+import ChatHeader from '@/features/chat/ChatHeader';
 import GuidedConfirmationPrompt from '@/features/chat/GuidedConfirmationPrompt';
 import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
 import { getInteractiveIconButtonSx, getScrollbarStyles, UI_LAYOUT } from '@/styles/shared';
@@ -34,6 +35,8 @@ const ChatColumn = memo(function ChatColumn({
   handleGuidedCancel,
   handleGuidedConfirm,
   currentConversationId,
+  conversationTitle,
+  onRenameConversation,
   isNarrowLayout,
   onOpenSidebar,
   onOpenDatabase,
@@ -52,7 +55,7 @@ const ChatColumn = memo(function ChatColumn({
         contain: 'layout paint style',
       }}
     >
-      {isNarrowLayout && (
+      {isNarrowLayout && showWelcomeState && (
         <Tooltip title="Open sidebar">
           <IconButton
             ref={openSidebarButtonRef}
@@ -74,6 +77,19 @@ const ChatColumn = memo(function ChatColumn({
             <MenuIcon sx={{ fontSize: 20 }} />
           </IconButton>
         </Tooltip>
+      )}
+
+      {currentConversationId && conversationTitle && (
+        <ChatHeader
+          key={currentConversationId}
+          conversationId={currentConversationId}
+          title={conversationTitle}
+          onRenameConversation={onRenameConversation}
+          isNarrowLayout={isNarrowLayout}
+          onOpenSidebar={onOpenSidebar}
+          openSidebarButtonRef={openSidebarButtonRef}
+          theme={theme}
+        />
       )}
 
       <Box sx={{ position: 'relative', flex: 1, minHeight: 0, display: 'flex' }}>
@@ -102,7 +118,7 @@ const ChatColumn = memo(function ChatColumn({
                 overflowY: 'auto',
                 overflowX: 'hidden',
                 px: { xs: 0, sm: 1 },
-                pt: { xs: isNarrowLayout ? 7 : 2, sm: 3 },
+                pt: { xs: 1, sm: 2 },
                 pb: { xs: 1, sm: 2 },
                 ...getScrollbarStyles(theme),
               }}

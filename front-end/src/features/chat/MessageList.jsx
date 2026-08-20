@@ -33,9 +33,13 @@ import {
 import Fade from '@mui/material/Fade';
 import { alpha, keyframes } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CheckIcon, CopyIcon, DiagramIcon, ErrorIcon, PauseIcon } from '@/components/icons';
+import { CheckIcon, CopyIcon, ErrorIcon, PauseIcon } from '@/components/icons';
 import { StepsAccordion } from '@/features/chat/ai-response-steps';
 import { slideIn } from '@/features/chat/ai-response-steps/timelineShared';
+import {
+  getDiagramArtifactCardPresentation,
+  getDiagramArtifactPhase,
+} from '@/features/chat/diagramArtifactModel';
 import MarkdownRenderer from '@/features/chat/MarkdownRenderer';
 import { getResponsivePillIconButtonSx } from '@/features/styles/interfaceChrome';
 import {
@@ -55,6 +59,11 @@ const FENCED_CODE_BLOCK_PATTERN = /```([A-Za-z0-9_-]+)[^\n]*\n([\s\S]*?)```/g;
 const softPulse = keyframes`
   0%, 100% { opacity: 1; }
   50% { opacity: 0.76; }
+`;
+
+const diagramStatusDot = keyframes`
+  0%, 100% { opacity: 0.34; }
+  50% { opacity: 1; }
 `;
 
 const getMessageActionsRowSx = (theme) => ({
@@ -304,28 +313,10 @@ function extractCanvasCodeArtifacts(markdown) {
 }
 
 /**
- * Returns true when the text contains an opening canvas code fence whose
- * closing fence has not yet arrived — i.e. the block is still streaming in.
- * Only used to show a "Building diagram…" placeholder card during streaming.
- */
-function hasOpenCanvasBlock(markdown) {
-  const src = String(markdown || '');
-  for (const lang of CANVAS_CODE_LANGUAGES) {
-    // Opening fence exists AND the closing ``` is not present after it
-    const openPattern = new RegExp(`\`\`\`${lang}(?:\\s|\\n|$)`, 'i');
-    if (!openPattern.test(src)) continue;
-    // If a COMPLETE block is present, it's not partial
-    const completePattern = new RegExp(`\`\`\`${lang}[^\\n]*\\n[\\s\\S]*?\`\`\``, 'i');
-    if (!completePattern.test(src)) return true;
-  }
-  return false;
-}
-
-/**
  * Diagram artifact card — shown in the AI message for react-flow diagrams.
  * Renders two states:
- *   - isGenerating=true  → quiet placeholder state
- *   - isGenerating=false → full text + interactive "View diagram" button
+ *   - isGenerating=true  → passive status row
+ *   - isGenerating=false → full-row interactive artifact
  */
 const DiagramArtifactCard = memo(function DiagramArtifactCard({
   artifact,
@@ -333,30 +324,57 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
   onOpen,
 }) {
   const theme = useTheme();
-  const panelBorder = theme.palette.border.subtle;
-  const panelBg = 'transparent';
-  const panelHoverBg = theme.palette.action.hover;
+  const presentation = getDiagramArtifactCardPresentation({
+    isGenerating,
+    title: artifact.title,
+  });
 
   return (
     <Box
+      component={presentation.isInteractive ? 'button' : 'div'}
+      type={presentation.isInteractive ? 'button' : undefined}
+      role={isGenerating ? 'status' : undefined}
+      aria-live={isGenerating ? 'polite' : undefined}
+      aria-busy={isGenerating || undefined}
+      aria-label={isGenerating ? 'Moonlit is building the diagram' : `Open ${presentation.title}`}
+      onClick={presentation.isInteractive ? () => onOpen?.(artifact) : undefined}
       sx={{
+        position: 'relative',
+        overflow: 'hidden',
         display: 'flex',
         alignItems: 'center',
-        gap: { xs: 1.5, md: 2 },
-        px: { xs: 1.5, md: 2 },
-        py: { xs: 1, md: 1.5 },
+        justifyContent: 'space-between',
+        width: '100%',
+        minWidth: 0,
+        height: { xs: 68, sm: 70 },
+        px: { xs: 1.5, sm: 2 },
+        py: 0,
         borderRadius: '8px',
         border: '1px solid',
-        borderColor: panelBorder,
-        bgcolor: panelBg,
-        transition: theme.transitions.create(['background-color', 'border-color'], {
+        borderColor: isGenerating
+          ? alpha(theme.palette.info.main, 0.28)
+          : theme.palette.border.subtle,
+        bgcolor: 'transparent',
+        color: 'text.primary',
+        font: 'inherit',
+        textAlign: 'left',
+        appearance: 'none',
+        cursor: presentation.isInteractive ? 'pointer' : 'default',
+        transition: theme.transitions.create(['background-color', 'border-color', 'box-shadow'], {
           duration: theme.transitions.duration.shorter,
         }),
-        ...(!isGenerating && {
+        '&:focus-visible': {
+          outline: 'none',
+          boxShadow: `inset 0 0 0 2px ${theme.palette.border.focus}`,
+        },
+        ...(presentation.isInteractive && {
           [HOVER_CAPABLE_QUERY]: {
             '&:hover': {
-              bgcolor: panelHoverBg,
+              bgcolor: alpha(theme.palette.text.primary, 0.025),
               borderColor: theme.palette.border.hover,
+            },
+            '&:hover .diagram-card-preview': {
+              transform: 'translateY(12px) rotate(2.5deg) scale(1.025)',
             },
           },
         }),
@@ -364,102 +382,117 @@ const DiagramArtifactCard = memo(function DiagramArtifactCard({
     >
       <Box
         sx={{
-          width: { xs: 36, sm: 40 },
-          height: { xs: 36, sm: 40 },
-          borderRadius: '8px',
+          flex: 1,
+          minWidth: 0,
+          pr: 1.5,
           display: 'flex',
-          alignItems: 'center',
+          flexDirection: 'column',
           justifyContent: 'center',
-          flexShrink: 0,
-          bgcolor: theme.palette.action.selected,
-          transition: 'background-color 140ms ease',
-          ...(isGenerating && {
-            animation: `${softPulse} 2.2s ease-in-out infinite`,
-            '@media (prefers-reduced-motion: reduce)': {
-              animation: 'none',
-            },
-          }),
+          gap: 0.55,
         }}
       >
-        <DiagramIcon
-          sx={{
-            fontSize: { xs: 18, sm: 20 },
-            color: isGenerating ? theme.palette.text.disabled : theme.palette.text.secondary,
-            transition: 'color 140ms ease',
-          }}
-        />
-      </Box>
-
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography
-          sx={{
-            ...theme.typography.uiBodySm,
-            fontFamily: theme.typography.fontFamily,
-            fontWeight: 400,
-            lineHeight: 1.25,
-            color: isGenerating ? theme.palette.text.disabled : 'text.primary',
-            transition: 'color 140ms ease',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-          }}
-        >
-          {artifact.title || 'Diagram'}
-        </Typography>
+        <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 0, gap: 0.8 }}>
+          {isGenerating && (
+            <Box
+              aria-hidden
+              sx={{
+                width: 5,
+                height: 5,
+                flexShrink: 0,
+                borderRadius: '50%',
+                bgcolor: 'info.main',
+                animation: `${diagramStatusDot} 1.25s ease-in-out infinite`,
+                [REDUCED_MOTION_QUERY]: { animation: 'none', opacity: 0.72 },
+              }}
+            />
+          )}
+          <Typography
+            sx={{
+              ...theme.typography.uiBodySm,
+              minWidth: 0,
+              fontFamily: theme.typography.fontFamily,
+              fontWeight: 400,
+              lineHeight: 1.2,
+              color: isGenerating ? 'info.main' : 'text.primary',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {presentation.title}
+          </Typography>
+        </Box>
 
         <Typography
           sx={{
             ...theme.typography.uiCaptionMd,
             fontFamily: theme.typography.fontFamily,
-            lineHeight: 1.4,
-            mt: 0.5,
+            lineHeight: 1.25,
             overflow: 'hidden',
             textOverflow: 'ellipsis',
             whiteSpace: 'nowrap',
-            color: isGenerating ? theme.palette.text.disabled : theme.palette.text.secondary,
+            color: theme.palette.text.secondary,
           }}
         >
-          {isGenerating ? 'Generating diagram\u2026' : 'Interactive node graph'}
+          {presentation.metadata}
         </Typography>
       </Box>
 
-      {isGenerating ? (
+      <Box
+        aria-hidden
+        sx={{
+          position: 'relative',
+          alignSelf: 'stretch',
+          width: { xs: 58, sm: 68 },
+          flexShrink: 0,
+          pointerEvents: 'none',
+        }}
+      >
         <Box
-          aria-hidden
+          className="diagram-card-preview"
           sx={{
-            flexShrink: 0,
-            px: { xs: 2, md: 2.5 },
-            py: 0.5,
-            borderRadius: theme.shape.radius.pill,
-            bgcolor: theme.palette.action.hover,
+            position: 'absolute',
+            right: { xs: 0, sm: 0.5 },
+            top: 0,
+            width: { xs: 48, sm: 52 },
+            height: { xs: 62, sm: 66 },
+            p: 0.75,
+            overflow: 'hidden',
+            borderRadius: '8px 8px 0 0',
+            border: '1px solid',
+            borderColor: isGenerating
+              ? alpha(theme.palette.info.main, 0.25)
+              : theme.palette.border.hover,
+            bgcolor: theme.palette.background.paper,
+            color: isGenerating ? 'info.main' : 'text.secondary',
+            transform: 'translateY(13px) rotate(4.5deg)',
+            transformOrigin: 'center bottom',
+            transition: theme.transitions.create('transform', {
+              duration: theme.transitions.duration.short,
+              easing: theme.transitions.easing.easeOut,
+            }),
+            [REDUCED_MOTION_QUERY]: { transition: 'none' },
           }}
         >
-          <Typography
-            sx={{
-              ...theme.typography.uiCaptionMd,
-              fontFamily: theme.typography.fontFamily,
-              fontWeight: 400,
-              userSelect: 'none',
-              color: theme.palette.text.disabled,
-            }}
+          <Box
+            component="svg"
+            viewBox="0 0 44 54"
+            focusable="false"
+            sx={{ display: 'block', width: '100%', height: '100%' }}
           >
-            Building\u2026
-          </Typography>
+            <path
+              d="M13 13 L30 20 M30 20 L17 38"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.4"
+              opacity="0.5"
+            />
+            <rect x="4" y="7" width="14" height="11" rx="2" fill="currentColor" opacity="0.34" />
+            <rect x="27" y="15" width="13" height="11" rx="2" fill="currentColor" opacity="0.68" />
+            <rect x="9" y="34" width="16" height="11" rx="2" fill="currentColor" opacity="0.48" />
+          </Box>
         </Box>
-      ) : (
-        <Button
-          size="small"
-          variant="outlined"
-          disableElevation
-          onClick={() => onOpen?.(artifact)}
-          sx={{
-            flexShrink: 0,
-            ...getSecondaryActionButtonSx(theme),
-          }}
-        >
-          View diagram
-        </Button>
-      )}
+      </Box>
     </Box>
   );
 });
@@ -528,12 +561,22 @@ const AIMessage = memo(function AIMessage({
   // Complete canvas code artifacts (both fences present)
   const artifacts = useMemo(() => extractCanvasCodeArtifacts(displayText), [displayText]);
 
-  // Partial artifacts — opening fence detected but closing fence not yet
-  // arrived. Shows a "Building diagram…" placeholder card during streaming.
+  const diagramArtifactPhase = useMemo(
+    () =>
+      getDiagramArtifactPhase({
+        isActive: isStreaming || isWaiting,
+        markdown: displayText,
+        steps: displaySteps,
+        timeline: displayTimeline,
+      }),
+    [displaySteps, displayText, displayTimeline, isStreaming, isWaiting],
+  );
+
+  // The generating card starts as soon as the diagram skill activates, rather
+  // than waiting for the first streamed code-fence token to arrive.
   const generatingArtifacts = useMemo(() => {
-    if (!isStreaming && !isWaiting) return [];
     if (artifacts.length > 0) return [];
-    if (!hasOpenCanvasBlock(displayText)) return [];
+    if (diagramArtifactPhase !== 'generating') return [];
     return Array.from(CANVAS_CODE_LANGUAGES).map((lang) => ({
       key: `partial-${lang}`,
       type: 'react-flow',
@@ -541,7 +584,7 @@ const AIMessage = memo(function AIMessage({
       isGenerating: true,
       props: { code: '' },
     }));
-  }, [displayText, isStreaming, isWaiting, artifacts]);
+  }, [artifacts, diagramArtifactPhase]);
 
   // Union: partial (generating) artifacts always precede complete ones.
   // In practice exactly one side is non-empty at any given moment.

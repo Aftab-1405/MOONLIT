@@ -326,9 +326,7 @@ function ApiStatusCard({ statusTone, apiHealth, refreshing, onRefresh }) {
         >
           {formatLatency(apiHealth.latency)}
         </Typography>
-        <Typography
-          sx={{ mt: 0.5, color: 'text.secondary', fontSize: 12 }}
-        >
+        <Typography sx={{ mt: 0.5, color: 'text.secondary', fontSize: 12 }}>
           {statusTone.copy}
         </Typography>
       </Box>

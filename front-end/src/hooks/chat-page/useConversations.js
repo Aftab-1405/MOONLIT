@@ -120,10 +120,7 @@ export function useConversations() {
     setConversations((prev) =>
       prev.map((conversation) => {
         if (conversation.id !== convId) return conversation;
-        const recoveredTitle = recoverLegacyConversationTitle(
-          conversation.title,
-          firstUserMessage,
-        );
+        const recoveredTitle = recoverLegacyConversationTitle(conversation.title, firstUserMessage);
         return recoveredTitle && recoveredTitle !== conversation.title
           ? { ...conversation, title: recoveredTitle }
           : conversation;
@@ -135,58 +132,61 @@ export function useConversations() {
     setCurrentConversationId(null);
     setIsConversationLoading(false);
   }, []);
-  const handleSelectConversation = useCallback(async (convId) => {
-    const cachedConversation = queryClient.getQueryData(queryKeys.conversation(convId));
-    if (cachedConversation?.messages) {
-      setCurrentConversationId(convId);
-      setMessages(cachedConversation.messages);
-      recoverGeneratedTitle(convId, cachedConversation.messages);
-      lastLoadedConversationIdRef.current = convId;
-      setIsConversationLoading(false);
-      return true;
-    }
-
-    const requestSeq = ++conversationLoadSeqRef.current;
-    setIsConversationLoading(true);
-    try {
-      const data = await queryClient.fetchQuery({
-        queryKey: queryKeys.conversation(convId),
-        queryFn: ({ signal: querySignal }) => getConversation(convId, querySignal),
-        staleTime: 5 * 60 * 1000,
-      });
-
-      // Guard: if the user switched conversations while this request was
-      // in-flight, discard the stale result entirely.
-      if (conversationLoadSeqRef.current !== requestSeq) {
-        return false;
-      }
-
-      if (data.status === 'success' && data.conversation) {
+  const handleSelectConversation = useCallback(
+    async (convId) => {
+      const cachedConversation = queryClient.getQueryData(queryKeys.conversation(convId));
+      if (cachedConversation?.messages) {
         setCurrentConversationId(convId);
-        const formattedMessages = (data.conversation.messages || []).map((msg, index) =>
-          normalizeConversationMessage(msg, index),
-        );
-        queryClient.setQueryData(queryKeys.conversation(convId), {
-          ...data,
-          messages: formattedMessages,
-        });
-        setMessages(formattedMessages);
-        recoverGeneratedTitle(convId, formattedMessages);
+        setMessages(cachedConversation.messages);
+        recoverGeneratedTitle(convId, cachedConversation.messages);
         lastLoadedConversationIdRef.current = convId;
+        setIsConversationLoading(false);
         return true;
       }
-      return false;
-    } catch (error) {
-      if (error.name === 'AbortError') return false; // Ignore abort errors
-      logger.error('Failed to load conversation:', error);
-      return false;
-    } finally {
-      // Only reset loading if this is still the active request.
-      if (conversationLoadSeqRef.current === requestSeq) {
-        setIsConversationLoading(false);
+
+      const requestSeq = ++conversationLoadSeqRef.current;
+      setIsConversationLoading(true);
+      try {
+        const data = await queryClient.fetchQuery({
+          queryKey: queryKeys.conversation(convId),
+          queryFn: ({ signal: querySignal }) => getConversation(convId, querySignal),
+          staleTime: 5 * 60 * 1000,
+        });
+
+        // Guard: if the user switched conversations while this request was
+        // in-flight, discard the stale result entirely.
+        if (conversationLoadSeqRef.current !== requestSeq) {
+          return false;
+        }
+
+        if (data.status === 'success' && data.conversation) {
+          setCurrentConversationId(convId);
+          const formattedMessages = (data.conversation.messages || []).map((msg, index) =>
+            normalizeConversationMessage(msg, index),
+          );
+          queryClient.setQueryData(queryKeys.conversation(convId), {
+            ...data,
+            messages: formattedMessages,
+          });
+          setMessages(formattedMessages);
+          recoverGeneratedTitle(convId, formattedMessages);
+          lastLoadedConversationIdRef.current = convId;
+          return true;
+        }
+        return false;
+      } catch (error) {
+        if (error.name === 'AbortError') return false; // Ignore abort errors
+        logger.error('Failed to load conversation:', error);
+        return false;
+      } finally {
+        // Only reset loading if this is still the active request.
+        if (conversationLoadSeqRef.current === requestSeq) {
+          setIsConversationLoading(false);
+        }
       }
-    }
-  }, [recoverGeneratedTitle]);
+    },
+    [recoverGeneratedTitle],
+  );
   const handleDeleteConversation = useCallback(
     async (convId) => {
       try {

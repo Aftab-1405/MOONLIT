@@ -46,8 +46,14 @@ export const createTypography = (H) => ({
   captionMonoSm: monoCaption('0.75rem', 1.3333, '1.2px'),
   buttonMd: body('0.875rem', 1.4286),
 
-  h1: { ...display({ xs: '3rem', md: '6rem' }, 1, { xs: '-1.2px', md: '-2.4px' }), color: H.text000 },
-  h2: { ...display({ xs: '2rem', md: '3rem' }, 1, { xs: '-0.6px', md: '-1.2px' }), color: H.text000 },
+  h1: {
+    ...display({ xs: '3rem', md: '6rem' }, 1, { xs: '-1.2px', md: '-2.4px' }),
+    color: H.text000,
+  },
+  h2: {
+    ...display({ xs: '2rem', md: '3rem' }, 1, { xs: '-0.6px', md: '-1.2px' }),
+    color: H.text000,
+  },
   h3: display({ xs: '1.75rem', md: '2rem' }, 1.125, '-0.6px'),
   h4: display('1.25rem', 1.4, 0),
   h5: display('1.125rem', 1.4, 0),
@@ -81,7 +87,12 @@ export const createTypography = (H) => ({
   uiCaptionXs: body({ xs: '0.68rem', sm: '0.75rem' }, 1.4),
   uiCaption2xs: body({ xs: '0.65rem', sm: '0.7rem' }, 1.4),
   uiMonoLabel: monoCaption({ xs: '0.68rem', sm: '0.75rem' }, 1.3333, '1.2px'),
-  uiCodeBlock: { fontFamily: FONTS.mono, fontSize: { xs: '0.79rem', sm: '0.825rem' }, fontWeight: 400, lineHeight: 1.62 },
+  uiCodeBlock: {
+    fontFamily: FONTS.mono,
+    fontSize: { xs: '0.79rem', sm: '0.825rem' },
+    fontWeight: 400,
+    lineHeight: 1.62,
+  },
   uiCode: { fontSizePx: 13 },
   uiCodeCompact: { fontSizePx: 12 },
 

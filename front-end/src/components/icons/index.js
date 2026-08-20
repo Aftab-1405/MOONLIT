@@ -13,7 +13,6 @@ export { default as ProcessingIcon } from '@mui/icons-material/AutorenewRounded'
 export { default as PerformanceIcon } from '@mui/icons-material/BoltRounded';
 export { default as BugIcon } from '@mui/icons-material/BugReportRounded';
 export { default as CancelIcon } from '@mui/icons-material/CancelRounded';
-export { default as ChatIcon } from '@mui/icons-material/ChatRounded';
 export { default as SuccessIcon } from '@mui/icons-material/CheckCircleOutlineRounded';
 export { default as CheckIcon } from '@mui/icons-material/CheckRounded';
 export { default as ChevronRightIcon } from '@mui/icons-material/ChevronRightRounded';

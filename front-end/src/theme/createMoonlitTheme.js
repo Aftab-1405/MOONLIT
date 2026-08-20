@@ -1,6 +1,5 @@
 import { alpha, createTheme, responsiveFontSizes } from '@mui/material/styles';
 import { MOBILE_SM_QUERY, REDUCED_MOTION_QUERY, TOUCH_DEVICE_QUERY } from '@/styles/mediaQueries';
-import { KEYBOARD_INPUT_MODALITY_SELECTOR } from '@/theme/mode';
 import { BREAKPOINTS, FONTS, SHAPE, SWITCH_GEOMETRY } from '@/theme/tokens';
 import { createTypography } from '@/theme/typography';
 
@@ -470,7 +469,11 @@ const createComponents = (S) => ({
   MuiSkeleton: {
     defaultProps: { animation: 'pulse' },
     styleOverrides: {
-      root: { borderRadius: cardRadius, backgroundColor: S.action.selected, backgroundImage: 'none' },
+      root: {
+        borderRadius: cardRadius,
+        backgroundColor: S.action.selected,
+        backgroundImage: 'none',
+      },
     },
   },
   MuiLinearProgress: {
@@ -494,7 +497,11 @@ const createComponents = (S) => ({
         letterSpacing: 0,
         textTransform: 'none',
         '&:hover': { color: S.text.primary, backgroundColor: S.action.hover },
-        '&.Mui-selected': { color: S.text.primary, backgroundColor: S.action.selected, fontWeight: 400 },
+        '&.Mui-selected': {
+          color: S.text.primary,
+          backgroundColor: S.action.selected,
+          fontWeight: 400,
+        },
         '&.Mui-focusVisible': { outline: `2px solid ${S.border.focus}`, outlineOffset: 2 },
         [MOBILE_SM_QUERY]: { minHeight: 44 },
       },
@@ -576,7 +583,11 @@ const createComponents = (S) => ({
     },
   },
   MuiSelect: {
-    styleOverrides: { root: { borderRadius: cardRadius }, select: { color: S.text.primary }, icon: { color: S.text.secondary } },
+    styleOverrides: {
+      root: { borderRadius: cardRadius },
+      select: { color: S.text.primary },
+      icon: { color: S.text.secondary },
+    },
   },
   MuiLink: {
     styleOverrides: {
@@ -635,7 +646,11 @@ const createComponents = (S) => ({
         fontWeight: 400,
         textTransform: 'none',
         '&:hover': { color: S.text.primary, backgroundColor: S.action.hover },
-        '&.Mui-selected': { color: S.text.primary, backgroundColor: S.action.selected, fontWeight: 400 },
+        '&.Mui-selected': {
+          color: S.text.primary,
+          backgroundColor: S.action.selected,
+          fontWeight: 400,
+        },
         '&.Mui-focusVisible': { boxShadow: `0 0 0 2px ${S.border.focus}` },
       },
     },
@@ -648,18 +663,31 @@ const createComponents = (S) => ({
   },
   MuiInputLabel: {
     styleOverrides: {
-      root: { color: S.text.secondary, fontSize: '0.875rem', fontWeight: 400, '&.Mui-focused': { color: S.text.secondary } },
+      root: {
+        color: S.text.secondary,
+        fontSize: '0.875rem',
+        fontWeight: 400,
+        '&.Mui-focused': { color: S.text.secondary },
+      },
     },
   },
   MuiFormHelperText: { styleOverrides: { root: { fontSize: '0.75rem', color: S.text.secondary } } },
   MuiCheckbox: {
     styleOverrides: {
-      root: { color: S.text.secondary, '&.Mui-checked': { color: S.text.primary }, '&.Mui-focusVisible': { outline: 'none', boxShadow: 'none' } },
+      root: {
+        color: S.text.secondary,
+        '&.Mui-checked': { color: S.text.primary },
+        '&.Mui-focusVisible': { outline: 'none', boxShadow: 'none' },
+      },
     },
   },
   MuiRadio: {
     styleOverrides: {
-      root: { color: S.text.secondary, '&.Mui-checked': { color: S.text.primary }, '&.Mui-focusVisible': { outline: 'none', boxShadow: 'none' } },
+      root: {
+        color: S.text.secondary,
+        '&.Mui-checked': { color: S.text.primary },
+        '&.Mui-focusVisible': { outline: 'none', boxShadow: 'none' },
+      },
     },
   },
   MuiSlider: {
@@ -667,7 +695,9 @@ const createComponents = (S) => ({
       thumb: { '&.Mui-focusVisible': { outline: 'none', boxShadow: 'none' } },
     },
   },
-  MuiBadge: { styleOverrides: { badge: { fontWeight: 400, border: `1px solid ${S.border.idle}` } } },
+  MuiBadge: {
+    styleOverrides: { badge: { fontWeight: 400, border: `1px solid ${S.border.idle}` } },
+  },
 });
 
 export function createMoonlitTheme(S, H) {

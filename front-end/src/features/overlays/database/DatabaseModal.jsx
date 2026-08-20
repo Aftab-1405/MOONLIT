@@ -551,10 +551,7 @@ function DatabaseModal({
 
   const toggleGroupSx = useMemo(() => getPreferenceToggleGroupSx(theme), [theme]);
   const dangerButtonSx = useMemo(() => getPreferenceButtonSx(theme, { tone: 'danger' }), [theme]);
-  const successButtonSx = useMemo(
-    () => getPreferenceButtonSx(theme, { tone: 'success' }),
-    [theme],
-  );
+  const successButtonSx = useMemo(() => getPreferenceButtonSx(theme, { tone: 'success' }), [theme]);
 
   const navContent = (
     <PreferenceNavList ariaLabel="Database type">

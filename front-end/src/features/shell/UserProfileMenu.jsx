@@ -127,7 +127,10 @@ const UserProfileMenu = memo(function UserProfileMenu({
       </Box>
 
       {(providers || typeof user?.emailVerified === 'boolean' || createdAt || lastSignInAt) && (
-        <Box aria-label="Account information" sx={{ display: 'grid', gap: 0.75, px: 1.5, pb: 1.25 }}>
+        <Box
+          aria-label="Account information"
+          sx={{ display: 'grid', gap: 0.75, px: 1.5, pb: 1.25 }}
+        >
           {providers && <ProfileDetail label="Signed in with" value={providers} />}
           {typeof user?.emailVerified === 'boolean' && (
             <ProfileDetail

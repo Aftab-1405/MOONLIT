@@ -33,16 +33,12 @@ export default function FaqSection() {
                 square
                 slotProps={{ region: { 'aria-labelledby': headerId } }}
                 sx={{
-                  borderTop: '1px solid',
-                  borderColor: 'border.subtle',
+                  border: 'none',
                   backgroundColor: 'transparent',
                   backgroundImage: 'none',
                   boxShadow: 'none',
                   '&::before': { display: 'none' },
-                  '&:last-of-type': {
-                    borderBottom: '1px solid',
-                    borderColor: 'border.subtle',
-                  },
+                  '& + &': { mt: 1 },
                   '&.Mui-expanded': { m: 0 },
                 }}
               >
@@ -54,6 +50,13 @@ export default function FaqSection() {
                     minHeight: 72,
                     px: 0,
                     gap: 2,
+                    '&:hover': { backgroundColor: 'transparent' },
+                    '&.Mui-focusVisible': {
+                      backgroundColor: 'transparent',
+                      outline: '1px solid',
+                      outlineColor: 'border.default',
+                      outlineOffset: 2,
+                    },
                     '&.Mui-expanded': { minHeight: 72 },
                     '& .MuiAccordionSummary-content': { my: 2.5 },
                     '& .MuiAccordionSummary-content.Mui-expanded': { my: 2.5 },
@@ -64,7 +67,9 @@ export default function FaqSection() {
                   </Typography>
                 </AccordionSummary>
                 <AccordionDetails sx={{ px: 0, pt: 0, pb: 3.5 }}>
-                  <Typography sx={(theme) => ({ ...theme.typography.bodyMd, color: 'text.secondary' })}>
+                  <Typography
+                    sx={(theme) => ({ ...theme.typography.bodyMd, color: 'text.secondary' })}
+                  >
                     {faq.answer}
                   </Typography>
                 </AccordionDetails>

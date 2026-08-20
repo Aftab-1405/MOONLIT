@@ -13,11 +13,7 @@ import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { memo, useEffect, useMemo, useRef, useState } from 'react';
 import { queryClient, queryKeys } from '@/api/queryClient';
 import { DialogShell } from '@/components';
-import {
-  AiContextIcon,
-  AiSparkleIcon,
-  DatabaseIcon,
-} from '@/components/icons';
+import { AiContextIcon, AiSparkleIcon, DatabaseIcon } from '@/components/icons';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
 import {
   getPreferenceBackdropSx,

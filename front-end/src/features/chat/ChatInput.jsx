@@ -49,6 +49,7 @@ import {
   SendIcon,
   StopIcon,
 } from '@/components/icons';
+import { getContextUsage } from '@/features/chat/contextUsage';
 import SlashCommandMenu from '@/features/chat/SlashCommandMenu';
 import { extractSlashQuery } from '@/features/chat/slashCommandUtils';
 import {
@@ -118,7 +119,7 @@ const ContextProgressRing = ({ value, theme }) => {
   );
 };
 
-const ModelSelectorLabel = memo(function ModelSelectorLabel({ children }) {
+const ModelSelectorLabel = memo(function ModelSelectorLabel({ label }) {
   const viewportRef = useRef(null);
   const textRef = useRef(null);
   const [overflowWidth, setOverflowWidth] = useState(0);
@@ -142,7 +143,7 @@ const ModelSelectorLabel = memo(function ModelSelectorLabel({ children }) {
     resizeObserver.observe(viewport);
     resizeObserver.observe(text);
     return () => resizeObserver.disconnect();
-  }, [children]);
+  }, []);
 
   const travelDuration = Math.min(5000, Math.max(1200, overflowWidth * 25));
 
@@ -173,7 +174,7 @@ const ModelSelectorLabel = memo(function ModelSelectorLabel({ children }) {
           transition: 'transform 180ms ease-out',
         }}
       >
-        {children}
+        {label}
       </Box>
     </Box>
   );
@@ -515,57 +516,7 @@ function ChatInput({
       }));
   }, [providerOptions]);
   const hasLlmOptions = llmSections.length > 0;
-  const contextUsage = useMemo(() => {
-    if (!usageMetrics) return null;
-    // ENH [CTX-SINGLE-SOURCE]: The back-end now computes the percentages.
-    // The front-end does ZERO calculation — just renders the values.
-    // This eliminates all sync issues between the indicator and the
-    // summarization trigger, because both use the same formula in the
-    // same code (build_usage_metrics in stream_events.py).
-    //
-    // The back-end sends:
-    //   activePercent: 0-100 (when this hits 90, summarization triggers)
-    //   modelPercent:  0-100 (total payload vs. model's context window)
-    //
-    // Fallback: for OLD conversations (stored before the back-end computed
-    // percentages), compute from raw values so the indicator still works.
-    const activePercent =
-      usageMetrics.activePercent ??
-      (usageMetrics.inputPayloadTokens && usageMetrics.pressureTriggerTokens
-        ? Math.min(
-            100,
-            Math.max(
-              0,
-              Math.round(
-                (usageMetrics.inputPayloadTokens / usageMetrics.pressureTriggerTokens) * 100,
-              ),
-            ),
-          )
-        : null);
-    const modelPercent =
-      usageMetrics.modelPercent ??
-      (usageMetrics.inputPayloadTokens &&
-      (usageMetrics.modelContextWindow || usageMetrics.totalContextWindow)
-        ? Math.min(
-            100,
-            Math.max(
-              0,
-              Math.round(
-                (usageMetrics.inputPayloadTokens /
-                  (usageMetrics.modelContextWindow || usageMetrics.totalContextWindow)) *
-                  100,
-              ),
-            ),
-          )
-        : null);
-    if (activePercent == null) return null;
-    return {
-      activePercent,
-      modelPercent,
-      contextPhase: usageMetrics.contextPhase,
-      tokenCountingMode: usageMetrics.tokenCountingMode,
-    };
-  }, [usageMetrics]);
+  const contextUsage = useMemo(() => getContextUsage(usageMetrics), [usageMetrics]);
 
   const handleCloseContextMenu = useCallback(() => setContextAnchor(null), []);
   const handleCloseLlmPopover = useCallback(() => setLlmAnchor(null), []);
@@ -1061,9 +1012,10 @@ function ChatInput({
                       flexShrink: 0,
                     }}
                   >
-                    <ModelSelectorLabel>
-                      {selectedModel || (llmOptionsLoading ? 'Loading...' : 'Choose model')}
-                    </ModelSelectorLabel>
+                    <ModelSelectorLabel
+                      key={selectedModel || (llmOptionsLoading ? 'loading' : 'choose-model')}
+                      label={selectedModel || (llmOptionsLoading ? 'Loading...' : 'Choose model')}
+                    />
                   </Button>
                 </span>
               </Tooltip>

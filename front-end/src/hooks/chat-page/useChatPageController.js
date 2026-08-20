@@ -20,7 +20,15 @@ import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { useDatabaseConnection } from '@/contexts/DatabaseContext';
 import { useTheme as useAppTheme } from '@/contexts/ThemeContext';
+import {
+  getActiveConversationId,
+  getActiveConversationTitle,
+} from '@/features/chat/chatHeaderModel';
 import { useMindmapSchema } from '@/hooks';
+import {
+  planOverlayLaunch,
+  resolveOverlayFocusTarget,
+} from '@/hooks/chat-page/overlayCoordination';
 import useAutoScroll from '@/hooks/chat-page/useAutoScroll';
 import { useChatPageCanvas } from '@/hooks/chat-page/useChatPageCanvas';
 import { useChatPageGuidedConfirm } from '@/hooks/chat-page/useChatPageGuidedConfirm';
@@ -31,10 +39,6 @@ import { useChatPageStreaming } from '@/hooks/chat-page/useChatPageStreaming';
 import { useConversationDialogs } from '@/hooks/chat-page/useConversationDialogs';
 import { useConversations } from '@/hooks/chat-page/useConversations';
 import { useOverlayState } from '@/hooks/chat-page/useOverlayState';
-import {
-  planOverlayLaunch,
-  resolveOverlayFocusTarget,
-} from '@/hooks/chat-page/overlayCoordination';
 import { useQueryExecution } from '@/hooks/chat-page/useQueryExecution';
 import { useResponsive } from '@/hooks/chat-page/useResponsive';
 import { useUiActionDispatcher } from '@/hooks/chat-page/useUiActionDispatcher';
@@ -444,6 +448,11 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     !routeConversationId && messages.length === 0 && !isConversationViewLoading;
   const showConversationPanel =
     Boolean(routeConversationId) || messages.length > 0 || isConversationViewLoading;
+  const activeConversationId = getActiveConversationId(routeConversationId, currentConversationId);
+  const activeConversationTitle = useMemo(
+    () => getActiveConversationTitle(conversations, activeConversationId),
+    [activeConversationId, conversations],
+  );
   const streamActivityKey = useMemo(() => {
     const lastMessage = messages[messages.length - 1];
     if (!lastMessage) return 'empty';
@@ -584,6 +593,9 @@ export function useChatPageController({ mobileSidebarTriggerRef } = {}) {
     isPinnedToBottom,
     scrollToBottom,
     showConversationPanel,
+    currentConversationId: activeConversationId,
+    activeConversationTitle,
+    handleConversationHeaderRename: handleSidebarRenameConversation,
     messages,
     isConversationLoading: isConversationViewLoading,
     conversationLoadState: routeConversationLoadState,

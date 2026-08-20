@@ -25,8 +25,8 @@ class PromptBuilder:
         can route trivial tasks (row counts, schema discovery, FK lookups,
         view listings) directly to the right specialized tool without first
         paying a ``read_skill`` round-trip. The skill itself still contains
-        the full workflow guidance and must be loaded before executing any
-        database tool (enforced by ``TOOL_REQUIRED_SKILLS``).
+        the full workflow guidance. An applicable skill must be loaded before
+        executing a specialized database tool (enforced by ``TOOL_REQUIRED_SKILLS``).
         ENH [3]: ``<global_rules>`` now contains a nested
         ``<stop_conditions>`` block enumerating the concrete signals the
         LLM should treat as "stop calling tools and answer the user" —
@@ -212,10 +212,10 @@ class PromptBuilder:
 
         ENH [5]: ``db_connected`` controls whether the database-related skill
         cards are advertised. When the user has no live database connection,
-        ``database-querying``, ``query-history``, and ``react-flow-diagram``
-        are dropped from ``<available_skills>`` (saving ~250 tokens for zero
-        benefit). Defaults to ``True`` for backward compatibility — callers
-        that don't pass it get the original full-skill behavior.
+        database-only skill cards are dropped from ``<available_skills>``.
+        ``react-flow-diagram`` stays visible because conceptual diagrams and
+        workflows do not require a live connection. Defaults to ``True`` for
+        backward compatibility.
         """
         del user_message
 

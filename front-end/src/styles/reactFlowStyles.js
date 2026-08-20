@@ -14,12 +14,12 @@ export const HIDDEN_FLOW_HANDLE_STYLE = {
 
 const FLOW_NODE_RADIUS = '8px';
 
-const getAlphaColor = (color, opacity) => {
-  if (typeof color !== 'string' || !color.trim()) return null;
+export const getReactFlowAlphaColor = (color, opacity, fallback = null) => {
+  if (typeof color !== 'string' || !color.trim()) return fallback;
   try {
     return alpha(color, opacity);
   } catch {
-    return null;
+    return fallback;
   }
 };
 
@@ -28,10 +28,7 @@ const getCustomStyleAccent = (style) => {
   return style.borderColor || style.backgroundColor || style.color || null;
 };
 
-export const getReactFlowCanvasSx = (
-  theme,
-  { cardClassName = FLOW_NODE_CARD_CLASS } = {},
-) => ({
+export const getReactFlowCanvasSx = (theme, { cardClassName = FLOW_NODE_CARD_CLASS } = {}) => ({
   width: '100%',
   height: '100%',
   position: 'relative',
@@ -123,10 +120,15 @@ export const getReactFlowStatusSx = (theme, status) => {
   const tone =
     {
       active: theme.palette.success.main,
+      cached: theme.palette.text.secondary,
+      error: theme.palette.error.main,
       pending: theme.palette.info.main,
       blocked: theme.palette.error.main,
       disabled: theme.palette.text.disabled,
       ready: theme.palette.text.secondary,
+      running: theme.palette.info.main,
+      success: theme.palette.success.main,
+      warning: theme.palette.warning.main,
     }[status] || theme.palette.text.secondary;
 
   return {
@@ -139,17 +141,17 @@ export const getReactFlowStatusSx = (theme, status) => {
 
 export const getReactFlowCustomNodeAccentSx = (theme, customStyle) => {
   const accent = getCustomStyleAccent(customStyle);
-  const accentBorder = getAlphaColor(accent, theme.palette.opacity.emphasis);
+  const accentBorder = getReactFlowAlphaColor(accent, theme.palette.opacity.emphasis);
   if (!accentBorder) return {};
 
   return {
     borderRadius: FLOW_NODE_RADIUS,
-    borderColor: getAlphaColor(accent, theme.palette.opacity.focus) || accentBorder,
+    borderColor: getReactFlowAlphaColor(accent, theme.palette.opacity.focus) || accentBorder,
     borderLeft: `4px solid ${accent}`,
     backgroundColor: theme.palette.background.paper,
     boxShadow: 'none',
     '&:hover': {
-      borderColor: getAlphaColor(accent, theme.palette.opacity.emphasis) || accentBorder,
+      borderColor: getReactFlowAlphaColor(accent, theme.palette.opacity.emphasis) || accentBorder,
     },
   };
 };
@@ -189,10 +191,15 @@ export const getReactFlowNodeStatusDotSx = (theme, status) => {
   const tone =
     {
       active: theme.palette.success.main,
+      cached: theme.palette.text.secondary,
+      error: theme.palette.error.main,
       pending: theme.palette.info.main,
       blocked: theme.palette.error.main,
       disabled: theme.palette.text.disabled,
       ready: theme.palette.text.secondary,
+      running: theme.palette.info.main,
+      success: theme.palette.success.main,
+      warning: theme.palette.warning.main,
     }[status] || theme.palette.text.secondary;
   return { backgroundColor: tone, boxShadow: 'none' };
 };

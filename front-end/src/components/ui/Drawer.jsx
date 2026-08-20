@@ -81,7 +81,13 @@ export const Drawer = ({
 
   return (
     <DrawerContext.Provider
-      value={{ open, onOpenChange, side, reduceMotion, onPanelExitComplete: handlePanelExitComplete }}
+      value={{
+        open,
+        onOpenChange,
+        side,
+        reduceMotion,
+        onPanelExitComplete: handlePanelExitComplete,
+      }}
     >
       <Modal
         open={open || present}

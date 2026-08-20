@@ -1,5 +1,5 @@
-import { getAppPanelSurfaceSx } from '@/features/styles/interfaceChrome';
-import { getInteractionColors, UI_LAYOUT } from '@/styles/shared';
+import { getInteractionColors, UI_LAYOUT } from '../../../styles/shared.js';
+import { getAppPanelSurfaceSx } from '../../styles/interfaceChrome.js';
 
 /**
  * Sidebar styling primitives.
@@ -108,10 +108,7 @@ export function buildNavRowSx(
 }
 
 // ─── Conversation row ─────────────────────────────────────────────────────────
-export function buildConversationRowSx(
-  theme,
-  { isActive = false, isRenaming = false } = {},
-) {
+export function buildConversationRowSx(theme, { isActive = false, isRenaming = false } = {}) {
   const interaction = getInteractionColors(theme, { active: isActive });
   return {
     display: 'grid',
@@ -138,34 +135,24 @@ export function buildConversationRowSx(
     backgroundColor: isActive ? interaction.activeBackground : 'transparent',
     color: isActive ? theme.palette.text.primary : theme.palette.text.secondary,
     boxShadow: 'none',
-    '&::before': isActive
-      ? {
-          content: '""',
-          position: 'absolute',
-          zIndex: 1,
-          left: 0,
-          top: { xs: 11, md: 9 },
-          bottom: { xs: 11, md: 9 },
-          width: 2,
-          borderRadius: 9999,
-          backgroundColor: theme.palette.primary.main,
-        }
-      : undefined,
     transition: theme.transitions.create(['background-color', 'color', 'box-shadow'], {
       duration: theme.transitions.duration.shorter,
     }),
-    '&:hover .conversation-options, & .conversation-options:focus-visible, & .conversation-options.Mui-focusVisible': {
-      opacity: 1,
-      color: theme.palette.text.primary,
-    },
-    '&:hover .conversation-title-text, & .conversation-select:focus-visible .conversation-title-text': {
-      transform: 'translateX(calc(-1 * var(--conversation-title-overflow)))',
-      transition: 'transform var(--conversation-title-duration) linear 300ms',
-    },
-    '@media (prefers-reduced-motion: reduce)': {
-      '&:hover .conversation-title-text, & .conversation-select:focus-visible .conversation-title-text': {
-        transition: 'none',
+    '&:hover .conversation-options, & .conversation-options:focus-visible, & .conversation-options.Mui-focusVisible':
+      {
+        opacity: 1,
+        color: theme.palette.text.primary,
       },
+    '&:hover .conversation-title-text, & .conversation-select:focus-visible .conversation-title-text':
+      {
+        transform: 'translateX(calc(-1 * var(--conversation-title-overflow)))',
+        transition: 'transform var(--conversation-title-duration) linear 300ms',
+      },
+    '@media (prefers-reduced-motion: reduce)': {
+      '&:hover .conversation-title-text, & .conversation-select:focus-visible .conversation-title-text':
+        {
+          transition: 'none',
+        },
     },
     '&:hover': {
       backgroundColor: isActive ? interaction.activeHoverBackground : interaction.hoverBackground,

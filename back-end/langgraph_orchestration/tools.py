@@ -141,10 +141,10 @@ TOOL_REQUIRED_SKILLS = {
     # New DB tools all require the database-querying skill — they are
     # specialized schema/performance introspection tools that the agent
     # should only invoke after loading the database-querying instructions.
-    "explain_query": ("database-querying",),
+    "explain_query": ("database-querying", "react-flow-diagram"),
     "get_table_details": ("database-querying",),
-    "get_table_row_count": ("database-querying",),
-    "get_foreign_keys": ("database-querying",),
+    "get_table_row_count": ("database-querying", "react-flow-diagram"),
+    "get_foreign_keys": ("database-querying", "react-flow-diagram"),
     "list_views": ("database-querying",),
 }
 

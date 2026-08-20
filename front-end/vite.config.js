@@ -14,6 +14,15 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
+    // Perspective's inline ESM bundles embed their WASM payloads and are
+    // loaded lazily by the analytics workspace. Serving them directly avoids
+    // stale hashed optimizer URLs when Vite's dev dependency cache changes.
+    exclude: [
+      '@perspective-dev/client',
+      '@perspective-dev/viewer',
+      '@perspective-dev/viewer-charts',
+      '@perspective-dev/viewer-datagrid',
+    ],
     include: [
       // React-Flow (existing)
       '@xyflow/react',

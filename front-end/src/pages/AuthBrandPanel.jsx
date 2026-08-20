@@ -1,6 +1,7 @@
 import { Box, Button, Typography } from '@mui/material';
 
-const PRODUCT_COPY = 'Agentic workflows, database engineering, and data analysis—without requiring technical expertise.';
+const PRODUCT_COPY =
+  'Agentic workflows, database engineering, and data analysis—without requiring technical expertise.';
 
 function AuthBrandPanel({ actionSx, layoutSx, onNavigateHome }) {
   return (
@@ -21,11 +22,13 @@ function AuthBrandPanel({ actionSx, layoutSx, onNavigateHome }) {
         </Button>
 
         <Box sx={layoutSx.productBlock}>
-          <Typography sx={(theme) => ({
-            ...theme.typography.captionMonoSm,
-            color: 'text.secondary',
-            textTransform: 'uppercase',
-          })}>
+          <Typography
+            sx={(theme) => ({
+              ...theme.typography.captionMonoSm,
+              color: 'text.secondary',
+              textTransform: 'uppercase',
+            })}
+          >
             One intelligent workspace
           </Typography>
           <Typography
@@ -45,12 +48,14 @@ function AuthBrandPanel({ actionSx, layoutSx, onNavigateHome }) {
             <Typography sx={{ maxWidth: 480, mt: 2.5, color: 'text.secondary' }}>
               {PRODUCT_COPY}
             </Typography>
-            <Typography sx={(theme) => ({
-              ...theme.typography.captionMonoSm,
-              mt: 3,
-              color: 'text.disabled',
-              textTransform: 'uppercase',
-            })}>
+            <Typography
+              sx={(theme) => ({
+                ...theme.typography.captionMonoSm,
+                mt: 3,
+                color: 'text.disabled',
+                textTransform: 'uppercase',
+              })}
+            >
               Secure by design · Work with confidence
             </Typography>
           </Box>

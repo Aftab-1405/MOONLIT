@@ -1,12 +1,8 @@
 import { Box, Dialog, IconButton, Typography } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
-import { CloseIcon } from '@/components/icons';
 import { getDialogCloseButtonSx } from '@/components/common/dialogActionStyles';
-import {
-  getDialogFooterSx,
-  getDialogHeaderSx,
-  getDialogPaperSx,
-} from '@/styles/shared';
+import { CloseIcon } from '@/components/icons';
+import { getDialogFooterSx, getDialogHeaderSx, getDialogPaperSx } from '@/styles/shared';
 
 function DialogShell({
   open,

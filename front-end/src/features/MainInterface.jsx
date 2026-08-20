@@ -64,6 +64,8 @@ function MainInterface() {
     isConversationLoading,
     conversationLoadState,
     currentConversationId,
+    activeConversationTitle,
+    handleConversationHeaderRename,
     handleRunQuery,
     handleOpenCanvasArtifact,
     chatInputSharedProps,
@@ -121,6 +123,8 @@ function MainInterface() {
       handleGuidedCancel={handleGuidedCancel}
       handleGuidedConfirm={handleGuidedConfirm}
       currentConversationId={currentConversationId}
+      conversationTitle={activeConversationTitle}
+      onRenameConversation={handleConversationHeaderRename}
       isNarrowLayout={isNarrowLayout}
       onOpenSidebar={handleMobileDrawerOpen}
       onOpenDatabase={handleSidebarOpenDbModal}

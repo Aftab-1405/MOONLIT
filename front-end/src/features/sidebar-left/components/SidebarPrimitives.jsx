@@ -12,13 +12,7 @@ import {
 } from '@mui/material';
 import { useTheme } from '@mui/material/styles';
 import { memo, useCallback, useEffect, useRef, useState } from 'react';
-import {
-  CheckIcon,
-  CloseIcon,
-  DeleteIcon,
-  MoreIcon,
-  RenameIcon,
-} from '@/components/icons';
+import { CheckIcon, CloseIcon, DeleteIcon, MoreIcon, RenameIcon } from '@/components/icons';
 import {
   buildConversationRowSx,
   buildConversationSelectSx,
@@ -76,7 +70,7 @@ const ConversationTitle = memo(function ConversationTitle({ title, theme }) {
     resizeObserver.observe(viewport);
     resizeObserver.observe(text);
     return () => resizeObserver.disconnect();
-  }, [title]);
+  }, []);
 
   const travelDuration = Math.min(5000, Math.max(1200, overflowWidth * 25));
 
@@ -339,9 +333,7 @@ export const ConversationItem = memo(function ConversationItem({
 
   return (
     <Box component="li" sx={{ listStyle: 'none' }}>
-      <Box
-        sx={buildConversationRowSx(theme, { isActive, menuOpen, isRenaming })}
-      >
+      <Box sx={buildConversationRowSx(theme, { isActive, menuOpen, isRenaming })}>
         {isRenaming ? (
           <InlineConversationTitle
             title={inlineRename.title}
@@ -362,7 +354,7 @@ export const ConversationItem = memo(function ConversationItem({
               aria-label={`Open ${title}`}
               sx={buildConversationSelectSx(theme)}
             >
-              <ConversationTitle title={displayTitle} theme={theme} />
+              <ConversationTitle key={displayTitle} title={displayTitle} theme={theme} />
             </Box>
             <Tooltip title="Conversation options" arrow>
               <IconButton
@@ -562,9 +554,7 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
 
   return (
     <Box component="li" sx={{ listStyle: 'none' }}>
-      <Box
-        sx={buildConversationRowSx(theme, { isActive, menuOpen, isRenaming })}
-      >
+      <Box sx={buildConversationRowSx(theme, { isActive, menuOpen, isRenaming })}>
         {isRenaming ? (
           <InlineConversationTitle
             title={inlineRename.title}
@@ -587,7 +577,7 @@ export const HistoryPopoverItem = memo(function HistoryPopoverItem({
               aria-label={`Open ${title}`}
               sx={buildConversationSelectSx(theme)}
             >
-              <ConversationTitle title={displayTitle} theme={theme} />
+              <ConversationTitle key={displayTitle} title={displayTitle} theme={theme} />
             </Box>
             <Tooltip title="Conversation options">
               <IconButton

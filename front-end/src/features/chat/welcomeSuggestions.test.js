@@ -15,9 +15,7 @@ test('welcome greeting refresh delay targets the next local period boundary', ()
   assert.equal(typeof welcomeSuggestionsModel.getWelcomePeriodBoundaryDelay, 'function');
 
   assert.equal(
-    welcomeSuggestionsModel.getWelcomePeriodBoundaryDelay(
-      new Date(2026, 7, 16, 4, 59, 59, 250),
-    ),
+    welcomeSuggestionsModel.getWelcomePeriodBoundaryDelay(new Date(2026, 7, 16, 4, 59, 59, 250)),
     750,
   );
   assert.equal(
@@ -96,10 +94,19 @@ test('disconnected catalog avoids schema claims and exposes one database action'
 });
 
 test('suggestion keyboard navigation wraps and supports Home and End', () => {
-  assert.equal(getSuggestionNavigationIndex({ key: 'ArrowDown', currentIndex: 4, itemCount: 5 }), 0);
-  assert.equal(getSuggestionNavigationIndex({ key: 'ArrowRight', currentIndex: 1, itemCount: 5 }), 2);
+  assert.equal(
+    getSuggestionNavigationIndex({ key: 'ArrowDown', currentIndex: 4, itemCount: 5 }),
+    0,
+  );
+  assert.equal(
+    getSuggestionNavigationIndex({ key: 'ArrowRight', currentIndex: 1, itemCount: 5 }),
+    2,
+  );
   assert.equal(getSuggestionNavigationIndex({ key: 'ArrowUp', currentIndex: 0, itemCount: 5 }), 4);
-  assert.equal(getSuggestionNavigationIndex({ key: 'ArrowLeft', currentIndex: 3, itemCount: 5 }), 2);
+  assert.equal(
+    getSuggestionNavigationIndex({ key: 'ArrowLeft', currentIndex: 3, itemCount: 5 }),
+    2,
+  );
   assert.equal(getSuggestionNavigationIndex({ key: 'Home', currentIndex: 3, itemCount: 5 }), 0);
   assert.equal(getSuggestionNavigationIndex({ key: 'End', currentIndex: 0, itemCount: 5 }), 4);
   assert.equal(getSuggestionNavigationIndex({ key: 'Tab', currentIndex: 0, itemCount: 5 }), null);
@@ -108,9 +115,15 @@ test('suggestion keyboard navigation wraps and supports Home and End', () => {
 test('prompt dispatch sends once only when sending is allowed', () => {
   const sent = [];
   const entry = { type: 'prompt', prompt: 'Inspect the schema' };
-  assert.equal(runWelcomeEntry(entry, { canSend: false, onSend: (value) => sent.push(value) }), false);
+  assert.equal(
+    runWelcomeEntry(entry, { canSend: false, onSend: (value) => sent.push(value) }),
+    false,
+  );
   assert.deepEqual(sent, []);
-  assert.equal(runWelcomeEntry(entry, { canSend: true, onSend: (value) => sent.push(value) }), true);
+  assert.equal(
+    runWelcomeEntry(entry, { canSend: true, onSend: (value) => sent.push(value) }),
+    true,
+  );
   assert.deepEqual(sent, ['Inspect the schema']);
 });
 
@@ -118,7 +131,11 @@ test('database dispatch opens the modal without sending a prompt', () => {
   const calls = [];
   const handled = runWelcomeEntry(
     { type: 'openDatabase' },
-    { canSend: true, onSend: () => calls.push('send'), onOpenDatabase: () => calls.push('database') },
+    {
+      canSend: true,
+      onSend: () => calls.push('send'),
+      onOpenDatabase: () => calls.push('database'),
+    },
   );
   assert.equal(handled, true);
   assert.deepEqual(calls, ['database']);
@@ -216,10 +233,7 @@ test('database availability keeps its mixed category reachable when prompt sendi
   const availableDatabaseOptions = { promptDisabled: true, canOpenDatabase: true };
 
   assert.equal(
-    welcomeSuggestionsModel.isWelcomeEntryDisabled(
-      { type: 'prompt' },
-      availableDatabaseOptions,
-    ),
+    welcomeSuggestionsModel.isWelcomeEntryDisabled({ type: 'prompt' }, availableDatabaseOptions),
     true,
   );
   assert.equal(
@@ -230,17 +244,11 @@ test('database availability keeps its mixed category reachable when prompt sendi
     false,
   );
   assert.equal(
-    welcomeSuggestionsModel.isWelcomeCategoryDisabled(
-      connectDatabase,
-      availableDatabaseOptions,
-    ),
+    welcomeSuggestionsModel.isWelcomeCategoryDisabled(connectDatabase, availableDatabaseOptions),
     false,
   );
   assert.equal(
-    welcomeSuggestionsModel.isWelcomeCategoryDisabled(
-      understandMoonlit,
-      availableDatabaseOptions,
-    ),
+    welcomeSuggestionsModel.isWelcomeCategoryDisabled(understandMoonlit, availableDatabaseOptions),
     true,
   );
   assert.equal(
